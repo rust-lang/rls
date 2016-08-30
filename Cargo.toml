@@ -1,0 +1,9 @@
+[package]
+name = "rustls"
+version = "0.1.0"
+authors = ["Jonathan Turner <jturner@mozilla.com>"]
+
+[dependencies]
+racer = { git = "https://github.com/phildawes/racer" }
+rand = "0.3.14"
+rustc-serialize = "0.3"
