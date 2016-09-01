@@ -24,15 +24,13 @@ use std::panic;
 /// current task. The with_name constructor allows you to choose a name. Neither forms are secure,
 /// and both are subject to race conditions.
 pub struct TmpFile {
-    path_buf: PathBuf
+    path_buf: PathBuf,
 }
 
 impl TmpFile {
     /// Create a temp file with random name and `contents`.
     pub fn new(contents: &str) -> TmpFile {
-        let tmp = TmpFile {
-            path_buf: PathBuf::from(tmpname())
-        };
+        let tmp = TmpFile { path_buf: PathBuf::from(tmpname()) };
 
         tmp.write_contents(contents);
         tmp
@@ -40,9 +38,7 @@ impl TmpFile {
 
     /// Create a file with `name` and `contents`.
     pub fn with_path<P: AsRef<Path>>(name: P, contents: &str) -> TmpFile {
-        let tmp = TmpFile {
-            path_buf: name.as_ref().to_path_buf()
-        };
+        let tmp = TmpFile { path_buf: name.as_ref().to_path_buf() };
 
         tmp.write_contents(contents);
         tmp
@@ -90,7 +86,7 @@ impl Drop for TmpFile {
 }
 
 pub struct TmpDir {
-    path_buf: PathBuf
+    path_buf: PathBuf,
 }
 
 impl TmpDir {
@@ -102,9 +98,7 @@ impl TmpDir {
         let pb = PathBuf::from(name);
         fs::create_dir_all(&pb).unwrap();
 
-        TmpDir {
-            path_buf: pb
-        }
+        TmpDir { path_buf: pb }
     }
 
     /// Create a new temp file in the directory.
@@ -133,17 +127,20 @@ impl Drop for TmpDir {
 struct Position {
     filepath: String,
     line: usize,
-    col: usize
+    col: usize,
 }
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 struct Completion {
     name: String,
-    context: String
+    context: String,
 }
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
-enum Command { GotoDef, Complete }
+enum Command {
+    GotoDef,
+    Complete,
+}
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 struct Request {
@@ -154,60 +151,67 @@ struct Request {
 }
 
 fn complete(source: Position) -> Vec<Completion> {
-    let result = panic::catch_unwind (|| {
+    let result = panic::catch_unwind(|| {
         let path = Path::new(&source.filepath);
         let mut f = File::open(&path).unwrap();
         let mut src = String::new();
         f.read_to_string(&mut src).unwrap();
         let pos = scopes::coords_to_point(&src, source.line, source.col);
         let cache = core::FileCache::new();
-        let got = complete_from_file(&src, &path, pos, &core::Session::from_path(&cache, &path, &path));
+        let got = complete_from_file(&src,
+                                     &path,
+                                     pos,
+                                     &core::Session::from_path(&cache, &path, &path));
 
         let mut results = vec![];
         for comp in got {
-            results.push(Completion {name: comp.matchstr.clone(), context: comp.contextstr.clone() });
+            results.push(Completion {
+                name: comp.matchstr.clone(),
+                context: comp.contextstr.clone(),
+            });
         }
         results
     });
     if let Ok(output) = result {
         output
-    }
-    else {
+    } else {
         vec![]
     }
 }
 
 fn goto_def(source: Position) -> Option<Position> {
-    let result = panic::catch_unwind (|| {
+    let result = panic::catch_unwind(|| {
         let path = Path::new(&source.filepath);
         let mut f = File::open(&path).unwrap();
         let mut src = String::new();
         f.read_to_string(&mut src).unwrap();
         let pos = scopes::coords_to_point(&src, source.line, source.col);
         let cache = core::FileCache::new();
-        if let Some(mch) = find_definition(&src, &path,
-                                pos,
-                                &core::Session::from_path(&cache, &path, &path)) {
+        if let Some(mch) = find_definition(&src,
+                                           &path,
+                                           pos,
+                                           &core::Session::from_path(&cache, &path, &path)) {
             let mut f = File::open(&mch.filepath).unwrap();
             let mut source_src = String::new();
             f.read_to_string(&mut source_src).unwrap();
             if mch.point != 0 {
                 let (line, col) = scopes::point_to_coords(&source_src, mch.point);
                 let fpath = mch.filepath.to_str().unwrap().to_string();
-                Some(Position { filepath: fpath, line: line, col: col })
-            }
-            else {
+                Some(Position {
+                    filepath: fpath,
+                    line: line,
+                    col: col,
+                })
+            } else {
                 None
             }
-        }
-        else {
+        } else {
             None
         }
     });
     if let Ok(output) = result {
         output
-    }
-    else {
+    } else {
         None
     }
 }
@@ -230,14 +234,17 @@ fn read_command(stream: &mut TcpStream) -> io::Result<Request> {
 
 fn handle_client(mut stream: TcpStream) {
     while let Ok(request) = read_command(&mut stream) {
-        let pos = Position { filepath: request.filepath, line: request.line, col: request.col};
+        let pos = Position {
+            filepath: request.filepath,
+            line: request.line,
+            col: request.col,
+        };
         match request.command {
             Command::GotoDef => {
                 if let Some(pos) = goto_def(pos) {
                     let reply = json::encode(&pos).unwrap();
                     stream.write(reply.as_bytes()).unwrap();
-                }
-                else {
+                } else {
                     println!("No match found");
                 }
             }
@@ -259,9 +266,7 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                thread::spawn(move || {
-                    handle_client(stream)
-                });
+                thread::spawn(move || handle_client(stream));
             }
             Err(e) => {
                 println!("Error with socket: {:?}", e);
