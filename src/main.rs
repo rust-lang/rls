@@ -216,7 +216,7 @@ fn read_command(stream: &mut TcpStream) -> io::Result<Request> {
     let mut byte_buff: [u8; 1] = [0];
     let mut buffer = String::new();
 
-    while let Ok(b) = stream.read(&mut byte_buff) {
+    while let Ok(_) = stream.read(&mut byte_buff) {
         buffer.push(byte_buff[0] as char);
         if byte_buff[0] == b'}' {
             break;
@@ -235,7 +235,7 @@ fn handle_client(mut stream: TcpStream) {
             Command::GotoDef => {
                 if let Some(pos) = goto_def(pos) {
                     let reply = json::encode(&pos).unwrap();
-                    stream.write(reply.as_bytes());
+                    stream.write(reply.as_bytes()).unwrap();
                 }
                 else {
                     println!("No match found");
@@ -244,15 +244,13 @@ fn handle_client(mut stream: TcpStream) {
             Command::Complete => {
                 let completions = complete(pos);
                 let reply = json::encode(&completions).unwrap();
-                stream.write(reply.as_bytes());
+                stream.write(reply.as_bytes()).unwrap();
             }
         }
     }
 }
 
 fn main() {
-    use std::env;
-    use std::borrow::Borrow;
     use std::thread;
 
     let listener = TcpListener::bind("127.0.0.1:9000").unwrap();
