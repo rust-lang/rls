@@ -1,5 +1,6 @@
 extern crate racer;
 extern crate rand;
+extern crate rustw;
 
 extern crate rustc_serialize;
 use rustc_serialize::json;
@@ -9,14 +10,17 @@ use racer::core::find_definition;
 use racer::core;
 use racer::scopes;
 
+use rustw::analysis;
+
 use std::fs::{self, File};
 use std::path::*;
+use std::time::Duration;
 use std::thread;
-
 use std::net::{TcpListener, TcpStream};
 use std::io::prelude::*;
 use std::io;
 use std::panic;
+use std::sync::Arc;
 
 /// A temporary file that is removed on drop
 ///
@@ -130,6 +134,11 @@ struct Position {
     col: usize,
 }
 
+struct Input {
+    pos: Position,
+    span: analysis::Span,
+}
+
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 struct Completion {
     name: String,
@@ -140,6 +149,7 @@ struct Completion {
 enum Command {
     GotoDef,
     Complete,
+    OnSave,
 }
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
@@ -148,10 +158,14 @@ struct Request {
     filepath: String,
     line: usize,
     col: usize,
+    line_start: usize,
+    col_start: usize,
+    line_end: usize,
+    col_end: usize,
 }
 
 fn complete(source: Position) -> Vec<Completion> {
-    let result = panic::catch_unwind(|| {
+    panic::catch_unwind(|| {
         let path = Path::new(&source.filepath);
         let mut f = File::open(&path).unwrap();
         let mut src = String::new();
@@ -171,21 +185,39 @@ fn complete(source: Position) -> Vec<Completion> {
             });
         }
         results
-    });
-    if let Ok(output) = result {
-        output
-    } else {
-        vec![]
-    }
+    }).unwrap_or(vec![])
 }
 
-fn goto_def(source: Position) -> Option<Position> {
-    let result = panic::catch_unwind(|| {
-        let path = Path::new(&source.filepath);
+fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<Position> {
+    // Rustw thread.
+    let t = thread::current();
+    let span = source.span;
+    let rustw_handle = thread::spawn(move || {
+        let result = if let Ok(s) = analysis.goto_def(&span) {
+            println!("rustw success!");
+            Some(Position {
+                filepath: s.file_name,
+                line: s.line_start,
+                col: s.column_start,
+            })
+        } else {
+            println!("rustw failed");
+            None
+        };
+
+        t.unpark();
+
+        result
+    });
+
+    // Racer thread.
+    let pos = source.pos;
+    let racer_handle = thread::spawn(move || {
+        let path = Path::new(&pos.filepath);
         let mut f = File::open(&path).unwrap();
         let mut src = String::new();
         f.read_to_string(&mut src).unwrap();
-        let pos = scopes::coords_to_point(&src, source.line, source.col);
+        let pos = scopes::coords_to_point(&src, pos.line, pos.col);
         let cache = core::FileCache::new();
         if let Some(mch) = find_definition(&src,
                                            &path,
@@ -207,12 +239,19 @@ fn goto_def(source: Position) -> Option<Position> {
             }
         } else {
             None
-        }
+        }        
     });
-    if let Ok(output) = result {
-        output
-    } else {
-        None
+
+    // Timeout = 0.5s (totally arbitrary).
+    thread::park_timeout(Duration::from_millis(500));
+
+    let rustw_result = rustw_handle.join().unwrap_or(None);
+    match rustw_result {
+        r @ Some(_) => r,
+        None => {
+            println!("Using racer");
+            racer_handle.join().unwrap_or(None)
+        }
     }
 }
 
@@ -232,16 +271,30 @@ fn read_command(stream: &mut TcpStream) -> io::Result<Request> {
     Ok(res)
 }
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream, analysis: Arc<analysis::AnalysisHost>) {
+    fn mk_input(request: Request) -> Input {
+        Input {
+            pos: Position {
+                filepath: request.filepath.clone(),
+                line: request.line,
+                col: request.col,
+            },
+            span: analysis::Span {
+                file_name: request.filepath,
+                line_start: request.line_start,
+                column_start: request.col_start,
+                line_end: request.line_end,
+                column_end: request.col_end,
+            }
+        }
+    }
+
     while let Ok(request) = read_command(&mut stream) {
-        let pos = Position {
-            filepath: request.filepath,
-            line: request.line,
-            col: request.col,
-        };
         match request.command {
             Command::GotoDef => {
-                if let Some(pos) = goto_def(pos) {
+                let pos = mk_input(request);
+        
+                if let Some(pos) = goto_def(pos, analysis.clone()) {
                     let reply = json::encode(&pos).unwrap();
                     stream.write(reply.as_bytes()).unwrap();
                 } else {
@@ -249,24 +302,30 @@ fn handle_client(mut stream: TcpStream) {
                 }
             }
             Command::Complete => {
+                let pos = mk_input(request).pos;
                 let completions = complete(pos);
                 let reply = json::encode(&completions).unwrap();
                 stream.write(reply.as_bytes()).unwrap();
+            }
+            Command::OnSave => {
+                analysis.reload().unwrap();
             }
         }
     }
 }
 
 fn main() {
-    use std::thread;
-
     let listener = TcpListener::bind("127.0.0.1:9000").unwrap();
     println!("Listening on 127.0.0.1:9000");
+
+    let analysis = Arc::new(analysis::AnalysisHost::new(".", analysis::Target::Debug));
+    analysis.reload().unwrap();
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                thread::spawn(move || handle_client(stream));
+                let analysis = analysis.clone();
+                thread::spawn(move || handle_client(stream, analysis));
             }
             Err(e) => {
                 println!("Error with socket: {:?}", e);

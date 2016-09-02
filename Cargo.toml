@@ -7,3 +7,4 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 racer = { git = "https://github.com/phildawes/racer" }
 rand = "0.3.14"
 rustc-serialize = "0.3"
+rustw = { path = "../rustw" }
