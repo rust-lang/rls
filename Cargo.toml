@@ -11,6 +11,7 @@ tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
 tokio-hyper = { git = "https://github.com/tokio-rs/tokio-hyper" }
 rustc-serialize = "0.3"
 racer = { git = "https://github.com/phildawes/racer" }
+rustw = { path = "../rustw" }
 
 [dev-dependencies]
 env_logger = "0.3.0"
