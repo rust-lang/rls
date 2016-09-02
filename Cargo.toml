@@ -1,9 +1,16 @@
 [package]
-name = "rustls"
+name = "hyper_server"
 version = "0.1.0"
 authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
 [dependencies]
-racer = { git = "https://github.com/phildawes/racer" }
-rand = "0.3.14"
+futures = { git = "https://github.com/alexcrichton/futures-rs" }
+hyper = { git = "https://github.com/hyperium/hyper" }
+log = "0.3.6"
+tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
+tokio-hyper = { git = "https://github.com/tokio-rs/tokio-hyper" }
 rustc-serialize = "0.3"
+racer = { git = "https://github.com/phildawes/racer" }
+
+[dev-dependencies]
+env_logger = "0.3.0"
