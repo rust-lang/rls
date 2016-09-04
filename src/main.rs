@@ -18,7 +18,7 @@ use racer::scopes;
 use tokio_service::Service;
 use futures::{Future, finished, BoxFuture};
 use std::path::*;
-use std::fs::{self, File};
+use std::fs::File;
 
 use std::thread;
 use std::time::Duration;
@@ -47,6 +47,18 @@ struct Completion {
 struct Input {
     pos: Position,
     span: analysis::Span,
+}
+
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+enum Output {
+    Ok(Position, Provider),
+    Err,
+}
+
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+enum Provider {
+    Rustw,
+    Racer,
 }
 
 #[derive(Clone)]
@@ -79,14 +91,12 @@ fn complete(source: Position) -> Vec<Completion> {
     }).unwrap_or(vec![])
 }
 
-fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<Position> {
+fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
     // Rustw thread.
     let t = thread::current();
     let span = source.span;
     let rustw_handle = thread::spawn(move || {
-        let def_result = analysis.goto_def(&span);
-        println!("def_result: {:?}", def_result);
-        let result = if let Ok(s) = def_result {
+        let result = if let Ok(s) = analysis.goto_def(&span) {
             println!("rustw success!");
             Some(Position {
                 filepath: s.file_name,
@@ -140,10 +150,13 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<Posi
 
     let rustw_result = rustw_handle.join().unwrap_or(None);
     match rustw_result {
-        r @ Some(_) => r,
+        Some(r) => Output::Ok(r, Provider::Rustw),
         None => {
             println!("Using racer");
-            racer_handle.join().unwrap_or(None)
+            match racer_handle.join() {
+                Ok(Some(r)) => Output::Ok(r, Provider::Racer),
+                _ => Output::Err,
+            }
         }
     }
 }
@@ -156,13 +169,9 @@ impl MyService {
     }
 
     fn goto_def(&self, input: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
-        let def = goto_def(input, analysis);
-        if let Some(d) = def {
-            let reply = json::encode(&d).unwrap();
-            reply.as_bytes().to_vec()
-        } else {
-            vec![b'{', b'}']
-        }
+        let result = goto_def(input, analysis);
+        let reply = json::encode(&result).unwrap();
+        reply.as_bytes().to_vec()
     }
 }
 
@@ -196,8 +205,8 @@ impl Service for MyService {
                     }
                 } else if x == "/goto_def" {
                     if let Ok(input) = parse_input_pos(req.body()) {
-                        println!("Refreshing rustw cache");
-                        self.analysis.reload().unwrap();
+                        //println!("Refreshing rustw cache");
+                        //self.analysis.reload().unwrap();
                         println!("Goto def for: {:?}", input);
                         self.goto_def(input, self.analysis.clone())
                     } else {
@@ -223,7 +232,7 @@ impl Service for MyService {
 }
 
 pub fn main() {
-    let analysis = Arc::new(analysis::AnalysisHost::new("./sample_project/.", analysis::Target::Debug));
+    let analysis = Arc::new(analysis::AnalysisHost::new(".", analysis::Target::Debug));
     analysis.reload().unwrap();
 
     http::Server::new()

@@ -8,10 +8,10 @@ futures = { git = "https://github.com/alexcrichton/futures-rs" }
 hyper = { git = "https://github.com/hyperium/hyper" }
 log = "0.3.6"
 tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
-tokio-hyper = { git = "https://github.com/tokio-rs/tokio-hyper" }
+tokio-hyper = { path = "../tokio-hyper" }
 rustc-serialize = "0.3"
 racer = { git = "https://github.com/phildawes/racer" }
-rustw = { path = "../rustw" }
+rustw = { git = "https://github.com/nrc/rustw" }
 
 [dev-dependencies]
 env_logger = "0.3.0"
