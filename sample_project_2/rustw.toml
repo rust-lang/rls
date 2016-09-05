@@ -1,0 +1,6 @@
+build_command = "cargo build"
+edit_command = "subl $file:$line"
+port = 3000
+save_analysis = true
+demo_mode = false
+vcs_link = "https://github.com/nrc/rustw-test/blob/master/$file#L$line"

@@ -235,7 +235,7 @@ impl Service for MyService {
 }
 
 pub fn main() {
-    let analysis = Arc::new(analysis::AnalysisHost::new(".", analysis::Target::Debug));
+    let analysis = Arc::new(analysis::AnalysisHost::new("sample_project_2", analysis::Target::Debug));
     analysis.reload().unwrap();
 
     http::Server::new()
