@@ -1,0 +1,3 @@
+build_command = "cargo build"
+port = 3000
+save_analysis = true

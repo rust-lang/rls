@@ -1,10 +1,22 @@
 [package]
-name = "rustls"
+name = "hyper_server"
 version = "0.1.0"
 authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
 [dependencies]
+futures = { git = "https://github.com/alexcrichton/futures-rs" }
+log = "0.3.6"
+tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
+tokio-hyper = { path = "../tokio-hyper" }
 racer = { git = "https://github.com/phildawes/racer" }
-rand = "0.3.14"
-rustc-serialize = "0.3"
-rustw = { path = "../rustw" }
+rustw = { git = "https://github.com/nrc/rustw" }
+serde = "0.8"
+serde_json = "0.8"
+serde_macros = "0.8"
+
+[dev-dependencies]
+env_logger = "0.3.0"
+
+[dependencies.hyper]
+git = "https://github.com/hyperium/hyper"
+default-features = false
