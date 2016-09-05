@@ -94,6 +94,9 @@ fn complete(source: Position) -> Vec<Completion> {
     }).unwrap_or(vec![])
 }
 
+// Timeout = 0.5s (totally arbitrary).
+const RUSTW_TIMEOUT: u64 = 500;
+
 fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
     // Rustw thread.
     let t = thread::current();
@@ -148,8 +151,7 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
         }
     });
 
-    // Timeout = 0.5s (totally arbitrary).
-    thread::park_timeout(Duration::from_millis(500));
+    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
     let rustw_result = rustw_handle.join().unwrap_or(None);
     match rustw_result {
@@ -171,6 +173,21 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
     }
 }
 
+fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<String> {
+    let t = thread::current();
+    let span = source.span;
+    let rustw_handle = thread::spawn(move || {
+        let result = analysis.show_type(&span);
+        t.unpark();
+
+        result
+    });
+
+    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+
+    rustw_handle.join().ok().and_then(|t| t.ok())
+}
+
 impl MyService {
     fn complete(&self, pos: Position) -> Vec<u8> {
         let completions = complete(pos);
@@ -180,6 +197,12 @@ impl MyService {
 
     fn goto_def(&self, input: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
         let result = goto_def(input, analysis);
+        let reply = serde_json::to_string(&result).unwrap();
+        reply.as_bytes().to_vec()
+    }
+
+    fn title(&self, input: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
+        let result = title(input, analysis);
         let reply = serde_json::to_string(&result).unwrap();
         reply.as_bytes().to_vec()
     }
@@ -221,6 +244,13 @@ impl Service for MyService {
                         //self.analysis.reload().unwrap();
                         println!("Goto def for: {:?}", input);
                         self.goto_def(input, self.analysis.clone())
+                    } else {
+                        b"{}\n".to_vec()
+                    }
+                } else if x == "/title" {
+                    if let Ok(input) = parse_input_pos(req.body()) {
+                        println!("title for: {:?}", input);
+                        self.title(input, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
