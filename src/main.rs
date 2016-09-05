@@ -215,6 +215,8 @@ impl Service for MyService {
                     }
                 } else if x == "/goto_def" {
                     if let Ok(input) = parse_input_pos(req.body()) {
+                        // TODO do we want to do this refresh? Seems unneccesary to me, and since it
+                        // doesn't rebuild the index, it seems pointless.
                         //println!("Refreshing rustw cache");
                         //self.analysis.reload().unwrap();
                         println!("Goto def for: {:?}", input);
