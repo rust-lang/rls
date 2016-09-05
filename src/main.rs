@@ -153,7 +153,14 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
 
     let rustw_result = rustw_handle.join().unwrap_or(None);
     match rustw_result {
-        Some(r) => Output::Ok(r, Provider::Rustw),
+        Some(mut r) => {
+            // FIXME Racer uses 0-indexed columns, rustw uses 1-indexed columns.
+            // We should decide on which we want to use long-term.
+            if r.col > 0 {
+                r.col -= 1;
+            }
+            Output::Ok(r, Provider::Rustw)
+        }
         None => {
             println!("Using racer");
             match racer_handle.join() {
