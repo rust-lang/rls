@@ -7,8 +7,10 @@ dependencies = [
  "hyper 0.10.0-a.0 (git+https://github.com/hyperium/hyper)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "racer 1.2.10 (git+https://github.com/phildawes/racer)",
- "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustw 0.1.0",
+ "rustw 0.1.0 (git+https://github.com/nrc/rustw)",
+ "serde 0.8.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_macros 0.8.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-hyper 0.1.0",
  "tokio-service 0.1.0 (git+https://github.com/tokio-rs/tokio-service)",
 ]
@@ -468,6 +470,7 @@ dependencies = [
 [[package]]
 name = "rustw"
 version = "0.1.0"
+source = "git+https://github.com/nrc/rustw#6bf29b0a4a79ab6c366e7dd9cf288aa5a08f31f3"
 dependencies = [
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -837,6 +840,7 @@ dependencies = [
 "checksum rotor 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "07a6d6ac669b5c7623d7270f657e7fe60bd1d07f37d99fd5b9ea38c273834c14"
 "checksum rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)" = "6159e4e6e559c81bd706afe9c8fd68f547d3e851ce12e76b1de7914bab61691b"
 "checksum rustc_version 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "c5f5376ea5e30ce23c03eb77cbe4962b988deead10910c372b226388b594c084"
+"checksum rustw 0.1.0 (git+https://github.com/nrc/rustw)" = "<none>"
 "checksum semver 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)" = "d4f410fedcf71af0345d7607d246e7ad15faaadd49d240ee3b24e5dc21a820ac"
 "checksum serde 0.8.6 (registry+https://github.com/rust-lang/crates.io-index)" = "16e5b0b0e8d887f68e6617ceb7f51ed011cba79b249a583f3248fe7883e488b1"
 "checksum serde_codegen 0.8.6 (registry+https://github.com/rust-lang/crates.io-index)" = "8c5691b768f6a6a29fef4e57e55de23a5030bde65b9662dc469388f9d2c851de"

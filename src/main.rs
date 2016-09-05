@@ -1,6 +1,10 @@
+#![feature(custom_derive, plugin)]
+#![plugin(serde_macros)]
+
 extern crate tokio_service;
 extern crate futures;
-extern crate rustc_serialize;
+extern crate serde;
+extern crate serde_json;
 
 extern crate racer;
 
@@ -24,38 +28,37 @@ use std::thread;
 use std::time::Duration;
 use std::io::prelude::*;
 
-use rustc_serialize::json;
 use rustw::analysis;
 use std::sync::Arc;
 
 use std::panic;
 
-#[derive(Debug, RustcDecodable, RustcEncodable)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Position {
     filepath: String,
     line: usize,
     col: usize,
 }
 
-#[derive(Debug, RustcDecodable, RustcEncodable)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Completion {
     name: String,
     context: String,
 }
 
-#[derive(Debug, RustcDecodable, RustcEncodable)]
+#[derive(Debug, Deserialize)]
 struct Input {
     pos: Position,
     span: analysis::Span,
 }
 
-#[derive(Debug, RustcDecodable, RustcEncodable)]
+#[derive(Debug, Serialize)]
 enum Output {
     Ok(Position, Provider),
     Err,
 }
 
-#[derive(Debug, RustcDecodable, RustcEncodable)]
+#[derive(Debug, Serialize)]
 enum Provider {
     Rustw,
     Racer,
@@ -164,18 +167,18 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
 impl MyService {
     fn complete(&self, pos: Position) -> Vec<u8> {
         let completions = complete(pos);
-        let reply = json::encode(&completions).unwrap();
+        let reply = serde_json::to_string(&completions).unwrap();
         reply.as_bytes().to_vec()
     }
 
     fn goto_def(&self, input: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
         let result = goto_def(input, analysis);
-        let reply = json::encode(&result).unwrap();
+        let reply = serde_json::to_string(&result).unwrap();
         reply.as_bytes().to_vec()
     }
 }
 
-fn parse_input_pos(input: &[u8]) -> json::DecodeResult<Input> {
+fn parse_input_pos(input: &[u8]) -> Result<Input, serde_json::Error> {
     let s = String::from_utf8(input.to_vec()).unwrap();
     // FIXME: this is gross.  There should be a better way to unescape
     let s = unsafe {
@@ -183,7 +186,7 @@ fn parse_input_pos(input: &[u8]) -> json::DecodeResult<Input> {
     };
     let s = s.replace("\\\"", "\"");
     println!("decoding: '{}'", s);
-    json::decode(&s)
+    serde_json::from_str(&s)
 }
 
 impl Service for MyService {
