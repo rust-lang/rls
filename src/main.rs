@@ -97,24 +97,21 @@ fn complete(source: Position) -> Vec<Completion> {
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
 
-fn find_refs(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<Position> {
-    unimplemented!();
+fn find_refs(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<analysis::Span> {
+    let t = thread::current();
+    let span = rustw_span(source.span);
+    println!("title for: {:?}", span);
+    let rustw_handle = thread::spawn(move || {
+        let result = analysis.find_all_refs(&span);
+        t.unpark();
 
-    // let t = thread::current();
-    // let span = rustw_span(source.span);
-    // println!("title for: {:?}", span);
-    // let rustw_handle = thread::spawn(move || {
-    //     let result = analysis.find_all_refs(&span);
-    //     t.unpark();
+        println!("rustw find_all_refs: {:?}", result);
+        result
+    });
 
-    //     println!("rustw find_all_refs: {:?}", result);
-    //     result
-    // });
+    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-    // thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
-
-    // // TODO map spans to Position
-    // rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![])
+    rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]).into_iter().map(adjust_span_for_vscode).collect()
 }
 
 fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
@@ -214,6 +211,11 @@ fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<String>
 fn rustw_span(mut source: analysis::Span) -> analysis::Span {
     source.column_start += 1;
     source.column_end += 1;
+    source
+}
+fn adjust_span_for_vscode(mut source: analysis::Span) -> analysis::Span {
+    source.column_start -= 1;
+    source.column_end -= 1;
     source
 }
 
