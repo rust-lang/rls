@@ -255,7 +255,8 @@ fn parse_input_pos(input: &[u8]) -> Result<Input, serde_json::Error> {
 }
 
 // TODO so gross, so hard-wired
-const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
+//const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
+const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
 fn build() {
     use std::env;
     use std::process::Command;
@@ -267,7 +268,7 @@ fn build() {
     cmd.current_dir("./sample_project_2");
     println!("building...");
     match cmd.output() {
-        Ok(_) => println!("success"),
+        Ok(x) => println!("success: {:?}", x),
         Err(e) => println!("error: `{}`", e),
     }
 }

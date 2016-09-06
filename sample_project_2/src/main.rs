@@ -1,13 +1,10 @@
-extern crate zero;
-
 use std::sync::*;
 
-use zero::Pod;
+struct Foo {
+    x: u32,
+    y: u32
+}
 
-struct Foo;
-
-unsafe impl Pod for Foo {}
- 
 mod sub_mod;
 
 fn main() {
@@ -20,8 +17,11 @@ fn main() {
 
     let a = Arc::new(42);
     let b = Once::new();
-
     let c = sub_mod::foo();
+    let d = String::new();
+
+    let e = Foo { x: 3, y: 4 };
+    
 
     fn bar() {
     }
