@@ -69,16 +69,6 @@ struct MyService {
     analysis: Arc<analysis::AnalysisHost>
 }
 
-impl Position {
-    fn from_span(span: &analysis::Span) -> Position {
-        Position {
-            filepath: span.file_name.clone(),
-            line: span.line_start,
-            col: span.column_start - 1,
-        }
-    }
-}
-
 fn complete(source: Position) -> Vec<Completion> {
     use std::io::prelude::*;
     panic::catch_unwind(|| {
@@ -107,7 +97,7 @@ fn complete(source: Position) -> Vec<Completion> {
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
 
-fn find_refs(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<Position> {
+fn find_refs(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<analysis::Span> {
     let t = thread::current();
     let span = rustw_span(source.span);
     println!("title for: {:?}", span);
@@ -121,7 +111,7 @@ fn find_refs(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<Positi
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-    rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]).iter().map(Position::from_span).collect()
+    rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]).into_iter().map(adjust_span_for_vscode).collect()
 }
 
 fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
@@ -221,6 +211,11 @@ fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<String>
 fn rustw_span(mut source: analysis::Span) -> analysis::Span {
     source.column_start += 1;
     source.column_end += 1;
+    source
+}
+fn adjust_span_for_vscode(mut source: analysis::Span) -> analysis::Span {
+    source.column_start -= 1;
+    source.column_end -= 1;
     source
 }
 
