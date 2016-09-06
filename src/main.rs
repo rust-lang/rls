@@ -69,6 +69,16 @@ struct MyService {
     analysis: Arc<analysis::AnalysisHost>
 }
 
+impl Position {
+    fn from_span(span: &analysis::Span) -> Position {
+        Position {
+            filepath: span.file_name.clone(),
+            line: span.line_start,
+            col: span.column_start - 1,
+        }
+    }
+}
+
 fn complete(source: Position) -> Vec<Completion> {
     use std::io::prelude::*;
     panic::catch_unwind(|| {
@@ -98,23 +108,20 @@ fn complete(source: Position) -> Vec<Completion> {
 const RUSTW_TIMEOUT: u64 = 500;
 
 fn find_refs(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<Position> {
-    unimplemented!();
+    let t = thread::current();
+    let span = rustw_span(source.span);
+    println!("title for: {:?}", span);
+    let rustw_handle = thread::spawn(move || {
+        let result = analysis.find_all_refs(&span);
+        t.unpark();
 
-    // let t = thread::current();
-    // let span = rustw_span(source.span);
-    // println!("title for: {:?}", span);
-    // let rustw_handle = thread::spawn(move || {
-    //     let result = analysis.find_all_refs(&span);
-    //     t.unpark();
+        println!("rustw find_all_refs: {:?}", result);
+        result
+    });
 
-    //     println!("rustw find_all_refs: {:?}", result);
-    //     result
-    // });
+    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-    // thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
-
-    // // TODO map spans to Position
-    // rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![])
+    rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]).iter().map(Position::from_span).collect()
 }
 
 fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
