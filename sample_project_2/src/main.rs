@@ -7,6 +7,10 @@ struct Foo {
 
 mod sub_mod;
 
+fn foo_maker() -> Foo {
+    Foo { x: 3, y: 4 }
+}
+
 fn main() {
     let mut bar = 42;
     let f = bar;
@@ -21,8 +25,6 @@ fn main() {
     let d = String::new();
 
     let e = Foo { x: 3, y: 4 };
-    
 
-    fn bar() {
-    }
+    let x = foo_maker();
 }

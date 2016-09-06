@@ -64,6 +64,13 @@ enum Provider {
     Racer,
 }
 
+#[derive(Debug, Serialize)]
+enum BuildResult {
+    Success(String),
+    Failure(String),
+    Err
+}
+
 #[derive(Clone)]
 struct MyService {
     analysis: Arc<analysis::AnalysisHost>
@@ -165,7 +172,7 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
             }
         } else {
             None
-        }        
+        }
     });
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
@@ -256,22 +263,71 @@ fn parse_input_pos(input: &[u8]) -> Result<Input, serde_json::Error> {
     serde_json::from_str(&s)
 }
 
+fn convert_message_to_json_string(input: Vec<u8>) -> String {
+    let mut output = String::new();
+
+    let it = input.into_iter();
+
+    let mut read_iter = it.skip_while(|&x| x != b'{');
+    let mut curly_count = 0;
+
+    loop {
+        match read_iter.next() {
+            Some(b'{') => {
+                curly_count += 1;
+                output.push('{');
+            },
+            Some(b'}') => {
+                curly_count -= 1;
+                output.push('}');
+                if curly_count == 0 {
+                    break;
+                }
+            }
+            Some(x) => {
+                if curly_count > 0 {
+                    output.push(x as char);
+                }
+            }
+            None => {
+                break;
+            }
+        }
+    }
+
+    output
+}
+
 // TODO so gross, so hard-wired
 //const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
 const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
-fn build() {
+fn build() -> BuildResult {
     use std::env;
     use std::process::Command;
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build");
-    cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis -Zno-trans -Zcontinue-parse-after-error");
+    cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
+                          -Zno-trans -Zcontinue-parse-after-error");
     cmd.env("PATH", &format!("{}:{}", RUST_PATH, env::var("PATH").unwrap()));
     cmd.current_dir("./sample_project_2");
     println!("building...");
     match cmd.output() {
-        Ok(x) => println!("success: {:?}", x),
-        Err(e) => println!("error: `{}`", e),
+        Ok(x) => {
+            let stderr_json_msg = convert_message_to_json_string(x.stderr);
+            match x.status.code() {
+                Some(0) => {
+                    BuildResult::Success(stderr_json_msg)
+                }
+                Some(_) => {
+                    BuildResult::Failure(stderr_json_msg)
+                }
+                None => BuildResult::Err
+            }
+        }
+        Err(_) => {
+            BuildResult::Err
+        }
     }
 }
 
@@ -314,10 +370,14 @@ impl Service for MyService {
                     }
                 } else if x == "/on_change" {
                     // TODO need to log this on a work queue and coalesce builds
-                    build();
+                    let res = build();
+                    let reply = serde_json::to_string(&res).unwrap();
+                    println!("build result: {:?}", res);
                     println!("Refreshing rustw cache");
                     self.analysis.reload().unwrap();
-                    b"{}\n".to_vec()
+                    //b"{}\n".to_vec()
+                    let output = reply.as_bytes().to_vec();
+                    output
                 } else if x == "/on_build" {
                     println!("Refreshing rustw cache");
                     self.analysis.reload().unwrap();
