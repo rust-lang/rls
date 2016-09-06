@@ -97,10 +97,30 @@ fn complete(source: Position) -> Vec<Completion> {
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
 
+fn find_refs(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<Position> {
+    unimplemented!();
+
+    // let t = thread::current();
+    // let span = rustw_span(source.span);
+    // println!("title for: {:?}", span);
+    // let rustw_handle = thread::spawn(move || {
+    //     let result = analysis.find_all_refs(&span);
+    //     t.unpark();
+
+    //     println!("rustw find_all_refs: {:?}", result);
+    //     result
+    // });
+
+    // thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+
+    // // TODO map spans to Position
+    // rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![])
+}
+
 fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
     // Rustw thread.
     let t = thread::current();
-    let span = source.span;
+    let span = rustw_span(source.span);
     let rustw_handle = thread::spawn(move || {
         let result = if let Ok(s) = analysis.goto_def(&span) {
             println!("rustw success!");
@@ -175,17 +195,26 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
 
 fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<String> {
     let t = thread::current();
-    let span = source.span;
+    let span = rustw_span(source.span);
+    println!("title for: {:?}", span);
     let rustw_handle = thread::spawn(move || {
         let result = analysis.show_type(&span);
         t.unpark();
 
+        println!("rustw show_type: {:?}", result);
         result
     });
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
     rustw_handle.join().ok().and_then(|t| t.ok())
+}
+
+// TODO overlap with VSCode plugin
+fn rustw_span(mut source: analysis::Span) -> analysis::Span {
+    source.column_start += 1;
+    source.column_end += 1;
+    source
 }
 
 impl MyService {
@@ -197,6 +226,12 @@ impl MyService {
 
     fn goto_def(&self, input: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
         let result = goto_def(input, analysis);
+        let reply = serde_json::to_string(&result).unwrap();
+        reply.as_bytes().to_vec()
+    }
+
+    fn find_refs(&self, input: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
+        let result = find_refs(input, analysis);
         let reply = serde_json::to_string(&result).unwrap();
         reply.as_bytes().to_vec()
     }
@@ -215,8 +250,26 @@ fn parse_input_pos(input: &[u8]) -> Result<Input, serde_json::Error> {
         s.slice_unchecked(1, s.len()-1)
     };
     let s = s.replace("\\\"", "\"");
-    println!("decoding: '{}'", s);
+    //println!("decoding: '{}'", s);
     serde_json::from_str(&s)
+}
+
+// TODO so gross, so hard-wired
+const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
+fn build() {
+    use std::env;
+    use std::process::Command;
+
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build");
+    cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis -Zno-trans -Zcontinue-parse-after-error");
+    cmd.env("PATH", &format!("{}:{}", RUST_PATH, env::var("PATH").unwrap()));
+    cmd.current_dir("./sample_project_2");
+    println!("building...");
+    match cmd.output() {
+        Ok(_) => println!("success"),
+        Err(e) => println!("error: `{}`", e),
+    }
 }
 
 impl Service for MyService {
@@ -238,23 +291,31 @@ impl Service for MyService {
                     }
                 } else if x == "/goto_def" {
                     if let Ok(input) = parse_input_pos(req.body()) {
-                        // TODO do we want to do this refresh? Seems unneccesary to me, and since it
-                        // doesn't rebuild the index, it seems pointless.
-                        //println!("Refreshing rustw cache");
-                        //self.analysis.reload().unwrap();
                         println!("Goto def for: {:?}", input);
                         self.goto_def(input, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
+                } else if x == "/find_refs" {
+                    if let Ok(input) = parse_input_pos(req.body()) {
+                        println!("find refs for: {:?}", input);
+                        self.find_refs(input, self.analysis.clone())
+                    } else {
+                        b"{}\n".to_vec()
+                    }
                 } else if x == "/title" {
                     if let Ok(input) = parse_input_pos(req.body()) {
-                        println!("title for: {:?}", input);
                         self.title(input, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
-                } else if x == "/on_save" {
+                } else if x == "/on_change" {
+                    // TODO need to log this on a work queue and coalesce builds
+                    build();
+                    println!("Refreshing rustw cache");
+                    self.analysis.reload().unwrap();
+                    b"{}\n".to_vec()
+                } else if x == "/on_build" {
                     println!("Refreshing rustw cache");
                     self.analysis.reload().unwrap();
                     b"{}\n".to_vec()

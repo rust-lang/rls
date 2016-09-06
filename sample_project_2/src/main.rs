@@ -12,11 +12,11 @@ mod sub_mod;
 
 fn main() {
     let mut bar = 42;
-    let f = &mut bar;
+    let f = bar;
     let g = &mut bar;
-    let foo = 42;
+    let foo = f;
     let _ = foo + 2;
-    println!("Hello world! {}", foo);
+    println!("Hello world! {} {}", foo, g);
 
     let a = Arc::new(42);
     let b = Once::new();
