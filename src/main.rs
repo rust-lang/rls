@@ -266,6 +266,7 @@ fn parse_input_pos(input: &[u8]) -> Result<Input, serde_json::Error> {
 fn convert_message_to_json_string(input: Vec<u8>) -> String {
     let mut output = String::new();
 
+    //FIXME: this is *so gross*  Trying to work around cargo not supporting json messages
     let it = input.into_iter();
 
     let mut read_iter = it.skip_while(|&x| x != b'{');
@@ -273,21 +274,11 @@ fn convert_message_to_json_string(input: Vec<u8>) -> String {
 
     loop {
         match read_iter.next() {
-            Some(b'{') => {
-                curly_count += 1;
-                output.push('{');
-            },
-            Some(b'}') => {
-                curly_count -= 1;
-                output.push('}');
-                if curly_count == 0 {
-                    break;
-                }
+            Some(b'\n') => {
+                break;
             }
             Some(x) => {
-                if curly_count > 0 {
-                    output.push(x as char);
-                }
+                output.push(x as char);
             }
             None => {
                 break;
