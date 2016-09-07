@@ -281,7 +281,6 @@ fn convert_message_to_json_string(input: Vec<u8>) -> String {
     let it = input.into_iter();
 
     let mut read_iter = it.skip_while(|&x| x != b'{');
-    let mut curly_count = 0;
 
     loop {
         match read_iter.next() {
@@ -301,8 +300,8 @@ fn convert_message_to_json_string(input: Vec<u8>) -> String {
 }
 
 // TODO so gross, so hard-wired
-//const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
-const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
+const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
+//const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
 fn build() -> BuildResult {
     use std::env;
     use std::process::Command;
