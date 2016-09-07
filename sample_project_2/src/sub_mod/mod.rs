@@ -1,3 +1,5 @@
+
+/// A function called **foo**
 pub fn foo() {
     // blah
     let foo = 43;

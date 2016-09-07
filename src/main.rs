@@ -71,6 +71,12 @@ enum BuildResult {
     Err
 }
 
+#[derive(Debug, Serialize)]
+struct Title {
+    ty: String,
+    docs: String,
+}
+
 #[derive(Clone)]
 struct MyService {
     analysis: Arc<analysis::AnalysisHost>
@@ -197,21 +203,26 @@ fn goto_def(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Output {
     }
 }
 
-fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<String> {
+fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<Title> {
     let t = thread::current();
     let span = rustw_span(source.span);
     println!("title for: {:?}", span);
     let rustw_handle = thread::spawn(move || {
-        let result = analysis.show_type(&span);
+        let ty = analysis.show_type(&span).unwrap_or(String::new());
+        let docs = analysis.docs(&span).unwrap_or(String::new());
         t.unpark();
 
-        println!("rustw show_type: {:?}", result);
-        result
+        println!("rustw show_type: {:?}", ty);
+        println!("rustw docs: {:?}", docs);
+        Title {
+            ty: ty,
+            docs: docs,
+        }
     });
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-    rustw_handle.join().ok().and_then(|t| t.ok())
+    rustw_handle.join().ok()
 }
 
 // TODO overlap with VSCode plugin

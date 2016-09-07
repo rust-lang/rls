@@ -1,9 +1,14 @@
 use std::sync::*;
 
+/// A struct which does things
+///
+/// * one thing
+/// * another thing
 struct Foo {
     x: u32,
     y: u32
 }
+
 
 mod sub_mod;
 
@@ -27,4 +32,8 @@ fn main() {
     let e = Foo { x: 3, y: 4 };
 
     let x = foo_maker();
+    
+
+    fn bar() {
+    }
 }
