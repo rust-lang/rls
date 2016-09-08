@@ -31,9 +31,11 @@ fn main() {
 
     let e = Foo { x: 3, y: 4 };
 
-    let x = foo_maker();
-    
+    let v: Vec<i32> = Vec::new();
 
-    fn bar() {
+    let x = foo_maker();
+
+    fn bar(x: i32) {
+        let y = x;
     }
 }
