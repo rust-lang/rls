@@ -311,7 +311,7 @@ fn build() -> BuildResult {
     cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zno-trans -Zcontinue-parse-after-error");
     cmd.env("PATH", &format!("{}:{}", RUST_PATH, env::var("PATH").unwrap()));
-    cmd.current_dir("./sample_project_2");
+    cmd.current_dir("./httparse");
     println!("building...");
     match cmd.output() {
         Ok(x) => {
@@ -399,7 +399,7 @@ impl Service for MyService {
 }
 
 pub fn main() {
-    let analysis = Arc::new(analysis::AnalysisHost::new("sample_project_2", analysis::Target::Debug));
+    let analysis = Arc::new(analysis::AnalysisHost::new("httparse", analysis::Target::Debug));
     analysis.reload().unwrap();
 
     http::Server::new()
