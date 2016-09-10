@@ -300,8 +300,9 @@ fn convert_message_to_json_string(input: Vec<u8>) -> String {
 }
 
 // TODO so gross, so hard-wired
-const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
-//const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
+//const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
+const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
+const PROJECT: &'static str = "httparse";
 fn build() -> BuildResult {
     use std::env;
     use std::process::Command;
@@ -311,7 +312,7 @@ fn build() -> BuildResult {
     cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zno-trans -Zcontinue-parse-after-error");
     cmd.env("PATH", &format!("{}:{}", RUST_PATH, env::var("PATH").unwrap()));
-    cmd.current_dir("./sample_project_2");
+    cmd.current_dir("./".to_string() + PROJECT);
     println!("building...");
     match cmd.output() {
         Ok(x) => {
@@ -399,7 +400,7 @@ impl Service for MyService {
 }
 
 pub fn main() {
-    let analysis = Arc::new(analysis::AnalysisHost::new("sample_project_2", analysis::Target::Debug));
+    let analysis = Arc::new(analysis::AnalysisHost::new(PROJECT, analysis::Target::Debug));
     analysis.reload().unwrap();
 
     http::Server::new()
