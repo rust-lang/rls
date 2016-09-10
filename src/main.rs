@@ -77,6 +77,59 @@ struct Title {
     docs: String,
 }
 
+#[derive(Debug, Serialize)]
+struct Symbol {
+    name: String,
+    kind: VscodeKind,
+    span: analysis::Span,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
+enum VscodeKind {
+    File,
+    Module,
+    Namespace,
+    Package,
+    Class,
+    Method,
+    Property,
+    Field,
+    Constructor,
+    Enum,
+    Interface,
+    Function,
+    Variable,
+    Constant,
+    String,
+    Number,
+    Boolean,
+    Array,
+    Object,
+    Key,
+    Null
+}
+
+impl From<analysis::raw::DefKind> for VscodeKind {
+    fn from(k: analysis::raw::DefKind) -> VscodeKind {
+        match k {
+            analysis::raw::DefKind::Enum => VscodeKind::Enum,
+            analysis::raw::DefKind::Tuple => VscodeKind::Array,
+            analysis::raw::DefKind::Struct => VscodeKind::Class,
+            analysis::raw::DefKind::Trait => VscodeKind::Interface,
+            analysis::raw::DefKind::Function => VscodeKind::Function,
+            analysis::raw::DefKind::Method => VscodeKind::Function,
+            analysis::raw::DefKind::Macro => VscodeKind::Function,
+            analysis::raw::DefKind::Mod => VscodeKind::Module,
+            analysis::raw::DefKind::Type => VscodeKind::Interface,
+            analysis::raw::DefKind::Local => VscodeKind::Variable,
+            analysis::raw::DefKind::Static => VscodeKind::Variable,
+            analysis::raw::DefKind::Const => VscodeKind::Variable,
+            analysis::raw::DefKind::Field => VscodeKind::Variable,
+        }
+    }
+}
+
 #[derive(Clone)]
 struct MyService {
     analysis: Arc<analysis::AnalysisHost>
@@ -225,6 +278,26 @@ fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<Title> 
     rustw_handle.join().ok()
 }
 
+fn symbols(file_name: String, analysis: Arc<analysis::AnalysisHost>) -> Vec<Symbol> {
+    let t = thread::current();
+    let rustw_handle = thread::spawn(move || {
+        let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
+        t.unpark();
+
+        symbols.into_iter().map(|s| {
+            Symbol {
+                name: s.name,
+                kind: VscodeKind::from(s.kind),
+                span: adjust_span_for_vscode(s.span),
+            }
+        }).collect()
+    });
+
+    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+
+    rustw_handle.join().unwrap_or(vec![])
+}
+
 // TODO overlap with VSCode plugin
 fn rustw_span(mut source: analysis::Span) -> analysis::Span {
     source.column_start += 1;
@@ -250,6 +323,12 @@ impl MyService {
         reply.as_bytes().to_vec()
     }
 
+    fn symbols(&self, file_name: String, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
+        let result = symbols(file_name, analysis);
+        let reply = serde_json::to_string(&result).unwrap();
+        reply.as_bytes().to_vec()
+    }
+
     fn find_refs(&self, input: Input, analysis: Arc<analysis::AnalysisHost>) -> Vec<u8> {
         let result = find_refs(input, analysis);
         let reply = serde_json::to_string(&result).unwrap();
@@ -269,6 +348,13 @@ fn parse_input_pos(input: &[u8]) -> Result<Input, serde_json::Error> {
     let s = unsafe {
         s.slice_unchecked(1, s.len()-1)
     };
+    let s = s.replace("\\\"", "\"");
+    //println!("decoding: '{}'", s);
+    serde_json::from_str(&s)
+}
+
+fn parse_string(input: &[u8]) -> Result<String, serde_json::Error> {
+    let s = String::from_utf8(input.to_vec()).unwrap();
     let s = s.replace("\\\"", "\"");
     //println!("decoding: '{}'", s);
     serde_json::from_str(&s)
@@ -354,6 +440,12 @@ impl Service for MyService {
                     if let Ok(input) = parse_input_pos(req.body()) {
                         println!("Goto def for: {:?}", input);
                         self.goto_def(input, self.analysis.clone())
+                    } else {
+                        b"{}\n".to_vec()
+                    }
+                } else if x == "/symbols" {
+                    if let Ok(file_name) = parse_string(req.body()) {
+                        self.symbols(file_name, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
