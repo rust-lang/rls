@@ -334,12 +334,12 @@ fn build() -> BuildResult {
 }
 
 impl Service for MyService {
-    type Req = http::Message<http::Request>;
-    type Resp = http::Message<http::Response>;
+    type Request = http::Message<http::Request>;
+    type Response = http::Message<http::Response>;
     type Error = http::Error;
-    type Fut = BoxFuture<Self::Resp, http::Error>;
+    type Future = BoxFuture<Self::Response, http::Error>;
 
-    fn call(&self, req: Self::Req) -> Self::Fut {
+    fn call(&self, req: Self::Request) -> Self::Future {
         let msg = match req.head().uri() {
             &hyper::uri::RequestUri::AbsolutePath { path: ref x, .. } => {
                 if x == "/complete" {
@@ -396,6 +396,10 @@ impl Service for MyService {
 
         // Return the response as an immediate future
         finished(resp).boxed()
+    }
+
+    fn poll_ready(&self) -> futures::Async<()> {
+        futures::Async::Ready(())
     }
 }
 

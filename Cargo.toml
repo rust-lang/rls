@@ -7,7 +7,7 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 futures = { git = "https://github.com/alexcrichton/futures-rs" }
 log = "0.3.6"
 tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
-tokio-hyper = { path = "../tokio-hyper" }
+tokio-hyper = { git = "https://github.com/tokio-rs/tokio-hyper" }
 racer = { git = "https://github.com/phildawes/racer" }
 rustw = { git = "https://github.com/nrc/rustw" }
 serde = "0.8"
