@@ -7,8 +7,7 @@ extern crate serde;
 extern crate serde_json;
 
 extern crate racer;
-
-extern crate rustw;
+extern crate rls_analysis as analysis;
 
 #[macro_use]
 extern crate hyper;
@@ -28,7 +27,6 @@ use std::thread;
 use std::time::Duration;
 use std::io::prelude::*;
 
-use rustw::analysis;
 use std::sync::Arc;
 
 use std::panic;

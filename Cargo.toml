@@ -9,7 +9,7 @@ log = "0.3.6"
 tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
 tokio-hyper = { git = "https://github.com/tokio-rs/tokio-hyper" }
 racer = { git = "https://github.com/phildawes/racer" }
-rustw = { path = "../rustw" }
+rls-analysis = { git = "https://github.com/nrc/rls-analysis" }
 serde = "0.8"
 serde_json = "0.8"
 serde_macros = "0.8"
