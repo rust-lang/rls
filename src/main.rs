@@ -125,7 +125,11 @@ impl From<analysis::raw::DefKind> for VscodeKind {
             analysis::raw::DefKind::Static => VscodeKind::Variable,
             analysis::raw::DefKind::Const => VscodeKind::Variable,
             analysis::raw::DefKind::Field => VscodeKind::Variable,
+<<<<<<< HEAD
             analysis::raw::DefKind::Import => VscodeKind::Module,
+=======
+            analysis::raw::DefKind::Import => VscodeKind::Namespace,
+>>>>>>> Update to work with rls-analysis
         }
     }
 }
