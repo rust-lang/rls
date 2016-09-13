@@ -7,8 +7,7 @@ extern crate serde;
 extern crate serde_json;
 
 extern crate racer;
-
-extern crate rustw;
+extern crate rls_analysis as analysis;
 
 #[macro_use]
 extern crate hyper;
@@ -28,7 +27,6 @@ use std::thread;
 use std::time::Duration;
 use std::io::prelude::*;
 
-use rustw::analysis;
 use std::sync::Arc;
 
 use std::panic;
@@ -75,6 +73,7 @@ enum BuildResult {
 struct Title {
     ty: String,
     docs: String,
+    doc_url: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -263,13 +262,16 @@ fn title(source: Input, analysis: Arc<analysis::AnalysisHost>) -> Option<Title> 
     let rustw_handle = thread::spawn(move || {
         let ty = analysis.show_type(&span).unwrap_or(String::new());
         let docs = analysis.docs(&span).unwrap_or(String::new());
+        let doc_url = analysis.doc_url(&span).unwrap_or(String::new());
         t.unpark();
 
         println!("rustw show_type: {:?}", ty);
         println!("rustw docs: {:?}", docs);
+        println!("rustw doc url: {:?}", doc_url);
         Title {
             ty: ty,
             docs: docs,
+            doc_url: doc_url,
         }
     });
 
