@@ -1,5 +1,5 @@
 [package]
-name = "hyper_server"
+name = "rls"
 version = "0.1.0"
 authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
