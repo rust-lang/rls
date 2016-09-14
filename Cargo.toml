@@ -4,12 +4,12 @@ version = "0.1.0"
 authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
 [dependencies]
-futures = { git = "https://github.com/alexcrichton/futures-rs" }
+futures = "0.1.1"
 log = "0.3.6"
 tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
 tokio-hyper = { git = "https://github.com/tokio-rs/tokio-hyper" }
 racer = { git = "https://github.com/phildawes/racer" }
-rls-analysis = { git = "https://github.com/nrc/rls-analysis" }
+rls-analysis = { path = "../rls-analysis" }
 serde = "0.8"
 serde_json = "0.8"
 serde_macros = "0.8"

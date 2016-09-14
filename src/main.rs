@@ -125,6 +125,7 @@ impl From<analysis::raw::DefKind> for VscodeKind {
             analysis::raw::DefKind::Static => VscodeKind::Variable,
             analysis::raw::DefKind::Const => VscodeKind::Variable,
             analysis::raw::DefKind::Field => VscodeKind::Variable,
+            analysis::raw::DefKind::Import => VscodeKind::Module,
         }
     }
 }
@@ -390,8 +391,9 @@ fn convert_message_to_json_string(input: Vec<u8>) -> String {
 // TODO so gross, so hard-wired
 //const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
 //const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
-const PROJECT: &'static str = "httparse";
-fn build() -> BuildResult {
+//const PROJECT: &'static str = "foobar";
+//const PROJECT: &'static str = "/Users/jturner/Source/rustls/httparse";
+fn build(build_dir: &str) -> BuildResult {
     use std::env;
     use std::process::Command;
 
@@ -400,7 +402,8 @@ fn build() -> BuildResult {
     cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zno-trans -Zcontinue-parse-after-error");
     //cmd.env("PATH", &format!("{}:{}", RUST_PATH, env::var("PATH").unwrap()));
-    cmd.current_dir("./".to_string() + PROJECT);
+    //cmd.current_dir("./".to_string() + PROJECT);
+    cmd.current_dir(build_dir);
     println!("building...");
     match cmd.output() {
         Ok(x) => {
@@ -466,17 +469,25 @@ impl Service for MyService {
                     }
                 } else if x == "/on_change" {
                     // TODO need to log this on a work queue and coalesce builds
-                    let res = build();
-                    let reply = serde_json::to_string(&res).unwrap();
-                    println!("build result: {:?}", res);
-                    println!("Refreshing rustw cache");
-                    self.analysis.reload().unwrap();
-                    //b"{}\n".to_vec()
-                    let output = reply.as_bytes().to_vec();
-                    output
+                    if let Ok(file_name) = parse_string(req.body()) {
+                        let res = build(&file_name);
+                        let reply = serde_json::to_string(&res).unwrap();
+                        println!("build result: {:?}", res);
+                        println!("Refreshing rustw cache");
+                        self.analysis.reload(Path::new(&file_name).file_name().unwrap()
+                            .to_str().unwrap()).unwrap();
+                        //b"{}\n".to_vec()
+                        let output = reply.as_bytes().to_vec();
+                        output
+                    } else {
+                        b"{}\n".to_vec()
+                    }
                 } else if x == "/on_build" {
-                    println!("Refreshing rustw cache");
-                    self.analysis.reload().unwrap();
+                    if let Ok(file_name) = parse_string(req.body()) {
+                        println!("Refreshing rustw cache");
+                        self.analysis.reload(Path::new(&file_name).file_name().unwrap()
+                            .to_str().unwrap()).unwrap();
+                    }
                     b"{}\n".to_vec()
                 } else {
                     b"{}\n".to_vec()
@@ -498,8 +509,8 @@ impl Service for MyService {
 }
 
 pub fn main() {
-    let analysis = Arc::new(analysis::AnalysisHost::new(PROJECT, analysis::Target::Debug));
-    analysis.reload().unwrap();
+    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
+    //analysis.reload(PROJECT).unwrap();
 
     http::Server::new()
         .bind("127.0.0.1:9000".parse().unwrap())
