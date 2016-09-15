@@ -2,3 +2,6 @@
 name = "hello"
 version = "0.1.0"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
+
+[dependencies]
+sample_project = { path = "../sample_project" }

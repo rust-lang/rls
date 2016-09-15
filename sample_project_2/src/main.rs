@@ -1,5 +1,7 @@
 use std::sync::*;
 
+extern crate sample_project;
+
 /// A struct which does things
 ///
 /// * one thing
@@ -38,4 +40,6 @@ fn main() {
     fn bar(x: i32) {
         let y = x;
     }
+
+    let a = sample_project::Request::new();
 }

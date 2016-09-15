@@ -8,13 +8,23 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-struct Request {
+pub struct Request {
     filepath: String,
     line: usize,
     col: usize,
 }
 
-fn main() {
+impl Request {
+    pub fn new() -> Request {
+        Request {
+            filepath: "Hello".to_owned(),
+            line: 42,
+            col: 0,
+        }
+    }
+}
+
+pub fn foo() {
     let r = Request { filepath: "foo".to_string(), line: 3, col: 4 };
 
     let s = String::new();

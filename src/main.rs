@@ -513,7 +513,6 @@ impl Service for MyService {
 
 pub fn main() {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    //analysis.reload(PROJECT).unwrap();
 
     http::Server::new()
         .bind("127.0.0.1:9000".parse().unwrap())
