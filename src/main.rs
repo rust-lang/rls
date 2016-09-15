@@ -125,11 +125,7 @@ impl From<analysis::raw::DefKind> for VscodeKind {
             analysis::raw::DefKind::Static => VscodeKind::Variable,
             analysis::raw::DefKind::Const => VscodeKind::Variable,
             analysis::raw::DefKind::Field => VscodeKind::Variable,
-<<<<<<< HEAD
             analysis::raw::DefKind::Import => VscodeKind::Module,
-=======
-            analysis::raw::DefKind::Import => VscodeKind::Namespace,
->>>>>>> Update to work with rls-analysis
         }
     }
 }
@@ -405,9 +401,11 @@ fn build(build_dir: &str) -> BuildResult {
     use std::process::Command;
 
     let mut cmd = Command::new("cargo");
-    cmd.arg("build");
+    cmd.arg("rustc");
+    cmd.arg("--");
+    cmd.arg("-Zno-trans");
     cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
-                          -Zno-trans -Zcontinue-parse-after-error");
+                          -Zcontinue-parse-after-error");
     cmd.current_dir(build_dir);
     println!("building...");
     match cmd.output() {
