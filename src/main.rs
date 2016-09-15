@@ -406,8 +406,9 @@ fn build(build_dir: &str) -> BuildResult {
     cmd.arg("-Zno-trans");
     cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zcontinue-parse-after-error");
+    cmd.env("RUSTC", &env::var("RLS_RUSTC").unwrap_or(String::new()));
     cmd.current_dir(build_dir);
-    println!("building...");
+    println!("building {}...", build_dir);
     match cmd.output() {
         Ok(x) => {
             let stderr_json_msg = convert_message_to_json_strings(x.stderr);
@@ -479,7 +480,6 @@ impl Service for MyService {
                         println!("Refreshing rustw cache");
                         self.analysis.reload(Path::new(&file_name).file_name().unwrap()
                             .to_str().unwrap()).unwrap();
-                        //b"{}\n".to_vec()
                         let output = reply.as_bytes().to_vec();
                         output
                     } else {
