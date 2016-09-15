@@ -64,8 +64,8 @@ enum Provider {
 
 #[derive(Debug, Serialize)]
 enum BuildResult {
-    Success(String),
-    Failure(String),
+    Success(Vec<String>),
+    Failure(Vec<String>),
     Err
 }
 
@@ -363,21 +363,29 @@ fn parse_string(input: &[u8]) -> Result<String, serde_json::Error> {
     serde_json::from_str(&s)
 }
 
-fn convert_message_to_json_string(input: Vec<u8>) -> String {
-    let mut output = String::new();
+fn convert_message_to_json_strings(input: Vec<u8>) -> Vec<String> {
+    let mut output = vec![];
 
     //FIXME: this is *so gross*  Trying to work around cargo not supporting json messages
     let it = input.into_iter();
 
     let mut read_iter = it.skip_while(|&x| x != b'{');
 
+    let mut _msg = String::new();
     loop {
         match read_iter.next() {
             Some(b'\n') => {
-                break;
+                output.push(_msg);
+                _msg = String::new();
+                while let Some(res) = read_iter.next() {
+                    if res == b'{' {
+                        _msg.push('{');
+                        break;
+                    }
+                }
             }
             Some(x) => {
-                output.push(x as char);
+                _msg.push(x as char);
             }
             None => {
                 break;
@@ -388,11 +396,6 @@ fn convert_message_to_json_string(input: Vec<u8>) -> String {
     output
 }
 
-// TODO so gross, so hard-wired
-//const RUST_PATH: &'static str = "/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin";
-//const RUST_PATH: &'static str = "/Users/jturner/Source/rust/build/x86_64-apple-darwin/stage1/bin";
-//const PROJECT: &'static str = "foobar";
-//const PROJECT: &'static str = "/Users/jturner/Source/rustls/httparse";
 fn build(build_dir: &str) -> BuildResult {
     use std::env;
     use std::process::Command;
@@ -401,13 +404,11 @@ fn build(build_dir: &str) -> BuildResult {
     cmd.arg("build");
     cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zno-trans -Zcontinue-parse-after-error");
-    //cmd.env("PATH", &format!("{}:{}", RUST_PATH, env::var("PATH").unwrap()));
-    //cmd.current_dir("./".to_string() + PROJECT);
     cmd.current_dir(build_dir);
     println!("building...");
     match cmd.output() {
         Ok(x) => {
-            let stderr_json_msg = convert_message_to_json_string(x.stderr);
+            let stderr_json_msg = convert_message_to_json_strings(x.stderr);
             match x.status.code() {
                 Some(0) => {
                     BuildResult::Success(stderr_json_msg)
