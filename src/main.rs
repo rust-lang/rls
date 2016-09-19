@@ -32,5 +32,6 @@ fn adjust_span_for_vscode(mut source: analysis::Span) -> analysis::Span {
 pub fn main() {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
-    server::run_server(analysis, vfs);
+    let build_queue = Arc::new(build::BuildQueue::new());
+    server::run_server(analysis, vfs, build_queue);
 }

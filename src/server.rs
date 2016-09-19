@@ -17,10 +17,11 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
-pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
+pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
     let handler = MyService {
         analysis: analysis.clone(),
         vfs: vfs.clone(),
+        build_queue: build_queue.clone(),
     };
 
     println!("Listening on 127.0.0.1:9000");
@@ -31,6 +32,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
 struct MyService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
+    build_queue: Arc<BuildQueue>,
 }
 
 macro_rules! dispatch_action {
@@ -49,6 +51,30 @@ impl MyService {
     dispatch_action!(symbols, String);
     dispatch_action!(find_refs, Input);
     dispatch_action!(title, Input);
+
+    fn build(&self, project_path: &str, priority: BuildPriority) -> Vec<u8> {
+        let analysis = self.analysis.clone();
+        let project_path_copy = project_path.to_owned();
+
+        match self.build_queue.request_build(project_path, priority) {
+            BuildResult::Squashed => {
+                println!("Skipped build");
+                b"{}\n".to_vec()
+            }
+            result => {
+                let reply = serde_json::to_string(&result).unwrap();
+                println!("build result: {:?}", result);
+
+                println!("Refreshing rustw cache");
+                analysis.reload(Path::new(&project_path_copy).file_name()
+                                                            .unwrap()
+                                                            .to_str()
+                                                            .unwrap()).unwrap();
+
+                reply.as_bytes().to_vec()
+            }
+        }
+    }
 }
 
 impl Handler for MyService {
@@ -98,25 +124,16 @@ impl Handler for MyService {
                         // println!("on change: {:?}", change);
                         self.vfs.on_change(&change.changes);
 
-                        // TODO need to queue a build with vfs changes
+                        self.build(&change.project_path, BuildPriority::Normal)
+                    } else {
+                        b"{}\n".to_vec()
                     }
-                    b"{}\n".to_vec()
                 } else if x == "/on_save" {
                     if let Ok(save) = SaveInput::from_bytes(&body) {
                         println!("on save: {}", &save.saved_file);
                         self.vfs.on_save(&save.saved_file);
 
-                        // TODO log this on a work queue and coalesce builds
-                        let res = build(&save.project_path);
-                        let reply = serde_json::to_string(&res).unwrap();
-                        println!("build result: {:?}", res);
-
-                        println!("Refreshing rustw cache");
-                        self.analysis.reload(Path::new(&save.project_path).file_name()
-                                                                          .unwrap()
-                                                                          .to_str()
-                                                                          .unwrap()).unwrap();
-                        reply.as_bytes().to_vec()
+                        self.build(&save.project_path, BuildPriority::Immediate)
                     } else {
                         b"{}\n".to_vec()
                     }
