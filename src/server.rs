@@ -1,35 +1,30 @@
-extern crate tokio_service;
-extern crate tokio_hyper;
-
 use actions::*;
 use build::*;
 use ide::{ChangeInput, Input, SaveInput, parse_string};
 use vfs::Vfs;
 
-use analysis::AnalysisHost;
-use futures::{self, Future, finished, BoxFuture};
 use hyper;
-use serde_json;
-use self::tokio_service::Service;
+use hyper::header::ContentType;
+use hyper::net::Fresh;
+use hyper::server::Handler;
+use hyper::server::Request;
+use hyper::server::Response;
 
+use analysis::AnalysisHost;
+use serde_json;
+
+use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
-    tokio_hyper::Server::new()
-        .bind("127.0.0.1:9000".parse().unwrap())
-        .serve(move || MyService {
-            analysis: analysis.clone(),
-            vfs: vfs.clone(),
-        })
-        .unwrap();
+    let handler = MyService {
+        analysis: analysis.clone(),
+        vfs: vfs.clone(),
+    };
 
     println!("Listening on 127.0.0.1:9000");
-
-    // TODO Why 100000 secs here?
-    thread::sleep(Duration::from_secs(1_000_000));
+    hyper::Server::http("127.0.0.1:9000").unwrap().handle(handler).unwrap();
 }
 
 #[derive(Clone)]
@@ -56,17 +51,15 @@ impl MyService {
     dispatch_action!(title, Input);
 }
 
-impl Service for MyService {
-    type Request = tokio_hyper::Message<tokio_hyper::Request>;
-    type Response = tokio_hyper::Message<tokio_hyper::Response>;
-    type Error = tokio_hyper::Error;
-    type Future = BoxFuture<Self::Response, tokio_hyper::Error>;
+impl Handler for MyService {
+    fn handle<'a, 'k>(&'a self, mut req: Request<'a, 'k>, mut res: Response<'a, Fresh>) {
+        let mut body = vec![];
+        req.read_to_end(&mut body).unwrap();
 
-    fn call(&self, req: Self::Request) -> Self::Future {
-        let msg = match req.head().uri() {
-            &hyper::uri::RequestUri::AbsolutePath { path: ref x, .. } => {
+        let msg = match req.uri {
+            hyper::uri::RequestUri::AbsolutePath(ref x) => {
                 if x == "/complete" {
-                    if let Ok(input) = Input::from_bytes(req.body()) {
+                    if let Ok(input) = Input::from_bytes(&body) {
                         // TODO the client has done a save so we should exectute the on_save logic here too.
                         println!("Completion for: {:?}", input.pos);
                         self.complete(input.pos, self.analysis.clone())
@@ -75,33 +68,33 @@ impl Service for MyService {
                         b"{}\n".to_vec()
                     }
                 } else if x == "/goto_def" {
-                    if let Ok(input) = Input::from_bytes(req.body()) {
+                    if let Ok(input) = Input::from_bytes(&body) {
                         println!("Goto def for: {:?}", input);
                         self.goto_def(input, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
                 } else if x == "/symbols" {
-                    if let Ok(file_name) = parse_string(req.body()) {
+                    if let Ok(file_name) = parse_string(&body) {
                         self.symbols(file_name, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
                 } else if x == "/find_refs" {
-                    if let Ok(input) = Input::from_bytes(req.body()) {
+                    if let Ok(input) = Input::from_bytes(&body) {
                         println!("find refs for: {:?}", input);
                         self.find_refs(input, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
                 } else if x == "/title" {
-                    if let Ok(input) = Input::from_bytes(req.body()) {
+                    if let Ok(input) = Input::from_bytes(&body) {
                         self.title(input, self.analysis.clone())
                     } else {
                         b"{}\n".to_vec()
                     }
                 } else if x == "/on_change" {
-                    if let Ok(change) = ChangeInput::from_bytes(req.body()) {
+                    if let Ok(change) = ChangeInput::from_bytes(&body) {
                         // println!("on change: {:?}", change);
                         self.vfs.on_change(&change.changes);
 
@@ -109,7 +102,7 @@ impl Service for MyService {
                     }
                     b"{}\n".to_vec()
                 } else if x == "/on_save" {
-                    if let Ok(save) = SaveInput::from_bytes(req.body()) {
+                    if let Ok(save) = SaveInput::from_bytes(&body) {
                         println!("on save: {}", &save.saved_file);
                         self.vfs.on_save(&save.saved_file);
 
@@ -128,7 +121,7 @@ impl Service for MyService {
                         b"{}\n".to_vec()
                     }
                 } else if x == "/on_build" {
-                    if let Ok(file_name) = parse_string(req.body()) {
+                    if let Ok(file_name) = parse_string(&body) {
                         println!("Refreshing rustw cache");
                         self.analysis.reload(Path::new(&file_name).file_name().unwrap()
                             .to_str().unwrap()).unwrap();
@@ -141,15 +134,8 @@ impl Service for MyService {
             _ => b"{}\n".to_vec(),
         };
 
-        // Create the HTTP response with the body
-        let resp = tokio_hyper::Message::new(tokio_hyper::Response::ok()).with_body(msg);
-
-        // Return the response as an immediate future
-        finished(resp).boxed()
-    }
-
-    fn poll_ready(&self) -> futures::Async<()> {
-        futures::Async::Ready(())
+        res.headers_mut().set(ContentType::json());
+        res.send(&msg).unwrap();
     }
 }
 

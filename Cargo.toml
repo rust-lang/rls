@@ -6,8 +6,6 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 [dependencies]
 futures = "0.1.1"
 log = "0.3.6"
-tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
-tokio-hyper = { git = "https://github.com/tokio-rs/tokio-hyper" }
 racer = { git = "https://github.com/phildawes/racer" }
 rls-analysis = { path = "../rls-analysis" }
 serde = "0.8"
@@ -18,5 +16,5 @@ serde_macros = "0.8"
 env_logger = "0.3.0"
 
 [dependencies.hyper]
-git = "https://github.com/hyperium/hyper"
+version = "0.9"
 default-features = false

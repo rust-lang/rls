@@ -1,7 +1,6 @@
 #![feature(custom_derive, plugin)]
 #![plugin(serde_macros)]
 
-extern crate futures;
 #[macro_use]
 extern crate hyper;
 extern crate rls_analysis as analysis;
