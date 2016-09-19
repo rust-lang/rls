@@ -120,6 +120,7 @@ impl File {
             new_text.push_str(&c.text);
             new_text.push_str(&self.text[range.1 as usize..]);
             self.text = new_text;
+            self.line_indices = File::make_line_indices(&self.text);
         }
     }
 
@@ -141,6 +142,7 @@ fn byte_in_str(s: &str, c: usize) -> Option<usize> {
     return None;
 }
 
+#[derive(Debug, Deserialize)]
 pub struct Change {
     span: Span,
     text: String,

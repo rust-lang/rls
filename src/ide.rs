@@ -2,6 +2,7 @@ use analysis::{raw, Span};
 use serde_json;
 
 use actions::{Position, Provider};
+use vfs::Change;
 
 #[derive(Debug, Deserialize)]
 pub struct Input {
@@ -15,18 +16,38 @@ pub enum Output {
     Err,
 }
 
-impl Input {
-    pub fn from_bytes(input: &[u8]) -> Result<Input, serde_json::Error> {
-        let s = String::from_utf8(input.to_vec()).unwrap();
-        // FIXME: this is gross.  There should be a better way to unescape
-        let s = unsafe {
-            s.slice_unchecked(1, s.len()-1)
-        };
-        let s = s.replace("\\\"", "\"");
-        //println!("decoding: '{}'", s);
-        serde_json::from_str(&s)
+#[derive(Debug, Deserialize)]
+pub struct ChangeInput {
+    pub project_path: String,
+    pub changes: Vec<Change>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveInput {
+    pub project_path: String,
+    pub saved_file: String,
+}
+
+macro_rules! from_bytes {
+    ($input: ty) => {
+        impl $input {
+            pub fn from_bytes(input: &[u8]) -> Result<$input, serde_json::Error> {
+                let s = String::from_utf8(input.to_vec()).unwrap();
+                // FIXME: this is gross. There should be a better way to unescape
+                let s = unsafe {
+                    s.slice_unchecked(1, s.len()-1)
+                };
+                let s = s.replace("\\\"", "\"");
+                //println!("decoding: '{}'", s);
+                serde_json::from_str(&s)
+            }
+        }
     }
 }
+
+from_bytes!(Input);
+from_bytes!(ChangeInput);
+from_bytes!(SaveInput);
 
 pub fn parse_string(input: &[u8]) -> Result<String, serde_json::Error> {
     let s = String::from_utf8(input.to_vec()).unwrap();

@@ -11,6 +11,7 @@ extern crate serde_json;
 use std::sync::Arc;
 
 mod actions;
+mod build;
 mod ide;
 mod server;
 mod vfs;
@@ -31,5 +32,6 @@ fn adjust_span_for_vscode(mut source: analysis::Span) -> analysis::Span {
 
 pub fn main() {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    server::run_server(analysis);
+    let vfs = Arc::new(vfs::Vfs::new());
+    server::run_server(analysis, vfs);
 }

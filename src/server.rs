@@ -2,7 +2,9 @@ extern crate tokio_service;
 extern crate tokio_hyper;
 
 use actions::*;
-use ide::{Input, parse_string};
+use build::*;
+use ide::{ChangeInput, Input, SaveInput, parse_string};
+use vfs::Vfs;
 
 use analysis::AnalysisHost;
 use futures::{self, Future, finished, BoxFuture};
@@ -15,10 +17,13 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-pub fn run_server(analysis: Arc<AnalysisHost>) {
+pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
     tokio_hyper::Server::new()
         .bind("127.0.0.1:9000".parse().unwrap())
-        .serve(move || MyService { analysis: analysis.clone() })
+        .serve(move || MyService {
+            analysis: analysis.clone(),
+            vfs: vfs.clone(),
+        })
         .unwrap();
 
     println!("Listening on 127.0.0.1:9000");
@@ -29,7 +34,8 @@ pub fn run_server(analysis: Arc<AnalysisHost>) {
 
 #[derive(Clone)]
 struct MyService {
-    analysis: Arc<AnalysisHost>
+    analysis: Arc<AnalysisHost>,
+    vfs: Arc<Vfs>,
 }
 
 macro_rules! dispatch_action {
@@ -61,6 +67,7 @@ impl Service for MyService {
             &hyper::uri::RequestUri::AbsolutePath { path: ref x, .. } => {
                 if x == "/complete" {
                     if let Ok(input) = Input::from_bytes(req.body()) {
+                        // TODO the client has done a save so we should exectute the on_save logic here too.
                         println!("Completion for: {:?}", input.pos);
                         self.complete(input.pos, self.analysis.clone())
                     } else {
@@ -94,16 +101,29 @@ impl Service for MyService {
                         b"{}\n".to_vec()
                     }
                 } else if x == "/on_change" {
-                    // TODO need to log this on a work queue and coalesce builds
-                    if let Ok(file_name) = parse_string(req.body()) {
-                        let res = build(&file_name);
+                    if let Ok(change) = ChangeInput::from_bytes(req.body()) {
+                        // println!("on change: {:?}", change);
+                        self.vfs.on_change(&change.changes);
+
+                        // TODO need to queue a build with vfs changes
+                    }
+                    b"{}\n".to_vec()
+                } else if x == "/on_save" {
+                    if let Ok(save) = SaveInput::from_bytes(req.body()) {
+                        println!("on save: {}", &save.saved_file);
+                        self.vfs.on_save(&save.saved_file);
+
+                        // TODO log this on a work queue and coalesce builds
+                        let res = build(&save.project_path);
                         let reply = serde_json::to_string(&res).unwrap();
                         println!("build result: {:?}", res);
+
                         println!("Refreshing rustw cache");
-                        self.analysis.reload(Path::new(&file_name).file_name().unwrap()
-                            .to_str().unwrap()).unwrap();
-                        let output = reply.as_bytes().to_vec();
-                        output
+                        self.analysis.reload(Path::new(&save.project_path).file_name()
+                                                                          .unwrap()
+                                                                          .to_str()
+                                                                          .unwrap()).unwrap();
+                        reply.as_bytes().to_vec()
                     } else {
                         b"{}\n".to_vec()
                     }
