@@ -27,7 +27,9 @@ pub fn build(build_dir: &str) -> BuildResult {
     cmd.arg("-Zno-trans");
     cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zcontinue-parse-after-error");
-    cmd.env("RUSTC", &env::var("RLS_RUSTC").unwrap_or(String::new()));
+    if let Ok(rls_rustc) = env::var("RLS_RUSTC") {
+        cmd.env("RUSTC", &rls_rustc);
+    }
     cmd.current_dir(build_dir);
     println!("building {}...", build_dir);
     match cmd.output() {
