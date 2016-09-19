@@ -32,36 +32,22 @@ struct MyService {
     analysis: Arc<AnalysisHost>
 }
 
+macro_rules! dispatch_action {
+    ($name: ident, $input_type: ty) => {
+        fn $name(&self, input: $input_type, analysis: Arc<AnalysisHost>) -> Vec<u8> {
+            let result = $name(input, analysis);
+            let reply = serde_json::to_string(&result).unwrap();
+            reply.as_bytes().to_vec()
+        }
+    }
+}
+
 impl MyService {
-    fn complete(&self, pos: Position) -> Vec<u8> {
-        let completions = complete(pos);
-        let reply = serde_json::to_string(&completions).unwrap();
-        reply.as_bytes().to_vec()
-    }
-
-    fn goto_def(&self, input: Input, analysis: Arc<AnalysisHost>) -> Vec<u8> {
-        let result = goto_def(input, analysis);
-        let reply = serde_json::to_string(&result).unwrap();
-        reply.as_bytes().to_vec()
-    }
-
-    fn symbols(&self, file_name: String, analysis: Arc<AnalysisHost>) -> Vec<u8> {
-        let result = symbols(file_name, analysis);
-        let reply = serde_json::to_string(&result).unwrap();
-        reply.as_bytes().to_vec()
-    }
-
-    fn find_refs(&self, input: Input, analysis: Arc<AnalysisHost>) -> Vec<u8> {
-        let result = find_refs(input, analysis);
-        let reply = serde_json::to_string(&result).unwrap();
-        reply.as_bytes().to_vec()
-    }
-
-    fn title(&self, input: Input, analysis: Arc<AnalysisHost>) -> Vec<u8> {
-        let result = title(input, analysis);
-        let reply = serde_json::to_string(&result).unwrap();
-        reply.as_bytes().to_vec()
-    }
+    dispatch_action!(complete, Position);
+    dispatch_action!(goto_def, Input);
+    dispatch_action!(symbols, String);
+    dispatch_action!(find_refs, Input);
+    dispatch_action!(title, Input);
 }
 
 impl Service for MyService {
@@ -76,7 +62,7 @@ impl Service for MyService {
                 if x == "/complete" {
                     if let Ok(input) = Input::from_bytes(req.body()) {
                         println!("Completion for: {:?}", input.pos);
-                        self.complete(input.pos)
+                        self.complete(input.pos, self.analysis.clone())
                     } else {
                         println!("complete failed to parse");
                         b"{}\n".to_vec()

@@ -59,8 +59,7 @@ pub enum BuildResult {
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
 
-pub fn complete(source: Position) -> Vec<Completion> {
-    use std::io::prelude::*;
+pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completion> {
     panic::catch_unwind(|| {
         let path = Path::new(&source.filepath);
         let mut f = File::open(&path).unwrap();
