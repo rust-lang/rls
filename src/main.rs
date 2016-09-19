@@ -13,6 +13,7 @@ use std::sync::Arc;
 mod actions;
 mod ide;
 mod server;
+mod vfs;
 
 
 // TODO overlap with VSCode plugin
