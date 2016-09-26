@@ -7,7 +7,7 @@ extern crate sample_project;
 /// * one thing
 /// * another thing
 struct Foo {
-    x: u32,
+    x: u32, 
     y: u32
 }
 
@@ -18,7 +18,7 @@ fn foo_maker() -> Foo {
     Foo { x: 3, y: 4 }
 }
 
-fn main() {
+fn main() { 
     let mut bar = 42;
     let f = bar;
     let g = &mut bar;
@@ -29,7 +29,7 @@ fn main() {
     let a = Arc::new(42);
     let b = Once::new();
     let c = sub_mod::foo();
-    let d = String::new();
+    let d = String::new();   
 
     let e = Foo { x: 3, y: 4 };
 

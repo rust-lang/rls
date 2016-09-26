@@ -56,23 +56,26 @@ impl MyService {
         let analysis = self.analysis.clone();
         let project_path_copy = project_path.to_owned();
 
-        match self.build_queue.request_build(project_path, priority) {
+        let result = self.build_queue.request_build(project_path, priority);
+        match result {
             BuildResult::Squashed => {
                 println!("Skipped build");
                 b"{}\n".to_vec()
             }
-            result => {
+            BuildResult::Success(_) | BuildResult::Failure(_) => {
                 let reply = serde_json::to_string(&result).unwrap();
-                println!("build result: {:?}", result);
+                // println!("build result: {:?}", result);
 
-                println!("Refreshing rustw cache");
-                analysis.reload(Path::new(&project_path_copy).file_name()
-                                                            .unwrap()
-                                                            .to_str()
-                                                            .unwrap()).unwrap();
+                let file_name = Path::new(&project_path_copy).file_name()
+                                                             .unwrap()
+                                                             .to_str()
+                                                             .unwrap();
+                println!("Refreshing rustw cache: {}", file_name);
+                analysis.reload(file_name).unwrap();
 
                 reply.as_bytes().to_vec()
             }
+            BuildResult::Err => b"{}\n".to_vec(),
         }
     }
 }
@@ -86,7 +89,7 @@ impl Handler for MyService {
             hyper::uri::RequestUri::AbsolutePath(ref x) => {
                 if x == "/complete" {
                     if let Ok(input) = Input::from_bytes(&body) {
-                        // TODO the client has done a save so we should exectute the on_save logic here too.
+                        // TODO how do we get the changed files in memory to Racer?
                         println!("Completion for: {:?}", input.pos);
                         self.complete(input.pos, self.analysis.clone())
                     } else {

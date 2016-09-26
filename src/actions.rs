@@ -54,25 +54,28 @@ const RUSTW_TIMEOUT: u64 = 500;
 
 pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completion> {
     panic::catch_unwind(|| {
-        let path = Path::new(&source.filepath);
-        let mut f = File::open(&path).unwrap();
-        let mut src = String::new();
-        f.read_to_string(&mut src).unwrap();
-        let pos = scopes::coords_to_point(&src, source.line, source.col);
-        let cache = core::FileCache::new();
-        let got = complete_from_file(&src,
-                                     &path,
-                                     pos,
-                                     &core::Session::from_path(&cache, &path, &path));
+        // TODO RacerUp
+        // let path = Path::new(&source.filepath);
+        // let mut f = File::open(&path).unwrap();
+        // let mut src = String::new();
+        // f.read_to_string(&mut src).unwrap();
+        // let pos = scopes::coords_to_point(&src, source.line, source.col);
+        // let cache = core::FileCache::new();
+        // let got = complete_from_file(&src,
+        //                              &path,
+        //                              pos,
+        //                              &core::Session::from_path(&cache, &path, &path));
 
-        let mut results = vec![];
-        for comp in got {
-            results.push(Completion {
-                name: comp.matchstr.clone(),
-                context: comp.contextstr.clone(),
-            });
-        }
-        results
+        // let mut results = vec![];
+        // for comp in got {
+        //     results.push(Completion {
+        //         name: comp.matchstr.clone(),
+        //         context: comp.contextstr.clone(),
+        //     });
+        // }
+        // results
+
+        vec![]
     }).unwrap_or(vec![])
 }
 
@@ -118,33 +121,36 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     // Racer thread.
     let pos = source.pos;
     let racer_handle = thread::spawn(move || {
-        let path = Path::new(&pos.filepath);
-        let mut f = File::open(&path).unwrap();
-        let mut src = String::new();
-        f.read_to_string(&mut src).unwrap();
-        let pos = scopes::coords_to_point(&src, pos.line, pos.col);
-        let cache = core::FileCache::new();
-        if let Some(mch) = find_definition(&src,
-                                        &path,
-                                        pos,
-                                        &core::Session::from_path(&cache, &path, &path)) {
-            let mut f = File::open(&mch.filepath).unwrap();
-            let mut source_src = String::new();
-            f.read_to_string(&mut source_src).unwrap();
-            if mch.point != 0 {
-                let (line, col) = scopes::point_to_coords(&source_src, mch.point);
-                let fpath = mch.filepath.to_str().unwrap().to_string();
-                Some(Position {
-                    filepath: fpath,
-                    line: line,
-                    col: col,
-                })
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        // TODO RacerUp
+        // let path = Path::new(&pos.filepath);
+        // let mut f = File::open(&path).unwrap();
+        // let mut src = String::new();
+        // f.read_to_string(&mut src).unwrap();
+        // let pos = scopes::coords_to_point(&src, pos.line, pos.col);
+        // let cache = core::FileCache::new();
+        // if let Some(mch) = find_definition(&src,
+        //                                    &path,
+        //                                    pos,
+        //                                    &core::Session::from_path(&cache, &path, &path)) {
+        //     let mut f = File::open(&mch.filepath).unwrap();
+        //     let mut source_src = String::new();
+        //     f.read_to_string(&mut source_src).unwrap();
+        //     if mch.point != 0 {
+        //         let (line, col) = scopes::point_to_coords(&source_src, mch.point);
+        //         let fpath = mch.filepath.to_str().unwrap().to_string();
+        //         Some(Position {
+        //             filepath: fpath,
+        //             line: line,
+        //             col: col,
+        //         })
+        //     } else {
+        //         None
+        //     }
+        // } else {
+        //     None
+        // }
+
+        None
     });
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));

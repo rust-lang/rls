@@ -22,11 +22,7 @@ impl Vfs {
         self.0.on_change(changes)
     }
 
-    pub fn has_changes(&self) -> bool {
-        self.0.has_changes()
-    }
-
-    pub fn get_changed_files(&self) -> Vec<(PathBuf, String)> {
+    pub fn get_changed_files(&self) -> HashMap<PathBuf, String> {
         self.0.get_changed_files()
     }
 }
@@ -74,12 +70,7 @@ impl<T: FileLoader> VfsInternal<T> {
         }
     }
 
-    pub fn has_changes(&self) -> bool {
-        let files = self.files.lock().unwrap();
-        !files.is_empty()
-    }
-
-    pub fn get_changed_files(&self) -> Vec<(PathBuf, String)> {
+    pub fn get_changed_files(&self) -> HashMap<PathBuf, String> {
         let files = self.files.lock().unwrap();
         files.iter().map(|(p, f)| (p.clone(), f.text.clone())).collect()
     }
