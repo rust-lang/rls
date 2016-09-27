@@ -30,7 +30,7 @@ pub struct Position {
 
 #[derive(Debug, Serialize)]
 pub enum Provider {
-    Rustw,
+    Rls,
     Racer,
 }
 
@@ -60,7 +60,7 @@ const RUSTW_TIMEOUT: u64 = 500;
 pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completion> {
     panic::catch_unwind(|| {
         // TODO RacerUp
-        // let source = ide::adjust_vscode_pos_for_racer(source);
+        // let source = adjust_vscode_pos_for_racer(source);
         // let path = Path::new(&source.filepath);
         // let mut f = File::open(&path).unwrap();
         // let mut src = String::new();
@@ -87,7 +87,7 @@ pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completio
 
 pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
     let t = thread::current();
-    let span = ide::adjust_vscode_span_for_rls(source.span);
+    let span = source.span;
     println!("title for: {:?}", span);
     let rustw_handle = thread::spawn(move || {
         let result = analysis.find_all_refs(&span);
@@ -99,7 +99,7 @@ pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-    rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]).into_iter().map(ide::adjust_span_for_vscode).collect()
+    rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![])
 }
 
 pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
@@ -123,7 +123,7 @@ pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
 pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     // Rustw thread.
     let t = thread::current();
-    let span = ide::adjust_vscode_span_for_rls(source.span);
+    let span = source.span;
     let rustw_handle = thread::spawn(move || {
         let result = if let Ok(s) = analysis.goto_def(&span) {
             println!("rustw success!");
@@ -143,7 +143,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     });
 
     // Racer thread.
-    let pos = ide::adjust_vscode_pos_for_racer(source.pos);
+    let pos = adjust_vscode_pos_for_racer(source.pos);
     let racer_handle = thread::spawn(move || {
         // TODO RacerUp
         // let path = Path::new(&pos.filepath);
@@ -182,13 +182,13 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     let rustw_result = rustw_handle.join().unwrap_or(None);
     match rustw_result {
         Some(r) => {
-            Output::Ok(ide::adjust_rls_pos_for_vscode(r), Provider::Rustw)
+            Output::Ok(r, Provider::Rls)
         }
         None => {
             println!("Using racer");
             match racer_handle.join() {
                 Ok(Some(r)) => {
-                    Output::Ok(ide::adjust_racer_pos_for_vscode(r), Provider::Racer)
+                    Output::Ok(adjust_racer_pos_for_vscode(r), Provider::Racer)
                 }
                 _ => Output::Err,
             }
@@ -198,7 +198,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
 
 pub fn title(source: Input, analysis: Arc<AnalysisHost>) -> Option<Title> {
     let t = thread::current();
-    let span = ide::adjust_vscode_span_for_rls(source.span);
+    let span = source.span;
     println!("title for: {:?}", span);
     let rustw_handle = thread::spawn(move || {
         let ty = analysis.show_type(&span).unwrap_or(String::new());
@@ -231,7 +231,7 @@ pub fn symbols(file_name: String, analysis: Arc<AnalysisHost>) -> Vec<Symbol> {
             Symbol {
                 name: s.name,
                 kind: VscodeKind::from(s.kind),
-                span: ide::adjust_span_for_vscode(s.span),
+                span: s.span,
             }
         }).collect()
     });
@@ -239,4 +239,17 @@ pub fn symbols(file_name: String, analysis: Arc<AnalysisHost>) -> Vec<Symbol> {
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
     rustw_handle.join().unwrap_or(vec![])
+}
+
+
+fn adjust_vscode_pos_for_racer(mut source: Position) -> Position {
+    source.line += 1;
+    source
+}
+
+fn adjust_racer_pos_for_vscode(mut source: Position) -> Position {
+    if source.line > 0 {
+        source.line -= 1;
+    }
+    source
 }
