@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
 [dependencies]
-futures = "0.1.1"
 log = "0.3.6"
 racer = { git = "https://github.com/phildawes/racer" }
 rls-analysis = { path = "../rls-analysis" }

@@ -108,3 +108,42 @@ impl From<raw::DefKind> for VscodeKind {
         }
     }
 }
+
+pub fn adjust_vscode_span_for_rls(mut source: Span) -> Span {
+    source.line_start += 1;
+    source.line_end += 1;
+    source.column_start += 1;
+    source.column_end += 1;
+    source
+}
+
+pub fn adjust_vscode_pos_for_racer(mut source: Position) -> Position {
+    source.line += 1;
+    source
+}
+
+pub fn adjust_span_for_vscode(mut source: Span) -> Span {
+    source.line_start -= 1;
+    source.line_end -= 1;
+    source.column_start -= 1;
+    source.column_end -= 1;
+    source
+}
+
+pub fn adjust_rls_pos_for_vscode(mut source: Position) -> Position {
+    // FIXME Change RLS-analysis to use 0-indexed columns.
+    if source.col > 0 {
+        source.col -= 1;
+    }
+    if source.line > 0 {
+        source.line -= 1;
+    }
+    source
+}
+
+pub fn adjust_racer_pos_for_vscode(mut source: Position) -> Position {
+    if source.line > 0 {
+        source.line -= 1;
+    }
+    source
+}
