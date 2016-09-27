@@ -1,6 +1,6 @@
 use actions::*;
 use build::*;
-use ide::{ChangeInput, Input, SaveInput, parse_string};
+use ide::{ChangeInput, FmtOutput, Input, SaveInput, parse_string};
 use vfs::Vfs;
 
 use hyper;
@@ -51,6 +51,16 @@ impl MyService {
     dispatch_action!(symbols, String);
     dispatch_action!(find_refs, Input);
     dispatch_action!(title, Input);
+
+    fn fmt(&self, file_name: &str) -> Vec<u8> {
+        //println!("Formatting: `{}`", file_name);
+        let result = fmt(file_name, self.vfs.clone());
+        if let FmtOutput::Change(ref s) = result {
+            self.vfs.set_file(&Path::new(file_name), s);
+        }
+        let reply = serde_json::to_string(&result).unwrap();
+        reply.as_bytes().to_vec()
+    }
 
     fn build(&self, project_path: &str, priority: BuildPriority) -> Vec<u8> {
         let analysis = self.analysis.clone();
@@ -147,6 +157,12 @@ impl Handler for MyService {
                             .to_str().unwrap()).unwrap();
                     }
                     b"{}\n".to_vec()
+                } else if x == "/fmt" {
+                    if let Ok(file_name) = parse_string(&body) {
+                        self.fmt(&file_name)
+                    } else {
+                        b"{}\n".to_vec()
+                    }
                 } else {
                     b"{}\n".to_vec()
                 }

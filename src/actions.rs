@@ -1,20 +1,25 @@
 extern crate racer;
+extern crate rustfmt;
 
 use analysis::{AnalysisHost, Span};
 use self::racer::core::complete_from_file;
 use self::racer::core::find_definition;
 use self::racer::core;
 use self::racer::scopes;
+use self::rustfmt::{Input as FmtInput, format_input};
+use self::rustfmt::config::{self, WriteMode};
 
+use std::default::Default;
 use std::fs::File;
 use std::io::prelude::*;
 use std::panic;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use ide::{Input, Output, VscodeKind};
+use ide::{Input, Output, FmtOutput, VscodeKind};
+use vfs::Vfs;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Position {
@@ -94,6 +99,24 @@ pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
     rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]).into_iter().map(::adjust_span_for_vscode).collect()
+}
+
+pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
+    let path = PathBuf::from(file_name);
+    let input = match vfs.get_file_changes(&path) {
+        Some(s) => FmtInput::Text(s),
+        None => FmtInput::File(path),
+    };
+
+    let mut config = config::Config::default();
+    config.skip_children = true;
+    config.write_mode = WriteMode::Plain;
+
+    let mut buf = Vec::<u8>::new();
+    match format_input(input, &config, Some(&mut buf)) {
+        Ok(_) => FmtOutput::Change(String::from_utf8(buf).unwrap()),
+        Err(_) => FmtOutput::Err,
+    }
 }
 
 pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {

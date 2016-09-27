@@ -16,6 +16,12 @@ pub enum Output {
     Err,
 }
 
+#[derive(Debug, Serialize)]
+pub enum FmtOutput {
+    Change(String),
+    Err,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ChangeInput {
     pub project_path: String,

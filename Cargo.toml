@@ -8,6 +8,7 @@ futures = "0.1.1"
 log = "0.3.6"
 racer = { git = "https://github.com/phildawes/racer" }
 rls-analysis = { path = "../rls-analysis" }
+rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
 serde = "0.8"
 serde_json = "0.8"
 serde_macros = "0.8"

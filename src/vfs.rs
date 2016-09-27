@@ -25,6 +25,14 @@ impl Vfs {
     pub fn get_changed_files(&self) -> HashMap<PathBuf, String> {
         self.0.get_changed_files()
     }
+
+    pub fn get_file_changes(&self, path: &Path) -> Option<String> {
+        self.0.get_file_changes(path)
+    }
+
+    pub fn set_file(&self, path: &Path, text: &str) {
+        self.0.set_file(path, text)
+    }
 }
 
 struct VfsInternal<T> {
@@ -70,9 +78,24 @@ impl<T: FileLoader> VfsInternal<T> {
         }
     }
 
+    pub fn set_file(&self, path: &Path, text: &str) {
+        let file = File {
+            text: text.to_owned(),
+            line_indices: File::make_line_indices(text),
+        };
+
+        let mut files = self.files.lock().unwrap();
+        files.insert(path.to_owned(), file);
+    }
+
     pub fn get_changed_files(&self) -> HashMap<PathBuf, String> {
         let files = self.files.lock().unwrap();
         files.iter().map(|(p, f)| (p.clone(), f.text.clone())).collect()
+    }
+
+    pub fn get_file_changes(&self, path: &Path) -> Option<String> {
+        let files = self.files.lock().unwrap();
+        files.get(path).map(|f| f.text.clone())
     }
 
     fn coalesce_changes<'a>(changes: &'a [Change]) -> HashMap<&'a str, Vec<&'a Change>> {
@@ -133,7 +156,7 @@ fn byte_in_str(s: &str, c: usize) -> Option<usize> {
     return None;
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Change {
     span: Span,
     text: String,

@@ -251,7 +251,7 @@ impl BuildQueue {
             let mut new_cmd_line = match cmd.output() {
                 Ok(output) => {
                     let out = String::from_utf8(output.stderr).unwrap();
-                    println!("output: `{}`", out);
+                    // println!("output: `{}`", out);
                     let exit_str = "     Running `";
                     match out.rfind(exit_str) {
                         Some(i) => {
