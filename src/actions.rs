@@ -59,7 +59,7 @@ const RUSTW_TIMEOUT: u64 = 500;
 
 pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completion> {
     panic::catch_unwind(|| {
-        // TODO RacerUp
+        // FIXME(#23) RacerUp
         // let source = adjust_vscode_pos_for_racer(source);
         // let path = Path::new(&source.filepath);
         // let mut f = File::open(&path).unwrap();
@@ -145,7 +145,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     // Racer thread.
     let pos = adjust_vscode_pos_for_racer(source.pos);
     let racer_handle = thread::spawn(move || {
-        // TODO RacerUp
+        // FIXME(#23) RacerUp
         // let path = Path::new(&pos.filepath);
         // let mut f = File::open(&path).unwrap();
         // let mut src = String::new();
