@@ -30,7 +30,7 @@ pub struct Position {
 
 #[derive(Debug, Serialize)]
 pub enum Provider {
-    Rls,
+    Compiler,
     Racer,
 }
 
@@ -182,7 +182,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     let rustw_result = rustw_handle.join().unwrap_or(None);
     match rustw_result {
         Some(r) => {
-            Output::Ok(r, Provider::Rls)
+            Output::Ok(r, Provider::Compiler)
         }
         None => {
             println!("Using racer");
