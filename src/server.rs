@@ -99,7 +99,7 @@ impl Handler for MyService {
             hyper::uri::RequestUri::AbsolutePath(ref x) => {
                 if x == "/complete" {
                     if let Ok(input) = Input::from_bytes(&body) {
-                        // TODO how do we get the changed files in memory to Racer?
+                        // FIXME(#23) how do we get the changed files in memory to Racer?
                         println!("Completion for: {:?}", input.pos);
                         self.complete(input.pos, self.analysis.clone())
                     } else {

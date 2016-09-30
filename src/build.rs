@@ -205,7 +205,7 @@ impl BuildQueue {
     // `cargo build`, except in spirit.
     fn build(&self) -> BuildResult {
         // When we build we are emulating `cargo build`, but trying to do so as
-        // quickly as possible (TODO we should add an option to do a real `cargo
+        // quickly as possible (FIXME(#24) we should add an option to do a real `cargo
         // build` for when the user wants to actually run the program).
         //
         // We build with `no-trans` to avoid generating code, and `save-analysis`
@@ -313,7 +313,7 @@ impl BuildQueue {
                          Some(Box::new(BufWriter(buf))))
         }));
         
-        // TODO given that we are running the compiler directly, there is no need
+        // FIXME(#25) given that we are running the compiler directly, there is no need
         // to serialise either the error messages or save-analysis - we should pass
         // them both in memory, without using save-analysis.
         let stderr_json_msg =

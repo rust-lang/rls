@@ -5,6 +5,7 @@
 #[macro_use]
 extern crate hyper;
 extern crate rls_analysis as analysis;
+extern crate rls_vfs as vfs;
 extern crate serde;
 extern crate serde_json;
 
@@ -14,7 +15,6 @@ mod actions;
 mod build;
 mod ide;
 mod server;
-mod vfs;
 
 pub fn main() {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
