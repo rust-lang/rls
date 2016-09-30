@@ -60,28 +60,24 @@ const RUSTW_TIMEOUT: u64 = 500;
 pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completion> {
     panic::catch_unwind(|| {
         // TODO RacerUp
-        // let source = adjust_vscode_pos_for_racer(source);
-        // let path = Path::new(&source.filepath);
-        // let mut f = File::open(&path).unwrap();
-        // let mut src = String::new();
-        // f.read_to_string(&mut src).unwrap();
-        // let pos = scopes::coords_to_point(&src, source.line, source.col);
-        // let cache = core::FileCache::new();
-        // let got = complete_from_file(&src,
-        //                              &path,
-        //                              pos,
-        //                              &core::Session::from_path(&cache, &path, &path));
+        let source = adjust_vscode_pos_for_racer(source);
+        let path = Path::new(&source.filepath);
+        let mut f = File::open(&path).unwrap();
+        let mut src = String::new();
+        f.read_to_string(&mut src).unwrap();
+        let cache = core::FileCache::new();
+        let session = core::Session::from_path(&cache, &path, &path);
+        let pos = session.load_file(&path).coords_to_point(source.line, source.col).unwrap();
+        let got = complete_from_file(&src, &path, pos, &session);
 
-        // let mut results = vec![];
-        // for comp in got {
-        //     results.push(Completion {
-        //         name: comp.matchstr.clone(),
-        //         context: comp.contextstr.clone(),
-        //     });
-        // }
-        // results
-
-        vec![]
+        let mut results = vec![];
+        for comp in got {
+            results.push(Completion {
+                name: comp.matchstr.clone(),
+                context: comp.contextstr.clone(),
+            });
+        }
+        results
     }).unwrap_or(vec![])
 }
 
