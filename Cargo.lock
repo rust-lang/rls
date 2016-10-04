@@ -6,7 +6,7 @@ dependencies = [
  "hyper 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "racer 1.2.10 (git+https://github.com/phildawes/racer)",
- "rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)",
+ "rls-analysis 0.1.0",
  "rls-vfs 0.1.0 (git+https://github.com/nrc/rls-vfs)",
  "rustfmt 0.6.2 (git+https://github.com/rust-lang-nursery/rustfmt)",
  "serde 0.8.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -262,6 +262,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "rls-analysis"
 version = "0.1.0"
 source = "git+https://github.com/nrc/rls-analysis#ef24009d71b3df3a4938f1667333cf538db773e5"
+dependencies = [
+ "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 0.8.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_macros 0.8.9 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rls-analysis"
+version = "0.1.0"
 dependencies = [
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.9 (registry+https://github.com/rust-lang/crates.io-index)",

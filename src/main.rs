@@ -15,6 +15,8 @@ mod actions;
 mod build;
 mod ide;
 mod server;
+#[cfg(test)]
+mod test;
 
 pub fn main() {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));

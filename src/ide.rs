@@ -4,13 +4,13 @@ use serde_json;
 use actions::{Position, Provider};
 use vfs::Change;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Input {
     pub pos: Position,
     pub span: Span,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Output {
     Ok(Position, Provider),
     Err,
@@ -28,7 +28,7 @@ pub struct ChangeInput {
     pub changes: Vec<Change>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SaveInput {
     pub project_path: String,
     pub saved_file: String,
