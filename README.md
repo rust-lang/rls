@@ -33,11 +33,6 @@ you'll need a recent nightly compiler to build it.
 Use `cargo build` to build.
 
 
-## Testing
-
-YOLO! (https://github.com/jonathandturner/rustls/issues/11, https://github.com/jonathandturner/rustls/issues/12)
-
-
 ## Running
 
 To run the RLS, you need to specify the sysroot as an environment variable (this
@@ -67,6 +62,15 @@ the features kick in (which is a bug - https://github.com/jonathandturner/rustls
 
 To work with the RLS, your project must be buildable using `cargo build`. If you
 use syntax extensions or build scripts, it is likely things will go wrong.
+
+
+## Testing
+
+Test using `cargo test`, however you must set `SYS_ROOT` as described above.
+
+Testing is unfortunately minimal. There is support for regression tests, but not
+many actual tests exists yet. There is signifcant [work to do](https://github.com/jonathandturner/rustls/issues/12)
+before we have a comprehensive testing story.
 
 
 ## Standard library support
@@ -124,17 +128,69 @@ to the compiler which affect the RLS.
 
 ## Implementation overview
 
-TODO
+The goal of the RLS project is to provide an awesome IDE experience *now*. That
+means not waiting for incremental compilation support in the compiler. However,
+Rust is a somewhat complex language to analyse and providing precise and
+complete information about programs requires using the compiler.
 
-* goals/constraints
-* compiler/racer
-    - in-process compiler
-* communication with IDEs
-* other crates
-    - https://github.com/phildawes/racer
-    - https://github.com/nrc/rls-analysis
-    - https://github.com/nrc/rls-vfs
-* modules
+The RLS has two data sources - the compiler and Racer. The compiler is always
+right, and always precise. But can sometimes be too slow for IDEs. Racer is
+nearly always fast, but can't handle some constructs (e.g., macros) or can only
+handle them with limited precision (e.g., complex generic types).
+
+The RLS tries to provide data using the compiler. It sets a time budget and
+queries both the compiler and Racer. If the compiler completes within the time
+budget, we use that data. If not, we use Racer's data.
+
+We link both Racer and the compiler into the RLS, so we don't need to shell out
+to either (though see notes on the build process below). We also customise our
+use of the compiler (via standard APIs) so that we can read modified files
+directly from memory without saving them to disk.
+
+### Building
+
+The RLS tracks changes to files, and keeps the changed file in memory (i.e., the
+RLS does not need the IDE to save a file before providing data). These changed
+files are tracked by the 'Virtual File System' (which is a bit of a grandiose
+name for a pretty simple file cache at the moment, but I expect this area to
+grow significantly in the future). The VFS is in a [separate
+crate](https://github.com/nrc/rls-vfs).
+
+We want to start building before the user needs information (it would be too
+slow to start a build when data is requested). However, we don't want to start a
+build on every keystroke (this would be too heavy on user resources). Nor is
+there any point starting multiple builds when we would throw away the data from
+some of them. We therefore try to queue up and coalesce builds. This is further
+documented in [src/build.rs](src/build.rs).
+
+When we do start a build, we may also need to build dependent crates. We
+therefore do a full `cargo build`. However, we do not compile the last crate
+(the one the user is editing in the IDE). We only run Cargo to get a command
+line to build that crate. Furthermore, we cache that command line, so for most
+builds (where we don't need to build dependent crates, and where we can be
+reasonably sure they haven't changed since a previous build) we don't run Cargo
+at all.
+
+The command line we got from Cargo, we chop up and feed to the in-process
+compiler. We then collect error messages and analysis data in JSON format
+(although this is inefficient and [should
+change](https://github.com/jonathandturner/rustls/issues/25)).
+
+### Analysis data
+
+From the compiler, we get a serialised dump of its analysis data (from name
+resolution and type checking). We combine data from all crates and the standard
+libraries and combine this into an index for the whole project. We cross-
+reference and store this data in HashMaps and use it to look up data for the
+IDE.
+
+Reading, processing, and storing the analysis data is handled by the
+[rls-analysis crate](https://github.com/nrc/rls-analysis).
+
+### Communicating with IDEs
+
+TODO LS protocol, http interface + plugin
+
 
 ## Contributing
 
