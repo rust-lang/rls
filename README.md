@@ -66,7 +66,8 @@ use syntax extensions or build scripts, it is likely things will go wrong.
 
 ## Testing
 
-Test using `cargo test`, however you must set `SYS_ROOT` as described above.
+Test using `RUST_TEST_THREADS=1 cargo test`, however you must set `SYS_ROOT` as
+described above.
 
 Testing is unfortunately minimal. There is support for regression tests, but not
 many actual tests exists yet. There is signifcant [work to do](https://github.com/jonathandturner/rustls/issues/12)

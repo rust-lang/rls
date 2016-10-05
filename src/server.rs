@@ -77,8 +77,8 @@ impl MyService {
                                                        .unwrap()
                                                        .to_str()
                                                        .unwrap();
-                println!("Refreshing rustw cache: {}", file_name);
-                self.analysis.reload(file_name).unwrap();
+                println!("Refreshing rustw cache: {}", project_path);
+                self.analysis.reload(project_path).unwrap();
 
                 reply.as_bytes().to_vec()
             }
