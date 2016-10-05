@@ -22,8 +22,8 @@ use std::path::PathBuf;
 fn test_simple_goto_def() {
     let _cr = CwdRestorer::new();
 
-    init_env();
-    let mut cache = types::Cache::new("hello");
+    init_env("hello");
+    let mut cache = types::Cache::new(".");
     mock_server(|server| {
         // Build.
         assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input("src/main.rs")));
@@ -77,10 +77,10 @@ fn mock_server<F>(f: F)
 }
 
 // Initialise the environment for a test.
-fn init_env() {
+fn init_env(project_dir: &str) {
     let mut cwd = env::current_dir().expect(FAIL_MSG);
     cwd.push("test_data");
-    // FIXME, really we should cd into the working directory, not its parent, and work from there.
+    cwd.push(project_dir);
     env::set_current_dir(cwd).expect(FAIL_MSG);
 }
 
