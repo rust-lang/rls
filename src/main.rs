@@ -19,6 +19,9 @@ mod ide;
 mod server;
 mod lsproto;
 
+#[cfg(test)]
+mod test;
+
 pub fn main() {
     use std::env;
 

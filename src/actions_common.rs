@@ -1,14 +1,14 @@
 use ide::VscodeKind;
 use analysis::Span;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Position {
     pub filepath: String,
     pub line: usize,
     pub col: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Eq, PartialEq, Deserialize)]
 pub enum Provider {
     Compiler,
     Racer,

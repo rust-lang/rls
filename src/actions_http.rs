@@ -85,19 +85,19 @@ pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
 }
 
 pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
-    // Rustw thread.
+    // Save-analysis thread.
     let t = thread::current();
     let span = source.span;
-    let rustw_handle = thread::spawn(move || {
+    let compiler_handle = thread::spawn(move || {
         let result = if let Ok(s) = analysis.goto_def(&span) {
-            println!("rustw success!");
+            println!("compiler success!");
             Some(Position {
                 filepath: s.file_name,
                 line: s.line_start,
                 col: s.column_start,
             })
         } else {
-            println!("rustw failed");
+            println!("compiler failed");
             None
         };
 
@@ -143,11 +143,9 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-    let rustw_result = rustw_handle.join().unwrap_or(None);
-    match rustw_result {
-        Some(r) => {
-            Output::Ok(r, Provider::Compiler)
-        }
+    let compiler_result = compiler_handle.join().unwrap_or(None);
+    match compiler_result {
+        Some(r) => Output::Ok(r, Provider::Compiler),
         None => {
             println!("Using racer");
             match racer_handle.join() {
