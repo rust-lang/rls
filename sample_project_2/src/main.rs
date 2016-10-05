@@ -41,5 +41,6 @@ fn main() {
         let y = x;
     }
 
+
     let a = sample_project::Request::new();
 }

@@ -17,42 +17,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use actions_common::*;
 
 use ide::{self, Input, Output, FmtOutput, VscodeKind};
 use vfs::Vfs;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Position {
-    pub filepath: String,
-    pub line: usize,
-    pub col: usize,
-}
-
-#[derive(Debug, Serialize)]
-pub enum Provider {
-    Compiler,
-    Racer,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Completion {
-    pub name: String,
-    pub context: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Title {
-    pub ty: String,
-    pub docs: String,
-    pub doc_url: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Symbol {
-    pub name: String,
-    pub kind: VscodeKind,
-    pub span: Span,
-}
 
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;

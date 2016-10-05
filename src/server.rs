@@ -1,4 +1,5 @@
-use actions::*;
+use actions_common::*;
+use actions_http::*;
 use build::*;
 use ide::{ChangeInput, FmtOutput, Input, SaveInput, parse_string};
 use vfs::Vfs;
@@ -53,7 +54,6 @@ impl MyService {
     dispatch_action!(title, Input);
 
     fn fmt(&self, file_name: &str) -> Vec<u8> {
-        //println!("Formatting: `{}`", file_name);
         let result = fmt(file_name, self.vfs.clone());
         if let FmtOutput::Change(ref s) = result {
             self.vfs.set_file(&Path::new(file_name), s);

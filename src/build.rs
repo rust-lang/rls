@@ -93,7 +93,7 @@ impl BuildQueue {
     }
 
     pub fn request_build(&self, build_dir: &str, priority: BuildPriority) -> BuildResult {
-        println!("request_build, {} {:?}", build_dir, priority);
+        //println!("request_build, {} {:?}", build_dir, priority);
         // If there is a change in the project directory, then we can forget any
         // pending build and start straight with this new build.
         {
@@ -123,7 +123,7 @@ impl BuildQueue {
                     let (tx, rx) = channel();
                     self.pending.lock().unwrap().push(tx);
                     // Blocks.
-                    println!("blocked on build");
+                    //println!("blocked on build");
                     let signal = rx.recv().unwrap_or(Signal::Build);
                     if signal == Signal::Skip {
                         return BuildResult::Squashed;
@@ -137,7 +137,7 @@ impl BuildQueue {
 
                 if self.running.load(Ordering::SeqCst) {
                     // Blocks
-                    println!("blocked until wake up");
+                    //println!("blocked until wake up");
                     let signal = rx.recv().unwrap_or(Signal::Build);
                     if signal == Signal::Skip {
                         return BuildResult::Squashed;
@@ -158,7 +158,7 @@ impl BuildQueue {
         if self.running.swap(true, Ordering::SeqCst) {
             let mut wait = 100;
             while self.running.load(Ordering::SeqCst) && wait < 50000 {
-                println!("loop of death");
+                //println!("loop of death");
                 thread::sleep(Duration::from_millis(wait));
                 wait *= 2;
             }
@@ -260,13 +260,13 @@ impl BuildQueue {
                             remaining[..end].to_owned()
                         }
                         None => {
-                            println!("Couldn't parse stderr: `{}`", out);
+                            //println!("Couldn't parse stderr: `{}`", out);
                             return BuildResult::Err;
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Error waiting for Cargo process: {:?}", e);
+                    //println!("Error waiting for Cargo process: {:?}", e);
                     return BuildResult::Err;
                 }
             };
@@ -293,7 +293,7 @@ impl BuildQueue {
         let buf = Arc::new(Mutex::new(vec![]));
         let err_buf = buf.clone();
 
-        println!("building {} ...", build_dir);
+        //println!("building {} ...", build_dir);
         let exit_code = ::std::panic::catch_unwind(|| run(move || {
             // Use this struct instead of stderr so we catch most errors.
             struct BufWriter(Arc<Mutex<Vec<u8>>>);

@@ -1,7 +1,7 @@
 use analysis::{raw, Span};
 use serde_json;
 
-use actions::{Position, Provider};
+use actions_common::{Position, Provider};
 use vfs::Change;
 
 #[derive(Debug, Deserialize)]
