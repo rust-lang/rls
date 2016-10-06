@@ -5,7 +5,7 @@ extern crate serde;
 extern crate serde_json;
 
 use analysis::{AnalysisHost, Span};
-use vfs::Vfs;
+use vfs::{Vfs, Change};
 use build::*;
 use std::sync::Arc;
 use std::path::Path;
@@ -61,10 +61,11 @@ struct VersionedTextDocumentIdentifier {
     uri: String
 }
 
+// FIXME: range here is technically optional, but I don't know why
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct TextDocumentContentChangeEvent {
-    range: Option<Range>,
+    range: Range,
     rangeLength: Option<u32>,
     text: String
 }
@@ -301,6 +302,7 @@ struct LSService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
+    current_project: Option<String>,
 }
 
 impl LSService {
@@ -529,7 +531,10 @@ impl LSService {
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>)
     -> io::Result<()> {
 
-    let mut service = LSService { analysis: analysis, vfs: vfs, build_queue: build_queue };
+    let mut service = LSService { analysis: analysis,
+                                  vfs: vfs,
+                                  build_queue: build_queue,
+                                  current_project: None };
 
     // note: logging is totally optional, but it gives us a way to see behind the scenes
     let mut log = try!(OpenOptions::new().append(true)
@@ -578,7 +583,27 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                     try!(log.write_all(&format!("request to cancel {}\n", id).into_bytes()));
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
+                    let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
                     try!(log.write_all(&format!("notification(change): {:?}\n", change).into_bytes()));
+                    let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
+                        Change {
+                            span: Span {
+                                file_name: fname.clone(),
+                                line_start: i.range.start.line,
+                                column_start: i.range.start.character,
+                                line_end: i.range.end.line,
+                                column_end: i.range.end.character,
+                            },
+                            text: i.text.clone()
+                        }
+                    }).collect();
+                    service.vfs.on_change(&changes);
+
+                    try!(log.write_all(&format!("CHANGES: {:?}", changes).into_bytes()));
+
+                    let current_project = service.current_project.clone().unwrap_or_default();
+
+                    service.build(&current_project, BuildPriority::Normal)
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
@@ -630,6 +655,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
 
                             let output = serde_json::to_string(&result).unwrap();
                             output_response(output);
+                            service.current_project = Some(init.rootPath.clone());
                             service.build(&init.rootPath, BuildPriority::Immediate);
                         }
                     }
