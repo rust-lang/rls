@@ -19,16 +19,22 @@ use std::time::Duration;
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Position {
     line: usize,
     character: usize
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Range {
     start: Position,
     end: Position,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Location {
+    uri: String,
+    range: Range,
 }
 
 #[allow(non_snake_case)]
@@ -60,6 +66,12 @@ struct TextDocumentContentChangeEvent {
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
+struct TextDocumentPositionParams {
+    textDocument: Document,
+    position: Position,
+}
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
 struct ChangeParams {
     textDocument: VersionedTextDocumentIdentifier,
     contentChanges: Vec<TextDocumentContentChangeEvent>
@@ -81,7 +93,8 @@ struct CancelParams {
 enum Method {
     Shutdown,
     Initialize (InitializeParams),
-    Hover (HoverParams)
+    Hover (HoverParams),
+    GotoDef (TextDocumentPositionParams),
 }
 
 #[derive(Debug, Serialize)]
@@ -105,7 +118,7 @@ struct MarkedString {
 
 #[derive(Debug, Serialize)]
 struct HoverSuccessContents {
-    contents: Vec<String>
+    contents: Vec<MarkedString>
 }
 
 #[derive(Debug, Serialize)]
@@ -113,6 +126,28 @@ struct HoverSuccess {
     jsonrpc: String,
     id: usize,
     result: HoverSuccessContents,
+}
+
+#[derive(Debug, Serialize)]
+struct GotoDefSuccess {
+    jsonrpc: String,
+    id: usize,
+    result: Vec<Location>,
+}
+
+#[derive(Debug, Serialize)]
+struct ResponseError {
+    code: i64,
+    message: String
+}
+
+const MethodNotFound: i64 = -32601;
+
+#[derive(Debug, Serialize)]
+struct ResponseFailure {
+    jsonrpc: String,
+    id: usize,
+    error: ResponseError,
 }
 
 #[derive(Debug)]
@@ -207,6 +242,12 @@ fn parse_message(input: &str) -> io::Result<ServerMessage>  {
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Notification(Notification::Change(method)))
                 }
+                "textDocument/definition" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let method: TextDocumentPositionParams =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::GotoDef(method)}))
+                }
                 "$/cancelRequest" => {
                     let params: CancelParams = serde_json::from_value(params.unwrap().to_owned())
                                                .unwrap();
@@ -252,8 +293,8 @@ struct LSService {
 
 impl LSService {
     fn build(&self, project_path: &str, priority: BuildPriority) {
-        let analysis = self.analysis.clone();
-        let project_path_copy = project_path.to_owned();
+        //let analysis = self.analysis.clone();
+        //let project_path_copy = project_path.to_owned();
 
         let result = self.build_queue.request_build(project_path, priority);
         match result {
@@ -262,26 +303,124 @@ impl LSService {
                 // println!("build result: {:?}", result);
                 log(format!("build result: {:?}", result));
 
-                let file_name = Path::new(&project_path_copy).file_name()
+                let file_name = Path::new(&project_path).file_name()
                                                              .unwrap()
                                                              .to_str()
                                                              .unwrap();
-                analysis.reload(file_name).unwrap();
+                self.analysis.reload(&project_path).unwrap();
             }
             BuildResult::Squashed => {},
             BuildResult::Err => {},
         }
     }
 
+    fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Option<Span> {
+        let fname: String = doc.uri.chars().skip("file://".len()).collect();
+        log(format!("\nWorking on: {:?} {:?}", fname, pos));
+        let line = self.vfs.get_line(Path::new(&fname), pos.line);
+        log(format!("\nGOT LINE: {:?}", line));
+        let start_pos = {
+            let mut tmp = Position { line: pos.line, character: 1 };
+            for (i, c) in line.clone().unwrap().chars().enumerate() {
+                if !(c.is_alphanumeric() || c == '_') {
+                    tmp.character = i + 1;
+                }
+                if i == pos.character {
+                    break;
+                }
+            }
+            tmp
+        };
+
+        let end_pos = {
+            let mut tmp = Position { line: pos.line, character: pos.character };
+            for (i, c) in line.unwrap().chars().skip(pos.character).enumerate() {
+                if !(c.is_alphanumeric() || c == '_') {
+                    break;
+                }
+                tmp.character = i + pos.character + 1;
+            }
+            tmp
+        };
+
+        let span = Span {
+            file_name: fname,
+            line_start: start_pos.line,
+            column_start: start_pos.character,
+            line_end: end_pos.line,
+            column_end: end_pos.character,
+        };
+
+        Some(span)
+    }
+
+    fn goto_def(&self, id: usize, params: TextDocumentPositionParams) {
+        // Save-analysis thread.
+        let t = thread::current();
+        let uri = params.textDocument.uri.clone();
+        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+        let analysis = self.analysis.clone();
+        let results = thread::spawn(move || {
+            let result = if let Ok(s) = analysis.goto_def(&span) {
+                vec![Location {
+                    uri: "file://".to_string() + &s.file_name,
+                    range: Range {
+                        start: Position {
+                            line: s.line_start,
+                            character: s.column_start,
+                        },
+                        end: Position {
+                            line: s.line_start,
+                            character: s.column_start,
+                        },
+                    }
+                }]
+            } else {
+                vec![]
+            };
+
+            t.unpark();
+
+            result
+        });
+        thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+
+        let results = results.join();
+        match results {
+            Ok(r) => {
+                let out = GotoDefSuccess {
+                    jsonrpc: "2.0".into(),
+                    id: id,
+                    result: r
+                };
+                log(format!("\nGOING TO: {:?}\n", out));
+
+                let output = serde_json::to_string(&out).unwrap();
+                output_response(output);
+            }
+            Err(e) => {
+                let out = ResponseFailure {
+                    jsonrpc: "2.0".into(),
+                    id: id,
+                    error: ResponseError {
+                        code: MethodNotFound,
+                        message: "GotoDef failed to complete successfully".into()
+                    }
+                };
+                log(format!("\nERROR IN GOTODEF: {:?}\n", out));
+
+                let output = serde_json::to_string(&out).unwrap();
+                output_response(output);
+            }
+        };
+    }
+
     fn hover(&self, id: usize, params: HoverParams) {
         let t = thread::current();
-        let span = Span {
-            file_name: params.textDocument.uri,
-            line_start: params.position.line,
-            column_start: params.position.character,
-            line_end: params.position.line,
-            column_end: params.position.character,
-        };
+        log(format!("CREATING SPAN"));
+        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+
+        log(format!("\nHovering span: {:?}\n", span));
 
         let analysis = self.analysis.clone();
         let rustw_handle = thread::spawn(move || {
@@ -290,11 +429,21 @@ impl LSService {
             let doc_url = analysis.doc_url(&span).unwrap_or(String::new());
             t.unpark();
 
+            let mut contents = vec![];
+            if !docs.is_empty() {
+                contents.push(MarkedString { language: "markdown".into(), value: docs });
+            }
+            if !doc_url.is_empty() {
+                contents.push(MarkedString { language: "url".into(), value: doc_url });
+            }
+            if !ty.is_empty() {
+                contents.push(MarkedString { language: "rust".into(), value: ty });
+            }
             HoverSuccess {
                 jsonrpc: "2.0".into(),
                 id: id,
                 result: HoverSuccessContents {
-                    contents: vec![ty, docs, doc_url]
+                    contents: contents
                 }
             }
         });
@@ -312,7 +461,8 @@ impl LSService {
                     jsonrpc: "2.0".into(),
                     id: id,
                     result: HoverSuccessContents {
-                        contents: vec![format!("hover failed")]
+                        contents: vec![
+                            MarkedString { language: String::new(), value: "hover failed".into()}]
                     }
                 };
                 let output = serde_json::to_string(&r).unwrap();
@@ -386,6 +536,10 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                             try!(log.write_all(&format!("command(hover): {:?}\n", params).into_bytes()));
                             service.hover(id, params);
                         }
+                        Method::GotoDef(params) => {
+                            try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
+                            service.goto_def(id, params);
+                        }
                         Method::Initialize(init) => {
                             try!(log.write_all(&format!("command(init): {:?}\n", init).into_bytes()));
                             let result = InitializeResult {
@@ -418,7 +572,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
 
                             let output = serde_json::to_string(&result).unwrap();
                             output_response(output);
-                            service.build(&init.rootPath, BuildPriority::Immediate)
+                            service.build(&init.rootPath, BuildPriority::Immediate);
                         }
                     }
                 }
