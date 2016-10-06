@@ -11,6 +11,8 @@ use std::sync::Arc;
 use std::path::Path;
 
 use std::fs::{File, OpenOptions};
+use std::fmt::Debug;
+use serde::Serialize;
 
 use std::io::{self, Read, Write, Error, ErrorKind};
 use std::thread;
@@ -18,6 +20,9 @@ use std::time::Duration;
 
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
+
+// For now this is a catch-all for any error back to the consumer of the RLS
+const MethodNotFound: i64 = -32601;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Position {
@@ -138,33 +143,23 @@ struct HoverSuccessContents {
 }
 
 #[derive(Debug, Serialize)]
-struct HoverSuccess {
-    jsonrpc: String,
-    id: usize,
-    result: HoverSuccessContents,
+struct InitializeCapabilities {
+    capabilities: ServerCapabilities
 }
 
 #[derive(Debug, Serialize)]
-struct GotoDefSuccess {
+struct ResponseSuccess<T> where T:Debug+Serialize {
     jsonrpc: String,
     id: usize,
-    result: Vec<Location>,
+    result: T,
 }
 
-#[derive(Debug, Serialize)]
-struct FindAllRefsSuccess {
-    jsonrpc: String,
-    id: usize,
-    result: Vec<Location>,
-}
-
+// INTERNAL STRUCT
 #[derive(Debug, Serialize)]
 struct ResponseError {
     code: i64,
     message: String
 }
-
-const MethodNotFound: i64 = -32601;
 
 #[derive(Debug, Serialize)]
 struct ResponseFailure {
@@ -216,18 +211,6 @@ struct ServerCapabilities {
     documentRangeFormattingProvider: bool,
     //documentOnTypeFormattingProvider
     renameProvider: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct InitializeCapabilities {
-    capabilities: ServerCapabilities
-}
-
-#[derive(Debug, Serialize)]
-struct InitializeResult {
-    jsonrpc: String,
-    id: usize,
-    result: InitializeCapabilities
 }
 
 #[derive(Debug)]
@@ -415,7 +398,7 @@ impl LSService {
             }
         }).collect();
 
-        let out = FindAllRefsSuccess {
+        let out = ResponseSuccess {
             jsonrpc: "2.0".into(),
             id: id,
             result: refs
@@ -459,7 +442,7 @@ impl LSService {
         let results = results.join();
         match results {
             Ok(r) => {
-                let out = GotoDefSuccess {
+                let out = ResponseSuccess {
                     jsonrpc: "2.0".into(),
                     id: id,
                     result: r
@@ -510,7 +493,7 @@ impl LSService {
             if !ty.is_empty() {
                 contents.push(MarkedString { language: "rust".into(), value: ty });
             }
-            HoverSuccess {
+            ResponseSuccess {
                 jsonrpc: "2.0".into(),
                 id: id,
                 result: HoverSuccessContents {
@@ -528,12 +511,12 @@ impl LSService {
                 output_response(output);
             }
             Err(e) => {
-                let r = HoverSuccess {
+                let r = ResponseFailure {
                     jsonrpc: "2.0".into(),
                     id: id,
-                    result: HoverSuccessContents {
-                        contents: vec![
-                            MarkedString { language: String::new(), value: "hover failed".into()}]
+                    error: ResponseError {
+                        code: MethodNotFound,
+                        message: "Hover failed to complete successfully".into()
                     }
                 };
                 let output = serde_json::to_string(&r).unwrap();
@@ -617,7 +600,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                         }
                         Method::Initialize(init) => {
                             try!(log.write_all(&format!("command(init): {:?}\n", init).into_bytes()));
-                            let result = InitializeResult {
+                            let result = ResponseSuccess {
                                 jsonrpc: "2.0".into(),
                                 id: 0,
                                 result: InitializeCapabilities {
