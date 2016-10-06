@@ -66,10 +66,25 @@ struct TextDocumentContentChangeEvent {
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
+struct ReferenceContext {
+    includeDeclaration: bool,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+struct ReferenceParams {
+    textDocument: Document,
+    position: Position,
+    context: ReferenceContext,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
 struct TextDocumentPositionParams {
     textDocument: Document,
     position: Position,
 }
+
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct ChangeParams {
@@ -95,6 +110,7 @@ enum Method {
     Initialize (InitializeParams),
     Hover (HoverParams),
     GotoDef (TextDocumentPositionParams),
+    FindAllRef (ReferenceParams),
 }
 
 #[derive(Debug, Serialize)]
@@ -130,6 +146,13 @@ struct HoverSuccess {
 
 #[derive(Debug, Serialize)]
 struct GotoDefSuccess {
+    jsonrpc: String,
+    id: usize,
+    result: Vec<Location>,
+}
+
+#[derive(Debug, Serialize)]
+struct FindAllRefsSuccess {
     jsonrpc: String,
     id: usize,
     result: Vec<Location>,
@@ -248,6 +271,12 @@ fn parse_message(input: &str) -> io::Result<ServerMessage>  {
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::GotoDef(method)}))
                 }
+                "textDocument/references" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let method: ReferenceParams =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::FindAllRef(method)}))
+                }
                 "$/cancelRequest" => {
                     let params: CancelParams = serde_json::from_value(params.unwrap().to_owned())
                                                .unwrap();
@@ -352,6 +381,48 @@ impl LSService {
         };
 
         Some(span)
+    }
+
+    fn find_all_refs(&self, id: usize, params: ReferenceParams) {
+        let t = thread::current();
+        let uri = params.textDocument.uri.clone();
+        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+        let analysis = self.analysis.clone();
+
+        let rustw_handle = thread::spawn(move || {
+            let result = analysis.find_all_refs(&span);
+            t.unpark();
+
+            result
+        });
+
+        thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+
+        let mut result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let refs: Vec<Location> = result.iter().map(|item| {
+            Location {
+                uri: "file://".to_string() + &item.file_name,
+                range: Range {
+                    start: Position {
+                        line: item.line_start,
+                        character: item.column_start,
+                    },
+                    end: Position {
+                        line: item.line_end,
+                        character: item.column_end,
+                    },
+                }
+            }
+        }).collect();
+
+        let out = FindAllRefsSuccess {
+            jsonrpc: "2.0".into(),
+            id: id,
+            result: refs
+        };
+
+        let output = serde_json::to_string(&out).unwrap();
+        output_response(output);
     }
 
     fn goto_def(&self, id: usize, params: TextDocumentPositionParams) {
@@ -539,6 +610,10 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                         Method::GotoDef(params) => {
                             try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
                             service.goto_def(id, params);
+                        }
+                        Method::FindAllRef(params) => {
+                            try!(log.write_all(&format!("command(find_all_refs): {:?}\n", params).into_bytes()));
+                            service.find_all_refs(id, params);
                         }
                         Method::Initialize(init) => {
                             try!(log.write_all(&format!("command(init): {:?}\n", init).into_bytes()));
