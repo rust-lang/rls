@@ -5,13 +5,10 @@ use analysis::{AnalysisHost, Span};
 use self::racer::core::complete_from_file;
 use self::racer::core::find_definition;
 use self::racer::core;
-use self::racer::scopes;
 use self::rustfmt::{Input as FmtInput, format_input};
 use self::rustfmt::config::{self, WriteMode};
 
 use std::default::Default;
-use std::fs::File;
-use std::io::prelude::*;
 use std::panic;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -19,33 +16,33 @@ use std::thread;
 use std::time::Duration;
 use actions_common::*;
 
-use ide::{self, Input, Output, FmtOutput, VscodeKind};
+use ide::{Input, Output, FmtOutput, VscodeKind};
 use vfs::Vfs;
 
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
 
-pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completion> {
+pub fn complete(pos: Position, _analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Vec<Completion> {
+    let vfs: &Vfs = &vfs;
     panic::catch_unwind(|| {
-        // TODO RacerUp
-        let source = adjust_vscode_pos_for_racer(source);
-        let path = Path::new(&source.filepath);
-        let mut f = File::open(&path).unwrap();
-        let mut src = String::new();
-        f.read_to_string(&mut src).unwrap();
-        let cache = core::FileCache::new();
-        let session = core::Session::from_path(&cache, &path, &path);
-        let pos = session.load_file(&path).coords_to_point(source.line, source.col).unwrap();
-        let got = complete_from_file(&src, &path, pos, &session);
+        let pos = adjust_vscode_pos_for_racer(pos);
+        let file_path = &Path::new(&pos.filepath);
 
-        let mut results = vec![];
-        for comp in got {
-            results.push(Completion {
-                name: comp.matchstr.clone(),
-                context: comp.contextstr.clone(),
-            });
+        let cache = core::FileCache::new();
+        let session = core::Session::from_path(&cache, file_path, file_path);
+        for (path, txt) in vfs.get_changed_files() {
+            session.cache_file_contents(&path, txt);
         }
-        results
+
+        let src = session.load_file(file_path);
+
+        let pos = session.load_file(file_path).coords_to_point(pos.line, pos.col).unwrap();
+        let results = complete_from_file(&src.code, file_path, pos, &session);
+
+        results.map(|comp| Completion {
+            name: comp.matchstr.clone(),
+            context: comp.contextstr.clone(),
+        }).collect()
     }).unwrap_or(vec![])
 }
 
@@ -84,7 +81,7 @@ pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
     }
 }
 
-pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
+pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Output {
     // Save-analysis thread.
     let t = thread::current();
     let span = source.span;
@@ -109,36 +106,36 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     // Racer thread.
     let pos = adjust_vscode_pos_for_racer(source.pos);
     let racer_handle = thread::spawn(move || {
-        // FIXME(#23) RacerUp
-        // let path = Path::new(&pos.filepath);
-        // let mut f = File::open(&path).unwrap();
-        // let mut src = String::new();
-        // f.read_to_string(&mut src).unwrap();
-        // let pos = scopes::coords_to_point(&src, pos.line, pos.col);
-        // let cache = core::FileCache::new();
-        // if let Some(mch) = find_definition(&src,
-        //                                    &path,
-        //                                    pos,
-        //                                    &core::Session::from_path(&cache, &path, &path)) {
-        //     let mut f = File::open(&mch.filepath).unwrap();
-        //     let mut source_src = String::new();
-        //     f.read_to_string(&mut source_src).unwrap();
-        //     if mch.point != 0 {
-        //         let (line, col) = scopes::point_to_coords(&source_src, mch.point);
-        //         let fpath = mch.filepath.to_str().unwrap().to_string();
-        //         Some(Position {
-        //             filepath: fpath,
-        //             line: line,
-        //             col: col,
-        //         })
-        //     } else {
-        //         None
-        //     }
-        // } else {
-        //     None
-        // }
+        let file_path = &Path::new(&pos.filepath);
 
-        None
+        let cache = core::FileCache::new();
+        let session = core::Session::from_path(&cache, file_path, file_path);
+        for (path, txt) in vfs.get_changed_files() {
+            session.cache_file_contents(&path, txt);
+        }
+
+        let src = session.load_file(file_path);
+
+        find_definition(&src.code,
+                        file_path,
+                        src.coords_to_point(pos.line, pos.col).unwrap(),
+                        &session)
+            .and_then(|mtch| {
+                let source_path = &mtch.filepath;
+                if mtch.point != 0 {
+                    let (line, col) = session.load_file(source_path)
+                                             .point_to_coords(mtch.point)
+                                             .unwrap();
+                    let fpath = source_path.to_str().unwrap().to_owned();
+                    Some(Position {
+                        filepath: fpath,
+                        line: line,
+                        col: col,
+                    })
+                } else {
+                    None
+                }
+            })
     });
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
