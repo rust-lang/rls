@@ -13,6 +13,7 @@ use std::path::Path;
 use std::fs::{File, OpenOptions};
 use std::fmt::Debug;
 use serde::Serialize;
+use ide::VscodeKind;
 
 use std::io::{self, Read, Write, Error, ErrorKind};
 use std::thread;
@@ -76,6 +77,13 @@ struct ReferenceContext {
     includeDeclaration: bool,
 }
 
+#[derive(Debug, Serialize)]
+struct SymbolInformation {
+    name: String,
+    kind: u32,
+    location: Location,
+}
+
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct ReferenceParams {
@@ -105,10 +113,17 @@ struct HoverParams {
     position: Position
 }
 
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+struct DocumentSymbolParams {
+    textDocument: Document,
+}
+
 #[derive(Debug, Deserialize)]
 struct CancelParams {
     id: usize
 }
+
 
 #[derive(Debug)]
 enum Method {
@@ -117,6 +132,7 @@ enum Method {
     Hover (HoverParams),
     GotoDef (TextDocumentPositionParams),
     FindAllRef (ReferenceParams),
+    Symbols (DocumentSymbolParams),
 }
 
 #[derive(Debug, Serialize)]
@@ -261,6 +277,12 @@ fn parse_message(input: &str) -> io::Result<ServerMessage>  {
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::FindAllRef(method)}))
                 }
+                "textDocument/documentSymbol" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let method: DocumentSymbolParams =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::Symbols(method)}))
+                }
                 "$/cancelRequest" => {
                     let params: CancelParams = serde_json::from_value(params.unwrap().to_owned())
                                                .unwrap();
@@ -292,7 +314,7 @@ fn output_response(output: String) {
     use std::io;
     let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
 
-    log(format!("{:?}", o));
+    log(format!("OUTPUT: {:?}", o));
     print!("{}", o);
     io::stdout().flush().unwrap();
 }
@@ -366,6 +388,49 @@ impl LSService {
         };
 
         Some(span)
+    }
+
+    fn symbols(&self, id: usize, doc: DocumentSymbolParams) {
+        let t = thread::current();
+        let file_name: String = doc.textDocument.uri.chars().skip("file://".len()).collect();
+        let analysis = self.analysis.clone();
+        let rustw_handle = thread::spawn(move || {
+            let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
+            t.unpark();
+
+            symbols.into_iter().map(|s| {
+                SymbolInformation {
+                    name: s.name,
+                    kind: VscodeKind::from(s.kind) as u32,
+                    location: Location {
+                        uri: "file://".to_string() + &s.span.file_name,
+                        range: Range {
+                            start: Position {
+                                line: s.span.line_start,
+                                character: s.span.column_start,
+                            },
+                            end: Position {
+                                line: s.span.line_end,
+                                character: s.span.column_end,
+                            },
+                        }
+                    }
+                }
+            }).collect()
+        });
+
+        thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+
+        let result = rustw_handle.join().unwrap_or(vec![]);
+
+        let out = ResponseSuccess {
+            jsonrpc: "2.0".into(),
+            id: id,
+            result: result
+        };
+
+        let output = serde_json::to_string(&out).unwrap();
+        output_response(output);
     }
 
     fn find_all_refs(&self, id: usize, params: ReferenceParams) {
@@ -618,6 +683,10 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                         Method::GotoDef(params) => {
                             try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
                             service.goto_def(id, params);
+                        }
+                        Method::Symbols(params) => {
+                            try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
+                            service.symbols(id, params);
                         }
                         Method::FindAllRef(params) => {
                             try!(log.write_all(&format!("command(find_all_refs): {:?}\n", params).into_bytes()));
