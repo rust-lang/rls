@@ -24,7 +24,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
         build_queue: build_queue.clone(),
     };
 
-    println!("Listening on 127.0.0.1:9000");
+    info!("Listening on 127.0.0.1:9000");
     hyper::Server::http("127.0.0.1:9000").unwrap().handle(handler).unwrap();
 }
 
@@ -76,14 +76,14 @@ impl MyService {
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Squashed => {
-                println!("Skipped build");
+                info!("Skipped build");
                 b"{}\n".to_vec()
             }
             BuildResult::Success(_) | BuildResult::Failure(_) => {
                 let reply = serde_json::to_string(&result).unwrap();
                 // println!("build result: {:?}", result);
 
-                println!("Refreshing rustw cache: {}", project_path);
+                info!("Refreshing rustw cache: {}", project_path);
                 self.analysis.reload(project_path).unwrap();
 
                 reply.as_bytes().to_vec()
@@ -96,15 +96,15 @@ impl MyService {
         if action == "/complete" {
             if let Ok(input) = Input::from_bytes(body) {
                 // FIXME(#23) how do we get the changed files in memory to Racer?
-                println!("Completion for: {:?}", input.pos);
+                info!("Completion for: {:?}", input.pos);
                 self.complete(input.pos, self.analysis.clone())
             } else {
-                println!("complete failed to parse");
+                info!("complete failed to parse");
                 b"{}\n".to_vec()
             }
         } else if action == "/goto_def" {
             if let Ok(input) = Input::from_bytes(body) {
-                println!("Goto def for: {:?}", input);
+                info!("Goto def for: {:?}", input);
                 self.goto_def(input, self.analysis.clone())
             } else {
                 b"{}\n".to_vec()
@@ -117,7 +117,7 @@ impl MyService {
             }
         } else if action == "/find_refs" {
             if let Ok(input) = Input::from_bytes(body) {
-                println!("find refs for: {:?}", input);
+                info!("find refs for: {:?}", input);
                 self.find_refs(input, self.analysis.clone())
             } else {
                 b"{}\n".to_vec()
@@ -139,7 +139,7 @@ impl MyService {
             }
         } else if action == "/on_save" {
             if let Ok(save) = SaveInput::from_bytes(body) {
-                println!("on save: {}", &save.saved_file);
+                info!("on save: {}", &save.saved_file);
                 self.vfs.on_save(&save.saved_file);
 
                 self.build(&save.project_path, BuildPriority::Immediate)
@@ -148,7 +148,7 @@ impl MyService {
             }
         } else if action == "/on_build" {
             if let Ok(file_name) = parse_string(body) {
-                println!("Refreshing rustw cache");
+                info!("Refreshing rustw cache");
                 self.analysis.reload(Path::new(&file_name).file_name().unwrap()
                     .to_str().unwrap()).unwrap();
             }
@@ -161,7 +161,7 @@ impl MyService {
             }
         } else {
             b"{}\n".to_vec()
-        }        
+        }
     }
 }
 

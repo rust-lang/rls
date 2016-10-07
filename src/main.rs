@@ -3,6 +3,8 @@
 
 #[macro_use]
 extern crate hyper;
+#[macro_use]
+extern crate log;
 extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;
 extern crate serde;
