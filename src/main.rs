@@ -1,6 +1,6 @@
 #![feature(custom_derive, plugin)]
 #![feature(rustc_private)]
-#![plugin(serde_macros)]
+#![feature(rustc_macro)]
 
 #[macro_use]
 extern crate hyper;
@@ -8,6 +8,8 @@ extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 
 use std::sync::Arc;
 

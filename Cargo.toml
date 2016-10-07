@@ -11,7 +11,7 @@ rls-vfs = { git = "https://github.com/nrc/rls-vfs" }
 rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
 serde = "0.8"
 serde_json = "0.8"
-serde_macros = "0.8"
+serde_derive = "0.8"
 
 [dev-dependencies]
 env_logger = "0.3.0"

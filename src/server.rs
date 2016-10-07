@@ -73,10 +73,6 @@ impl MyService {
                 let reply = serde_json::to_string(&result).unwrap();
                 // println!("build result: {:?}", result);
 
-                let file_name = Path::new(project_path).file_name()
-                                                       .unwrap()
-                                                       .to_str()
-                                                       .unwrap();
                 println!("Refreshing rustw cache: {}", project_path);
                 self.analysis.reload(project_path).unwrap();
 

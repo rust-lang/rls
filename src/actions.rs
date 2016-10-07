@@ -5,7 +5,6 @@ use analysis::{AnalysisHost, Span};
 use self::racer::core::complete_from_file;
 use self::racer::core::find_definition;
 use self::racer::core;
-use self::racer::scopes;
 use self::rustfmt::{Input as FmtInput, format_input};
 use self::rustfmt::config::{self, WriteMode};
 
@@ -18,7 +17,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use ide::{self, Input, Output, FmtOutput, VscodeKind};
+use ide::{Input, Output, FmtOutput, VscodeKind};
 use vfs::Vfs;
 
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -59,7 +58,6 @@ const RUSTW_TIMEOUT: u64 = 500;
 
 pub fn complete(source: Position, _analysis: Arc<AnalysisHost>) -> Vec<Completion> {
     panic::catch_unwind(|| {
-        // TODO RacerUp
         let source = adjust_vscode_pos_for_racer(source);
         let path = Path::new(&source.filepath);
         let mut f = File::open(&path).unwrap();
@@ -141,36 +139,36 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>) -> Output {
     // Racer thread.
     let pos = adjust_vscode_pos_for_racer(source.pos);
     let racer_handle = thread::spawn(move || {
-        // FIXME(#23) RacerUp
-        // let path = Path::new(&pos.filepath);
-        // let mut f = File::open(&path).unwrap();
-        // let mut src = String::new();
-        // f.read_to_string(&mut src).unwrap();
-        // let pos = scopes::coords_to_point(&src, pos.line, pos.col);
-        // let cache = core::FileCache::new();
-        // if let Some(mch) = find_definition(&src,
-        //                                    &path,
-        //                                    pos,
-        //                                    &core::Session::from_path(&cache, &path, &path)) {
-        //     let mut f = File::open(&mch.filepath).unwrap();
-        //     let mut source_src = String::new();
-        //     f.read_to_string(&mut source_src).unwrap();
-        //     if mch.point != 0 {
-        //         let (line, col) = scopes::point_to_coords(&source_src, mch.point);
-        //         let fpath = mch.filepath.to_str().unwrap().to_string();
-        //         Some(Position {
-        //             filepath: fpath,
-        //             line: line,
-        //             col: col,
-        //         })
-        //     } else {
-        //         None
-        //     }
-        // } else {
-        //     None
-        // }
-
-        None
+        let path = Path::new(&pos.filepath);
+        let mut f = File::open(&path).unwrap();
+        let mut src = String::new();
+        f.read_to_string(&mut src).unwrap();
+        let cache = core::FileCache::new();
+        let session = core::Session::from_path(&cache, &path, &path);
+        // TODO probably want to avoid all these load_files
+        let pos = session.load_file(&path).coords_to_point(pos.line, pos.col).unwrap();
+        if let Some(def) = find_definition(&src,
+                                           &path,
+                                           pos,
+                                           &session) {
+            let mut f = File::open(&def.filepath).unwrap();
+            let mut source_src = String::new();
+            f.read_to_string(&mut source_src).unwrap();
+            if def.point != 0 {
+                // TODO this seems pretty much bogus wrt source_src
+                let (line, col) = session.load_file(&def.filepath).point_to_coords(def.point).unwrap();
+                let fpath = def.filepath.to_str().unwrap().to_string();
+                Some(Position {
+                    filepath: fpath,
+                    line: line,
+                    col: col,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     });
 
     thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
