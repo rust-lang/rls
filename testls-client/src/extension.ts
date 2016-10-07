@@ -27,7 +27,7 @@ export function activate(context: ExtensionContext) {
 			// Synchronize the setting section 'languageServerExample' to the server
 			configurationSection: 'languageServerExample',
 			// Notify the server about changes to files contained in the workspace
-			fileEvents: workspace.createFileSystemWatcher('**/*.*')
+			//fileEvents: workspace.createFileSystemWatcher('**/*.*')
 		}
 	}
 	
