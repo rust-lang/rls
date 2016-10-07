@@ -45,9 +45,19 @@ macro_rules! dispatch_action {
     }
 }
 
+macro_rules! dispatch_action_with_vfs {
+    ($name: ident, $input_type: ty) => {
+        fn $name(&self, input: $input_type, analysis: Arc<AnalysisHost>) -> Vec<u8> {
+            let result = $name(input, analysis, self.vfs.clone());
+            let reply = serde_json::to_string(&result).unwrap();
+            reply.as_bytes().to_vec()
+        }
+    }
+}
+
 impl MyService {
-    dispatch_action!(complete, Position);
-    dispatch_action!(goto_def, Input);
+    dispatch_action_with_vfs!(complete, Position);
+    dispatch_action_with_vfs!(goto_def, Input);
     dispatch_action!(symbols, String);
     dispatch_action!(find_refs, Input);
     dispatch_action!(title, Input);

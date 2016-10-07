@@ -1,4 +1,3 @@
-#![feature(custom_derive, plugin)]
 #![feature(rustc_private)]
 #![feature(rustc_macro)]
 
