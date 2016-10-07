@@ -1,8 +1,7 @@
-#![feature(plugin, custom_derive)]
-#![plugin(serde_macros)]
-
 extern crate serde;
 extern crate serde_json;
+extern crate racer;
+extern crate rustfmt;
 
 use analysis::{AnalysisHost, Span};
 use vfs::{Vfs, Change};
@@ -10,9 +9,16 @@ use build::*;
 use std::sync::Arc;
 use std::path::Path;
 
+use self::racer::core::complete_from_file;
+use self::racer::core::find_definition;
+use self::racer::core;
+use self::rustfmt::{Input as FmtInput, format_input};
+use self::rustfmt::config::{self, WriteMode};
+
 use std::fs::{File, OpenOptions};
 use std::fmt::Debug;
-use serde::Serialize;
+use std::panic;
+use serde::{Serialize, Deserialize};
 use ide::VscodeKind;
 
 use std::io::{self, Read, Write, Error, ErrorKind};
@@ -25,13 +31,13 @@ const RUSTW_TIMEOUT: u64 = 500;
 // For now this is a catch-all for any error back to the consumer of the RLS
 const MethodNotFound: i64 = -32601;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct Position {
     line: usize,
     character: usize
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct Range {
     start: Position,
     end: Position,
@@ -84,6 +90,49 @@ struct SymbolInformation {
     location: Location,
 }
 
+#[derive(Debug, Deserialize)]
+struct CompilerMessageCode {
+    code: String
+}
+
+#[derive(Debug, Deserialize)]
+struct CompilerSpan {
+    file_name: String,
+    line_start: usize,
+    column_start: usize,
+    line_end: usize,
+    column_end: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct CompilerMessage {
+    message: String,
+    code: Option<CompilerMessageCode>,
+    level: String,
+    spans: Vec<CompilerSpan>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct Diagnostic {
+    range: Range,
+    severity: u32,
+    code: String,
+    message: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PublishDiagnosticsParams {
+    uri: String,
+    diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Serialize)]
+struct NotificationMessage<T> where T: Debug+Serialize {
+    jsonrpc: String,
+    method: String,
+    params: T,
+}
+
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct ReferenceParams {
@@ -133,6 +182,7 @@ enum Method {
     GotoDef (TextDocumentPositionParams),
     FindAllRef (ReferenceParams),
     Symbols (DocumentSymbolParams),
+    Complete (TextDocumentPositionParams),
 }
 
 #[derive(Debug, Serialize)]
@@ -162,6 +212,12 @@ struct HoverSuccessContents {
 #[derive(Debug, Serialize)]
 struct InitializeCapabilities {
     capabilities: ServerCapabilities
+}
+
+#[derive(Debug, Serialize)]
+struct CompletionItem {
+    label: String,
+    detail: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -277,6 +333,12 @@ fn parse_message(input: &str) -> io::Result<ServerMessage>  {
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::FindAllRef(method)}))
                 }
+                "textDocument/completion" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let method: TextDocumentPositionParams =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::Complete(method)}))
+                }
                 "textDocument/documentSymbol" => {
                     let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
                     let method: DocumentSymbolParams =
@@ -334,10 +396,51 @@ impl LSService {
 
         let result = self.build_queue.request_build(project_path, priority);
         match result {
-            BuildResult::Success(_) | BuildResult::Failure(_) => {
-                let reply = serde_json::to_string(&result).unwrap();
+            BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
+                let result: Vec<Diagnostic> = x.iter().map(|msg| {
+                    match serde_json::from_str::<CompilerMessage>(&msg) {
+                        Ok(method) => {
+                            let diag = Diagnostic {
+                                range: Range {
+                                    start: Position {
+                                        line: method.spans[0].line_start,
+                                        character: method.spans[0].column_start,
+                                    },
+                                    end: Position {
+                                        line: method.spans[0].line_end,
+                                        character: method.spans[0].column_end,
+                                    }
+                                },
+                                severity: if method.level == "error" { 1 } else { 2 },
+                                code: match method.code {
+                                    Some(c) => c.code.clone(),
+                                    None => String::new(),
+                                },
+                                message: method.message.clone(),
+                            };
+                            let out = NotificationMessage {
+                                jsonrpc: "2.0".into(),
+                                method: "textDocument/publishDiagnostics".to_string(),
+                                params: PublishDiagnosticsParams {
+                                    uri: "file://".to_string() + &method.spans[0].file_name,
+                                    diagnostics: vec![diag.clone()]
+                                }
+                            };
+                            let output = serde_json::to_string(&out).unwrap();
+                            output_response(output);
+                            diag
+                        }
+                        Err(e) => {
+                            io::stderr().write(&format!("<<ERROR>> {:?}", e).into_bytes());
+                            io::stderr().write(&format!("<<FROM>> {}", msg).into_bytes());
+                            panic!();
+                        }
+                    }
+                }).collect();
+
+                //let reply = serde_json::to_string(&result).unwrap();
                 // println!("build result: {:?}", result);
-                log(format!("build result: {:?}", result));
+                //log(format!("build result: {:?}", result));
 
                 let file_name = Path::new(&project_path).file_name()
                                                              .unwrap()
@@ -422,6 +525,54 @@ impl LSService {
         thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
         let result = rustw_handle.join().unwrap_or(vec![]);
+
+        let out = ResponseSuccess {
+            jsonrpc: "2.0".into(),
+            id: id,
+            result: result
+        };
+
+        let output = serde_json::to_string(&out).unwrap();
+        output_response(output);
+    }
+
+    fn complete(&self, id: usize, params: TextDocumentPositionParams) {
+        fn adjust_vscode_pos_for_racer(mut source: Position) -> Position {
+            source.line += 1;
+            source
+        }
+
+        fn adjust_racer_pos_for_vscode(mut source: Position) -> Position {
+            if source.line > 0 {
+                source.line -= 1;
+            }
+            source
+        }
+
+        let vfs: &Vfs = &self.vfs;
+
+        let pos = adjust_vscode_pos_for_racer(params.position);
+        let fname: String = params.textDocument.uri.chars().skip("file://".len()).collect();
+        let file_path = &Path::new(&fname);
+
+        let result: Vec<CompletionItem> = panic::catch_unwind(move || {
+
+            let cache = core::FileCache::new();
+            let session = core::Session::from_path(&cache, file_path, file_path);
+            for (path, txt) in vfs.get_changed_files() {
+                session.cache_file_contents(&path, txt);
+            }
+
+            let src = session.load_file(file_path);
+
+            let pos = session.load_file(file_path).coords_to_point(pos.line, pos.character).unwrap();
+            let results = complete_from_file(&src.code, file_path, pos, &session);
+
+            results.map(|comp| CompletionItem {
+                label: comp.matchstr.clone(),
+                detail: comp.contextstr.clone(),
+            }).collect()
+        }).unwrap_or(vec![]);
 
         let out = ResponseSuccess {
             jsonrpc: "2.0".into(),
@@ -684,6 +835,10 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                             try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
                             service.goto_def(id, params);
                         }
+                        Method::Complete(params) => {
+                            try!(log.write_all(&format!("command(complete): {:?}\n", params).into_bytes()));
+                            service.complete(id, params);
+                        }
                         Method::Symbols(params) => {
                             try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
                             service.symbols(id, params);
@@ -722,10 +877,11 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                                 }
                             };
 
-                            let output = serde_json::to_string(&result).unwrap();
-                            output_response(output);
                             service.current_project = Some(init.rootPath.clone());
                             service.build(&init.rootPath, BuildPriority::Immediate);
+
+                            let output = serde_json::to_string(&result).unwrap();
+                            output_response(output);
                         }
                     }
                 }
