@@ -1,5 +1,5 @@
 #![feature(rustc_private)]
-#![feature(rustc_macro)]
+#![feature(proc_macro)]
 
 #[macro_use]
 extern crate hyper;
