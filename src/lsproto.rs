@@ -828,9 +828,10 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
 
                     try!(log_file.write_all(&format!("CHANGES: {:?}", changes).into_bytes()));
 
-                    let current_project = service.current_project.clone().unwrap_or_default();
-
-                    service.build(&current_project, BuildPriority::Normal);
+                    match service.current_project {
+                        Some(ref current_project) => service.build(&current_project, BuildPriority::Normal),
+                        None => log("No project path".to_owned()),
+                    }
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {

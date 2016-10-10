@@ -6,18 +6,9 @@ import { workspace, Disposable, ExtensionContext, languages } from 'vscode';
 import { LanguageClient, LanguageClientOptions, SettingMonitor, ServerOptions, TransportKind } from 'vscode-languageclient';
 
 export function activate(context: ExtensionContext) {
-	let dir = __dirname.split(/(\\|\/)/g);
-	dir.pop();
-	dir.pop();
-	dir.pop();
-	let result_dir = dir.join(""); 
-
-	// If this VSCode RLS crashes, make sure the directory below points to the RLS root directory
-	// console.log(result_dir);
-
 	let serverOptions: ServerOptions = {
-		run: {command: "cargo", args: ["run"], options: {cwd: result_dir}},
-		debug: {command: "cargo", args: ["run"], options: {cwd: result_dir}}
+		run: {command: "cargo", args: ["run"]},
+		debug: {command: "cargo", args: ["run"]}
 	};
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {

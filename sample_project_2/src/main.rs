@@ -19,7 +19,7 @@ fn foo_maker() -> Foo {
 }
 
 fn main() {
-    let mut bar = 421;
+    let mut bar = 42;
     let f = bar;
     let g = &mut bar;
     let foo = f;
