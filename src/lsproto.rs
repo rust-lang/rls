@@ -292,7 +292,8 @@ enum ServerMessage {
     Notification (Notification)
 }
 
-fn parse_message(input: &str) -> io::Result<ServerMessage>  {
+// TODO error type is gross
+fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str, usize)>  {
     let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
 
     let params = ls_command.lookup("params");
@@ -320,6 +321,10 @@ fn parse_message(input: &str) -> io::Result<ServerMessage>  {
                     let method: ChangeParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Notification(Notification::Change(method)))
+                }
+                "textDocument/didOpen" => {
+                    // TODO handle me
+                    Err((ErrorKind::InvalidData, "didOpen", 0))
                 }
                 "textDocument/definition" => {
                     let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
@@ -350,26 +355,39 @@ fn parse_message(input: &str) -> io::Result<ServerMessage>  {
                                                .unwrap();
                     Ok(ServerMessage::Notification(Notification::CancelRequest(params.id)))
                 }
+                "$/setTraceNotification" => {
+                    // TODO handle me
+                    Err((ErrorKind::InvalidData, "setTraceNotification", 0))
+                }
+                "workspace/didChangeConfiguration" => {
+                    // TODO handle me
+                    Err((ErrorKind::InvalidData, "didChangeConfiguration", 0))
+                }
                 _ => {
-                    Err(Error::new(ErrorKind::InvalidData, "Unknown command"))
+                    let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap()).unwrap_or(0) as usize;
+                    Err((ErrorKind::InvalidData, "Unknown command", id))
                 }
             }
         }
         else {
-            Err(Error::new(ErrorKind::InvalidData, "Method is not a string"))
+            let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap()).unwrap_or(0) as usize;
+            Err((ErrorKind::InvalidData, "Method is not a string", id))
         }
     }
     else {
-        Err(Error::new(ErrorKind::InvalidData, "Method not found"))
+        let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap()).unwrap_or(0) as usize;
+        Err((ErrorKind::InvalidData, "Method not found", id))
     }
 }
 
 fn log(msg: String) {
-    let mut log = OpenOptions::new().append(true)
-                                    .write(true)
-                                    .create(true)
-                                    .open("/tmp/rls_log.txt").unwrap();
-    log.write_all(&format!("{}", msg).into_bytes()).unwrap();
+    // let mut log = OpenOptions::new().append(true)
+    //                                 .write(true)
+    //                                 .create(true)
+    //                                 .open("tmp/rls_log.txt").unwrap();
+    // log.write_all(&format!("{}", msg).into_bytes()).unwrap();
+
+    writeln!(::std::io::stderr(), "{}", msg);
 }
 
 fn output_response(output: String) {
@@ -391,15 +409,15 @@ struct LSService {
 
 impl LSService {
     fn build(&self, project_path: &str, priority: BuildPriority) {
-        //let analysis = self.analysis.clone();
-        //let project_path_copy = project_path.to_owned();
-
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
-                let result: Vec<Diagnostic> = x.iter().map(|msg| {
+                let result: Vec<Diagnostic> = x.iter().filter_map(|msg| {
                     match serde_json::from_str::<CompilerMessage>(&msg) {
                         Ok(method) => {
+                            if method.spans.is_empty() {
+                                return None;
+                            }
                             let diag = Diagnostic {
                                 range: Range {
                                     start: Position {
@@ -428,12 +446,12 @@ impl LSService {
                             };
                             let output = serde_json::to_string(&out).unwrap();
                             output_response(output);
-                            diag
+                            Some(diag)
                         }
                         Err(e) => {
-                            io::stderr().write(&format!("<<ERROR>> {:?}", e).into_bytes());
-                            io::stderr().write(&format!("<<FROM>> {}", msg).into_bytes());
-                            panic!();
+                            log(format!("<<ERROR>> {:?}", e));
+                            log(format!("<<FROM>> {}", msg));
+                            None
                         }
                     }
                 }).collect();
@@ -442,10 +460,7 @@ impl LSService {
                 // println!("build result: {:?}", result);
                 //log(format!("build result: {:?}", result));
 
-                let file_name = Path::new(&project_path).file_name()
-                                                             .unwrap()
-                                                             .to_str()
-                                                             .unwrap();
+                log(format!("reload analysis: {}", project_path));
                 self.analysis.reload(&project_path).unwrap();
             }
             BuildResult::Squashed => {},
@@ -753,10 +768,10 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                                   current_project: None };
 
     // note: logging is totally optional, but it gives us a way to see behind the scenes
-    let mut log = try!(OpenOptions::new().append(true)
-                                         .write(true)
-                                         .create(true)
-                                         .open("/tmp/rls_log.txt"));
+    let mut log_file = try!(OpenOptions::new().append(true)
+                                              .write(true)
+                                              .create(true)
+                                              .open("tmp/rls_log.txt"));
 
     loop {
         // Read in the "Content-length: xx" part
@@ -775,32 +790,28 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
             return Err(Error::new(ErrorKind::InvalidData, "Header is missing 'Content-length'"));
         }
         if let Ok(size) = usize::from_str_radix(&res[1].trim(), 10) {
-            try!(log.write_all(&format!("now reading: {} bytes\n", size).into_bytes()));
+            try!(log_file.write_all(&format!("now reading: {} bytes\n", size).into_bytes()));
 
             // Skip the new lines
             let mut tmp = String::new();
             try!(io::stdin().read_line(&mut tmp));
 
-            // Create a buffer, filled with zeros
-            let mut content = Vec::with_capacity(size);
-            for i in 0..size {
-                content.push(0);
-            }
+            let mut content = vec![0; size];
 
             try!(io::stdin().read_exact(&mut content));
 
             let c = String::from_utf8(content).unwrap();
 
-            try!(log.write_all(&format!("in came: {}\n", c).into_bytes()));
+            try!(log_file.write_all(&format!("in came: {}\n", c).into_bytes()));
             let msg = parse_message(&c);
 
             match msg {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    try!(log.write_all(&format!("request to cancel {}\n", id).into_bytes()));
+                    try!(log_file.write_all(&format!("request to cancel {}\n", id).into_bytes()));
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
                     let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
-                    try!(log.write_all(&format!("notification(change): {:?}\n", change).into_bytes()));
+                    try!(log_file.write_all(&format!("notification(change): {:?}\n", change).into_bytes()));
                     let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
                         Change {
                             span: Span {
@@ -815,40 +826,40 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                     }).collect();
                     service.vfs.on_change(&changes);
 
-                    try!(log.write_all(&format!("CHANGES: {:?}", changes).into_bytes()));
+                    try!(log_file.write_all(&format!("CHANGES: {:?}", changes).into_bytes()));
 
                     let current_project = service.current_project.clone().unwrap_or_default();
 
-                    service.build(&current_project, BuildPriority::Normal)
+                    service.build(&current_project, BuildPriority::Normal);
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
                         Method::Shutdown => {
-                            try!(log.write_all(&format!("shutting down...\n").into_bytes()));
+                            try!(log_file.write_all(&format!("shutting down...\n").into_bytes()));
                             break;
                         }
                         Method::Hover(params) => {
-                            try!(log.write_all(&format!("command(hover): {:?}\n", params).into_bytes()));
+                            try!(log_file.write_all(&format!("command(hover): {:?}\n", params).into_bytes()));
                             service.hover(id, params);
                         }
                         Method::GotoDef(params) => {
-                            try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
+                            try!(log_file.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
                             service.goto_def(id, params);
                         }
                         Method::Complete(params) => {
-                            try!(log.write_all(&format!("command(complete): {:?}\n", params).into_bytes()));
+                            try!(log_file.write_all(&format!("command(complete): {:?}\n", params).into_bytes()));
                             service.complete(id, params);
                         }
                         Method::Symbols(params) => {
-                            try!(log.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
+                            try!(log_file.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
                             service.symbols(id, params);
                         }
                         Method::FindAllRef(params) => {
-                            try!(log.write_all(&format!("command(find_all_refs): {:?}\n", params).into_bytes()));
+                            try!(log_file.write_all(&format!("command(find_all_refs): {:?}\n", params).into_bytes()));
                             service.find_all_refs(id, params);
                         }
                         Method::Initialize(init) => {
-                            try!(log.write_all(&format!("command(init): {:?}\n", init).into_bytes()));
+                            try!(log_file.write_all(&format!("command(init): {:?}\n", init).into_bytes()));
                             let result = ResponseSuccess {
                                 jsonrpc: "2.0".into(),
                                 id: 0,
@@ -886,12 +897,23 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                     }
                 }
                 Err(e) => {
-                    try!(log.write_all(&format!("parsing invalid message: {:?}", e).into_bytes()));
+                    try!(log_file.write_all(&format!("parsing invalid message: {:?}", e).into_bytes()));
+                    let id = e.2;
+                    let r = ResponseFailure {
+                        jsonrpc: "2.0".into(),
+                        id: id,
+                        error: ResponseError {
+                            code: MethodNotFound,
+                            message: "Unsupported message".into()
+                        }
+                    };
+                    let output = serde_json::to_string(&r).unwrap();
+                    output_response(output);
                 },
             }
         }
         else {
-            try!(log.write_all(&format!("Header is missing length: `{}`", res[1]).into_bytes()));
+            try!(log_file.write_all(&format!("Header is missing length: `{}`", res[1]).into_bytes()));
             break;
         }
     }

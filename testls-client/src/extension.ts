@@ -12,8 +12,8 @@ export function activate(context: ExtensionContext) {
 	dir.pop();
 	let result_dir = dir.join(""); 
 
-	//If this VSCode RLS crashes, make sure the directory below points to the RLS root directory
-	//console.log(result_dir);
+	// If this VSCode RLS crashes, make sure the directory below points to the RLS root directory
+	// console.log(result_dir);
 
 	let serverOptions: ServerOptions = {
 		run: {command: "cargo", args: ["run"], options: {cwd: result_dir}},
