@@ -81,12 +81,12 @@ pub fn complete(pos: Position, _analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> V
 pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
     let t = thread::current();
     let span = source.span;
-    println!("title for: {:?}", span);
+    info!("title for: {:?}", span);
     let rustw_handle = thread::spawn(move || {
         let result = analysis.find_all_refs(&span);
         t.unpark();
 
-        println!("rustw find_all_refs: {:?}", result);
+        info!("rustw find_all_refs: {:?}", result);
         result
     });
 
@@ -119,14 +119,14 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Ou
     let span = source.span;
     let compiler_handle = thread::spawn(move || {
         let result = if let Ok(s) = analysis.goto_def(&span) {
-            println!("compiler success!");
+            info!("compiler success!");
             Some(Position {
                 filepath: s.file_name,
                 line: s.line_start,
                 col: s.column_start,
             })
         } else {
-            println!("compiler failed");
+            info!("compiler failed");
             None
         };
 
@@ -176,7 +176,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Ou
     match compiler_result {
         Some(r) => Output::Ok(r, Provider::Compiler),
         None => {
-            println!("Using racer");
+            info!("Using racer");
             match racer_handle.join() {
                 Ok(Some(r)) => {
                     Output::Ok(adjust_racer_pos_for_vscode(r), Provider::Racer)
@@ -190,16 +190,16 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Ou
 pub fn title(source: Input, analysis: Arc<AnalysisHost>) -> Option<Title> {
     let t = thread::current();
     let span = source.span;
-    println!("title for: {:?}", span);
+    info!("title for: {:?}", span);
     let rustw_handle = thread::spawn(move || {
         let ty = analysis.show_type(&span).unwrap_or(String::new());
         let docs = analysis.docs(&span).unwrap_or(String::new());
         let doc_url = analysis.doc_url(&span).unwrap_or(String::new());
         t.unpark();
 
-        println!("rustw show_type: {:?}", ty);
-        println!("rustw docs: {:?}", docs);
-        println!("rustw doc url: {:?}", doc_url);
+        info!("rustw show_type: {:?}", ty);
+        info!("rustw docs: {:?}", docs);
+        info!("rustw doc url: {:?}", doc_url);
         Title {
             ty: ty,
             docs: docs,
