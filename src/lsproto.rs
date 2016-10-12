@@ -171,6 +171,11 @@ struct NotificationMessage<T> where T: Debug+Serialize {
     params: T,
 }
 
+#[derive(Debug, Serialize)]
+struct WorkspaceEdit {
+    changes: HashMap<String, Vec<TextEdit>>,
+}
+
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct ReferenceParams {
@@ -202,6 +207,14 @@ struct HoverParams {
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
+struct RenameParams {
+    textDocument: Document,
+    position: Position,
+    newName: String,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
 struct DocumentSymbolParams {
     textDocument: Document,
 }
@@ -221,6 +234,7 @@ enum Method {
     FindAllRef (ReferenceParams),
     Symbols (DocumentSymbolParams),
     Complete (TextDocumentPositionParams),
+    Rename (RenameParams),
 }
 
 #[derive(Debug, Serialize)]
@@ -256,6 +270,13 @@ struct InitializeCapabilities {
 struct CompletionItem {
     label: String,
     detail: String,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Serialize)]
+struct TextEdit {
+    range: Range,
+    newText: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -388,6 +409,12 @@ fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str,
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Symbols(method)}))
                 }
+                "textDocument/rename" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let method: RenameParams =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::Rename(method)}))
+                }
                 "$/cancelRequest" => {
                     let params: CancelParams = serde_json::from_value(params.unwrap().to_owned())
                                                .unwrap();
@@ -465,52 +492,6 @@ impl LsService {
                         v.clear();
                     }
                 }
-                /*
-                let result: Vec<Diagnostic> = x.iter().filter_map(|msg| {
-                    match serde_json::from_str::<CompilerMessage>(&msg) {
-                        Ok(method) => {
-                            if method.spans.is_empty() {
-                                return None;
-                            }
-                            let mut diag = Diagnostic {
-                                range: Range::from_span(&method.spans[0]),
-                                severity: if method.level == "error" { 1 } else { 2 },
-                                code: match method.code {
-                                    Some(c) => c.code.clone(),
-                                    None => String::new(),
-                                },
-                                message: method.message.clone(),
-                            };
-
-                            //adjust diagnostic range for LSP
-                            diag.range.start.line -= 1;
-                            diag.range.start.character -= 1;
-                            diag.range.end.line -= 1;
-                            diag.range.end.character -= 1;
-
-                            //FIXME: this assumes unix-like filepaths
-                            let out = NotificationMessage {
-                                jsonrpc: "2.0".into(),
-                                method: "textDocument/publishDiagnostics".to_string(),
-                                params: PublishDiagnosticsParams {
-                                    uri: "file://".to_string() +
-                                         project_path + "/" +
-                                         &method.spans[0].file_name,
-                                    diagnostics: vec![diag.clone()]
-                                }
-                            };
-                            let output = serde_json::to_string(&out).unwrap();
-                            output_response(output);
-                            Some(diag)
-                        }
-                        Err(e) => {
-                            log(format!("<<ERROR>> {:?}", e));
-                            log(format!("<<FROM>> {}", msg));
-                            None
-                        }
-                    }
-                }).collect();
-                */
                 for msg in x.iter() {
                     match serde_json::from_str::<CompilerMessage>(&msg) {
                         Ok(method) => {
@@ -545,8 +526,8 @@ impl LsService {
                         }
                     }
                 }
-                let mut notifications = vec![];
 
+                let mut notifications = vec![];
                 {
                     let mut results = self.previous_build_results.lock().unwrap();
                     for k in &mut results.keys() {
@@ -562,26 +543,11 @@ impl LsService {
                         });
                     }
                 }
+
                 for notification in notifications {
                     let output = serde_json::to_string(&notification).unwrap();
                     output_response(output);
                 }
-                /*
-                let out = NotificationMessage {
-                    jsonrpc: "2.0".into(),
-                    method: "textDocument/publishDiagnostics".to_string(),
-                    params: PublishDiagnosticsParams {
-                        uri: "file://".to_string() +
-                                project_path + "/" +
-                                &method.spans[0].file_name,
-                        diagnostics: vec![diag.clone()]
-                    }
-                };
-                */
-                //Some(diag)
-                //let reply = serde_json::to_string(&result).unwrap();
-                // println!("build result: {:?}", result);
-                //log(format!("build result: {:?}", result));
 
                 log(format!("reload analysis: {}", project_path));
                 self.analysis.reload(&project_path).unwrap();
@@ -704,6 +670,46 @@ impl LsService {
             jsonrpc: "2.0".into(),
             id: id,
             result: result
+        };
+
+        let output = serde_json::to_string(&out).unwrap();
+        output_response(output);
+    }
+
+    fn rename(&self, id: usize, params: RenameParams) {
+        let t = thread::current();
+        let uri = params.textDocument.uri.clone();
+        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+        let analysis = self.analysis.clone();
+
+        let rustw_handle = thread::spawn(move || {
+            let result = analysis.find_all_refs(&span);
+            t.unpark();
+
+            result
+        });
+
+        thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+
+        let mut result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+
+        let mut edits: HashMap<String, Vec<TextEdit>> = HashMap::new();
+
+        for item in result.iter() {
+            let loc = Location::from_span(&item);
+            edits.entry(loc.uri.clone()).or_insert(vec![]);
+            edits.get_mut(&loc.uri).unwrap().push(TextEdit {
+                range: loc.range.clone(),
+                newText: params.newName.clone(),
+            });
+        }
+
+        let out = ResponseSuccess {
+            jsonrpc: "2.0".into(),
+            id: id,
+            result: WorkspaceEdit {
+                changes: edits,
+            }
         };
 
         let output = serde_json::to_string(&out).unwrap();
@@ -961,6 +967,10 @@ impl LsService {
                         Method::FindAllRef(params) => {
                             this.log(&format!("command(find_all_refs): {:?}\n", params));
                             this.find_all_refs(id, params);
+                        }
+                        Method::Rename(params) => {
+                            this.log(&format!("command(rename): {:?}\n", params));
+                            this.rename(id, params);
                         }
                         Method::Initialize(init) => {
                             this.log(&format!("command(init): {:?}\n", init));
