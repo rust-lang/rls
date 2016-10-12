@@ -6,8 +6,10 @@ extern crate rustfmt;
 use analysis::{AnalysisHost, Span};
 use vfs::{Vfs, Change};
 use build::*;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::path::Path;
+use std::collections::HashMap;
 
 use self::racer::core::complete_from_file;
 use self::racer::core::find_definition;
@@ -435,26 +437,42 @@ fn output_response(output: String) {
     io::stdout().flush().unwrap();
 }
 
-#[derive(Clone)]
-struct LSService {
+struct LsService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
-    current_project: Option<String>,
+    current_project: Mutex<Option<String>>,
+    log_file: Mutex<File>,
+    shut_down: AtomicBool,
+    previous_build_results: Mutex<HashMap<String, Vec<Diagnostic>>>,
 }
 
-impl LSService {
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+enum ServerStateChange {
+    Continue,
+    Break,
+}
+
+impl LsService {
     fn build(&self, project_path: &str, priority: BuildPriority) {
+        self.log(&format!("\nBUILDING\n"));
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
+                {
+                    let mut results = self.previous_build_results.lock().unwrap();
+                    for v in &mut results.values_mut() {
+                        v.clear();
+                    }
+                }
+                /*
                 let result: Vec<Diagnostic> = x.iter().filter_map(|msg| {
                     match serde_json::from_str::<CompilerMessage>(&msg) {
                         Ok(method) => {
                             if method.spans.is_empty() {
                                 return None;
                             }
-                            let diag = Diagnostic {
+                            let mut diag = Diagnostic {
                                 range: Range::from_span(&method.spans[0]),
                                 severity: if method.level == "error" { 1 } else { 2 },
                                 code: match method.code {
@@ -463,11 +481,21 @@ impl LSService {
                                 },
                                 message: method.message.clone(),
                             };
+
+                            //adjust diagnostic range for LSP
+                            diag.range.start.line -= 1;
+                            diag.range.start.character -= 1;
+                            diag.range.end.line -= 1;
+                            diag.range.end.character -= 1;
+
+                            //FIXME: this assumes unix-like filepaths
                             let out = NotificationMessage {
                                 jsonrpc: "2.0".into(),
                                 method: "textDocument/publishDiagnostics".to_string(),
                                 params: PublishDiagnosticsParams {
-                                    uri: "file://".to_string() + &method.spans[0].file_name,
+                                    uri: "file://".to_string() +
+                                         project_path + "/" +
+                                         &method.spans[0].file_name,
                                     diagnostics: vec![diag.clone()]
                                 }
                             };
@@ -482,7 +510,75 @@ impl LSService {
                         }
                     }
                 }).collect();
+                */
+                for msg in x.iter() {
+                    match serde_json::from_str::<CompilerMessage>(&msg) {
+                        Ok(method) => {
+                            if method.spans.is_empty() {
+                                continue;
+                            }
+                            let mut diag = Diagnostic {
+                                range: Range::from_span(&method.spans[0]),
+                                severity: if method.level == "error" { 1 } else { 2 },
+                                code: match method.code {
+                                    Some(c) => c.code.clone(),
+                                    None => String::new(),
+                                },
+                                message: method.message.clone(),
+                            };
 
+                            //adjust diagnostic range for LSP
+                            diag.range.start.line -= 1;
+                            diag.range.start.character -= 1;
+                            diag.range.end.line -= 1;
+                            diag.range.end.character -= 1;
+
+                            {
+                                let mut results = self.previous_build_results.lock().unwrap();
+                                results.entry(method.spans[0].file_name.clone()).or_insert(vec![]);
+                                results.get_mut(&method.spans[0].file_name).unwrap().push(diag);
+                            }
+                        }
+                        Err(e) => {
+                            log(format!("<<ERROR>> {:?}", e));
+                            log(format!("<<FROM>> {}", msg));
+                        }
+                    }
+                }
+                let mut notifications = vec![];
+
+                {
+                    let mut results = self.previous_build_results.lock().unwrap();
+                    for k in &mut results.keys() {
+                        notifications.push(NotificationMessage {
+                            jsonrpc: "2.0".into(),
+                            method: "textDocument/publishDiagnostics".to_string(),
+                            params: PublishDiagnosticsParams {
+                                uri: "file://".to_string() +
+                                        project_path + "/" +
+                                        k,
+                                diagnostics: results.get(k).unwrap().clone()
+                            }
+                        });
+                    }
+                }
+                for notification in notifications {
+                    let output = serde_json::to_string(&notification).unwrap();
+                    output_response(output);
+                }
+                /*
+                let out = NotificationMessage {
+                    jsonrpc: "2.0".into(),
+                    method: "textDocument/publishDiagnostics".to_string(),
+                    params: PublishDiagnosticsParams {
+                        uri: "file://".to_string() +
+                                project_path + "/" +
+                                &method.spans[0].file_name,
+                        diagnostics: vec![diag.clone()]
+                    }
+                };
+                */
+                //Some(diag)
                 //let reply = serde_json::to_string(&result).unwrap();
                 // println!("build result: {:?}", result);
                 //log(format!("build result: {:?}", result));
@@ -734,7 +830,7 @@ impl LSService {
                 let output = serde_json::to_string(&r).unwrap();
                 output_response(output);
             }
-            Err(e) => {
+            Err(_) => {
                 let r = ResponseFailure {
                     jsonrpc: "2.0".into(),
                     id: id,
@@ -748,104 +844,126 @@ impl LSService {
             }
         }
     }
-}
 
-pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>)
-    -> io::Result<()> {
+    fn run(this: Arc<Self>) {
+        while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
+    }
 
-    let mut service = LSService { analysis: analysis,
-                                  vfs: vfs,
-                                  build_queue: build_queue,
-                                  current_project: None };
+    fn log(&self, s: &str) {
+        let mut log_file = self.log_file.lock().unwrap();
+        // FIXME(#40) write thread id to log_file
+        log_file.write_all(s.as_bytes()).unwrap();
+    }
 
-    // note: logging is totally optional, but it gives us a way to see behind the scenes
-    let mut log_file = try!(OpenOptions::new().append(true)
-                                              .write(true)
-                                              .create(true)
-                                              .open("/tmp/rls_log.txt"));
+    fn read_message(&self) -> Option<String> {
+        macro_rules! handle_err {
+            ($e: expr, $s: expr) => {
+                match $e {
+                    Ok(x) => x,
+                    Err(_) => {
+                        self.log($s);
+                        return None;
+                    }
+                }
+            }
+        }
 
-    loop {
         // Read in the "Content-length: xx" part
         let mut buffer = String::new();
-        try!(io::stdin().read_line(&mut buffer));
+        handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
 
-        let buffer_backup = buffer.clone();
+        let res: Vec<&str> = buffer.split(" ").collect();
 
         // Make sure we see the correct header
-        let res: Vec<&str> = buffer.split(" ").collect();
         if res.len() != 2 {
-            return Err(Error::new(ErrorKind::InvalidData,
-                                  format!("Header is malformed: {}", buffer_backup)));
+            self.log("Header is malformed");
+            return None;
         }
+
         if res[0] == "Content-length:" {
-            return Err(Error::new(ErrorKind::InvalidData, "Header is missing 'Content-length'"));
+            self.log("Header is missing 'Content-length'");
+            return None;
         }
-        if let Ok(size) = usize::from_str_radix(&res[1].trim(), 10) {
-            try!(log_file.write_all(&format!("now reading: {} bytes\n", size).into_bytes()));
 
-            // Skip the new lines
-            let mut tmp = String::new();
-            try!(io::stdin().read_line(&mut tmp));
+        let size = handle_err!(usize::from_str_radix(&res[1].trim(), 10), "Couldn't read size");
+        self.log(&format!("now reading: {} bytes\n", size));
 
-            let mut content = vec![0; size];
+        // Skip the new lines
+        let mut tmp = String::new();
+        handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
 
-            try!(io::stdin().read_exact(&mut content));
+        let mut content = vec![0; size];
+        handle_err!(io::stdin().read_exact(&mut content), "Could not read from stdin");
 
-            let c = String::from_utf8(content).unwrap();
+        let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
 
-            try!(log_file.write_all(&format!("in came: {}\n", c).into_bytes()));
-            let msg = parse_message(&c);
+        self.log(&format!("in came: {}\n", content));
 
-            match msg {
+        Some(content)
+    }
+
+    fn handle_message(this: Arc<Self>) -> ServerStateChange {
+        let c = match this.read_message() {
+            Some(c) => c,
+            None => return ServerStateChange::Break,
+        };
+
+        let this = this.clone();
+        thread::spawn(move || {
+            match parse_message(&c) {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    try!(log_file.write_all(&format!("request to cancel {}\n", id).into_bytes()));
+                    this.log(&format!("request to cancel {}\n", id));
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
                     let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
-                    try!(log_file.write_all(&format!("notification(change): {:?}\n", change).into_bytes()));
+                    this.log(&format!("notification(change): {:?}\n", change));
                     let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
                         Change {
                             span: i.range.to_span(fname.clone()),
                             text: i.text.clone()
                         }
                     }).collect();
-                    service.vfs.on_change(&changes);
+                    this.vfs.on_change(&changes);
 
-                    try!(log_file.write_all(&format!("CHANGES: {:?}", changes).into_bytes()));
+                    this.log(&format!("CHANGES: {:?}", changes));
 
-                    match service.current_project {
-                        Some(ref current_project) => service.build(&current_project, BuildPriority::Normal),
+                    let current_project = {
+                        let current_project = this.current_project.lock().unwrap();
+                        current_project.clone()
+                    };
+                    match current_project {
+                        Some(ref current_project) => this.build(&current_project, BuildPriority::Normal),
                         None => log("No project path".to_owned()),
                     }
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
                         Method::Shutdown => {
-                            try!(log_file.write_all(&format!("shutting down...\n").into_bytes()));
-                            break;
+                            this.log(&format!("shutting down...\n"));
+                            this.shut_down.store(true, Ordering::SeqCst);
                         }
                         Method::Hover(params) => {
-                            try!(log_file.write_all(&format!("command(hover): {:?}\n", params).into_bytes()));
-                            service.hover(id, params);
+                            this.log(&format!("command(hover): {:?}\n", params));
+                            this.hover(id, params);
                         }
                         Method::GotoDef(params) => {
-                            try!(log_file.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
-                            service.goto_def(id, params);
+                            this.log(&format!("command(goto): {:?}\n", params));
+                            this.goto_def(id, params);
                         }
                         Method::Complete(params) => {
-                            try!(log_file.write_all(&format!("command(complete): {:?}\n", params).into_bytes()));
-                            service.complete(id, params);
+                            this.log(&format!("command(complete): {:?}\n", params));
+                            this.complete(id, params);
                         }
                         Method::Symbols(params) => {
-                            try!(log_file.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
-                            service.symbols(id, params);
+                            this.log(&format!("command(goto): {:?}\n", params));
+                            this.symbols(id, params);
                         }
                         Method::FindAllRef(params) => {
-                            try!(log_file.write_all(&format!("command(find_all_refs): {:?}\n", params).into_bytes()));
-                            service.find_all_refs(id, params);
+                            this.log(&format!("command(find_all_refs): {:?}\n", params));
+                            this.find_all_refs(id, params);
                         }
                         Method::Initialize(init) => {
-                            try!(log_file.write_all(&format!("command(init): {:?}\n", init).into_bytes()));
+                            this.log(&format!("command(init): {:?}\n", init));
                             let result = ResponseSuccess {
                                 jsonrpc: "2.0".into(),
                                 id: 0,
@@ -862,7 +980,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                                         },
                                         definitionProvider: true,
                                         referencesProvider: true,
-                                        documentHighlightProvider: true,
+                                        documentHighlightProvider: false,
                                         documentSymbolProvider: true,
                                         workshopSymbolProvider: true,
                                         codeActionProvider: false,
@@ -874,8 +992,11 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                                 }
                             };
 
-                            service.current_project = Some(init.rootPath.clone());
-                            service.build(&init.rootPath, BuildPriority::Immediate);
+                            {
+                                let mut current_project = this.current_project.lock().unwrap();
+                                *current_project = Some(init.rootPath.clone());
+                            }
+                            this.build(&init.rootPath, BuildPriority::Immediate);
 
                             let output = serde_json::to_string(&result).unwrap();
                             output_response(output);
@@ -883,7 +1004,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                     }
                 }
                 Err(e) => {
-                    try!(log_file.write_all(&format!("parsing invalid message: {:?}", e).into_bytes()));
+                    this.log(&format!("parsing invalid message: {:?}", e));
                     let id = e.2;
                     let r = ResponseFailure {
                         jsonrpc: "2.0".into(),
@@ -897,11 +1018,30 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                     output_response(output);
                 },
             }
-        }
-        else {
-            try!(log_file.write_all(&format!("Header is missing length: `{}`", res[1]).into_bytes()));
-            break;
-        }
+        });
+        ServerStateChange::Continue
     }
-    Ok(())
+
+    fn new(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) -> Arc<LsService> {
+        // note: logging is totally optional, but it gives us a way to see behind the scenes
+        let log_file = OpenOptions::new().append(true)
+                                         .write(true)
+                                         .create(true)
+                                         .open("/tmp/rls_log.txt")
+                                         .expect("Couldn't open log file");
+        Arc::new(LsService {
+            analysis: analysis,
+            vfs: vfs,
+            build_queue: build_queue,
+            current_project: Mutex::new(None),
+            log_file: Mutex::new(log_file),
+            shut_down: AtomicBool::new(false),
+            previous_build_results: Mutex::new(HashMap::new()),
+        })
+    }
+}
+
+pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
+    let service = LsService::new(analysis, vfs, build_queue);
+    LsService::run(service);
 }
