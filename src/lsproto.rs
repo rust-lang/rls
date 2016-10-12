@@ -399,12 +399,18 @@ fn output_response(output: String) {
     io::stdout().flush().unwrap();
 }
 
-#[derive(Clone)]
 struct LSService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
     current_project: Option<String>,
+    log_file: Box<Write>,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+enum ServerStateChange {
+    Continue,
+    Break,
 }
 
 impl LSService {
@@ -743,7 +749,7 @@ impl LSService {
                 let output = serde_json::to_string(&r).unwrap();
                 output_response(output);
             }
-            Err(e) => {
+            Err(_) => {
                 let r = ResponseFailure {
                     jsonrpc: "2.0".into(),
                     id: id,
@@ -757,166 +763,196 @@ impl LSService {
             }
         }
     }
-}
 
-pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>)
-    -> io::Result<()> {
+    fn run(&mut self) {
+        while self.handle_message() == ServerStateChange::Continue {}
+    }
 
-    let mut service = LSService { analysis: analysis,
-                                  vfs: vfs,
-                                  build_queue: build_queue,
-                                  current_project: None };
+    fn log(&mut self, s: &str) {
+        self.log_file.write_all(s.as_bytes()).unwrap();
+    }
 
-    // note: logging is totally optional, but it gives us a way to see behind the scenes
-    let mut log_file = try!(OpenOptions::new().append(true)
-                                              .write(true)
-                                              .create(true)
-                                              .open("tmp/rls_log.txt"));
-
-    loop {
-        // Read in the "Content-length: xx" part
-        let mut buffer = String::new();
-        try!(io::stdin().read_line(&mut buffer));
-
-        let buffer_backup = buffer.clone();
-
-        // Make sure we see the correct header
-        let res: Vec<&str> = buffer.split(" ").collect();
-        if res.len() != 2 {
-            return Err(Error::new(ErrorKind::InvalidData,
-                                  format!("Header is malformed: {}", buffer_backup)));
-        }
-        if res[0] == "Content-length:" {
-            return Err(Error::new(ErrorKind::InvalidData, "Header is missing 'Content-length'"));
-        }
-        if let Ok(size) = usize::from_str_radix(&res[1].trim(), 10) {
-            try!(log_file.write_all(&format!("now reading: {} bytes\n", size).into_bytes()));
-
-            // Skip the new lines
-            let mut tmp = String::new();
-            try!(io::stdin().read_line(&mut tmp));
-
-            let mut content = vec![0; size];
-
-            try!(io::stdin().read_exact(&mut content));
-
-            let c = String::from_utf8(content).unwrap();
-
-            try!(log_file.write_all(&format!("in came: {}\n", c).into_bytes()));
-            let msg = parse_message(&c);
-
-            match msg {
-                Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    try!(log_file.write_all(&format!("request to cancel {}\n", id).into_bytes()));
-                },
-                Ok(ServerMessage::Notification(Notification::Change(change))) => {
-                    let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
-                    try!(log_file.write_all(&format!("notification(change): {:?}\n", change).into_bytes()));
-                    let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
-                        Change {
-                            span: Span {
-                                file_name: fname.clone(),
-                                line_start: i.range.start.line,
-                                column_start: i.range.start.character,
-                                line_end: i.range.end.line,
-                                column_end: i.range.end.character,
-                            },
-                            text: i.text.clone()
-                        }
-                    }).collect();
-                    service.vfs.on_change(&changes);
-
-                    try!(log_file.write_all(&format!("CHANGES: {:?}", changes).into_bytes()));
-
-                    match service.current_project {
-                        Some(ref current_project) => service.build(&current_project, BuildPriority::Normal),
-                        None => log("No project path".to_owned()),
+    fn read_message(&mut self) -> Option<String> {
+        macro_rules! handle_err {
+            ($e: expr, $s: expr) => {
+                match $e {
+                    Ok(x) => x,
+                    Err(_) => {
+                        self.log($s);
+                        return None;
                     }
                 }
-                Ok(ServerMessage::Request(Request{id, method})) => {
-                    match method {
-                        Method::Shutdown => {
-                            try!(log_file.write_all(&format!("shutting down...\n").into_bytes()));
-                            break;
-                        }
-                        Method::Hover(params) => {
-                            try!(log_file.write_all(&format!("command(hover): {:?}\n", params).into_bytes()));
-                            service.hover(id, params);
-                        }
-                        Method::GotoDef(params) => {
-                            try!(log_file.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
-                            service.goto_def(id, params);
-                        }
-                        Method::Complete(params) => {
-                            try!(log_file.write_all(&format!("command(complete): {:?}\n", params).into_bytes()));
-                            service.complete(id, params);
-                        }
-                        Method::Symbols(params) => {
-                            try!(log_file.write_all(&format!("command(goto): {:?}\n", params).into_bytes()));
-                            service.symbols(id, params);
-                        }
-                        Method::FindAllRef(params) => {
-                            try!(log_file.write_all(&format!("command(find_all_refs): {:?}\n", params).into_bytes()));
-                            service.find_all_refs(id, params);
-                        }
-                        Method::Initialize(init) => {
-                            try!(log_file.write_all(&format!("command(init): {:?}\n", init).into_bytes()));
-                            let result = ResponseSuccess {
-                                jsonrpc: "2.0".into(),
-                                id: 0,
-                                result: InitializeCapabilities {
-                                    capabilities: ServerCapabilities {
-                                        textDocumentSync: DocumentSyncKind::Incremental as usize,
-                                        hoverProvider: true,
-                                        completionProvider: CompletionOptions {
-                                            resolveProvider: true,
-                                            triggerCharacters: vec![".".to_string()],
-                                        },
-                                        signatureHelpProvider: SignatureHelpOptions {
-                                            triggerCharacters: vec![".".to_string()],
-                                        },
-                                        definitionProvider: true,
-                                        referencesProvider: true,
-                                        documentHighlightProvider: true,
-                                        documentSymbolProvider: true,
-                                        workshopSymbolProvider: true,
-                                        codeActionProvider: false,
-                                        codeLensProvider: false,
-                                        documentFormattingProvider: true,
-                                        documentRangeFormattingProvider: true,
-                                        renameProvider: true,
-                                    }
-                                }
-                            };
-
-                            service.current_project = Some(init.rootPath.clone());
-                            service.build(&init.rootPath, BuildPriority::Immediate);
-
-                            let output = serde_json::to_string(&result).unwrap();
-                            output_response(output);
-                        }
-                    }
-                }
-                Err(e) => {
-                    try!(log_file.write_all(&format!("parsing invalid message: {:?}", e).into_bytes()));
-                    let id = e.2;
-                    let r = ResponseFailure {
-                        jsonrpc: "2.0".into(),
-                        id: id,
-                        error: ResponseError {
-                            code: MethodNotFound,
-                            message: "Unsupported message".into()
-                        }
-                    };
-                    let output = serde_json::to_string(&r).unwrap();
-                    output_response(output);
-                },
             }
         }
-        else {
-            try!(log_file.write_all(&format!("Header is missing length: `{}`", res[1]).into_bytes()));
-            break;
+
+        // Read in the "Content-length: xx" part
+        let mut buffer = String::new();
+        handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
+
+        let res: Vec<&str> = buffer.split(" ").collect();
+
+        // Make sure we see the correct header
+        if res.len() != 2 {
+            self.log("Header is malformed");
+            return None;
+        }
+
+        if res[0] == "Content-length:" {
+            self.log("Header is missing 'Content-length'");
+            return None;
+        }
+
+        let size = handle_err!(usize::from_str_radix(&res[1].trim(), 10), "Couldn't read size");
+        self.log(&format!("now reading: {} bytes\n", size));
+
+        // Skip the new lines
+        let mut tmp = String::new();
+        handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
+
+        let mut content = vec![0; size];
+        handle_err!(io::stdin().read_exact(&mut content), "Could not read from stdin");
+
+        let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
+
+        self.log(&format!("in came: {}\n", content));
+
+        Some(content)
+    }
+
+    fn handle_message(&mut self) -> ServerStateChange {
+        let c = match self.read_message() {
+            Some(c) => c,
+            None => return ServerStateChange::Break,
+        };
+
+        match parse_message(&c) {
+            Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
+                self.log(&format!("request to cancel {}\n", id));
+            },
+            Ok(ServerMessage::Notification(Notification::Change(change))) => {
+                let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
+                self.log(&format!("notification(change): {:?}\n", change));
+                let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
+                    Change {
+                        span: Span {
+                            file_name: fname.clone(),
+                            line_start: i.range.start.line,
+                            column_start: i.range.start.character,
+                            line_end: i.range.end.line,
+                            column_end: i.range.end.character,
+                        },
+                        text: i.text.clone()
+                    }
+                }).collect();
+                self.vfs.on_change(&changes);
+
+                self.log(&format!("CHANGES: {:?}", changes));
+
+                match self.current_project {
+                    Some(ref current_project) => self.build(&current_project, BuildPriority::Normal),
+                    None => log("No project path".to_owned()),
+                }
+            }
+            Ok(ServerMessage::Request(Request{id, method})) => {
+                match method {
+                    Method::Shutdown => {
+                        self.log(&format!("shutting down...\n"));
+                        return ServerStateChange::Break;
+                    }
+                    Method::Hover(params) => {
+                        self.log(&format!("command(hover): {:?}\n", params));
+                        self.hover(id, params);
+                    }
+                    Method::GotoDef(params) => {
+                        self.log(&format!("command(goto): {:?}\n", params));
+                        self.goto_def(id, params);
+                    }
+                    Method::Complete(params) => {
+                        self.log(&format!("command(complete): {:?}\n", params));
+                        self.complete(id, params);
+                    }
+                    Method::Symbols(params) => {
+                        self.log(&format!("command(goto): {:?}\n", params));
+                        self.symbols(id, params);
+                    }
+                    Method::FindAllRef(params) => {
+                        self.log(&format!("command(find_all_refs): {:?}\n", params));
+                        self.find_all_refs(id, params);
+                    }
+                    Method::Initialize(init) => {
+                        self.log(&format!("command(init): {:?}\n", init));
+                        let result = ResponseSuccess {
+                            jsonrpc: "2.0".into(),
+                            id: 0,
+                            result: InitializeCapabilities {
+                                capabilities: ServerCapabilities {
+                                    textDocumentSync: DocumentSyncKind::Incremental as usize,
+                                    hoverProvider: true,
+                                    completionProvider: CompletionOptions {
+                                        resolveProvider: true,
+                                        triggerCharacters: vec![".".to_string()],
+                                    },
+                                    signatureHelpProvider: SignatureHelpOptions {
+                                        triggerCharacters: vec![".".to_string()],
+                                    },
+                                    definitionProvider: true,
+                                    referencesProvider: true,
+                                    documentHighlightProvider: true,
+                                    documentSymbolProvider: true,
+                                    workshopSymbolProvider: true,
+                                    codeActionProvider: false,
+                                    codeLensProvider: false,
+                                    documentFormattingProvider: true,
+                                    documentRangeFormattingProvider: true,
+                                    renameProvider: true,
+                                }
+                            }
+                        };
+
+                        self.current_project = Some(init.rootPath.clone());
+                        self.build(&init.rootPath, BuildPriority::Immediate);
+
+                        let output = serde_json::to_string(&result).unwrap();
+                        output_response(output);
+                    }
+                }
+            }
+            Err(e) => {
+                self.log(&format!("parsing invalid message: {:?}", e));
+                let id = e.2;
+                let r = ResponseFailure {
+                    jsonrpc: "2.0".into(),
+                    id: id,
+                    error: ResponseError {
+                        code: MethodNotFound,
+                        message: "Unsupported message".into()
+                    }
+                };
+                let output = serde_json::to_string(&r).unwrap();
+                output_response(output);
+            },
+        }
+        ServerStateChange::Continue
+    }
+
+    fn new(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) -> LSService {
+        // note: logging is totally optional, but it gives us a way to see behind the scenes
+        let log_file = OpenOptions::new().append(true)
+                                         .write(true)
+                                         .create(true)
+                                         .open("tmp/rls_log.txt")
+                                         .expect("Couldn't open log file");
+        LSService {
+            analysis: analysis,
+            vfs: vfs,
+            build_queue: build_queue,
+            current_project: None,
+            log_file: Box::new(log_file),
         }
     }
-    Ok(())
+}
+
+pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
+    let mut service = LSService::new(analysis, vfs, build_queue);
+    service.run();
 }
