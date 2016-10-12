@@ -43,10 +43,55 @@ struct Range {
     end: Position,
 }
 
+impl Range {
+    pub fn from_span(span: &Span) -> Range {
+        Range {
+            start: Position {
+                line: span.line_start,
+                character: span.column_start,
+            },
+            end: Position {
+                line: span.line_end,
+                character: span.column_end,
+            },
+        }
+    }
+
+    pub fn to_span(&self, fname: String) -> Span {
+        Span {
+            file_name: fname,
+            line_start: self.start.line,
+            column_start: self.start.character,
+            line_end: self.end.line,
+            column_end: self.end.character,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct Location {
     uri: String,
     range: Range,
+}
+
+impl Location {
+    pub fn to_span(&self) -> Span {
+        let fname: String = self.uri.chars().skip("file://".len()).collect();
+        Span {
+            file_name: fname,
+            line_start: self.range.start.line,
+            column_start: self.range.start.character,
+            line_end: self.range.end.line,
+            column_end: self.range.end.character,
+        }
+    }
+
+    pub fn from_span(span: &Span) -> Location {
+        Location {
+            uri: "file://".to_string() + &span.file_name,
+            range: Range::from_span(span),
+        }
+    }
 }
 
 #[allow(non_snake_case)]
@@ -96,20 +141,11 @@ struct CompilerMessageCode {
 }
 
 #[derive(Debug, Deserialize)]
-struct CompilerSpan {
-    file_name: String,
-    line_start: usize,
-    column_start: usize,
-    line_end: usize,
-    column_end: usize,
-}
-
-#[derive(Debug, Deserialize)]
 struct CompilerMessage {
     message: String,
     code: Option<CompilerMessageCode>,
     level: String,
-    spans: Vec<CompilerSpan>,
+    spans: Vec<Span>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -419,16 +455,7 @@ impl LSService {
                                 return None;
                             }
                             let diag = Diagnostic {
-                                range: Range {
-                                    start: Position {
-                                        line: method.spans[0].line_start,
-                                        character: method.spans[0].column_start,
-                                    },
-                                    end: Position {
-                                        line: method.spans[0].line_end,
-                                        character: method.spans[0].column_end,
-                                    }
-                                },
+                                range: Range::from_span(&method.spans[0]),
                                 severity: if method.level == "error" { 1 } else { 2 },
                                 code: match method.code {
                                     Some(c) => c.code.clone(),
@@ -520,19 +547,7 @@ impl LSService {
                 SymbolInformation {
                     name: s.name,
                     kind: VscodeKind::from(s.kind) as u32,
-                    location: Location {
-                        uri: "file://".to_string() + &s.span.file_name,
-                        range: Range {
-                            start: Position {
-                                line: s.span.line_start,
-                                character: s.span.column_start,
-                            },
-                            end: Position {
-                                line: s.span.line_end,
-                                character: s.span.column_end,
-                            },
-                        }
-                    }
+                    location: Location::from_span(&s.span),
                 }
             }).collect()
         });
@@ -616,19 +631,7 @@ impl LSService {
 
         let mut result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
         let refs: Vec<Location> = result.iter().map(|item| {
-            Location {
-                uri: "file://".to_string() + &item.file_name,
-                range: Range {
-                    start: Position {
-                        line: item.line_start,
-                        character: item.column_start,
-                    },
-                    end: Position {
-                        line: item.line_end,
-                        character: item.column_end,
-                    },
-                }
-            }
+            Location::from_span(&item)
         }).collect();
 
         let out = ResponseSuccess {
@@ -649,19 +652,7 @@ impl LSService {
         let analysis = self.analysis.clone();
         let results = thread::spawn(move || {
             let result = if let Ok(s) = analysis.goto_def(&span) {
-                vec![Location {
-                    uri: "file://".to_string() + &s.file_name,
-                    range: Range {
-                        start: Position {
-                            line: s.line_start,
-                            character: s.column_start,
-                        },
-                        end: Position {
-                            line: s.line_start,
-                            character: s.column_start,
-                        },
-                    }
-                }]
+                vec![Location::from_span(&s)]
             } else {
                 vec![]
             };
@@ -771,7 +762,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
     let mut log_file = try!(OpenOptions::new().append(true)
                                               .write(true)
                                               .create(true)
-                                              .open("tmp/rls_log.txt"));
+                                              .open("/tmp/rls_log.txt"));
 
     loop {
         // Read in the "Content-length: xx" part
@@ -814,13 +805,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                     try!(log_file.write_all(&format!("notification(change): {:?}\n", change).into_bytes()));
                     let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
                         Change {
-                            span: Span {
-                                file_name: fname.clone(),
-                                line_start: i.range.start.line,
-                                column_start: i.range.start.character,
-                                line_end: i.range.end.line,
-                                column_end: i.range.end.character,
-                            },
+                            span: i.range.to_span(fname.clone()),
                             text: i.text.clone()
                         }
                     }).collect();

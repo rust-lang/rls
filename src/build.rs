@@ -312,7 +312,7 @@ impl BuildQueue {
                          Some(Box::new(ReplacedFileLoader::new(changed))),
                          Some(Box::new(BufWriter(buf))))
         }));
-        
+
         // FIXME(#25) given that we are running the compiler directly, there is no need
         // to serialise either the error messages or save-analysis - we should pass
         // them both in memory, without using save-analysis.
