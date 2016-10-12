@@ -400,7 +400,7 @@ fn output_response(output: String) {
     io::stdout().flush().unwrap();
 }
 
-struct LSService {
+struct LsService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
@@ -415,7 +415,7 @@ enum ServerStateChange {
     Break,
 }
 
-impl LSService {
+impl LsService {
     fn build(&self, project_path: &str, priority: BuildPriority) {
         let result = self.build_queue.request_build(project_path, priority);
         match result {
@@ -767,7 +767,7 @@ impl LSService {
     }
 
     fn run(this: Arc<Self>) {
-        while !this.shut_down.load(Ordering::SeqCst) && LSService::handle_message(this.clone()) == ServerStateChange::Continue {}
+        while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
     fn log(&self, s: &str) {
@@ -949,14 +949,14 @@ impl LSService {
         ServerStateChange::Continue
     }
 
-    fn new(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) -> Arc<LSService> {
+    fn new(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) -> Arc<LsService> {
         // note: logging is totally optional, but it gives us a way to see behind the scenes
         let log_file = OpenOptions::new().append(true)
                                          .write(true)
                                          .create(true)
                                          .open("tmp/rls_log.txt")
                                          .expect("Couldn't open log file");
-        Arc::new(LSService {
+        Arc::new(LsService {
             analysis: analysis,
             vfs: vfs,
             build_queue: build_queue,
@@ -968,6 +968,6 @@ impl LSService {
 }
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
-    let service = LSService::new(analysis, vfs, build_queue);
-    LSService::run(service);
+    let service = LsService::new(analysis, vfs, build_queue);
+    LsService::run(service);
 }
