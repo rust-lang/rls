@@ -6,7 +6,8 @@ extern crate rustfmt;
 use analysis::{AnalysisHost, Span};
 use vfs::{Vfs, Change};
 use build::*;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::path::Path;
 
 use self::racer::core::complete_from_file;
@@ -394,7 +395,7 @@ fn output_response(output: String) {
     use std::io;
     let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
 
-    log(format!("OUTPUT: {:?}", o));
+    // log(format!("OUTPUT: {:?}", o));
     print!("{}", o);
     io::stdout().flush().unwrap();
 }
@@ -403,8 +404,9 @@ struct LSService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
-    current_project: Option<String>,
-    log_file: Box<Write>,
+    current_project: Mutex<Option<String>>,
+    log_file: Mutex<File>,
+    shut_down: AtomicBool,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
@@ -764,15 +766,17 @@ impl LSService {
         }
     }
 
-    fn run(&mut self) {
-        while self.handle_message() == ServerStateChange::Continue {}
+    fn run(this: Arc<Self>) {
+        while !this.shut_down.load(Ordering::SeqCst) && LSService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
-    fn log(&mut self, s: &str) {
-        self.log_file.write_all(s.as_bytes()).unwrap();
+    fn log(&self, s: &str) {
+        let mut log_file = self.log_file.lock().unwrap();
+        // FIXME(#40) write thread id to log_file
+        log_file.write_all(s.as_bytes()).unwrap();
     }
 
-    fn read_message(&mut self) -> Option<String> {
+    fn read_message(&self) -> Option<String> {
         macro_rules! handle_err {
             ($e: expr, $s: expr) => {
                 match $e {
@@ -819,140 +823,151 @@ impl LSService {
         Some(content)
     }
 
-    fn handle_message(&mut self) -> ServerStateChange {
-        let c = match self.read_message() {
+    fn handle_message(this: Arc<Self>) -> ServerStateChange {
+        let c = match this.read_message() {
             Some(c) => c,
             None => return ServerStateChange::Break,
         };
 
-        match parse_message(&c) {
-            Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                self.log(&format!("request to cancel {}\n", id));
-            },
-            Ok(ServerMessage::Notification(Notification::Change(change))) => {
-                let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
-                self.log(&format!("notification(change): {:?}\n", change));
-                let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
-                    Change {
-                        span: Span {
-                            file_name: fname.clone(),
-                            line_start: i.range.start.line,
-                            column_start: i.range.start.character,
-                            line_end: i.range.end.line,
-                            column_end: i.range.end.character,
-                        },
-                        text: i.text.clone()
+        let this = this.clone();
+        thread::spawn(move || {
+            match parse_message(&c) {
+                Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
+                    this.log(&format!("request to cancel {}\n", id));
+                },
+                Ok(ServerMessage::Notification(Notification::Change(change))) => {
+                    let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
+                    this.log(&format!("notification(change): {:?}\n", change));
+                    let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
+                        Change {
+                            span: Span {
+                                file_name: fname.clone(),
+                                line_start: i.range.start.line,
+                                column_start: i.range.start.character,
+                                line_end: i.range.end.line,
+                                column_end: i.range.end.character,
+                            },
+                            text: i.text.clone()
+                        }
+                    }).collect();
+                    this.vfs.on_change(&changes);
+
+                    this.log(&format!("CHANGES: {:?}", changes));
+
+                    let current_project = {
+                        let current_project = this.current_project.lock().unwrap();
+                        current_project.clone()
+                    };
+                    match current_project {
+                        Some(ref current_project) => this.build(&current_project, BuildPriority::Normal),
+                        None => log("No project path".to_owned()),
                     }
-                }).collect();
-                self.vfs.on_change(&changes);
-
-                self.log(&format!("CHANGES: {:?}", changes));
-
-                match self.current_project {
-                    Some(ref current_project) => self.build(&current_project, BuildPriority::Normal),
-                    None => log("No project path".to_owned()),
                 }
-            }
-            Ok(ServerMessage::Request(Request{id, method})) => {
-                match method {
-                    Method::Shutdown => {
-                        self.log(&format!("shutting down...\n"));
-                        return ServerStateChange::Break;
-                    }
-                    Method::Hover(params) => {
-                        self.log(&format!("command(hover): {:?}\n", params));
-                        self.hover(id, params);
-                    }
-                    Method::GotoDef(params) => {
-                        self.log(&format!("command(goto): {:?}\n", params));
-                        self.goto_def(id, params);
-                    }
-                    Method::Complete(params) => {
-                        self.log(&format!("command(complete): {:?}\n", params));
-                        self.complete(id, params);
-                    }
-                    Method::Symbols(params) => {
-                        self.log(&format!("command(goto): {:?}\n", params));
-                        self.symbols(id, params);
-                    }
-                    Method::FindAllRef(params) => {
-                        self.log(&format!("command(find_all_refs): {:?}\n", params));
-                        self.find_all_refs(id, params);
-                    }
-                    Method::Initialize(init) => {
-                        self.log(&format!("command(init): {:?}\n", init));
-                        let result = ResponseSuccess {
-                            jsonrpc: "2.0".into(),
-                            id: 0,
-                            result: InitializeCapabilities {
-                                capabilities: ServerCapabilities {
-                                    textDocumentSync: DocumentSyncKind::Incremental as usize,
-                                    hoverProvider: true,
-                                    completionProvider: CompletionOptions {
-                                        resolveProvider: true,
-                                        triggerCharacters: vec![".".to_string()],
-                                    },
-                                    signatureHelpProvider: SignatureHelpOptions {
-                                        triggerCharacters: vec![".".to_string()],
-                                    },
-                                    definitionProvider: true,
-                                    referencesProvider: true,
-                                    documentHighlightProvider: true,
-                                    documentSymbolProvider: true,
-                                    workshopSymbolProvider: true,
-                                    codeActionProvider: false,
-                                    codeLensProvider: false,
-                                    documentFormattingProvider: true,
-                                    documentRangeFormattingProvider: true,
-                                    renameProvider: true,
+                Ok(ServerMessage::Request(Request{id, method})) => {
+                    match method {
+                        Method::Shutdown => {
+                            this.log(&format!("shutting down...\n"));
+                            this.shut_down.store(true, Ordering::SeqCst);
+                        }
+                        Method::Hover(params) => {
+                            this.log(&format!("command(hover): {:?}\n", params));
+                            this.hover(id, params);
+                        }
+                        Method::GotoDef(params) => {
+                            this.log(&format!("command(goto): {:?}\n", params));
+                            this.goto_def(id, params);
+                        }
+                        Method::Complete(params) => {
+                            this.log(&format!("command(complete): {:?}\n", params));
+                            this.complete(id, params);
+                        }
+                        Method::Symbols(params) => {
+                            this.log(&format!("command(goto): {:?}\n", params));
+                            this.symbols(id, params);
+                        }
+                        Method::FindAllRef(params) => {
+                            this.log(&format!("command(find_all_refs): {:?}\n", params));
+                            this.find_all_refs(id, params);
+                        }
+                        Method::Initialize(init) => {
+                            this.log(&format!("command(init): {:?}\n", init));
+                            let result = ResponseSuccess {
+                                jsonrpc: "2.0".into(),
+                                id: 0,
+                                result: InitializeCapabilities {
+                                    capabilities: ServerCapabilities {
+                                        textDocumentSync: DocumentSyncKind::Incremental as usize,
+                                        hoverProvider: true,
+                                        completionProvider: CompletionOptions {
+                                            resolveProvider: true,
+                                            triggerCharacters: vec![".".to_string()],
+                                        },
+                                        signatureHelpProvider: SignatureHelpOptions {
+                                            triggerCharacters: vec![".".to_string()],
+                                        },
+                                        definitionProvider: true,
+                                        referencesProvider: true,
+                                        documentHighlightProvider: true,
+                                        documentSymbolProvider: true,
+                                        workshopSymbolProvider: true,
+                                        codeActionProvider: false,
+                                        codeLensProvider: false,
+                                        documentFormattingProvider: true,
+                                        documentRangeFormattingProvider: true,
+                                        renameProvider: true,
+                                    }
                                 }
+                            };
+
+                            {
+                                let mut current_project = this.current_project.lock().unwrap();
+                                *current_project = Some(init.rootPath.clone());
                             }
-                        };
+                            this.build(&init.rootPath, BuildPriority::Immediate);
 
-                        self.current_project = Some(init.rootPath.clone());
-                        self.build(&init.rootPath, BuildPriority::Immediate);
-
-                        let output = serde_json::to_string(&result).unwrap();
-                        output_response(output);
+                            let output = serde_json::to_string(&result).unwrap();
+                            output_response(output);
+                        }
                     }
                 }
+                Err(e) => {
+                    this.log(&format!("parsing invalid message: {:?}", e));
+                    let id = e.2;
+                    let r = ResponseFailure {
+                        jsonrpc: "2.0".into(),
+                        id: id,
+                        error: ResponseError {
+                            code: MethodNotFound,
+                            message: "Unsupported message".into()
+                        }
+                    };
+                    let output = serde_json::to_string(&r).unwrap();
+                    output_response(output);
+                },
             }
-            Err(e) => {
-                self.log(&format!("parsing invalid message: {:?}", e));
-                let id = e.2;
-                let r = ResponseFailure {
-                    jsonrpc: "2.0".into(),
-                    id: id,
-                    error: ResponseError {
-                        code: MethodNotFound,
-                        message: "Unsupported message".into()
-                    }
-                };
-                let output = serde_json::to_string(&r).unwrap();
-                output_response(output);
-            },
-        }
+        });
         ServerStateChange::Continue
     }
 
-    fn new(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) -> LSService {
+    fn new(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) -> Arc<LSService> {
         // note: logging is totally optional, but it gives us a way to see behind the scenes
         let log_file = OpenOptions::new().append(true)
                                          .write(true)
                                          .create(true)
                                          .open("tmp/rls_log.txt")
                                          .expect("Couldn't open log file");
-        LSService {
+        Arc::new(LSService {
             analysis: analysis,
             vfs: vfs,
             build_queue: build_queue,
-            current_project: None,
-            log_file: Box::new(log_file),
-        }
+            current_project: Mutex::new(None),
+            log_file: Mutex::new(log_file),
+            shut_down: AtomicBool::new(false),
+        })
     }
 }
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
-    let mut service = LSService::new(analysis, vfs, build_queue);
-    service.run();
+    let service = LSService::new(analysis, vfs, build_queue);
+    LSService::run(service);
 }
