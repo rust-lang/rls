@@ -996,6 +996,10 @@ impl LsService {
                                 let mut current_project = this.current_project.lock().unwrap();
                                 *current_project = Some(init.rootPath.clone());
                             }
+                            {
+                                let mut results = this.previous_build_results.lock().unwrap();
+                                results.clear();
+                            }
                             this.build(&init.rootPath, BuildPriority::Immediate);
 
                             let output = serde_json::to_string(&result).unwrap();
