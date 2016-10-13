@@ -25,6 +25,7 @@ use self::racer::core::find_definition;
 use self::racer::core;
 use self::rustfmt::{Input as FmtInput, format_input};
 use self::rustfmt::config::{self, WriteMode};
+use serde_json;
 
 use std::fs::{File, OpenOptions};
 use std::fmt::Debug;
