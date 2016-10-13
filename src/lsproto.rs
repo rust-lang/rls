@@ -446,25 +446,6 @@ fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str,
     }
 }
 
-fn log(msg: String) {
-    // let mut log = OpenOptions::new().append(true)
-    //                                 .write(true)
-    //                                 .create(true)
-    //                                 .open("tmp/rls_log.txt").unwrap();
-    // log.write_all(&format!("{}", msg).into_bytes()).unwrap();
-
-    writeln!(::std::io::stderr(), "{}", msg);
-}
-
-fn output_response(output: String) {
-    use std::io;
-    let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
-
-    log(format!("OUTPUT: {:?}", o));
-    print!("{}", o);
-    io::stdout().flush().unwrap();
-}
-
 pub struct LsService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
@@ -474,6 +455,7 @@ pub struct LsService {
     shut_down: AtomicBool,
     previous_build_results: Mutex<HashMap<String, Vec<Diagnostic>>>,
     msg_reader: Box<MessageReader + Sync + Send>,
+    output: Box<Output + Sync + Send>,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
@@ -484,10 +466,11 @@ pub enum ServerStateChange {
 
 impl LsService {
     fn build(&self, project_path: &str, priority: BuildPriority) {
-        self.logger.log(&format!("\nBUILDING\n"));
+        self.logger.log(&format!("\nBUILDING {}\n", project_path));
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
+                self.logger.log(&format!("\nBUILDING - Success\n"));
                 {
                     let mut results = self.previous_build_results.lock().unwrap();
                     for v in &mut results.values_mut() {
@@ -523,8 +506,8 @@ impl LsService {
                             }
                         }
                         Err(e) => {
-                            log(format!("<<ERROR>> {:?}", e));
-                            log(format!("<<FROM>> {}", msg));
+                            self.logger.log(&format!("<<ERROR>> {:?}", e));
+                            self.logger.log(&format!("<<FROM>> {}", msg));
                         }
                     }
                 }
@@ -546,24 +529,30 @@ impl LsService {
                     }
                 }
 
+                // TODO we don't send an OK notification if there were no errors
                 for notification in notifications {
                     let output = serde_json::to_string(&notification).unwrap();
-                    output_response(output);
+                    self.output.response(output);
                 }
 
-                log(format!("reload analysis: {}", project_path));
+                self.logger.log(&format!("reload analysis: {}", project_path));
                 self.analysis.reload(&project_path).unwrap();
             }
-            BuildResult::Squashed => {},
-            BuildResult::Err => {},
+            BuildResult::Squashed => {
+                self.logger.log(&format!("\nBUILDING - Squashed\n"));
+            },
+            BuildResult::Err => {
+                // TODO why are we erroring out?
+                self.logger.log(&format!("\nBUILDING - Error\n"));
+            },
         }
     }
 
     fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Option<Span> {
         let fname: String = doc.uri.chars().skip("file://".len()).collect();
-        log(format!("\nWorking on: {:?} {:?}", fname, pos));
+        self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
         let line = self.vfs.get_line(Path::new(&fname), pos.line);
-        log(format!("\nGOT LINE: {:?}", line));
+        self.logger.log(&format!("\nGOT LINE: {:?}", line));
         let start_pos = {
             let mut tmp = Position { line: pos.line, character: 1 };
             for (i, c) in line.clone().unwrap().chars().enumerate() {
@@ -627,7 +616,7 @@ impl LsService {
         };
 
         let output = serde_json::to_string(&out).unwrap();
-        output_response(output);
+        self.output.response(output);
     }
 
     fn complete(&self, id: usize, params: TextDocumentPositionParams) {
@@ -675,7 +664,7 @@ impl LsService {
         };
 
         let output = serde_json::to_string(&out).unwrap();
-        output_response(output);
+        self.output.response(output);
     }
 
     fn rename(&self, id: usize, params: RenameParams) {
@@ -715,7 +704,7 @@ impl LsService {
         };
 
         let output = serde_json::to_string(&out).unwrap();
-        output_response(output);
+        self.output.response(output);
     }
 
     fn find_all_refs(&self, id: usize, params: ReferenceParams) {
@@ -745,7 +734,7 @@ impl LsService {
         };
 
         let output = serde_json::to_string(&out).unwrap();
-        output_response(output);
+        self.output.response(output);
     }
 
     fn goto_def(&self, id: usize, params: TextDocumentPositionParams) {
@@ -775,10 +764,10 @@ impl LsService {
                     id: id,
                     result: r
                 };
-                log(format!("\nGOING TO: {:?}\n", out));
+                self.logger.log(&format!("\nGOING TO: {:?}\n", out));
 
                 let output = serde_json::to_string(&out).unwrap();
-                output_response(output);
+                self.output.response(output);
             }
             Err(e) => {
                 let out = ResponseFailure {
@@ -789,20 +778,20 @@ impl LsService {
                         message: "GotoDef failed to complete successfully".into()
                     }
                 };
-                log(format!("\nERROR IN GOTODEF: {:?}\n", out));
+                self.logger.log(&format!("\nERROR IN GOTODEF: {:?}\n", out));
 
                 let output = serde_json::to_string(&out).unwrap();
-                output_response(output);
+                self.output.response(output);
             }
         };
     }
 
     fn hover(&self, id: usize, params: HoverParams) {
         let t = thread::current();
-        log(format!("CREATING SPAN"));
+        self.logger.log(&format!("CREATING SPAN"));
         let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
 
-        log(format!("\nHovering span: {:?}\n", span));
+        self.logger.log(&format!("\nHovering span: {:?}\n", span));
 
         let analysis = self.analysis.clone();
         let rustw_handle = thread::spawn(move || {
@@ -836,7 +825,7 @@ impl LsService {
         match result {
             Ok(r) => {
                 let output = serde_json::to_string(&r).unwrap();
-                output_response(output);
+                self.output.response(output);
             }
             Err(_) => {
                 let r = ResponseFailure {
@@ -848,7 +837,7 @@ impl LsService {
                     }
                 };
                 let output = serde_json::to_string(&r).unwrap();
-                output_response(output);
+                self.output.response(output);
             }
         }
     }
@@ -888,7 +877,7 @@ impl LsService {
                     };
                     match current_project {
                         Some(ref current_project) => this.build(&current_project, BuildPriority::Normal),
-                        None => log("No project path".to_owned()),
+                        None => this.logger.log("No project path"),
                     }
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
@@ -925,7 +914,7 @@ impl LsService {
                             this.logger.log(&format!("command(init): {:?}\n", init));
                             let result = ResponseSuccess {
                                 jsonrpc: "2.0".into(),
-                                id: 0,
+                                id: id,
                                 result: InitializeCapabilities {
                                     capabilities: ServerCapabilities {
                                         textDocumentSync: DocumentSyncKind::Incremental as usize,
@@ -939,10 +928,12 @@ impl LsService {
                                         },
                                         definitionProvider: true,
                                         referencesProvider: true,
+                                        // TODO
                                         documentHighlightProvider: false,
                                         documentSymbolProvider: true,
                                         workshopSymbolProvider: true,
                                         codeActionProvider: false,
+                                        // TODO maybe?
                                         codeLensProvider: false,
                                         documentFormattingProvider: true,
                                         documentRangeFormattingProvider: true,
@@ -962,7 +953,7 @@ impl LsService {
                             this.build(&init.rootPath, BuildPriority::Immediate);
 
                             let output = serde_json::to_string(&result).unwrap();
-                            output_response(output);
+                            this.output.response(output);
                         }
                     }
                 }
@@ -978,7 +969,7 @@ impl LsService {
                         }
                     };
                     let output = serde_json::to_string(&r).unwrap();
-                    output_response(output);
+                    this.output.response(output);
                 },
             }
         });
@@ -989,6 +980,7 @@ impl LsService {
                vfs: Arc<Vfs>,
                build_queue: Arc<BuildQueue>,
                reader: Box<MessageReader + Send + Sync>,
+               output: Box<Output + Send + Sync>,
                logger: Arc<Logger>)
                -> Arc<LsService> {
         Arc::new(LsService {
@@ -1000,6 +992,7 @@ impl LsService {
             shut_down: AtomicBool::new(false),
             previous_build_results: Mutex::new(HashMap::new()),
             msg_reader: reader,
+            output: output,
         })
     }
 }
@@ -1025,6 +1018,7 @@ impl Logger {
         let mut log_file = self.log_file.lock().unwrap();
         // FIXME(#40) write thread id to log_file
         log_file.write_all(s.as_bytes()).unwrap();
+        // writeln!(::std::io::stderr(), "{}", msg);
     }
 }
 
@@ -1085,12 +1079,31 @@ impl MessageReader for StdioMsgReader {
     }
 }
 
+pub trait Output {
+    fn response(&self, output: String);
+}
+
+struct StdioOutput {
+    logger: Arc<Logger>,
+}
+
+impl Output for StdioOutput {
+    fn response(&self, output: String) {
+        let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
+
+        self.logger.log(&format!("OUTPUT: {:?}", o));
+        print!("{}", o);
+        io::stdout().flush().unwrap();
+    }
+}
+
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
     let logger = Arc::new(Logger::new());
     let service = LsService::new(analysis,
                                  vfs,
                                  build_queue,
                                  Box::new(StdioMsgReader { logger: logger.clone() }),
+                                 Box::new(StdioOutput { logger: logger.clone() } ),
                                  logger);
     LsService::run(service);
 }

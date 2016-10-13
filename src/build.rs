@@ -260,13 +260,13 @@ impl BuildQueue {
                             remaining[..end].to_owned()
                         }
                         None => {
-                            //println!("Couldn't parse stderr: `{}`", out);
+                            // println!("Couldn't parse stderr: `{}`", out);
                             return BuildResult::Err;
                         }
                     }
                 }
                 Err(e) => {
-                    //println!("Error waiting for Cargo process: {:?}", e);
+                    // println!("Error waiting for Cargo process: {:?}", e);
                     return BuildResult::Err;
                 }
             };
