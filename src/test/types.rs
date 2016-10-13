@@ -1,9 +1,19 @@
+// Copyright 2016 The Rust Project Developers. See the COPYRIGHT
+// file at the top-level directory of this distribution and at
+// http://rust-lang.org/COPYRIGHT.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::io::{BufRead, BufReader};
 
-use actions::Position;
+use actions_common::Position;
 use analysis::Span;
 use ide::{Input, SaveInput};
 use serde_json;
@@ -59,7 +69,13 @@ impl Cache {
         }
     }
 
-    fn abs_path(&self, file_name: &str) -> String {
+    pub fn mk_ls_position(&mut self, src: Src) -> String {
+        let line = self.get_line(src);
+        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
+        format!("{{\"line\":\"{}\",\"character\":\"{}\"}}", src.line - 1, char_of_byte_index(&line, col))
+    }
+
+    pub fn abs_path(&self, file_name: &str) -> String {
         Path::new(&format!("{}/{}", self.base_path, file_name)).canonicalize()
                                                                .expect("Couldn't canonocalise path")
                                                                .to_str()

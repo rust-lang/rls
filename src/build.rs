@@ -1,3 +1,13 @@
+// Copyright 2016 The Rust Project Developers. See the COPYRIGHT
+// file at the top-level directory of this distribution and at
+// http://rust-lang.org/COPYRIGHT.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+
 extern crate rustc_driver;
 extern crate syntax;
 
@@ -260,13 +270,13 @@ impl BuildQueue {
                             remaining[..end].to_owned()
                         }
                         None => {
-                            //println!("Couldn't parse stderr: `{}`", out);
+                            // println!("Couldn't parse stderr: `{}`", out);
                             return BuildResult::Err;
                         }
                     }
                 }
                 Err(e) => {
-                    //println!("Error waiting for Cargo process: {:?}", e);
+                    // println!("Error waiting for Cargo process: {:?}", e);
                     return BuildResult::Err;
                 }
             };
@@ -312,7 +322,7 @@ impl BuildQueue {
                          Some(Box::new(ReplacedFileLoader::new(changed))),
                          Some(Box::new(BufWriter(buf))))
         }));
-        
+
         // FIXME(#25) given that we are running the compiler directly, there is no need
         // to serialise either the error messages or save-analysis - we should pass
         // them both in memory, without using save-analysis.
