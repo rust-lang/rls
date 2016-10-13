@@ -3,7 +3,7 @@ use std::fs::File;
 use std::path::Path;
 use std::io::{BufRead, BufReader};
 
-use actions::Position;
+use actions_common::Position;
 use analysis::Span;
 use ide::{Input, SaveInput};
 use serde_json;
@@ -59,7 +59,13 @@ impl Cache {
         }
     }
 
-    fn abs_path(&self, file_name: &str) -> String {
+    pub fn mk_ls_position(&mut self, src: Src) -> String {
+        let line = self.get_line(src);
+        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
+        format!("{{\"line\":\"{}\",\"character\":\"{}\"}}", src.line - 1, char_of_byte_index(&line, col))
+    }
+
+    pub fn abs_path(&self, file_name: &str) -> String {
         Path::new(&format!("{}/{}", self.base_path, file_name)).canonicalize()
                                                                .expect("Couldn't canonocalise path")
                                                                .to_str()
