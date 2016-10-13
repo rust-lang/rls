@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use actions_common::Provider;
+use actions_http::Provider;
 use analysis;
 use build;
 use ide::Output;

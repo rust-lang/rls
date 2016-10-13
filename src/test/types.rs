@@ -13,7 +13,7 @@ use std::fs::File;
 use std::path::Path;
 use std::io::{BufRead, BufReader};
 
-use actions_common::Position;
+use actions_http::Position;
 use analysis::Span;
 use ide::{Input, SaveInput};
 use serde_json;
