@@ -11,7 +11,7 @@
 use analysis::{raw, Span};
 use serde_json;
 
-use actions_common::{Position, Provider};
+use actions_http::{Position, Provider};
 use vfs::Change;
 
 #[derive(Debug, Deserialize, Serialize)]

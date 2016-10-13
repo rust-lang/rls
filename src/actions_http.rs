@@ -24,13 +24,45 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use actions_common::*;
 
 use ide::{Input, Output, FmtOutput, VscodeKind};
 use vfs::Vfs;
 
 // Timeout = 0.5s (totally arbitrary).
 const RUSTW_TIMEOUT: u64 = 500;
+
+#[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct Position {
+    pub filepath: String,
+    pub line: usize,
+    pub col: usize,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq, Deserialize)]
+pub enum Provider {
+    Compiler,
+    Racer,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Completion {
+    pub name: String,
+    pub context: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Title {
+    pub ty: String,
+    pub docs: String,
+    pub doc_url: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Symbol {
+    pub name: String,
+    pub kind: VscodeKind,
+    pub span: Span,
+}
 
 pub fn complete(pos: Position, _analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Vec<Completion> {
     let vfs: &Vfs = &vfs;

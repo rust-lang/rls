@@ -8,7 +8,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use actions_common::*;
 use actions_http::*;
 use build::*;
 use ide::{ChangeInput, FmtOutput, Input, SaveInput, parse_string};

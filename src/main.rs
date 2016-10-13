@@ -23,9 +23,7 @@ extern crate serde_derive;
 
 use std::sync::Arc;
 
-mod actions_ls;
 mod actions_http;
-mod actions_common;
 mod build;
 mod ide;
 mod server;
