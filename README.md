@@ -50,18 +50,42 @@ Run with:
 SYS_ROOT=/usr/local cargo run
 ```
 
+To work with the RLS, your project must be buildable using `cargo build`. If you
+use syntax extensions or build scripts, it is likely things will go wrong.
+
+### VSCode integration
+
 To run with VSCode, you'll need a recent version of that
 [installed](https://code.visualstudio.com/download).
 
-You'll then need a copy of our [VSCode plugin](https://github.com/jonathandturner/rustls_vscode).
-Assuming you'll be doing this for development, you probably don't want to
-install that plugin, but just open it in VSCode and then run it (F5).
+You'll then need a copy of our [VSCode extension](https://github.com/jonathandturner/rustls_vscode).
+
+The RLS can operate via two different protocols: via a custom http protocol and
+via the [Language Server protocol](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md).
+There is a different visual code extension for each, both in the above repo.
+Running each extensions is a bit different. Assuming you'll be doing this for
+development, you probably don't want to install the extensions.
+
+### LS protocol
+
+The LS protocol is the future and is the preferred way to use the RLS, however,
+it might be a bit flakey in places since it has not seen as much use and testing.
+
+When using the LS protocol, VSCode will start the RLS for you. Therefore to run,
+you just need to open the VSCode extension and run it. However, you must setup
+the environment variables as described above and you must ensure the RLS is in
+your path so VSCode can run it. See [ls.sh](ls.sh) for an example of how to run.
+
+### HTTP protocol
+
+This is basically legacy and will likely be removed at some point. However, some
+things may still work a bit better, and debugging can be easier.
+
+To use the http protocol you need to run the RLS yourself as described above.
+Then you can just open the extension in VSCode and run it (F5).
 
 It should all just work! You might need to make an edit and save before some of
 the features kick in (which is a bug - https://github.com/jonathandturner/rustls_vscode/issues/3).
-
-To work with the RLS, your project must be buildable using `cargo build`. If you
-use syntax extensions or build scripts, it is likely things will go wrong.
 
 
 ## Testing
