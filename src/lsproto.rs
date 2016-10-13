@@ -352,6 +352,7 @@ enum ServerMessage {
 }
 
 // TODO error type is gross
+// TODO could move into MessageReader
 fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str, usize)>  {
     let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
 
@@ -464,25 +465,26 @@ fn output_response(output: String) {
     io::stdout().flush().unwrap();
 }
 
-struct LsService {
+pub struct LsService {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<String>>,
-    log_file: Mutex<File>,
+    logger: Arc<Logger>,
     shut_down: AtomicBool,
     previous_build_results: Mutex<HashMap<String, Vec<Diagnostic>>>,
+    msg_reader: Box<MessageReader + Sync + Send>,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
-enum ServerStateChange {
+pub enum ServerStateChange {
     Continue,
     Break,
 }
 
 impl LsService {
     fn build(&self, project_path: &str, priority: BuildPriority) {
-        self.log(&format!("\nBUILDING\n"));
+        self.logger.log(&format!("\nBUILDING\n"));
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
@@ -851,65 +853,12 @@ impl LsService {
         }
     }
 
-    fn run(this: Arc<Self>) {
+    pub fn run(this: Arc<Self>) {
         while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
-    fn log(&self, s: &str) {
-        let mut log_file = self.log_file.lock().unwrap();
-        // FIXME(#40) write thread id to log_file
-        log_file.write_all(s.as_bytes()).unwrap();
-    }
-
-    fn read_message(&self) -> Option<String> {
-        macro_rules! handle_err {
-            ($e: expr, $s: expr) => {
-                match $e {
-                    Ok(x) => x,
-                    Err(_) => {
-                        self.log($s);
-                        return None;
-                    }
-                }
-            }
-        }
-
-        // Read in the "Content-length: xx" part
-        let mut buffer = String::new();
-        handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
-
-        let res: Vec<&str> = buffer.split(" ").collect();
-
-        // Make sure we see the correct header
-        if res.len() != 2 {
-            self.log("Header is malformed");
-            return None;
-        }
-
-        if res[0] == "Content-length:" {
-            self.log("Header is missing 'Content-length'");
-            return None;
-        }
-
-        let size = handle_err!(usize::from_str_radix(&res[1].trim(), 10), "Couldn't read size");
-        self.log(&format!("now reading: {} bytes\n", size));
-
-        // Skip the new lines
-        let mut tmp = String::new();
-        handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
-
-        let mut content = vec![0; size];
-        handle_err!(io::stdin().read_exact(&mut content), "Could not read from stdin");
-
-        let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
-
-        self.log(&format!("in came: {}\n", content));
-
-        Some(content)
-    }
-
-    fn handle_message(this: Arc<Self>) -> ServerStateChange {
-        let c = match this.read_message() {
+    pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
+        let c = match this.msg_reader.read_message() {
             Some(c) => c,
             None => return ServerStateChange::Break,
         };
@@ -918,11 +867,11 @@ impl LsService {
         thread::spawn(move || {
             match parse_message(&c) {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    this.log(&format!("request to cancel {}\n", id));
+                    this.logger.log(&format!("request to cancel {}\n", id));
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
                     let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
-                    this.log(&format!("notification(change): {:?}\n", change));
+                    this.logger.log(&format!("notification(change): {:?}\n", change));
                     let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
                         Change {
                             span: i.range.to_span(fname.clone()),
@@ -931,7 +880,7 @@ impl LsService {
                     }).collect();
                     this.vfs.on_change(&changes);
 
-                    this.log(&format!("CHANGES: {:?}", changes));
+                    this.logger.log(&format!("CHANGES: {:?}", changes));
 
                     let current_project = {
                         let current_project = this.current_project.lock().unwrap();
@@ -945,35 +894,35 @@ impl LsService {
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
                         Method::Shutdown => {
-                            this.log(&format!("shutting down...\n"));
+                            this.logger.log(&format!("shutting down...\n"));
                             this.shut_down.store(true, Ordering::SeqCst);
                         }
                         Method::Hover(params) => {
-                            this.log(&format!("command(hover): {:?}\n", params));
+                            this.logger.log(&format!("command(hover): {:?}\n", params));
                             this.hover(id, params);
                         }
                         Method::GotoDef(params) => {
-                            this.log(&format!("command(goto): {:?}\n", params));
+                            this.logger.log(&format!("command(goto): {:?}\n", params));
                             this.goto_def(id, params);
                         }
                         Method::Complete(params) => {
-                            this.log(&format!("command(complete): {:?}\n", params));
+                            this.logger.log(&format!("command(complete): {:?}\n", params));
                             this.complete(id, params);
                         }
                         Method::Symbols(params) => {
-                            this.log(&format!("command(goto): {:?}\n", params));
+                            this.logger.log(&format!("command(goto): {:?}\n", params));
                             this.symbols(id, params);
                         }
                         Method::FindAllRef(params) => {
-                            this.log(&format!("command(find_all_refs): {:?}\n", params));
+                            this.logger.log(&format!("command(find_all_refs): {:?}\n", params));
                             this.find_all_refs(id, params);
                         }
                         Method::Rename(params) => {
-                            this.log(&format!("command(rename): {:?}\n", params));
+                            this.logger.log(&format!("command(rename): {:?}\n", params));
                             this.rename(id, params);
                         }
                         Method::Initialize(init) => {
-                            this.log(&format!("command(init): {:?}\n", init));
+                            this.logger.log(&format!("command(init): {:?}\n", init));
                             let result = ResponseSuccess {
                                 jsonrpc: "2.0".into(),
                                 id: 0,
@@ -1018,7 +967,7 @@ impl LsService {
                     }
                 }
                 Err(e) => {
-                    this.log(&format!("parsing invalid message: {:?}", e));
+                    this.logger.log(&format!("parsing invalid message: {:?}", e));
                     let id = e.2;
                     let r = ResponseFailure {
                         jsonrpc: "2.0".into(),
@@ -1036,26 +985,112 @@ impl LsService {
         ServerStateChange::Continue
     }
 
-    fn new(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) -> Arc<LsService> {
+    pub fn new(analysis: Arc<AnalysisHost>,
+               vfs: Arc<Vfs>,
+               build_queue: Arc<BuildQueue>,
+               reader: Box<MessageReader + Send + Sync>,
+               logger: Arc<Logger>)
+               -> Arc<LsService> {
+        Arc::new(LsService {
+            analysis: analysis,
+            vfs: vfs,
+            build_queue: build_queue,
+            current_project: Mutex::new(None),
+            logger: logger,
+            shut_down: AtomicBool::new(false),
+            previous_build_results: Mutex::new(HashMap::new()),
+            msg_reader: reader,
+        })
+    }
+}
+
+pub struct Logger {
+    log_file: Mutex<File>,
+}
+
+impl Logger {
+    pub fn new() -> Logger {
         // note: logging is totally optional, but it gives us a way to see behind the scenes
         let log_file = OpenOptions::new().append(true)
                                          .write(true)
                                          .create(true)
                                          .open("/tmp/rls_log.txt")
                                          .expect("Couldn't open log file");
-        Arc::new(LsService {
-            analysis: analysis,
-            vfs: vfs,
-            build_queue: build_queue,
-            current_project: Mutex::new(None),
+        Logger {
             log_file: Mutex::new(log_file),
-            shut_down: AtomicBool::new(false),
-            previous_build_results: Mutex::new(HashMap::new()),
-        })
+        }
+    }
+
+    fn log(&self, s: &str) {
+        let mut log_file = self.log_file.lock().unwrap();
+        // FIXME(#40) write thread id to log_file
+        log_file.write_all(s.as_bytes()).unwrap();
+    }
+}
+
+pub trait MessageReader {
+    fn read_message(&self) -> Option<String>;
+}
+
+struct StdioMsgReader {
+    logger: Arc<Logger>,
+}
+
+impl MessageReader for StdioMsgReader {
+    fn read_message(&self) -> Option<String> {
+        macro_rules! handle_err {
+            ($e: expr, $s: expr) => {
+                match $e {
+                    Ok(x) => x,
+                    Err(_) => {
+                        self.logger.log($s);
+                        return None;
+                    }
+                }
+            }
+        }
+
+        // Read in the "Content-length: xx" part
+        let mut buffer = String::new();
+        handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
+
+        let res: Vec<&str> = buffer.split(" ").collect();
+
+        // Make sure we see the correct header
+        if res.len() != 2 {
+            self.logger.log("Header is malformed");
+            return None;
+        }
+
+        if res[0] == "Content-length:" {
+            self.logger.log("Header is missing 'Content-length'");
+            return None;
+        }
+
+        let size = handle_err!(usize::from_str_radix(&res[1].trim(), 10), "Couldn't read size");
+        self.logger.log(&format!("now reading: {} bytes\n", size));
+
+        // Skip the new lines
+        let mut tmp = String::new();
+        handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
+
+        let mut content = vec![0; size];
+        handle_err!(io::stdin().read_exact(&mut content), "Could not read from stdin");
+
+        let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
+
+        self.logger.log(&format!("in came: {}\n", content));
+
+        Some(content)
     }
 }
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
-    let service = LsService::new(analysis, vfs, build_queue);
+    let logger = Arc::new(Logger::new());
+    let service = LsService::new(analysis,
+                                 vfs,
+                                 build_queue,
+                                 Box::new(StdioMsgReader { logger: logger.clone() }),
+                                 logger);
     LsService::run(service);
 }
