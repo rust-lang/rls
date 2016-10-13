@@ -46,8 +46,8 @@ fn test_simple_goto_def() {
         assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input("src/main.rs")));
 
         // Goto def.
-        let output = server.handle_action("/goto_def", &cache.mk_input(src("src/main.rs", 3, "world")));
-        assert_output(&mut cache, &output, src("src/main.rs", 2, "world"), Provider::Compiler);
+        let output = server.handle_action("/goto_def", &cache.mk_input(src("src/main.rs", 13, "world")));
+        assert_output(&mut cache, &output, src("src/main.rs", 12, "world"), Provider::Compiler);
     });
 }
 
@@ -72,8 +72,8 @@ fn test_abs_path() {
         assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input("src/main.rs")));
 
         // Goto def.
-        let output = server.handle_action("/goto_def", &cache.mk_input(src("src/main.rs", 3, "world")));
-        assert_output(&mut cache, &output, src("src/main.rs", 2, "world"), Provider::Compiler);
+        let output = server.handle_action("/goto_def", &cache.mk_input(src("src/main.rs", 13, "world")));
+        assert_output(&mut cache, &output, src("src/main.rs", 12, "world"), Provider::Compiler);
     });
 }
 
@@ -87,7 +87,7 @@ fn test_simple_goto_def_ls() {
                                      vec![("processId", "0".to_owned()), ("rootPath", format!("\"{}\"", cache.abs_path(".")))]),
                         Message::new("textDocument/definition",
                                      vec![("textDocument", format!("{{\"uri\":\"file://{}\"}}", cache.abs_path("src/main.rs"))),
-                                          ("position", cache.mk_ls_position(src("src/main.rs", 3, "world")))])];
+                                          ("position", cache.mk_ls_position(src("src/main.rs", 13, "world")))])];
     let (server, results) = mock_lsp_server(messages);
     // Initialise and build.
     assert_eq!(lsproto::LsService::handle_message(server.clone()),
@@ -97,8 +97,8 @@ fn test_simple_goto_def_ls() {
     // Goto def.
     assert_eq!(lsproto::LsService::handle_message(server.clone()),
                lsproto::ServerStateChange::Continue);
-    // TODO structural checking of result, rather than looking for a string - src("src/main.rs", 2, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":1,\"character\":8}")]);
+    // TODO structural checking of result, rather than looking for a string - src("src/main.rs", 12, "world")
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
 }
 
 // Initialise and run the internals of an RLS server.
