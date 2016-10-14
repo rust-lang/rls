@@ -8,15 +8,13 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate racer;
-extern crate rustfmt;
 
 use analysis::{AnalysisHost, Span};
-use self::racer::core::complete_from_file;
-use self::racer::core::find_definition;
-use self::racer::core;
-use self::rustfmt::{Input as FmtInput, format_input};
-use self::rustfmt::config::{self, WriteMode};
+use racer::core::complete_from_file;
+use racer::core::find_definition;
+use racer::core;
+use rustfmt::{Input as FmtInput, format_input};
+use rustfmt::config::{self, WriteMode};
 
 use std::default::Default;
 use std::panic;

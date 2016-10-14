@@ -20,6 +20,8 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate racer;
+extern crate rustfmt;
 
 use std::sync::Arc;
 
@@ -28,6 +30,7 @@ mod build;
 mod ide;
 mod server;
 mod lsproto;
+mod lsp_data;
 
 #[cfg(test)]
 mod test;
