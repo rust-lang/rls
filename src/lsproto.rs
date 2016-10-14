@@ -244,6 +244,7 @@ enum Method {
     FindAllRef (ReferenceParams),
     Symbols (DocumentSymbolParams),
     Complete (TextDocumentPositionParams),
+    CompleteResolve (CompletionItem),
     Rename (RenameParams),
 }
 
@@ -276,7 +277,7 @@ struct InitializeCapabilities {
     capabilities: ServerCapabilities
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CompletionItem {
     label: String,
     detail: String,
@@ -414,6 +415,15 @@ fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str,
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Complete(method)}))
                 }
+                "completionItem/resolve" => {
+                    // currently, we safely ignore this as a pass-through since we fully handle
+                    // textDocument/completion.  In the future, we may want to use this method as a
+                    // way to more lazily fill out completion information
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let method: CompletionItem =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::CompleteResolve(method)}))
+                }
                 "textDocument/documentSymbol" => {
                     let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
                     let method: DocumentSymbolParams =
@@ -476,6 +486,13 @@ pub enum ServerStateChange {
 
 impl LsService {
     fn build(&self, project_path: &str, priority: BuildPriority) {
+        //FIXME: we could make a helper function for simple responses
+        let output = serde_json::to_string(&NotificationMessage {
+            jsonrpc: "2.0".into(),
+            method: "rustDocument/diagnosticsBegin".into(),
+            params: ()
+        }).unwrap();
+        self.output.response(output);
         self.logger.log(&format!("\nBUILDING {}\n", project_path));
         let result = self.build_queue.request_build(project_path, priority);
         match result {
@@ -545,14 +562,33 @@ impl LsService {
                     self.output.response(output);
                 }
 
+                let output = serde_json::to_string(&NotificationMessage {
+                    jsonrpc: "2.0".into(),
+                    method: "rustDocument/diagnosticsEnd".into(),
+                    params: ()
+                }).unwrap();
+                self.output.response(output);
+
                 self.logger.log(&format!("reload analysis: {}", project_path));
                 self.analysis.reload(&project_path).unwrap();
             }
             BuildResult::Squashed => {
+                let output = serde_json::to_string(&NotificationMessage {
+                    jsonrpc: "2.0".into(),
+                    method: "rustDocument/diagnosticsEnd".into(),
+                    params: ()
+                }).unwrap();
+                self.output.response(output);
                 self.logger.log(&format!("\nBUILDING - Squashed\n"));
             },
             BuildResult::Err => {
                 // TODO why are we erroring out?
+                let output = serde_json::to_string(&NotificationMessage {
+                    jsonrpc: "2.0".into(),
+                    method: "rustDocument/diagnosticsEnd".into(),
+                    params: ()
+                }).unwrap();
+                self.output.response(output);
                 self.logger.log(&format!("\nBUILDING - Error\n"));
             },
         }
@@ -908,6 +944,16 @@ impl LsService {
                             this.logger.log(&format!("command(complete): {:?}\n", params));
                             this.complete(id, params);
                         }
+                        Method::CompleteResolve(params) => {
+                            this.logger.log(&format!("command(complete): {:?}\n", params));
+                            let r = ResponseSuccess {
+                                jsonrpc: "2.0".into(),
+                                id: id,
+                                result: params,
+                            };
+                            let output = serde_json::to_string(&r).unwrap();
+                            this.output.response(output);
+                        }
                         Method::Symbols(params) => {
                             this.logger.log(&format!("command(goto): {:?}\n", params));
                             this.symbols(id, params);
@@ -933,8 +979,9 @@ impl LsService {
                                             resolveProvider: true,
                                             triggerCharacters: vec![".".to_string()],
                                         },
+                                        // TODO
                                         signatureHelpProvider: SignatureHelpOptions {
-                                            triggerCharacters: vec![".".to_string()],
+                                            triggerCharacters: vec![],
                                         },
                                         definitionProvider: true,
                                         referencesProvider: true,
