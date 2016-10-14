@@ -70,7 +70,7 @@ pub fn complete(pos: Position, _analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> V
 
         let cache = core::FileCache::new();
         let session = core::Session::from_path(&cache, file_path, file_path);
-        for (path, txt) in vfs.get_changed_files() {
+        for (path, txt) in vfs.get_cached_files() {
             session.cache_file_contents(&path, txt);
         }
 
@@ -105,9 +105,9 @@ pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
 
 pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
     let path = PathBuf::from(file_name);
-    let input = match vfs.get_file_changes(&path) {
-        Some(s) => FmtInput::Text(s),
-        None => FmtInput::File(path),
+    let input = match vfs.load_file(&path) {
+        Ok(s) => FmtInput::Text(s),
+        Err(_) => return FmtOutput::Err,
     };
 
     let mut config = config::Config::default();
@@ -115,6 +115,7 @@ pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
     config.write_mode = WriteMode::Plain;
 
     let mut buf = Vec::<u8>::new();
+    // TODO save change back to VFS
     match format_input(input, &config, Some(&mut buf)) {
         Ok(_) => FmtOutput::Change(String::from_utf8(buf).unwrap()),
         Err(_) => FmtOutput::Err,
@@ -150,7 +151,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Ou
 
         let cache = core::FileCache::new();
         let session = core::Session::from_path(&cache, file_path, file_path);
-        for (path, txt) in vfs.get_changed_files() {
+        for (path, txt) in vfs.get_cached_files() {
             session.cache_file_contents(&path, txt);
         }
 

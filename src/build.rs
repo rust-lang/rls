@@ -297,7 +297,7 @@ impl BuildQueue {
         //println!("cmd_line: `{}`", cmd_line);
 
         let args: Vec<String> = cmd_line.split(' ').map(|s| s.to_owned()).collect();
-        let changed = self.vfs.get_changed_files();
+        let changed = self.vfs.get_cached_files();
 
         let _pwd = WorkingDir::push(&Path::new(build_dir));
         let buf = Arc::new(Mutex::new(vec![]));

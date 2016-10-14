@@ -274,7 +274,7 @@ impl LsService {
     fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Option<Span> {
         let fname: String = doc.uri.chars().skip("file://".len()).collect();
         self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
-        let line = self.vfs.get_line(Path::new(&fname), pos.line);
+        let line = self.vfs.load_line(Path::new(&fname), pos.line);
         self.logger.log(&format!("\nGOT LINE: {:?}", line));
         let start_pos = {
             let mut tmp = Position { line: pos.line, character: 1 };
@@ -365,7 +365,7 @@ impl LsService {
 
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
-            for (path, txt) in vfs.get_changed_files() {
+            for (path, txt) in vfs.get_cached_files() {
                 session.cache_file_contents(&path, txt);
             }
 
@@ -590,7 +590,7 @@ impl LsService {
                             text: i.text.clone()
                         }
                     }).collect();
-                    this.vfs.on_change(&changes);
+                    this.vfs.on_changes(&changes).unwrap();
 
                     this.logger.log(&format!("CHANGES: {:?}", changes));
 
