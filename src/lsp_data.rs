@@ -198,13 +198,14 @@ pub struct CancelParams {
 #[derive(Debug)]
 pub enum Method {
     Shutdown,
-    Initialize (InitializeParams),
-    Hover (HoverParams),
-    GotoDef (TextDocumentPositionParams),
-    FindAllRef (ReferenceParams),
-    Symbols (DocumentSymbolParams),
-    Complete (TextDocumentPositionParams),
-    Rename (RenameParams),
+    Initialize(InitializeParams),
+    Hover(HoverParams),
+    GotoDef(TextDocumentPositionParams),
+    FindAllRef(ReferenceParams),
+    Symbols(DocumentSymbolParams),
+    Complete(TextDocumentPositionParams),
+    CompleteResolve(CompletionItem),
+    Rename(RenameParams),
 }
 
 #[derive(Debug, Serialize)]
@@ -236,7 +237,7 @@ pub struct InitializeCapabilities {
     pub capabilities: ServerCapabilities
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CompletionItem {
     pub label: String,
     pub detail: String,

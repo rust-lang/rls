@@ -33,7 +33,7 @@ use serde_json;
 use std::path::PathBuf;
 
 // TODO we should wait for all threads to exit, rather than use a hacky timeout
-const TEST_WAIT_TIME: u64 = 500;
+const TEST_WAIT_TIME: u64 = 1500;
 
 #[test]
 fn test_simple_goto_def() {
@@ -92,7 +92,9 @@ fn test_simple_goto_def_ls() {
     // Initialise and build.
     assert_eq!(lsproto::LsService::handle_message(server.clone()),
                lsproto::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
+                                       &ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       &ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
     // Goto def.
     assert_eq!(lsproto::LsService::handle_message(server.clone()),
@@ -165,7 +167,7 @@ impl lsproto::MessageReader for MockMsgReader {
         let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
         // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
         let result = format!("{{\"method\":\"{}\",\"id\":42,\"params\":{{{}}}}}", message.method, params);
-        println!("read_message: `{}`", result);
+        // println!("read_message: `{}`", result);
 
         Some(result)
     }
@@ -200,6 +202,7 @@ fn init_env(project_dir: &str) {
     env::set_current_dir(cwd).expect(FAIL_MSG);
 }
 
+#[derive(Clone, Debug)]
 struct ExpectedMessage {
     id: Option<u64>,
     contains: Vec<String>,
@@ -222,6 +225,7 @@ impl ExpectedMessage {
 fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     thread::sleep(Duration::from_millis(TEST_WAIT_TIME));
     let mut results = results.lock().unwrap();
+    println!("expect_messages: results: {:?}, expected: {:?}", *results, expected);
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
         let values: serde_json::Value = serde_json::from_str(found).unwrap();
