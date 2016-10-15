@@ -23,7 +23,7 @@ use actions_http::Provider;
 use analysis;
 use build;
 use ide::Output;
-use lsproto;
+use ls_server;
 use server;
 use vfs;
 
@@ -90,15 +90,15 @@ fn test_simple_goto_def_ls() {
                                           ("position", cache.mk_ls_position(src("src/main.rs", 13, "world")))])];
     let (server, results) = mock_lsp_server(messages);
     // Initialise and build.
-    assert_eq!(lsproto::LsService::handle_message(server.clone()),
-               lsproto::ServerStateChange::Continue);
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
                                        &ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        &ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
     // Goto def.
-    assert_eq!(lsproto::LsService::handle_message(server.clone()),
-               lsproto::ServerStateChange::Continue);
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
     // TODO structural checking of result, rather than looking for a string - src("src/main.rs", 12, "world")
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
 }
@@ -120,7 +120,7 @@ fn mock_server<F>(f: F)
 }
 
 // Initialise and run the internals of an LS protocol RLS server.
-fn mock_lsp_server(messages: Vec<Message>) -> (Arc<lsproto::LsService>, LsResultList)
+fn mock_lsp_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
@@ -128,8 +128,8 @@ fn mock_lsp_server(messages: Vec<Message>) -> (Arc<lsproto::LsService>, LsResult
     let reader = Box::new(MockMsgReader { messages: messages, cur: AtomicUsize::new(0) });
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    let logger = Arc::new(lsproto::Logger::new());
-    (lsproto::LsService::new(analysis, vfs, build_queue, reader, output, logger), results)
+    let logger = Arc::new(ls_server::Logger::new());
+    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output, logger), results)
 }
 
 // Despite the use of AtomicUsize and thus being Sync, this struct is not properly
@@ -155,7 +155,7 @@ impl Message {
     }
 }
 
-impl lsproto::MessageReader for MockMsgReader {
+impl ls_server::MessageReader for MockMsgReader {
     fn read_message(&self) -> Option<String> {
         if self.cur.load(Ordering::SeqCst) >= self.messages.len() {
             return None;
@@ -187,7 +187,7 @@ impl RecordOutput {
     }
 }
 
-impl lsproto::Output for RecordOutput {
+impl ls_server::Output for RecordOutput {
     fn response(&self, output: String) {
         let mut records = self.output.lock().unwrap();
         records.push(output);

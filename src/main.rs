@@ -29,11 +29,15 @@ mod actions_http;
 mod build;
 mod ide;
 mod server;
-mod lsproto;
+mod ls_server;
+mod actions_ls;
 mod lsp_data;
 
 #[cfg(test)]
 mod test;
+
+// Timeout = 0.5s (totally arbitrary).
+const COMPILER_TIMEOUT: u64 = 500;
 
 pub fn main() {
     use std::env;
@@ -47,6 +51,6 @@ pub fn main() {
     if args.contains(&"--http".to_string()) {
         server::run_server(analysis, vfs, build_queue);
     } else {
-        lsproto::run_server(analysis, vfs, build_queue);
+        ls_server::run_server(analysis, vfs, build_queue);
     }
 }

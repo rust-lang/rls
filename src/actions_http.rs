@@ -26,9 +26,6 @@ use std::time::Duration;
 use ide::{Input, Output, FmtOutput, VscodeKind};
 use vfs::Vfs;
 
-// Timeout = 0.5s (totally arbitrary).
-const RUSTW_TIMEOUT: u64 = 500;
-
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Position {
     pub filepath: String,
@@ -98,7 +95,7 @@ pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
         result
     });
 
-    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+    thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
     rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![])
 }
@@ -179,7 +176,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Ou
             })
     });
 
-    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+    thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
     let compiler_result = compiler_handle.join().unwrap_or(None);
     match compiler_result {
@@ -216,7 +213,7 @@ pub fn title(source: Input, analysis: Arc<AnalysisHost>) -> Option<Title> {
         }
     });
 
-    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+    thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
     rustw_handle.join().ok()
 }
@@ -236,7 +233,7 @@ pub fn symbols(file_name: String, analysis: Arc<AnalysisHost>) -> Vec<Symbol> {
         }).collect()
     });
 
-    thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
+    thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
     rustw_handle.join().unwrap_or(vec![])
 }
