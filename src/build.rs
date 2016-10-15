@@ -275,7 +275,7 @@ impl BuildQueue {
                         }
                     }
                 }
-                Err(e) => {
+                Err(_) => {
                     // println!("Error waiting for Cargo process: {:?}", e);
                     return BuildResult::Err;
                 }

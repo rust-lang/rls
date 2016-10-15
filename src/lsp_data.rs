@@ -11,9 +11,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use analysis::{AnalysisHost, Span};
-use serde::{Serialize, Deserialize};
-use serde_json;
+use analysis::Span;
+use serde::Serialize;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Position {
@@ -59,17 +58,6 @@ pub struct Location {
 }
 
 impl Location {
-    pub fn to_span(&self) -> Span {
-        let fname: String = self.uri.chars().skip("file://".len()).collect();
-        Span {
-            file_name: fname,
-            line_start: self.range.start.line,
-            column_start: self.range.start.character,
-            line_end: self.range.end.line,
-            column_end: self.range.end.character,
-        }
-    }
-
     pub fn from_span(span: &Span) -> Location {
         Location {
             uri: "file://".to_string() + &span.file_name,
@@ -221,8 +209,8 @@ pub enum Method {
 
 #[derive(Debug, Serialize)]
 pub enum DocumentSyncKind {
-    None = 0,
-    Full = 1,
+    // None = 0,
+    // Full = 1,
     Incremental = 2,
 }
 
@@ -300,11 +288,11 @@ pub struct SignatureHelpOptions {
     pub triggerCharacters: Vec<String>,
 }
 
-#[allow(non_snake_case)]
-#[derive(Debug, Serialize)]
-pub struct CodeLensOptions {
-    pub resolveProvider: bool,
-}
+// #[allow(non_snake_case)]
+// #[derive(Debug, Serialize)]
+// pub struct CodeLensOptions {
+//     pub resolveProvider: bool,
+// }
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize)]

@@ -11,11 +11,7 @@
 use analysis::{AnalysisHost, Span};
 use vfs::{Vfs, Change};
 use racer::core::complete_from_file;
-use racer::core::find_definition;
 use racer::core;
-use rustfmt::{Input as FmtInput, format_input};
-use rustfmt::config::{self, WriteMode};
-use serde::{Serialize, Deserialize};
 use serde_json;
 
 use build::*;
@@ -23,9 +19,8 @@ use lsp_data::*;
 use ide::VscodeKind;
 
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Write, Error, ErrorKind};
+use std::io::{self, Read, Write, ErrorKind};
 use std::panic;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -37,7 +32,7 @@ use std::time::Duration;
 const RUSTW_TIMEOUT: u64 = 500;
 
 // For now this is a catch-all for any error back to the consumer of the RLS
-const MethodNotFound: i64 = -32601;
+const METHOD_NOT_FOUND: i64 = -32601;
 
 // TODO error type is gross
 // TODO could move into MessageReader
@@ -218,8 +213,8 @@ impl LsService {
 
                 let mut notifications = vec![];
                 {
-                    let mut results = self.previous_build_results.lock().unwrap();
-                    for k in &mut results.keys() {
+                    let results = self.previous_build_results.lock().unwrap();
+                    for k in results.keys() {
                         notifications.push(NotificationMessage {
                             jsonrpc: "2.0".into(),
                             method: "textDocument/publishDiagnostics".to_string(),
@@ -348,13 +343,6 @@ impl LsService {
             source
         }
 
-        fn adjust_racer_pos_for_vscode(mut source: Position) -> Position {
-            if source.line > 0 {
-                source.line -= 1;
-            }
-            source
-        }
-
         let vfs: &Vfs = &self.vfs;
 
         let pos = adjust_vscode_pos_for_racer(params.position);
@@ -392,7 +380,6 @@ impl LsService {
 
     fn rename(&self, id: usize, params: RenameParams) {
         let t = thread::current();
-        let uri = params.textDocument.uri.clone();
         let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
         let analysis = self.analysis.clone();
 
@@ -405,7 +392,7 @@ impl LsService {
 
         thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-        let mut result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
 
         let mut edits: HashMap<String, Vec<TextEdit>> = HashMap::new();
 
@@ -432,7 +419,6 @@ impl LsService {
 
     fn find_all_refs(&self, id: usize, params: ReferenceParams) {
         let t = thread::current();
-        let uri = params.textDocument.uri.clone();
         let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
         let analysis = self.analysis.clone();
 
@@ -445,7 +431,7 @@ impl LsService {
 
         thread::park_timeout(Duration::from_millis(RUSTW_TIMEOUT));
 
-        let mut result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
         let refs: Vec<Location> = result.iter().map(|item| {
             Location::from_span(&item)
         }).collect();
@@ -463,7 +449,6 @@ impl LsService {
     fn goto_def(&self, id: usize, params: TextDocumentPositionParams) {
         // Save-analysis thread.
         let t = thread::current();
-        let uri = params.textDocument.uri.clone();
         let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
         let analysis = self.analysis.clone();
         let results = thread::spawn(move || {
@@ -492,12 +477,12 @@ impl LsService {
                 let output = serde_json::to_string(&out).unwrap();
                 self.output.response(output);
             }
-            Err(e) => {
+            Err(_) => {
                 let out = ResponseFailure {
                     jsonrpc: "2.0".into(),
                     id: id,
                     error: ResponseError {
-                        code: MethodNotFound,
+                        code: METHOD_NOT_FOUND,
                         message: "GotoDef failed to complete successfully".into()
                     }
                 };
@@ -555,7 +540,7 @@ impl LsService {
                     jsonrpc: "2.0".into(),
                     id: id,
                     error: ResponseError {
-                        code: MethodNotFound,
+                        code: METHOD_NOT_FOUND,
                         message: "Hover failed to complete successfully".into()
                     }
                 };
@@ -697,7 +682,7 @@ impl LsService {
                         jsonrpc: "2.0".into(),
                         id: id,
                         error: ResponseError {
-                            code: MethodNotFound,
+                            code: METHOD_NOT_FOUND,
                             message: "Unsupported message".into()
                         }
                     };

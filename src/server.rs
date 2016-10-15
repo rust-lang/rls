@@ -140,7 +140,7 @@ impl MyService {
         } else if action == "/on_change" {
             if let Ok(change) = ChangeInput::from_bytes(body) {
                 // println!("on change: {:?}", change);
-                self.vfs.on_changes(&change.changes);
+                self.vfs.on_changes(&change.changes).unwrap();
 
                 self.build(&change.project_path, BuildPriority::Normal)
             } else {
@@ -149,7 +149,7 @@ impl MyService {
         } else if action == "/on_save" {
             if let Ok(save) = SaveInput::from_bytes(body) {
                 println!("on save: {}", &save.saved_file);
-                self.vfs.file_saved(&Path::new(&save.saved_file));
+                self.vfs.file_saved(&Path::new(&save.saved_file)).unwrap();
 
                 self.build(&save.project_path, BuildPriority::Immediate)
             } else {
