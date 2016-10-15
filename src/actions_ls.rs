@@ -9,7 +9,7 @@
 // except according to those terms.
 
 use analysis::{AnalysisHost, Span};
-use vfs::Vfs;
+use vfs::{Vfs, Change};
 use racer::core::complete_from_file;
 use racer::core;
 use serde_json;
@@ -27,12 +27,12 @@ use std::thread;
 use std::time::Duration;
 
 pub struct ActionHandler {
-    pub analysis: Arc<AnalysisHost>,
-    pub vfs: Arc<Vfs>,
-    pub build_queue: Arc<BuildQueue>,
-    pub current_project: Mutex<Option<String>>,
-    pub previous_build_results: Mutex<HashMap<String, Vec<Diagnostic>>>,
-    pub logger: Arc<Logger>,
+    analysis: Arc<AnalysisHost>,
+    vfs: Arc<Vfs>,
+    build_queue: Arc<BuildQueue>,
+    current_project: Mutex<Option<String>>,
+    previous_build_results: Mutex<HashMap<String, Vec<Diagnostic>>>,
+    logger: Arc<Logger>,
 }
 
 impl ActionHandler {
@@ -50,14 +50,20 @@ impl ActionHandler {
         }
     }
 
+    pub fn init(&self, root_path: String, out: &Output) {
+        {
+            let mut results = self.previous_build_results.lock().unwrap();
+            results.clear();
+        }
+        {
+            let mut current_project = self.current_project.lock().unwrap();
+            *current_project = Some(root_path.clone());
+        }
+        self.build(&root_path, BuildPriority::Normal, out);
+    }
+
     pub fn build(&self, project_path: &str, priority: BuildPriority, out: &Output) {
-        //FIXME: we could make a helper function for simple responses
-        let output = serde_json::to_string(&NotificationMessage {
-            jsonrpc: "2.0".into(),
-            method: "rustDocument/diagnosticsBegin".into(),
-            params: ()
-        }).unwrap();
-        out.response(output);
+        out.notify("rustDocument/diagnosticsBegin");
 
         self.logger.log(&format!("\nBUILDING {}\n", project_path));
         let result = self.build_queue.request_build(project_path, priority);
@@ -128,39 +134,46 @@ impl ActionHandler {
                     out.response(output);
                 }
 
-                let output = serde_json::to_string(&NotificationMessage {
-                    jsonrpc: "2.0".into(),
-                    method: "rustDocument/diagnosticsEnd".into(),
-                    params: ()
-                }).unwrap();
-                out.response(output);
+                out.notify("rustDocument/diagnosticsEnd");
 
                 self.logger.log(&format!("reload analysis: {}", project_path));
                 self.analysis.reload(&project_path).unwrap();
             }
             BuildResult::Squashed => {
-                let output = serde_json::to_string(&NotificationMessage {
-                    jsonrpc: "2.0".into(),
-                    method: "rustDocument/diagnosticsEnd".into(),
-                    params: ()
-                }).unwrap();
-                out.response(output);
                 self.logger.log(&format!("\nBUILDING - Squashed\n"));
+                out.notify("rustDocument/diagnosticsEnd");
             },
             BuildResult::Err => {
                 // TODO why are we erroring out?
-                let output = serde_json::to_string(&NotificationMessage {
-                    jsonrpc: "2.0".into(),
-                    method: "rustDocument/diagnosticsEnd".into(),
-                    params: ()
-                }).unwrap();
-                out.response(output);
                 self.logger.log(&format!("\nBUILDING - Error\n"));
+                out.notify("rustDocument/diagnosticsEnd");
             },
         }
     }
 
-    pub fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Option<Span> {
+    pub fn on_change(&self, change: ChangeParams, out: &Output) {
+        let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
+        let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
+            Change {
+                span: i.range.to_span(fname.clone()),
+                text: i.text.clone()
+            }
+        }).collect();
+        self.vfs.on_changes(&changes).unwrap();
+
+        self.logger.log(&format!("CHANGES: {:?}", changes));
+
+        let current_project = {
+            let current_project = self.current_project.lock().unwrap();
+            current_project.clone()
+        };
+        match current_project {
+            Some(ref current_project) => self.build(&current_project, BuildPriority::Normal, out),
+            None => self.logger.log("No project path"),
+        }
+    }
+
+    fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Span {
         let fname: String = doc.uri.chars().skip("file://".len()).collect();
         self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
         let line = self.vfs.load_line(Path::new(&fname), pos.line);
@@ -189,15 +202,13 @@ impl ActionHandler {
             tmp
         };
 
-        let span = Span {
+        Span {
             file_name: fname,
             line_start: start_pos.line,
             column_start: start_pos.character,
             line_end: end_pos.line,
             column_end: end_pos.character,
-        };
-
-        Some(span)
+        }
     }
 
     pub fn symbols(&self, id: usize, doc: DocumentSymbolParams, out: &Output) {
@@ -274,7 +285,7 @@ impl ActionHandler {
 
     pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+        let span = self.convert_pos_to_span(params.textDocument, params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
@@ -313,7 +324,7 @@ impl ActionHandler {
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+        let span = self.convert_pos_to_span(params.textDocument, params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
@@ -343,7 +354,7 @@ impl ActionHandler {
     pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         // Save-analysis thread.
         let t = thread::current();
-        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+        let span = self.convert_pos_to_span(params.textDocument, params.position);
         let analysis = self.analysis.clone();
         let results = thread::spawn(move || {
             let result = if let Ok(s) = analysis.goto_def(&span) {
@@ -381,7 +392,7 @@ impl ActionHandler {
     pub fn hover(&self, id: usize, params: HoverParams, out: &Output) {
         let t = thread::current();
         self.logger.log(&format!("CREATING SPAN"));
-        let span = self.convert_pos_to_span(params.textDocument, params.position).unwrap();
+        let span = self.convert_pos_to_span(params.textDocument, params.position);
 
         self.logger.log(&format!("\nHovering span: {:?}\n", span));
 

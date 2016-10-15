@@ -135,7 +135,9 @@ pub struct PublishDiagnosticsParams {
 }
 
 #[derive(Debug, Serialize)]
-pub struct NotificationMessage<T> where T: Debug+Serialize {
+pub struct NotificationMessage<T>
+    where T: Debug + Serialize
+{
     pub jsonrpc: String,
     pub method: String,
     pub params: T,
@@ -251,7 +253,9 @@ pub struct TextEdit {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ResponseSuccess<T> where T:Debug+Serialize {
+pub struct ResponseSuccess<T>
+    where T: Debug + Serialize
+{
     pub jsonrpc: String,
     pub id: usize,
     pub result: T,

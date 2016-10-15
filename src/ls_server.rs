@@ -9,7 +9,7 @@
 // except according to those terms.
 
 use analysis::AnalysisHost;
-use vfs::{Vfs, Change};
+use vfs::Vfs;
 use serde_json;
 
 use build::*;
@@ -26,9 +26,15 @@ use std::thread;
 // For now this is a catch-all for any error back to the consumer of the RLS
 const METHOD_NOT_FOUND: i64 = -32601;
 
-// TODO error type is gross
+#[derive(Debug, new)]
+struct ParseError {
+    kind: ErrorKind,
+    message: &'static str,
+    id: Option<usize>,
+}
+
 // TODO could move into MessageReader
-fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str, usize)>  {
+fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
     let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
 
     let params = ls_command.lookup("params");
@@ -59,7 +65,7 @@ fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str,
                 }
                 "textDocument/didOpen" => {
                     // TODO handle me
-                    Err((ErrorKind::InvalidData, "didOpen", 0))
+                    Err(ParseError::new(ErrorKind::InvalidData, "didOpen", None))
                 }
                 "textDocument/definition" => {
                     let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
@@ -107,26 +113,26 @@ fn parse_message(input: &str) -> Result<ServerMessage, (ErrorKind, &'static str,
                 }
                 "$/setTraceNotification" => {
                     // TODO handle me
-                    Err((ErrorKind::InvalidData, "setTraceNotification", 0))
+                    Err(ParseError::new(ErrorKind::InvalidData, "setTraceNotification", None))
                 }
                 "workspace/didChangeConfiguration" => {
                     // TODO handle me
-                    Err((ErrorKind::InvalidData, "didChangeConfiguration", 0))
+                    Err(ParseError::new(ErrorKind::InvalidData, "didChangeConfiguration", None))
                 }
                 _ => {
-                    let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap()).unwrap_or(0) as usize;
-                    Err((ErrorKind::InvalidData, "Unknown command", id))
+                    let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize);
+                    Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", id))
                 }
             }
         }
         else {
-            let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap()).unwrap_or(0) as usize;
-            Err((ErrorKind::InvalidData, "Method is not a string", id))
+            let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize);
+            Err(ParseError::new(ErrorKind::InvalidData, "Method is not a string", id))
         }
     }
     else {
-        let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap()).unwrap_or(0) as usize;
-        Err((ErrorKind::InvalidData, "Method not found", id))
+        let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize);
+        Err(ParseError::new(ErrorKind::InvalidData, "Method not found", id))
     }
 }
 
@@ -165,6 +171,52 @@ impl LsService {
         while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
+    fn complete_resolve(&self, id: usize, params: CompletionItem) {
+        let r = ResponseSuccess {
+            jsonrpc: "2.0".into(),
+            id: id,
+            result: params,
+        };
+        let output = serde_json::to_string(&r).unwrap();
+        self.output.response(output);
+    }
+
+    fn init(&self, id: usize, init: InitializeParams) {
+        let result = ResponseSuccess {
+            jsonrpc: "2.0".into(),
+            id: id,
+            result: InitializeCapabilities {
+                capabilities: ServerCapabilities {
+                    textDocumentSync: DocumentSyncKind::Incremental as usize,
+                    hoverProvider: true,
+                    completionProvider: CompletionOptions {
+                        resolveProvider: true,
+                        triggerCharacters: vec![".".to_string()],
+                    },
+                    // TODO
+                    signatureHelpProvider: SignatureHelpOptions {
+                        triggerCharacters: vec![],
+                    },
+                    definitionProvider: true,
+                    referencesProvider: true,
+                    // TODO
+                    documentHighlightProvider: false,
+                    documentSymbolProvider: true,
+                    workshopSymbolProvider: true,
+                    codeActionProvider: false,
+                    // TODO maybe?
+                    codeLensProvider: false,
+                    documentFormattingProvider: true,
+                    documentRangeFormattingProvider: true,
+                    renameProvider: true,
+                }
+            }
+        };
+        let output = serde_json::to_string(&result).unwrap();
+        self.output.response(output);
+        self.handler.init(init.rootPath, &*self.output);
+    }
+
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
         let c = match this.msg_reader.read_message() {
             Some(c) => c,
@@ -178,26 +230,8 @@ impl LsService {
                     this.logger.log(&format!("request to cancel {}\n", id));
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
-                    let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
                     this.logger.log(&format!("notification(change): {:?}\n", change));
-                    let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
-                        Change {
-                            span: i.range.to_span(fname.clone()),
-                            text: i.text.clone()
-                        }
-                    }).collect();
-                    this.handler.vfs.on_changes(&changes).unwrap();
-
-                    this.logger.log(&format!("CHANGES: {:?}", changes));
-
-                    let current_project = {
-                        let current_project = this.handler.current_project.lock().unwrap();
-                        current_project.clone()
-                    };
-                    match current_project {
-                        Some(ref current_project) => this.handler.build(&current_project, BuildPriority::Normal, &*this.output),
-                        None => this.logger.log("No project path"),
-                    }
+                    this.handler.on_change(change, &*this.output);
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
@@ -219,13 +253,7 @@ impl LsService {
                         }
                         Method::CompleteResolve(params) => {
                             this.logger.log(&format!("command(complete): {:?}\n", params));
-                            let r = ResponseSuccess {
-                                jsonrpc: "2.0".into(),
-                                id: id,
-                                result: params,
-                            };
-                            let output = serde_json::to_string(&r).unwrap();
-                            this.output.response(output);
+                            this.complete_resolve(id, params);
                         }
                         Method::Symbols(params) => {
                             this.logger.log(&format!("command(goto): {:?}\n", params));
@@ -241,54 +269,15 @@ impl LsService {
                         }
                         Method::Initialize(init) => {
                             this.logger.log(&format!("command(init): {:?}\n", init));
-                            let result = ResponseSuccess {
-                                jsonrpc: "2.0".into(),
-                                id: id,
-                                result: InitializeCapabilities {
-                                    capabilities: ServerCapabilities {
-                                        textDocumentSync: DocumentSyncKind::Incremental as usize,
-                                        hoverProvider: true,
-                                        completionProvider: CompletionOptions {
-                                            resolveProvider: true,
-                                            triggerCharacters: vec![".".to_string()],
-                                        },
-                                        // TODO
-                                        signatureHelpProvider: SignatureHelpOptions {
-                                            triggerCharacters: vec![],
-                                        },
-                                        definitionProvider: true,
-                                        referencesProvider: true,
-                                        // TODO
-                                        documentHighlightProvider: false,
-                                        documentSymbolProvider: true,
-                                        workshopSymbolProvider: true,
-                                        codeActionProvider: false,
-                                        // TODO maybe?
-                                        codeLensProvider: false,
-                                        documentFormattingProvider: true,
-                                        documentRangeFormattingProvider: true,
-                                        renameProvider: true,
-                                    }
-                                }
-                            };
-                            let output = serde_json::to_string(&result).unwrap();
-                            this.output.response(output);
-
-                            {
-                                let mut results = this.handler.previous_build_results.lock().unwrap();
-                                results.clear();
-                            }
-                            {
-                                let mut current_project = this.handler.current_project.lock().unwrap();
-                                *current_project = Some(init.rootPath.clone());
-                            }
-                            this.handler.build(&init.rootPath, BuildPriority::Normal, &*this.output);
+                            this.init(id, init);
                         }
                     }
                 }
                 Err(e) => {
                     this.logger.log(&format!("parsing invalid message: {:?}", e));
-                    this.output.failure(e.2, "Unsupported message");
+                    if let Some(id) = e.id {
+                        this.output.failure(id, "Unsupported message");
+                    }
                 },
             }
         });
@@ -383,14 +372,23 @@ pub trait Output {
 
     fn failure(&self, id: usize, message: &str) {
         let rf = ResponseFailure {
-            jsonrpc: "2.0".into(),
+            jsonrpc: "2.0".to_owned(),
             id: id,
             error: ResponseError {
                 code: METHOD_NOT_FOUND,
-                message: message.to_owned()
-            }
+                message: message.to_owned(),
+            },
         };
         let output = serde_json::to_string(&rf).unwrap();
+        self.response(output);
+    }
+
+    fn notify(&self, message: &str) {
+        let output = serde_json::to_string(&NotificationMessage {
+            jsonrpc: "2.0".to_owned(),
+            method: message.to_owned(),
+            params: (),
+        }).unwrap();
         self.response(output);
     }
 }
@@ -404,6 +402,7 @@ impl Output for StdioOutput {
         let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
 
         self.logger.log(&format!("OUTPUT: {:?}", o));
+
         print!("{}", o);
         io::stdout().flush().unwrap();
     }
