@@ -196,31 +196,11 @@ pub struct CancelParams {
     pub id: usize
 }
 
-
-#[derive(Debug)]
-pub enum Method {
-    Shutdown,
-    Initialize(InitializeParams),
-    Hover(HoverParams),
-    GotoDef(TextDocumentPositionParams),
-    FindAllRef(ReferenceParams),
-    Symbols(DocumentSymbolParams),
-    Complete(TextDocumentPositionParams),
-    CompleteResolve(CompletionItem),
-    Rename(RenameParams),
-}
-
 #[derive(Debug, Serialize)]
 pub enum DocumentSyncKind {
     // None = 0,
     // Full = 1,
     Incremental = 2,
-}
-
-#[derive(Debug)]
-pub struct Request {
-    pub id: usize,
-    pub method: Method
 }
 
 #[derive(Debug, Serialize)]
@@ -250,12 +230,6 @@ pub struct CompletionItem {
 pub struct TextEdit {
     pub range: Range,
     pub newText: String,
-}
-
-#[derive(Debug)]
-pub enum Notification {
-    CancelRequest(usize),
-    Change(ChangeParams),
 }
 
 #[allow(non_snake_case)]
@@ -295,10 +269,4 @@ pub struct ServerCapabilities {
     pub documentRangeFormattingProvider: bool,
     // pub documentOnTypeFormattingProvider
     pub renameProvider: bool,
-}
-
-#[derive(Debug)]
-pub enum ServerMessage {
-    Request(Request),
-    Notification(Notification)
 }

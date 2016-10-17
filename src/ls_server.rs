@@ -30,7 +30,38 @@ struct ParseError {
     id: Option<usize>,
 }
 
-// TODO could move into MessageReader
+#[derive(Debug)]
+enum ServerMessage {
+    Request(Request),
+    Notification(Notification)
+}
+
+#[derive(Debug)]
+struct Request {
+    id: usize,
+    method: Method
+}
+
+#[derive(Debug)]
+enum Method {
+    Shutdown,
+    Initialize(InitializeParams),
+    Hover(HoverParams),
+    GotoDef(TextDocumentPositionParams),
+    FindAllRef(ReferenceParams),
+    Symbols(DocumentSymbolParams),
+    Complete(TextDocumentPositionParams),
+    CompleteResolve(CompletionItem),
+    Rename(RenameParams),
+}
+
+#[derive(Debug)]
+enum Notification {
+    CancelRequest(usize),
+    Change(ChangeParams),
+}
+
+// FIXME(45) generate this function.
 fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
     let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
 
@@ -207,6 +238,7 @@ impl LsService {
 
         let this = this.clone();
         thread::spawn(move || {
+            // FIXME(45) refactor to generate this match.
             match parse_message(&c) {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
                     this.logger.log(&format!("request to cancel {}\n", id));
@@ -381,7 +413,7 @@ pub trait Output {
         self.response(output);
     }
 
-    // TODO gross that we have to take a String argument, but can't figure out
+    // FIXME(44) gross that we have to take a String argument, but can't figure out
     // a better way for now.
     fn success(&self, id: usize, data: String) {
         // {

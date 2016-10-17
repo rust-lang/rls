@@ -72,6 +72,7 @@ impl ActionHandler {
                 self.logger.log(&format!("\nBUILDING - Success\n"));
                 {
                     let mut results = self.previous_build_results.lock().unwrap();
+                    // We must not clear the hashmap, just the values in each list.
                     for v in &mut results.values_mut() {
                         v.clear();
                     }
@@ -100,8 +101,7 @@ impl ActionHandler {
 
                             {
                                 let mut results = self.previous_build_results.lock().unwrap();
-                                results.entry(method.spans[0].file_name.clone()).or_insert(vec![]);
-                                results.get_mut(&method.spans[0].file_name).unwrap().push(diag);
+                                results.entry(method.spans[0].file_name.clone()).or_insert(vec![]).push(diag);
                             }
                         }
                         Err(e) => {
@@ -113,6 +113,9 @@ impl ActionHandler {
 
                 let mut notifications = vec![];
                 {
+                    // These notifications will include empty sets of errors for files
+                    // which had errors, but now don't. This instructs the IDE to clear
+                    // errors for those files.
                     let results = self.previous_build_results.lock().unwrap();
                     for k in results.keys() {
                         notifications.push(NotificationMessage {
@@ -130,6 +133,7 @@ impl ActionHandler {
 
                 // TODO we don't send an OK notification if there were no errors
                 for notification in notifications {
+                    // FIXME(43) factor out the notification mechanism.
                     let output = serde_json::to_string(&notification).unwrap();
                     out.response(output);
                 }
@@ -173,44 +177,6 @@ impl ActionHandler {
         }
     }
 
-    fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Span {
-        let fname: String = doc.uri.chars().skip("file://".len()).collect();
-        self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
-        let line = self.vfs.load_line(Path::new(&fname), pos.line);
-        self.logger.log(&format!("\nGOT LINE: {:?}", line));
-        let start_pos = {
-            let mut tmp = Position { line: pos.line, character: 1 };
-            for (i, c) in line.clone().unwrap().chars().enumerate() {
-                if !(c.is_alphanumeric() || c == '_') {
-                    tmp.character = i + 1;
-                }
-                if i == pos.character {
-                    break;
-                }
-            }
-            tmp
-        };
-
-        let end_pos = {
-            let mut tmp = Position { line: pos.line, character: pos.character };
-            for (i, c) in line.unwrap().chars().skip(pos.character).enumerate() {
-                if !(c.is_alphanumeric() || c == '_') {
-                    break;
-                }
-                tmp.character = i + pos.character + 1;
-            }
-            tmp
-        };
-
-        Span {
-            file_name: fname,
-            line_start: start_pos.line,
-            column_start: start_pos.character,
-            line_end: end_pos.line,
-            column_end: end_pos.character,
-        }
-    }
-
     pub fn symbols(&self, id: usize, doc: DocumentSymbolParams, out: &Output) {
         let t = thread::current();
         let file_name: String = doc.textDocument.uri.chars().skip("file://".len()).collect();
@@ -247,7 +213,6 @@ impl ActionHandler {
         let file_path = &Path::new(&fname);
 
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
-
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
             for (path, txt) in vfs.get_cached_files() {
@@ -390,6 +355,44 @@ impl ActionHandler {
             Err(_) => {
                 out.failure(id, "Hover failed to complete successfully");
             }
+        }
+    }
+
+    fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Span {
+        let fname: String = doc.uri.chars().skip("file://".len()).collect();
+        self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
+        let line = self.vfs.load_line(Path::new(&fname), pos.line);
+        self.logger.log(&format!("\nGOT LINE: {:?}", line));
+        let start_pos = {
+            let mut tmp = Position { line: pos.line, character: 1 };
+            for (i, c) in line.clone().unwrap().chars().enumerate() {
+                if !(c.is_alphanumeric() || c == '_') {
+                    tmp.character = i + 1;
+                }
+                if i == pos.character {
+                    break;
+                }
+            }
+            tmp
+        };
+
+        let end_pos = {
+            let mut tmp = Position { line: pos.line, character: pos.character };
+            for (i, c) in line.unwrap().chars().skip(pos.character).enumerate() {
+                if !(c.is_alphanumeric() || c == '_') {
+                    break;
+                }
+                tmp.character = i + pos.character + 1;
+            }
+            tmp
+        };
+
+        Span {
+            file_name: fname,
+            line_start: start_pos.line,
+            column_start: start_pos.character,
+            line_end: end_pos.line,
+            column_end: end_pos.character,
         }
     }
 }
