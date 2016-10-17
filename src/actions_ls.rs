@@ -231,15 +231,7 @@ impl ActionHandler {
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
         let result = rustw_handle.join().unwrap_or(vec![]);
-
-        let output = ResponseSuccess {
-            jsonrpc: "2.0".into(),
-            id: id,
-            result: result,
-        };
-
-        let output = serde_json::to_string(&output).unwrap();
-        out.response(output);
+        out.success(id, serde_json::to_string(&result).unwrap());
     }
 
     pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
@@ -273,14 +265,7 @@ impl ActionHandler {
             }).collect()
         }).unwrap_or(vec![]);
 
-        let output = ResponseSuccess {
-            jsonrpc: "2.0".into(),
-            id: id,
-            result: result
-        };
-
-        let output = serde_json::to_string(&output).unwrap();
-        out.response(output);
+        out.success(id, serde_json::to_string(&result).unwrap());
     }
 
     pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
@@ -310,16 +295,7 @@ impl ActionHandler {
             });
         }
 
-        let output = ResponseSuccess {
-            jsonrpc: "2.0".into(),
-            id: id,
-            result: WorkspaceEdit {
-                changes: edits,
-            }
-        };
-
-        let output = serde_json::to_string(&output).unwrap();
-        out.response(output);
+        out.success(id, serde_json::to_string(&WorkspaceEdit { changes: edits }).unwrap());
     }
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
@@ -341,14 +317,7 @@ impl ActionHandler {
             Location::from_span(&item)
         }).collect();
 
-        let output = ResponseSuccess {
-            jsonrpc: "2.0".into(),
-            id: id,
-            result: refs
-        };
-
-        let output = serde_json::to_string(&output).unwrap();
-        out.response(output);
+        out.success(id, serde_json::to_string(&refs).unwrap());
     }
 
     pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
@@ -372,15 +341,8 @@ impl ActionHandler {
         let results = results.join();
         match results {
             Ok(r) => {
-                let output = ResponseSuccess {
-                    jsonrpc: "2.0".into(),
-                    id: id,
-                    result: r
-                };
-                self.logger.log(&format!("\nGOING TO: {:?}\n", output));
-
-                let output = serde_json::to_string(&output).unwrap();
-                out.response(output);
+                self.logger.log(&format!("\nGOING TO: {:?}\n", r));
+                out.success(id, serde_json::to_string(&r).unwrap());
             }
             Err(e) => {
                 self.logger.log(&format!("\nERROR IN GOTODEF: {:?}\n", e));
@@ -413,12 +375,8 @@ impl ActionHandler {
             if !ty.is_empty() {
                 contents.push(MarkedString { language: "rust".into(), value: ty });
             }
-            ResponseSuccess {
-                jsonrpc: "2.0".into(),
-                id: id,
-                result: HoverSuccessContents {
-                    contents: contents
-                }
+            HoverSuccessContents {
+                contents: contents
             }
         });
 
@@ -427,8 +385,7 @@ impl ActionHandler {
         let result = rustw_handle.join();
         match result {
             Ok(r) => {
-                let output = serde_json::to_string(&r).unwrap();
-                out.response(output);
+                out.success(id, serde_json::to_string(&r).unwrap());
             }
             Err(_) => {
                 out.failure(id, "Hover failed to complete successfully");

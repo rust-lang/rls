@@ -23,9 +23,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 
-// For now this is a catch-all for any error back to the consumer of the RLS
-const METHOD_NOT_FOUND: i64 = -32601;
-
 #[derive(Debug, new)]
 struct ParseError {
     kind: ErrorKind,
@@ -171,49 +168,34 @@ impl LsService {
         while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
-    fn complete_resolve(&self, id: usize, params: CompletionItem) {
-        let r = ResponseSuccess {
-            jsonrpc: "2.0".into(),
-            id: id,
-            result: params,
-        };
-        let output = serde_json::to_string(&r).unwrap();
-        self.output.response(output);
-    }
-
     fn init(&self, id: usize, init: InitializeParams) {
-        let result = ResponseSuccess {
-            jsonrpc: "2.0".into(),
-            id: id,
-            result: InitializeCapabilities {
-                capabilities: ServerCapabilities {
-                    textDocumentSync: DocumentSyncKind::Incremental as usize,
-                    hoverProvider: true,
-                    completionProvider: CompletionOptions {
-                        resolveProvider: true,
-                        triggerCharacters: vec![".".to_string()],
-                    },
-                    // TODO
-                    signatureHelpProvider: SignatureHelpOptions {
-                        triggerCharacters: vec![],
-                    },
-                    definitionProvider: true,
-                    referencesProvider: true,
-                    // TODO
-                    documentHighlightProvider: false,
-                    documentSymbolProvider: true,
-                    workshopSymbolProvider: true,
-                    codeActionProvider: false,
-                    // TODO maybe?
-                    codeLensProvider: false,
-                    documentFormattingProvider: true,
-                    documentRangeFormattingProvider: true,
-                    renameProvider: true,
-                }
+        let result = InitializeCapabilities {
+            capabilities: ServerCapabilities {
+                textDocumentSync: DocumentSyncKind::Incremental as usize,
+                hoverProvider: true,
+                completionProvider: CompletionOptions {
+                    resolveProvider: true,
+                    triggerCharacters: vec![".".to_string()],
+                },
+                // TODO
+                signatureHelpProvider: SignatureHelpOptions {
+                    triggerCharacters: vec![],
+                },
+                definitionProvider: true,
+                referencesProvider: true,
+                // TODO
+                documentHighlightProvider: false,
+                documentSymbolProvider: true,
+                workshopSymbolProvider: true,
+                codeActionProvider: false,
+                // TODO maybe?
+                codeLensProvider: false,
+                documentFormattingProvider: true,
+                documentRangeFormattingProvider: true,
+                renameProvider: true,
             }
         };
-        let output = serde_json::to_string(&result).unwrap();
-        self.output.response(output);
+        self.output.success(id, serde_json::to_string(&result).unwrap());
         self.handler.init(init.rootPath, &*self.output);
     }
 
@@ -253,7 +235,7 @@ impl LsService {
                         }
                         Method::CompleteResolve(params) => {
                             this.logger.log(&format!("command(complete): {:?}\n", params));
-                            this.complete_resolve(id, params);
+                            this.output.success(id, serde_json::to_string(&params).unwrap())
                         }
                         Method::Symbols(params) => {
                             this.logger.log(&format!("command(goto): {:?}\n", params));
@@ -371,6 +353,22 @@ pub trait Output {
     fn response(&self, output: String);
 
     fn failure(&self, id: usize, message: &str) {
+        // For now this is a catch-all for any error back to the consumer of the RLS
+        const METHOD_NOT_FOUND: i64 = -32601;
+
+        #[derive(Serialize)]
+        struct ResponseError {
+            code: i64,
+            message: String
+        }
+
+        #[derive(Serialize)]
+        struct ResponseFailure {
+            jsonrpc: String,
+            id: usize,
+            error: ResponseError,
+        }
+
         let rf = ResponseFailure {
             jsonrpc: "2.0".to_owned(),
             id: id,
@@ -380,6 +378,19 @@ pub trait Output {
             },
         };
         let output = serde_json::to_string(&rf).unwrap();
+        self.response(output);
+    }
+
+    // TODO gross that we have to take a String argument, but can't figure out
+    // a better way for now.
+    fn success(&self, id: usize, data: String) {
+        // {
+        //     jsonrpc: String,
+        //     id: usize,
+        //     result: String,
+        // }
+        let output = format!("{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{}}}", id, data);
+
         self.response(output);
     }
 

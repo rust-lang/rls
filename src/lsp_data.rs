@@ -252,28 +252,6 @@ pub struct TextEdit {
     pub newText: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ResponseSuccess<T>
-    where T: Debug + Serialize
-{
-    pub jsonrpc: String,
-    pub id: usize,
-    pub result: T,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ResponseError {
-    pub code: i64,
-    pub message: String
-}
-
-#[derive(Debug, Serialize)]
-pub struct ResponseFailure {
-    pub jsonrpc: String,
-    pub id: usize,
-    pub error: ResponseError,
-}
-
 #[derive(Debug)]
 pub enum Notification {
     CancelRequest(usize),
