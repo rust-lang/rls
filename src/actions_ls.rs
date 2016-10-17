@@ -10,8 +10,7 @@
 
 use analysis::{AnalysisHost, Span};
 use vfs::{Vfs, Change};
-use racer::core::complete_from_file;
-use racer::core;
+use racer::core::{self, find_definition, complete_from_file};
 use serde_json;
 
 use build::*;
@@ -179,10 +178,11 @@ impl ActionHandler {
 
     pub fn symbols(&self, id: usize, doc: DocumentSymbolParams, out: &Output) {
         let t = thread::current();
-        let file_name: String = doc.textDocument.uri.chars().skip("file://".len()).collect();
         let analysis = self.analysis.clone();
+    
         let rustw_handle = thread::spawn(move || {
-            let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
+            let file_name = doc.textDocument.file_name();
+            let symbols = analysis.symbols(file_name).unwrap_or(vec![]);
             t.unpark();
 
             symbols.into_iter().map(|s| {
@@ -201,18 +201,11 @@ impl ActionHandler {
     }
 
     pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
-        fn adjust_vscode_pos_for_racer(mut source: Position) -> Position {
-            source.line += 1;
-            source
-        }
-
         let vfs: &Vfs = &self.vfs;
-
-        let pos = adjust_vscode_pos_for_racer(params.position);
-        let fname: String = params.textDocument.uri.chars().skip("file://".len()).collect();
-        let file_path = &Path::new(&fname);
-
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
+            let pos = adjust_vscode_pos_for_racer(params.position);
+            let file_path = &Path::new(params.textDocument.file_name());
+
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
             for (path, txt) in vfs.get_cached_files() {
@@ -235,7 +228,7 @@ impl ActionHandler {
 
     pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(params.textDocument, params.position);
+        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
@@ -265,7 +258,7 @@ impl ActionHandler {
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(params.textDocument, params.position);
+        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
@@ -278,9 +271,7 @@ impl ActionHandler {
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
         let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
-        let refs: Vec<Location> = result.iter().map(|item| {
-            Location::from_span(&item)
-        }).collect();
+        let refs: Vec<_> = result.iter().map(|item| Location::from_span(&item)).collect();
 
         out.success(id, serde_json::to_string(&refs).unwrap());
     }
@@ -288,9 +279,11 @@ impl ActionHandler {
     pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         // Save-analysis thread.
         let t = thread::current();
-        let span = self.convert_pos_to_span(params.textDocument, params.position);
+        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
         let analysis = self.analysis.clone();
-        let results = thread::spawn(move || {
+        let vfs = self.vfs.clone();
+
+        let compiler_handle = thread::spawn(move || {
             let result = if let Ok(s) = analysis.goto_def(&span) {
                 vec![Location::from_span(&s)]
             } else {
@@ -301,25 +294,66 @@ impl ActionHandler {
 
             result
         });
+
+        // Racer thread.
+        let racer_handle = thread::spawn(move || {
+            let pos = adjust_vscode_pos_for_racer(params.position);
+            let file_path = &Path::new(params.textDocument.file_name());
+
+            let cache = core::FileCache::new();
+            let session = core::Session::from_path(&cache, file_path, file_path);
+            for (path, txt) in vfs.get_cached_files() {
+                session.cache_file_contents(&path, txt);
+            }
+
+            let src = session.load_file(file_path);
+
+            find_definition(&src.code,
+                            file_path,
+                            src.coords_to_point(pos.line, pos.character).unwrap(),
+                            &session)
+                .and_then(|mtch| {
+                    let source_path = &mtch.filepath;
+                    if mtch.point != 0 {
+                        let (line, col) = session.load_file(source_path)
+                                                 .point_to_coords(mtch.point)
+                                                 .unwrap();
+                        Some(Location::from_position(source_path.to_str().unwrap(),
+                                                     adjust_racer_line_for_vscode(line),
+                                                     col))
+                    } else {
+                        None
+                    }
+                })
+        });
+
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let results = results.join();
-        match results {
+        let compiler_result = compiler_handle.join();
+        match compiler_result {
             Ok(r) => {
                 self.logger.log(&format!("\nGOING TO: {:?}\n", r));
                 out.success(id, serde_json::to_string(&r).unwrap());
             }
-            Err(e) => {
-                self.logger.log(&format!("\nERROR IN GOTODEF: {:?}\n", e));
-                out.failure(id, "GotoDef failed to complete successfully");
+            Err(_) => {
+                self.logger.log("\nUsing Racer\n");
+                match racer_handle.join() {
+                    Ok(Some(r)) => {
+                        self.logger.log(&format!("\nGOING TO: {:?}\n", r));
+                        out.success(id, serde_json::to_string(&r).unwrap());
+                    }
+                    _ => {
+                        self.logger.log("\nError in Racer\n");
+                        out.failure(id, "GotoDef failed to complete successfully");                        
+                    }
+                }
             }
-        };
+        }
     }
 
     pub fn hover(&self, id: usize, params: HoverParams, out: &Output) {
         let t = thread::current();
-        self.logger.log(&format!("CREATING SPAN"));
-        let span = self.convert_pos_to_span(params.textDocument, params.position);
+        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
 
         self.logger.log(&format!("\nHovering span: {:?}\n", span));
 
@@ -358,8 +392,8 @@ impl ActionHandler {
         }
     }
 
-    fn convert_pos_to_span(&self, doc: Document, pos: Position) -> Span {
-        let fname: String = doc.uri.chars().skip("file://".len()).collect();
+    fn convert_pos_to_span(&self, doc: &Document, pos: &Position) -> Span {
+        let fname = doc.file_name();
         self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
         let line = self.vfs.load_line(Path::new(&fname), pos.line);
         self.logger.log(&format!("\nGOT LINE: {:?}", line));
@@ -388,11 +422,23 @@ impl ActionHandler {
         };
 
         Span {
-            file_name: fname,
+            file_name: fname.to_owned(),
             line_start: start_pos.line,
             column_start: start_pos.character,
             line_end: end_pos.line,
             column_end: end_pos.character,
         }
     }
+}
+
+fn adjust_vscode_pos_for_racer(mut source: Position) -> Position {
+    source.line += 1;
+    source
+}
+
+fn adjust_racer_line_for_vscode(mut line: usize) -> usize {
+    if line > 0 {
+        line -= 1;
+    }
+    line
 }

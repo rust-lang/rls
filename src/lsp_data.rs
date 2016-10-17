@@ -17,7 +17,7 @@ use serde::Serialize;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Position {
     pub line: usize,
-    pub character: usize
+    pub character: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -60,8 +60,24 @@ pub struct Location {
 impl Location {
     pub fn from_span(span: &Span) -> Location {
         Location {
-            uri: "file://".to_string() + &span.file_name,
+            uri: format!("file://{}", span.file_name),
             range: Range::from_span(span),
+        }
+    }
+
+    pub fn from_position(file_name: &str, line: usize, col: usize) -> Location {
+        Location {
+            uri: format!("file://{}", file_name),
+            range: Range {
+                start: Position {
+                    line: line,
+                    character: col,
+                },
+                end: Position {
+                    line: line,
+                    character: col,
+                },
+            },
         }
     }
 }
@@ -76,6 +92,12 @@ pub struct InitializeParams {
 #[derive(Debug, Deserialize)]
 pub struct Document {
     pub uri: String
+}
+
+impl Document {
+    pub fn file_name(&self) -> &str {
+        &self.uri["file://".len()..]
+    }
 }
 
 #[allow(non_snake_case)]
