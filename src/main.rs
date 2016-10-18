@@ -8,7 +8,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![feature(question_mark)]
 #![feature(rustc_private)]
 #![feature(proc_macro)]
 
