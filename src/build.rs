@@ -256,6 +256,7 @@ impl BuildQueue {
             cmd.arg("--aBogusArgument");
             cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                                   -Zcontinue-parse-after-error -Zno-trans");
+            cmd.env("CARGO_TARGET_DIR", "target/rls");
             cmd.current_dir(build_dir);
 
             let mut new_cmd_line = match cmd.output() {
