@@ -81,7 +81,12 @@ your path so VSCode can run it. See [ls.sh](ls.sh) for an example of how to run.
 This is basically legacy and will likely be removed at some point. However, some
 things may still work a bit better, and debugging can be easier.
 
-To use the http protocol you need to run the RLS yourself as described above.
+To use the http protocol you need to run the RLS yourself as described above, with the `--http` parameter.
+
+```
+SYS_ROOT=/usr/local cargo run -- --http
+```
+
 Then you can just open the extension in VSCode and run it (F5).
 
 It should all just work! You might need to make an edit and save before some of
