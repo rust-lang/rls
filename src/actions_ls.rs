@@ -258,7 +258,7 @@ impl ActionHandler {
             });
         }
 
-        out.success(id, ResponseData::Edit(WorkspaceEdit { changes: edits }));
+        out.success(id, ResponseData::WorkspaceEdit(WorkspaceEdit { changes: edits }));
     }
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
@@ -433,7 +433,7 @@ impl ActionHandler {
                     },
                     newText: text,
                 }];
-                out.success(id, serde_json::to_string(&result).unwrap())
+                out.success(id, ResponseData::TextEdit(result))
             }
             Err(e) => {
                 self.logger.log(&format!("Reformat failed: {:?}\n", e));

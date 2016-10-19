@@ -94,7 +94,8 @@ serializable_enum!(ResponseData,
     Init(InitializeCapabilities),
     SymbolInfo(Vec<SymbolInformation>),
     CompletionItems(Vec<CompletionItem>),
-    Edit(WorkspaceEdit),
+    WorkspaceEdit(WorkspaceEdit),
+    TextEdit([TextEdit; 1]),
     Locations(Vec<Location>),
     HoverSuccess(HoverSuccessContents)
 );
