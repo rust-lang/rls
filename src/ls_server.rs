@@ -16,6 +16,7 @@ use build::*;
 use lsp_data::*;
 use actions_ls::ActionHandler;
 
+use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -334,7 +335,7 @@ impl Logger {
         let log_file = OpenOptions::new().append(true)
                                          .write(true)
                                          .create(true)
-                                         .open("/tmp/rls_log.txt")
+                                         .open(env::temp_dir().join("rls_log.txt"))
                                          .expect("Couldn't open log file");
         Logger {
             log_file: Mutex::new(log_file),
