@@ -18,7 +18,7 @@ use serde_json;
 use build::*;
 use lsp_data::*;
 use ide::VscodeKind;
-use ls_server::{Output, Logger};
+use ls_server::{ResponseData, Output, Logger};
 
 use std::collections::HashMap;
 use std::panic;
@@ -203,7 +203,7 @@ impl ActionHandler {
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
         let result = rustw_handle.join().unwrap_or(vec![]);
-        out.success(id, serde_json::to_string(&result).unwrap());
+        out.success(id, ResponseData::SymbolInfo(result));
     }
 
     pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
@@ -229,7 +229,7 @@ impl ActionHandler {
             }).collect()
         }).unwrap_or(vec![]);
 
-        out.success(id, serde_json::to_string(&result).unwrap());
+        out.success(id, ResponseData::CompletionItems(result));
     }
 
     pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
@@ -258,7 +258,7 @@ impl ActionHandler {
             });
         }
 
-        out.success(id, serde_json::to_string(&WorkspaceEdit { changes: edits }).unwrap());
+        out.success(id, ResponseData::Edit(WorkspaceEdit { changes: edits }));
     }
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
@@ -278,7 +278,7 @@ impl ActionHandler {
         let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
         let refs: Vec<_> = result.iter().map(|item| Location::from_span(&item)).collect();
 
-        out.success(id, serde_json::to_string(&refs).unwrap());
+        out.success(id, ResponseData::Locations(refs));
     }
 
     pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
@@ -338,14 +338,14 @@ impl ActionHandler {
         match compiler_result {
             Ok(r) => {
                 self.logger.log(&format!("\nGOING TO: {:?}\n", r));
-                out.success(id, serde_json::to_string(&r).unwrap());
+                out.success(id, ResponseData::Locations(r));
             }
             Err(_) => {
                 self.logger.log("\nUsing Racer\n");
                 match racer_handle.join() {
                     Ok(Some(r)) => {
                         self.logger.log(&format!("\nGOING TO: {:?}\n", r));
-                        out.success(id, serde_json::to_string(&r).unwrap());
+                        out.success(id, ResponseData::Locations(vec![r]));
                     }
                     _ => {
                         self.logger.log("\nError in Racer\n");
@@ -389,7 +389,7 @@ impl ActionHandler {
         let result = rustw_handle.join();
         match result {
             Ok(r) => {
-                out.success(id, serde_json::to_string(&r).unwrap());
+                out.success(id, ResponseData::HoverSuccess(r));
             }
             Err(_) => {
                 out.failure(id, "Hover failed to complete successfully");

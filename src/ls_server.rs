@@ -17,6 +17,7 @@ use lsp_data::*;
 use actions_ls::ActionHandler;
 
 use std::env;
+use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -63,6 +64,40 @@ enum Notification {
     CancelRequest(usize),
     Change(ChangeParams),
 }
+
+/// Creates an public enum whose variants all contain a single serializable payload
+/// with an automatic json to_string implementation
+macro_rules! serializable_enum {
+    ($enum_name:ident, $($variant_name:ident($variant_type:ty)),*) => (
+
+        pub enum $enum_name {
+            $(
+                $variant_name($variant_type),
+            )*
+        }
+
+        impl fmt::Display for $enum_name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+                let value = match *self {
+                    $(
+                        $enum_name::$variant_name(ref value) => serde_json::to_string(value),
+                    )*
+                }.unwrap();
+
+                write!(f, "{}", value)
+            }
+        }
+    )
+}
+
+serializable_enum!(ResponseData,
+    Init(InitializeCapabilities),
+    SymbolInfo(Vec<SymbolInformation>),
+    CompletionItems(Vec<CompletionItem>),
+    Edit(WorkspaceEdit),
+    Locations(Vec<Location>),
+    HoverSuccess(HoverSuccessContents)
+);
 
 // FIXME(45) generate this function.
 fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
@@ -241,7 +276,7 @@ impl LsService {
                 renameProvider: true,
             }
         };
-        self.output.success(id, serde_json::to_string(&result).unwrap());
+        self.output.success(id, ResponseData::Init(result));
         self.handler.init(init.rootPath, &*self.output);
     }
 
@@ -286,7 +321,7 @@ impl LsService {
                         }
                         Method::CompleteResolve(params) => {
                             this.logger.log(&format!("command(complete): {:?}\n", params));
-                            this.output.success(id, serde_json::to_string(&params).unwrap())
+                            this.output.success(id, ResponseData::CompletionItems(vec![params]))
                         }
                         Method::Symbols(params) => {
                             this.logger.log(&format!("command(goto): {:?}\n", params));
@@ -439,9 +474,7 @@ pub trait Output {
         self.response(output);
     }
 
-    // FIXME(44) gross that we have to take a String argument, but can't figure out
-    // a better way for now.
-    fn success(&self, id: usize, data: String) {
+    fn success(&self, id: usize, data: ResponseData) {
         // {
         //     jsonrpc: String,
         //     id: usize,
