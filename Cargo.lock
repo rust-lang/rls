@@ -255,7 +255,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "rls-analysis"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-analysis#83a7c741b13d83785dcf44031e38504c8c7f0974"
+source = "git+https://github.com/nrc/rls-analysis#c7de77599daa7136c85f6c045c4998ff24a5fd5c"
 dependencies = [
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -266,7 +266,7 @@ dependencies = [
 [[package]]
 name = "rls-vfs"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-vfs#2a500e49c9ebe9395fe8841727d7c1ec2b23a5cf"
+source = "git+https://github.com/nrc/rls-vfs#5d27352e192279e81aca666b1817c5968a942878"
 dependencies = [
  "rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)",
  "serde 0.8.13 (registry+https://github.com/rust-lang/crates.io-index)",

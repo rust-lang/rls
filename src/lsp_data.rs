@@ -14,6 +14,16 @@ use std::fmt::Debug;
 use analysis::Span;
 use serde::Serialize;
 
+macro_rules! impl_file_name {
+    ($ty_name: ty) => {
+        impl $ty_name {
+            pub fn file_name(&self) -> &str {
+                &self.uri["file://".len()..]
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Position {
     pub line: usize,
@@ -94,11 +104,15 @@ pub struct Document {
     pub uri: String
 }
 
-impl Document {
-    pub fn file_name(&self) -> &str {
-        &self.uri["file://".len()..]
-    }
+impl_file_name!(Document);
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+pub struct TextDocumentIdentifier {
+    pub uri: String
 }
+
+impl_file_name!(TextDocumentIdentifier);
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
@@ -272,6 +286,28 @@ pub struct SignatureHelpOptions {
 // pub struct CodeLensOptions {
 //     pub resolveProvider: bool,
 // }
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+pub struct DocumentFormattingParams {
+    pub textDocument: TextDocumentIdentifier,
+    pub options: FormattingOptions,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+pub struct DocumentRangeFormattingParams {
+    pub textDocument: TextDocumentIdentifier,
+    pub range: Range,
+    pub options: FormattingOptions,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+pub struct FormattingOptions {
+    pub tabSize: u32,
+    pub insertSpaces: bool,
+}
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize)]

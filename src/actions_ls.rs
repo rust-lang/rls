@@ -11,6 +11,8 @@
 use analysis::{AnalysisHost, Span};
 use vfs::{Vfs, Change};
 use racer::core::{self, find_definition, complete_from_file};
+use rustfmt::{Input as FmtInput, format_input};
+use rustfmt::config::{self, WriteMode};
 use serde_json;
 
 use build::*;
@@ -166,6 +168,10 @@ impl ActionHandler {
 
         self.logger.log(&format!("CHANGES: {:?}", changes));
 
+        self.build_current_project(out);
+    }
+
+    fn build_current_project(&self, out: &Output) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
             current_project.clone()
@@ -246,9 +252,8 @@ impl ActionHandler {
 
         for item in result.iter() {
             let loc = Location::from_span(&item);
-            edits.entry(loc.uri.clone()).or_insert(vec![]);
-            edits.get_mut(&loc.uri).unwrap().push(TextEdit {
-                range: loc.range.clone(),
+            edits.entry(loc.uri).or_insert(vec![]).push(TextEdit {
+                range: loc.range,
                 newText: params.newName.clone(),
             });
         }
@@ -388,6 +393,51 @@ impl ActionHandler {
             }
             Err(_) => {
                 out.failure(id, "Hover failed to complete successfully");
+            }
+        }
+    }
+
+    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
+        self.logger.log(&format!("Reformat: {} {:?}\n", id, doc));
+
+        let path = &Path::new(doc.file_name());
+        let input = match self.vfs.load_file(path) {
+            Ok(s) => FmtInput::Text(s),
+            Err(e) => {
+                self.logger.log(&format!("Reformat failed: {:?}\n", e));
+                out.failure(id, "Reformat failed to complete successfully");
+                return;
+            }
+        };
+
+        let mut config = config::Config::default();
+        config.skip_children = true;
+        config.write_mode = WriteMode::Plain;
+
+        let mut buf = Vec::<u8>::new();
+        match format_input(input, &config, Some(&mut buf)) {
+            Ok(_) => {
+                // Note that we don't need to keep the VFS up to date, the client
+                // echos back the change to us.
+                let text = String::from_utf8(buf).unwrap();
+                let result = [TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: text.lines().count(),
+                            character: 0,
+                        },
+                    },
+                    newText: text,
+                }];
+                out.success(id, serde_json::to_string(&result).unwrap())
+            }
+            Err(e) => {
+                self.logger.log(&format!("Reformat failed: {:?}\n", e));
+                out.failure(id, "Reformat failed to complete successfully")
             }
         }
     }

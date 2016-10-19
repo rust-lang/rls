@@ -53,6 +53,8 @@ enum Method {
     Complete(TextDocumentPositionParams),
     CompleteResolve(CompletionItem),
     Rename(RenameParams),
+    Reformat(DocumentFormattingParams),
+    ReformatRange(DocumentRangeFormattingParams),
 }
 
 #[derive(Debug)]
@@ -133,6 +135,18 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
                     let method: RenameParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Rename(method)}))
+                }
+                "textDocument/formatting" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let params: DocumentFormattingParams =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::Reformat(params)}))
+                }
+                "textDocument/rangeFormatting" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let params: DocumentRangeFormattingParams =
+                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::ReformatRange(params)}))
                 }
                 "$/cancelRequest" => {
                     let params: CancelParams = serde_json::from_value(params.unwrap().to_owned())
@@ -249,6 +263,10 @@ impl LsService {
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
+                        Method::Initialize(init) => {
+                            this.logger.log(&format!("command(init): {:?}\n", init));
+                            this.init(id, init);
+                        }
                         Method::Shutdown => {
                             this.logger.log(&format!("shutting down...\n"));
                             this.shut_down.store(true, Ordering::SeqCst);
@@ -281,9 +299,16 @@ impl LsService {
                             this.logger.log(&format!("command(rename): {:?}\n", params));
                             this.handler.rename(id, params, &*this.output);
                         }
-                        Method::Initialize(init) => {
-                            this.logger.log(&format!("command(init): {:?}\n", init));
-                            this.init(id, init);
+                        Method::Reformat(params) => {
+                            // FIXME take account of options.
+                            this.logger.log(&format!("command(reformat): {:?}\n", params));
+                            this.handler.reformat(id, params.textDocument, &*this.output);
+                        }
+                        Method::ReformatRange(params) => {
+                            // FIXME reformats the whole file, not just a range.
+                            // FIXME take account of options.
+                            this.logger.log(&format!("command(reformat): {:?}\n", params));
+                            this.handler.reformat(id, params.textDocument, &*this.output);
                         }
                     }
                 }
