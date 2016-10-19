@@ -3,7 +3,7 @@
 **This project is in the early stages of development, it is not yet ready for real
 use. It will probably eat your laundry.**
 
-The RLS is provides a service that runs in the background, providing IDEs,
+The RLS provides a service that runs in the background, providing IDEs,
 editors, and other tools with information about Rust programs. It supports
 functionality such as 'goto definition', symbol search, reformatting, and code
 completion, and enables renaming and refactorings.
