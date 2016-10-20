@@ -289,11 +289,7 @@ impl ActionHandler {
         let vfs = self.vfs.clone();
 
         let compiler_handle = thread::spawn(move || {
-            let result = if let Ok(s) = analysis.goto_def(&span) {
-                vec![Location::from_span(&s)]
-            } else {
-                vec![]
-            };
+            let result = analysis.goto_def(&span);
 
             t.unpark();
 
@@ -336,11 +332,12 @@ impl ActionHandler {
 
         let compiler_result = compiler_handle.join();
         match compiler_result {
-            Ok(r) => {
-                self.logger.log(&format!("\nGOING TO: {:?}\n", r));
-                out.success(id, ResponseData::Locations(r));
+            Ok(Ok(r)) => {
+                let result = vec![Location::from_span(&r)];
+                self.logger.log(&format!("\nGOING TO: {:?}\n", result));
+                out.success(id, ResponseData::Locations(result));
             }
-            Err(_) => {
+            _ => {
                 self.logger.log("\nUsing Racer\n");
                 match racer_handle.join() {
                     Ok(Some(r)) => {
