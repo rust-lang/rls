@@ -45,6 +45,7 @@ struct Request {
 
 #[derive(Debug)]
 enum Method {
+    Exit,
     Shutdown,
     Initialize(InitializeParams),
     Hover(HoverParams),
@@ -73,6 +74,10 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
     if let Some(v) = ls_command.lookup("method") {
         if let Some(name) = v.as_str() {
             match name {
+                "exit" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::Exit }))
+                }
                 "shutdown" => {
                     let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Shutdown }))
@@ -181,6 +186,7 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
 
 pub struct LsService {
     logger: Arc<Logger>,
+    pending_shut_down: AtomicBool,
     shut_down: AtomicBool,
     msg_reader: Box<MessageReader + Sync + Send>,
     output: Box<Output + Sync + Send>,
@@ -203,6 +209,7 @@ impl LsService {
                -> Arc<LsService> {
         Arc::new(LsService {
             logger: logger.clone(),
+            pending_shut_down: AtomicBool::new(false),
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
             output: output,
@@ -245,6 +252,18 @@ impl LsService {
         self.handler.init(init.rootPath, &*self.output);
     }
 
+    fn shutdown(&self, id: usize) {
+        self.pending_shut_down.store(true, Ordering::SeqCst);
+        self.output.success(id, serde_json::to_string(&serde_json::Value::Null).unwrap());
+    }
+    fn exit(&self, id:usize) {
+        if !self.pending_shut_down.load(Ordering::SeqCst) {
+            // TODO Set exit code.
+            self.logger.log("Exit without shutting down first!");
+        }
+        self.shut_down.store(true, Ordering::SeqCst);
+    }
+
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
         let c = match this.msg_reader.read_message() {
             Some(c) => c,
@@ -253,8 +272,18 @@ impl LsService {
 
         let this = this.clone();
         thread::spawn(move || {
+            let parsed_message = parse_message(&c);
+            if this.pending_shut_down.load(Ordering::SeqCst) {
+                match parsed_message {
+                    Ok(ServerMessage::Request(Request{id:_, method: Method::Exit})) => {
+                    },
+                    _ => {
+                        this.logger.log("Request other than Exit while shutting down");
+                    }
+                }
+            }
             // FIXME(45) refactor to generate this match.
-            match parse_message(&c) {
+            match parsed_message {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
                     this.logger.log(&format!("request to cancel {}\n", id));
                 },
@@ -270,7 +299,11 @@ impl LsService {
                         }
                         Method::Shutdown => {
                             this.logger.log(&format!("shutting down...\n"));
-                            this.shut_down.store(true, Ordering::SeqCst);
+                            this.shutdown(id)
+                        }
+                        Method::Exit => {
+                            this.logger.log(&format!("Exiting...\n"));
+                            this.exit(id)
                         }
                         Method::Hover(params) => {
                             this.logger.log(&format!("command(hover): {:?}\n", params));
