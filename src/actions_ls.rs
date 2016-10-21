@@ -86,7 +86,11 @@ impl ActionHandler {
                             }
                             let mut diag = Diagnostic {
                                 range: Range::from_span(&method.spans[0]),
-                                severity: if method.level == "error" { 1 } else { 2 },
+                                severity: if method.level == "error" {
+                                    DiagnosticSeverity::Error
+                                } else {
+                                    DiagnosticSeverity::Warning
+                                },
                                 code: match method.code {
                                     Some(c) => c.code.clone(),
                                     None => String::new(),
@@ -118,17 +122,16 @@ impl ActionHandler {
                     // which had errors, but now don't. This instructs the IDE to clear
                     // errors for those files.
                     let results = self.previous_build_results.lock().unwrap();
-                    for k in results.keys() {
-                        notifications.push(NotificationMessage {
-                            jsonrpc: "2.0".into(),
-                            method: "textDocument/publishDiagnostics".to_string(),
-                            params: PublishDiagnosticsParams {
+                    for (k, v) in results.iter() {
+                        notifications.push(NotificationMessage::new(
+                            "textDocument/publishDiagnostics".to_string(),
+                            PublishDiagnosticsParams {
                                 uri: "file://".to_string() +
-                                        project_path + "/" +
-                                        k,
-                                diagnostics: results.get(k).unwrap().clone()
+                                    project_path + "/" +
+                                    k,
+                                diagnostics: v.clone()
                             }
-                        });
+                        ));
                     }
                 }
 

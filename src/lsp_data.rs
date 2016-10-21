@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use analysis::Span;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 
 macro_rules! impl_file_name {
     ($ty_name: ty) => {
@@ -24,15 +24,18 @@ macro_rules! impl_file_name {
     }
 }
 
+/// Position in a text document expressed as zero-based line and character offset.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Position {
     pub line: usize,
     pub character: usize,
 }
 
+/// A range in a text document expressed as (zero-based) start and end positions.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Range {
     pub start: Position,
+    /// End position is exclusive
     pub end: Position,
 }
 
@@ -61,6 +64,7 @@ impl Range {
     }
 }
 
+/// Represents a location inside a resource, such as a line inside a text file.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Location {
     pub uri: String,
@@ -92,6 +96,7 @@ impl Location {
     }
 }
 
+/// The initialize request is sent as the first request from the client to the server.
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 pub struct InitializeParams {
@@ -121,7 +126,8 @@ pub struct VersionedTextDocumentIdentifier {
     pub uri: String
 }
 
-// FIXME: range here is technically optional, but I don't know why
+/// An event describing a change to a text document. If range and rangeLength are omitted
+/// the new text is considered to be the full content of the document.
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 pub struct TextDocumentContentChangeEvent {
@@ -136,10 +142,12 @@ pub struct ReferenceContext {
     pub includeDeclaration: bool,
 }
 
+/// Represents information about programming constructs like variables, classes,
+/// interfaces etc.
 #[derive(Debug, Serialize)]
 pub struct SymbolInformation {
     pub name: String,
-    pub kind: u32,
+    pub kind: u32, // can be made to numeric enum
     pub location: Location,
 }
 
@@ -156,12 +164,30 @@ pub struct CompilerMessage {
     pub spans: Vec<Span>,
 }
 
+/// Represents a diagnostic, such as a compiler error or warning.
+/// Diagnostic objects are only valid in the scope of a resource.
 #[derive(Debug, Clone, Serialize)]
 pub struct Diagnostic {
     pub range: Range,
-    pub severity: u32,
+    pub severity: DiagnosticSeverity,
     pub code: String,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DiagnosticSeverity {
+    Error = 1,
+    Warning = 2,
+//    Information = 3,
+//    Hint = 4
+}
+
+impl Serialize for DiagnosticSeverity {
+    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_u8(*self as u8)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -170,15 +196,27 @@ pub struct PublishDiagnosticsParams {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// An event-like (no response needed) notification message.
 #[derive(Debug, Serialize)]
 pub struct NotificationMessage<T>
     where T: Debug + Serialize
 {
-    pub jsonrpc: String,
+    jsonrpc: &'static str,
     pub method: String,
     pub params: T,
 }
 
+impl <T> NotificationMessage<T> where T: Debug + Serialize {
+    pub fn new(method: String, params: T) -> Self {
+        NotificationMessage {
+            jsonrpc: "2.0",
+            method: method,
+            params: params
+        }
+    }
+}
+
+/// A workspace edit represents changes to many resources managed in the workspace.
 #[derive(Debug, Serialize)]
 pub struct WorkspaceEdit {
     pub changes: HashMap<String, Vec<TextEdit>>,
@@ -232,10 +270,14 @@ pub struct CancelParams {
     pub id: usize
 }
 
+/// Defines how the host (editor) should sync document changes to the language server.
 #[derive(Debug, Serialize)]
 pub enum DocumentSyncKind {
     // None = 0,
+    /// Documents are synced by always sending the full content of the document.
     // Full = 1,
+    /// Documents are synced by sending the full content on open. After that only incremental
+    /// updates to the document are sent.
     Incremental = 2,
 }
 
@@ -271,6 +313,7 @@ pub struct TextEdit {
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize)]
 pub struct CompletionOptions {
+    /// The server provides support to resolve additional information for a completion item.
     pub resolveProvider: bool,
     pub triggerCharacters: Vec<String>,
 }

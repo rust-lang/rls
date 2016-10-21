@@ -458,13 +458,13 @@ pub trait Output {
 
         #[derive(Serialize)]
         struct ResponseFailure {
-            jsonrpc: String,
+            jsonrpc: &'static str,
             id: usize,
             error: ResponseError,
         }
 
         let rf = ResponseFailure {
-            jsonrpc: "2.0".to_owned(),
+            jsonrpc: "2.0",
             id: id,
             error: ResponseError {
                 code: METHOD_NOT_FOUND,
@@ -487,11 +487,9 @@ pub trait Output {
     }
 
     fn notify(&self, message: &str) {
-        let output = serde_json::to_string(&NotificationMessage {
-            jsonrpc: "2.0".to_owned(),
-            method: message.to_owned(),
-            params: (),
-        }).unwrap();
+        let output = serde_json::to_string(
+            &NotificationMessage::new(message.to_owned(), ())
+        ).unwrap();
         self.response(output);
     }
 }
