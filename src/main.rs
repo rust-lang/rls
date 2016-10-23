@@ -23,6 +23,7 @@ extern crate serde_derive;
 extern crate derive_new;
 extern crate racer;
 extern crate rustfmt;
+extern crate libc;
 
 use std::sync::Arc;
 
