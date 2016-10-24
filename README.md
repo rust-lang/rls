@@ -35,19 +35,14 @@ Use `cargo build` to build.
 
 ## Running
 
-To run the RLS, you need to specify the sysroot as an environment variable (this
+To run the RLS, you need to specify the SYS_ROOT as an environment variable (this
 should become unnecessary in the future). This is the route directory of your
 Rust installation. You can find the sysroot with `rustc --print sysroot`.
-
-If you have installed Rust directly it will probably be `/usr/local`; if you are using
-a home-made compiler, it will be something like `~/rust/x86_64-unknown-linux-gnu/stage2`;
-with Rustup it will change depending on the version of Rust being used, it
-should be something like `~/multirust/toolchain/nightly-x86_64-unknown-linux-gnu`.
 
 Run with:
 
 ```
-SYS_ROOT=/usr/local cargo run
+SYS_ROOT=$(rustc --print sysroot) cargo run
 ```
 
 To work with the RLS, your project must be buildable using `cargo build`. If you
@@ -84,7 +79,7 @@ things may still work a bit better, and debugging can be easier.
 To use the http protocol you need to run the RLS yourself as described above, with the `--http` parameter.
 
 ```
-SYS_ROOT=/usr/local cargo run -- --http
+SYS_ROOT=$(rustc --print sysroot) cargo run -- --http
 ```
 
 Then you can just open the extension in VSCode and run it (F5).
