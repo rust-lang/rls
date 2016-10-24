@@ -104,7 +104,6 @@ impl MyService {
     pub fn handle_action(&self, action: &str, body: &[u8]) -> Vec<u8> {
         if action == "/complete" {
             if let Ok(input) = Input::from_bytes(body) {
-                // FIXME(#23) how do we get the changed files in memory to Racer?
                 println!("Completion for: {:?}", input.pos);
                 self.complete(input.pos, self.analysis.clone())
             } else {
