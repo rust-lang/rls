@@ -9,9 +9,10 @@
 // except according to those terms.
 
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use analysis::Span;
+use serde::{de, Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 macro_rules! impl_file_name {
@@ -21,6 +22,51 @@ macro_rules! impl_file_name {
                 &self.uri["file://".len()..]
             }
         }
+    }
+}
+
+
+/// The request identifier send by a client can be either a number or a string
+#[derive(Clone, Debug)]
+pub enum Id {
+    Number(usize),
+    String(String)
+}
+
+impl Serialize for Id {
+    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
+        match *self {
+            Id::Number(num) => serializer.serialize_usize(num),
+            Id::String(ref string) => serializer.serialize_str(string)
+        }
+    }
+}
+
+impl fmt::Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Id::Number(value) => write!(f, "{}", value),
+            Id::String(ref value) => write!(f, "\"{}\"", value)
+        }
+    }
+}
+
+impl Deserialize for Id {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Id, D::Error> where D: Deserializer {
+        struct IdVisitor;
+        impl de::Visitor for IdVisitor {
+            type Value = Id;
+
+            fn visit_u64<E>(&mut self, value: u64) -> Result<Id, E> where E: de::Error {
+                Ok(Id::Number(value as usize))
+            }
+
+            fn visit_str<E>(&mut self, value: &str) -> Result<Id, E> where E: de::Error {
+                Ok(Id::String(value.to_string()))
+            }
+        }
+
+        deserializer.deserialize(IdVisitor)
     }
 }
 
@@ -267,7 +313,7 @@ pub struct DocumentSymbolParams {
 
 #[derive(Debug, Deserialize)]
 pub struct CancelParams {
-    pub id: usize
+    pub id: Id
 }
 
 /// Defines how the host (editor) should sync document changes to the language server.

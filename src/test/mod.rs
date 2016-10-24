@@ -92,7 +92,7 @@ fn test_simple_goto_def_ls() {
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(Id::String("1000".to_string()))).expect_contains("capabilities"),
                                        &ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        &ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -100,7 +100,7 @@ fn test_simple_goto_def_ls() {
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
     // TODO structural checking of result, rather than looking for a string - src("src/main.rs", 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(Id::Number(1001))).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
 }
 
 // Initialise and run the internals of an RLS server.
@@ -161,12 +161,14 @@ impl ls_server::MessageReader for MockMsgReader {
             return None;
         }
 
+        let id = get_request_id();
+
         let message = &self.messages[self.cur.load(Ordering::SeqCst)];
         self.cur.fetch_add(1, Ordering::SeqCst);
 
         let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
         // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
-        let result = format!("{{\"method\":\"{}\",\"id\":42,\"params\":{{{}}}}}", message.method, params);
+        let result = format!("{{\"method\":\"{}\",\"id\":{},\"params\":{{{}}}}}", message.method, id, params);
         // println!("read_message: `{}`", result);
 
         Some(result)
@@ -202,14 +204,20 @@ fn init_env(project_dir: &str) {
     env::set_current_dir(cwd).expect(FAIL_MSG);
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum Id {
+    Number(u64),
+    String(String)
+}
+
 #[derive(Clone, Debug)]
 struct ExpectedMessage {
-    id: Option<u64>,
+    id: Option<Id>,
     contains: Vec<String>,
 }
 
 impl ExpectedMessage {
-    fn new(id: Option<u64>) -> ExpectedMessage {
+    fn new(id: Option<Id>) -> ExpectedMessage {
         ExpectedMessage {
             id: id,
             contains: vec![],
@@ -230,8 +238,15 @@ fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     for (found, expected) in results.iter().zip(expected.iter()) {
         let values: serde_json::Value = serde_json::from_str(found).unwrap();
         assert!(values.lookup("jsonrpc").expect("Missing jsonrpc field").as_str().unwrap() == "2.0", "Bad jsonrpc field");
-        if let Some(id) = expected.id {
-            assert_eq!(values.lookup("id").expect("Missing id field").as_u64().unwrap(), id, "Unexpected id");
+        if let Some(ref id) = expected.id {
+            let found_id = values.lookup("id").expect("Missing id field");
+            let found_id = match *found_id {
+                serde_json::Value::U64(num) => Id::Number(num),
+                serde_json::Value::String(ref string) => Id::String(string.clone()),
+                _ => panic!()
+            };
+
+            assert_eq!(found_id, *id, "Unexpected id");
         }
         for c in expected.contains.iter() {
             found.find(c).expect(&format!("Could not find `{}` in `{}`", c, found));
@@ -277,5 +292,23 @@ impl CwdRestorer {
 impl Drop for CwdRestorer {
     fn drop(&mut self) {
         env::set_current_dir(self.old.clone()).expect(FAIL_MSG);
+    }
+}
+
+
+static mut last_mocked_id: u64 = 1000;
+
+// alternate between stringy values and numeric values, since we must support both
+fn get_request_id() -> String {
+    unsafe {
+        let id_to_use = if last_mocked_id % 2 == 0 {
+            format!("\"{}\"", last_mocked_id)
+        } else {
+            last_mocked_id.to_string()
+        };
+
+        last_mocked_id += 1;
+
+        id_to_use
     }
 }

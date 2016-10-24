@@ -185,7 +185,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn symbols(&self, id: usize, doc: DocumentSymbolParams, out: &Output) {
+    pub fn symbols(&self, id: Id, doc: DocumentSymbolParams, out: &Output) {
         let t = thread::current();
         let analysis = self.analysis.clone();
     
@@ -209,7 +209,7 @@ impl ActionHandler {
         out.success(id, ResponseData::SymbolInfo(result));
     }
 
-    pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn complete(&self, id: Id, params: TextDocumentPositionParams, out: &Output) {
         let vfs: &Vfs = &self.vfs;
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let pos = adjust_vscode_pos_for_racer(params.position);
@@ -235,7 +235,7 @@ impl ActionHandler {
         out.success(id, ResponseData::CompletionItems(result));
     }
 
-    pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
+    pub fn rename(&self, id: Id, params: RenameParams, out: &Output) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.textDocument, &params.position);
         let analysis = self.analysis.clone();
@@ -264,7 +264,7 @@ impl ActionHandler {
         out.success(id, ResponseData::WorkspaceEdit(WorkspaceEdit { changes: edits }));
     }
 
-    pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
+    pub fn find_all_refs(&self, id: Id, params: ReferenceParams, out: &Output) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.textDocument, &params.position);
         let analysis = self.analysis.clone();
@@ -284,7 +284,7 @@ impl ActionHandler {
         out.success(id, ResponseData::Locations(refs));
     }
 
-    pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn goto_def(&self, id: Id, params: TextDocumentPositionParams, out: &Output) {
         // Save-analysis thread.
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.textDocument, &params.position);
@@ -356,7 +356,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn hover(&self, id: usize, params: HoverParams, out: &Output) {
+    pub fn hover(&self, id: Id, params: HoverParams, out: &Output) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.textDocument, &params.position);
 
@@ -397,7 +397,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
+    pub fn reformat(&self, id: Id, doc: TextDocumentIdentifier, out: &Output) {
         self.logger.log(&format!("Reformat: {} {:?}\n", id, doc));
 
         let path = &Path::new(doc.file_name());

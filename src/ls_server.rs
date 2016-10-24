@@ -17,7 +17,6 @@ use lsp_data::*;
 use actions_ls::ActionHandler;
 
 use std::env;
-use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
@@ -29,7 +28,7 @@ use std::thread;
 struct ParseError {
     kind: ErrorKind,
     message: &'static str,
-    id: Option<usize>,
+    id: Option<Id>,
 }
 
 #[derive(Debug)]
@@ -40,7 +39,7 @@ enum ServerMessage {
 
 #[derive(Debug)]
 struct Request {
-    id: usize,
+    id: Id,
     method: Method
 }
 
@@ -61,12 +60,12 @@ enum Method {
 
 #[derive(Debug)]
 enum Notification {
-    CancelRequest(usize),
+    CancelRequest(Id),
     Change(ChangeParams),
 }
 
 /// Creates an public enum whose variants all contain a single serializable payload
-/// with an automatic json to_string implementation
+/// with an automatic json serialization implementation
 macro_rules! serializable_enum {
     ($enum_name:ident, $($variant_name:ident($variant_type:ty)),*) => (
 
@@ -76,15 +75,14 @@ macro_rules! serializable_enum {
             )*
         }
 
-        impl fmt::Display for $enum_name {
-            fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-                let value = match *self {
+        use serde::{Serialize, Serializer};
+        impl Serialize for $enum_name {
+            fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
+                match *self {
                     $(
-                        $enum_name::$variant_name(ref value) => serde_json::to_string(value),
+                        $enum_name::$variant_name(ref value) => value.serialize(serializer),
                     )*
-                }.unwrap();
-
-                write!(f, "{}", value)
+                }
             }
         }
     )
@@ -110,17 +108,17 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
         if let Some(name) = v.as_str() {
             match name {
                 "shutdown" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Shutdown }))
                 }
                 "initialize" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: InitializeParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Initialize(method)}))
                 }
                 "textDocument/hover" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: HoverParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Hover(method)}))
@@ -135,19 +133,19 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
                     Err(ParseError::new(ErrorKind::InvalidData, "didOpen", None))
                 }
                 "textDocument/definition" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: TextDocumentPositionParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::GotoDef(method)}))
                 }
                 "textDocument/references" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: ReferenceParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::FindAllRef(method)}))
                 }
                 "textDocument/completion" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: TextDocumentPositionParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Complete(method)}))
@@ -156,31 +154,31 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
                     // currently, we safely ignore this as a pass-through since we fully handle
                     // textDocument/completion.  In the future, we may want to use this method as a
                     // way to more lazily fill out completion information
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: CompletionItem =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::CompleteResolve(method)}))
                 }
                 "textDocument/documentSymbol" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: DocumentSymbolParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Symbols(method)}))
                 }
                 "textDocument/rename" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let method: RenameParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Rename(method)}))
                 }
                 "textDocument/formatting" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let params: DocumentFormattingParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Reformat(params)}))
                 }
                 "textDocument/rangeFormatting" => {
-                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    let id: Id = serde_json::from_value(ls_command.lookup("id").unwrap().clone()).unwrap();
                     let params: DocumentRangeFormattingParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::ReformatRange(params)}))
@@ -199,18 +197,18 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
                     Err(ParseError::new(ErrorKind::InvalidData, "didChangeConfiguration", None))
                 }
                 _ => {
-                    let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize);
+                    let id: Option<Id> = ls_command.lookup("id").map(|id| serde_json::from_value(id.clone()).unwrap());
                     Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", id))
                 }
             }
         }
         else {
-            let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize);
+            let id: Option<Id> = ls_command.lookup("id").map(|id| serde_json::from_value(id.clone()).unwrap());
             Err(ParseError::new(ErrorKind::InvalidData, "Method is not a string", id))
         }
     }
     else {
-        let id = ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize);
+        let id: Option<Id> = ls_command.lookup("id").map(|id| serde_json::from_value(id.clone()).unwrap());
         Err(ParseError::new(ErrorKind::InvalidData, "Method not found", id))
     }
 }
@@ -250,7 +248,7 @@ impl LsService {
         while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
-    fn init(&self, id: usize, init: InitializeParams) {
+    fn init(&self, id: Id, init: InitializeParams) {
         let result = InitializeCapabilities {
             capabilities: ServerCapabilities {
                 textDocumentSync: DocumentSyncKind::Incremental as usize,
@@ -446,7 +444,7 @@ impl MessageReader for StdioMsgReader {
 pub trait Output {
     fn response(&self, output: String);
 
-    fn failure(&self, id: usize, message: &str) {
+    fn failure(&self, id: Id, message: &str) {
         // For now this is a catch-all for any error back to the consumer of the RLS
         const METHOD_NOT_FOUND: i64 = -32601;
 
@@ -459,7 +457,7 @@ pub trait Output {
         #[derive(Serialize)]
         struct ResponseFailure {
             jsonrpc: &'static str,
-            id: usize,
+            id: Id,
             error: ResponseError,
         }
 
@@ -475,13 +473,21 @@ pub trait Output {
         self.response(output);
     }
 
-    fn success(&self, id: usize, data: ResponseData) {
-        // {
-        //     jsonrpc: String,
-        //     id: usize,
-        //     result: String,
-        // }
-        let output = format!("{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{}}}", id, data);
+    fn success(&self, id: Id, data: ResponseData) {
+        #[derive(Serialize)]
+        struct ResponseSuccess {
+            jsonrpc: &'static str,
+            id: Id,
+            result: ResponseData,
+        }
+
+        let success = ResponseSuccess {
+            jsonrpc: "2.0",
+            id: id,
+            result: data
+        };
+
+        let output = serde_json::to_string(&success).unwrap();
 
         self.response(output);
     }
