@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader};
 
 use actions_http::Position;
@@ -20,13 +20,13 @@ use serde_json;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Src<'a, 'b> {
-    pub file_name: &'a str,
+    pub file_name: &'a Path,
     // 1 indexed
     pub line: usize,
     pub name: &'b str,
 }
 
-pub fn src<'a, 'b>(file_name: &'a str, line: usize, name: &'b str) -> Src<'a, 'b> {
+pub fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, 'b> {
     Src {
         file_name: file_name,
         line: line,
@@ -35,12 +35,12 @@ pub fn src<'a, 'b>(file_name: &'a str, line: usize, name: &'b str) -> Src<'a, 'b
 }
 
 pub struct Cache {
-    base_path: String,
-    files: HashMap<String, Vec<String>>,
+    base_path: PathBuf,
+    files: HashMap<PathBuf, Vec<String>>,
 }
 
 impl Cache {
-    pub fn new(base_path: &str) -> Cache {
+    pub fn new(base_path: &Path) -> Cache {
         Cache {
             base_path: base_path.to_owned(),
             files: HashMap::new(),
@@ -75,12 +75,16 @@ impl Cache {
         format!("{{\"line\":\"{}\",\"character\":\"{}\"}}", src.line - 1, char_of_byte_index(&line, col))
     }
 
-    pub fn abs_path(&self, file_name: &str) -> String {
-        Path::new(&format!("{}/{}", self.base_path, file_name)).canonicalize()
-                                                               .expect("Couldn't canonocalise path")
-                                                               .to_str()
-                                                               .unwrap()
-                                                               .to_owned()
+    pub fn abs_path(&self, file_name: &Path) -> PathBuf {
+        let result = self.base_path.join(file_name).canonicalize().expect("Couldn't canonicalise path");
+        let result = if cfg!(windows) {
+            // FIXME: If the \\?\ prefix is not stripped from the canonical path, the HTTP server tests fail. Why?
+            let result_string = result.to_str().expect("Path contains non-utf8 characters.");
+            PathBuf::from(&result_string[r"\\?\".len()..])
+        } else {
+            result
+        };
+        result
     }
 
     pub fn mk_input(&mut self, src: Src) -> Vec<u8> {
@@ -93,9 +97,9 @@ impl Cache {
         s.as_bytes().to_vec()
     }
 
-    pub fn mk_save_input(&self, file_name: &str) -> Vec<u8> {
+    pub fn mk_save_input(&self, file_name: &Path) -> Vec<u8> {
         let input = SaveInput {
-            project_path: self.abs_path("."),
+            project_path: self.abs_path(Path::new(".")),
             saved_file: file_name.to_owned(),
         };
         let s = serde_json::to_string(&input).unwrap();
@@ -106,8 +110,8 @@ impl Cache {
     fn get_line(&mut self, src: Src) -> String {
         let base_path = &self.base_path;
         let lines = self.files.entry(src.file_name.to_owned()).or_insert_with(|| {
-            let file_name = &format!("{}/{}", base_path, src.file_name);
-            let file = File::open(file_name).expect(&format!("Couldn't find file: {}", file_name));
+            let file_name = &base_path.join(src.file_name);
+            let file = File::open(file_name).expect(&format!("Couldn't find file: {:?}", file_name));
             let lines = BufReader::new(file).lines();
             lines.collect::<Result<Vec<_>, _>>().unwrap()
         });

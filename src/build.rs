@@ -50,7 +50,7 @@ use std::time::Duration;
 /// of success or failure. If the build was not run, the result indicates that
 /// it was squashed.
 pub struct BuildQueue {
-    build_dir: Mutex<Option<String>>,
+    build_dir: Mutex<Option<PathBuf>>,
     cmd_line: Mutex<Option<String>>,
     // True if a build is running.
     // Note I have been conservative with Ordering when accessing this atomic,
@@ -102,7 +102,7 @@ impl BuildQueue {
         }
     }
 
-    pub fn request_build(&self, build_dir: &str, priority: BuildPriority) -> BuildResult {
+    pub fn request_build(&self, build_dir: &Path, priority: BuildPriority) -> BuildResult {
         //println!("request_build, {} {:?}", build_dir, priority);
         // If there is a change in the project directory, then we can forget any
         // pending build and start straight with this new build.
@@ -256,7 +256,7 @@ impl BuildQueue {
             cmd.arg("--aBogusArgument");
             cmd.env("RUSTFLAGS", "-Zunstable-options -Zsave-analysis --error-format=json \
                                   -Zcontinue-parse-after-error -Zno-trans");
-            cmd.env("CARGO_TARGET_DIR", "target/rls");
+            cmd.env("CARGO_TARGET_DIR", &Path::new("target").join("rls"));
             cmd.current_dir(build_dir);
 
             let mut new_cmd_line = match cmd.output() {
@@ -294,7 +294,7 @@ impl BuildQueue {
     }
 
     // Runs a single instance of rustc. Runs in-process.
-    fn rustc(&self, cmd_line: &str, build_dir: &str) -> BuildResult {
+    fn rustc(&self, cmd_line: &str, build_dir: &Path) -> BuildResult {
         //println!("cmd_line: `{}`", cmd_line);
 
         let args: Vec<String> = cmd_line.split(' ').map(|s| s.to_owned()).collect();
