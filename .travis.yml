@@ -6,3 +6,6 @@ os:
   - osx
 rust:
   - nightly
+script:
+  - cargo build --verbose
+  - SYS_ROOT=$(rustc --print sysroot) RUST_TEST_THREADS=1 cargo test --verbose
