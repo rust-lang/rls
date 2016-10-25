@@ -51,7 +51,7 @@ use std::time::Duration;
 /// it was squashed.
 pub struct BuildQueue {
     build_dir: Mutex<Option<PathBuf>>,
-    cmd_line: Mutex<Option<String>>,
+    cmd_line_args: Mutex<Option<Vec<String>>>,
     // True if a build is running.
     // Note I have been conservative with Ordering when accessing this atomic,
     // we might be able to do better.
@@ -95,7 +95,7 @@ impl BuildQueue {
     pub fn new(vfs: Arc<Vfs>) -> BuildQueue {
         BuildQueue {
             build_dir: Mutex::new(None),
-            cmd_line: Mutex::new(None),
+            cmd_line_args: Mutex::new(None),
             running: AtomicBool::new(false),
             pending: Mutex::new(vec![]),
             vfs: vfs,
@@ -119,8 +119,8 @@ impl BuildQueue {
                 *prev_build_dir = Some(build_dir.to_owned());
                 self.cancel_pending();
 
-                let mut cmd_line = self.cmd_line.lock().unwrap();
-                *cmd_line = None;
+                let mut cmd_line_args = self.cmd_line_args.lock().unwrap();
+                *cmd_line_args = None;
             }
         }
 
@@ -239,11 +239,11 @@ impl BuildQueue {
         // they might be editing a dependent crate and so we blow away the cached
         // command line and run Cargo on the next build.
 
-        let mut cmd_line = self.cmd_line.lock().unwrap();
+        let mut cmd_line_args = self.cmd_line_args.lock().unwrap();
         let build_dir = &self.build_dir.lock().unwrap();
         let build_dir = build_dir.as_ref().unwrap();
 
-        if cmd_line.is_none() {
+        if cmd_line_args.is_none() {
             let mut cmd = Command::new("cargo");
             // Using rustc rather than build means we can set flags which are
             // used only on the last crate.
@@ -259,17 +259,58 @@ impl BuildQueue {
             cmd.env("CARGO_TARGET_DIR", &Path::new("target").join("rls"));
             cmd.current_dir(build_dir);
 
-            let mut new_cmd_line = match cmd.output() {
+            let new_cmd_line_args = match cmd.output() {
                 Ok(output) => {
                     let out = String::from_utf8(output.stderr).unwrap();
                     // println!("output: `{}`", out);
                     let exit_str = "     Running `";
+
                     match out.rfind(exit_str) {
                         Some(i) => {
                             let remaining = &out[i + exit_str.len() ..];
                             let end = remaining.find('`').unwrap();
-                            remaining[..end].to_owned()
+                            let remaining = &remaining[..end];
+                            let split = remaining.split(' ');
+
+                            let mut result = vec![];
+                            let mut in_quoted_arg = false;
+
+                            for element in split {
+                                assert!(!element.is_empty());
+
+                                if in_quoted_arg {
+                                    let last = result.last_mut().unwrap();
+                                    *last += " ";
+                                    if element.chars().rev().next().unwrap() == '"' {
+                                        *last += &element[..(element.len() - 1)];
+                                        in_quoted_arg = false;
+                                    }
+                                    else {
+                                        *last += element;
+                                    }
+                                }
+                                else {
+                                    if element.chars().next().unwrap() == '"' {
+                                        in_quoted_arg = true;
+                                        result.push(element[1..].into());
+                                    }
+                                    else {
+                                        result.push(element.into());
+                                    }
+                                }
+                            }
+
+                            assert!(!in_quoted_arg);
+
+                            result.retain(|el| { el != "--aBogusArgument" });
+
+                            result.push("--sysroot".into());
+                            let sysroot = env::var("SYS_ROOT").expect("No SYS_ROOT env var given");
+                            result.push(sysroot.into());
+
+                            result
                         }
+
                         None => {
                             // println!("Couldn't parse stderr: `{}`", out);
                             return BuildResult::Err;
@@ -282,22 +323,16 @@ impl BuildQueue {
                 }
             };
 
-            new_cmd_line = new_cmd_line.replace("--aBogusArgument ", "");
-
-            let sysroot = env::var("SYS_ROOT").expect("No SYS_ROOT env var given");
-            new_cmd_line.push_str(&format!(" --sysroot {}", sysroot));
-
-            *cmd_line = Some(new_cmd_line);
+            *cmd_line_args = Some(new_cmd_line_args);
         }
 
-        self.rustc(cmd_line.as_ref().unwrap(), build_dir)
+        self.rustc(cmd_line_args.as_ref().unwrap().clone(), build_dir)
     }
 
     // Runs a single instance of rustc. Runs in-process.
-    fn rustc(&self, cmd_line: &str, build_dir: &Path) -> BuildResult {
-        //println!("cmd_line: `{}`", cmd_line);
+    fn rustc(&self, args: Vec<String>, build_dir: &Path) -> BuildResult {
+        //println!("args: `{:?}`", args);
 
-        let args: Vec<String> = cmd_line.split(' ').map(|s| s.to_owned()).collect();
         let changed = self.vfs.get_cached_files();
 
         let _pwd = WorkingDir::push(&Path::new(build_dir));
