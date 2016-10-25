@@ -46,6 +46,7 @@ struct Request {
 
 #[derive(Debug)]
 enum Method {
+    Exit,
     Shutdown,
     Initialize(InitializeParams),
     Hover(HoverParams),
@@ -109,6 +110,10 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
     if let Some(v) = ls_command.lookup("method") {
         if let Some(name) = v.as_str() {
             match name {
+                "exit" => {
+                    let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                    Ok(ServerMessage::Request(Request{id: id, method: Method::Exit }))
+                }
                 "shutdown" => {
                     let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Shutdown }))
@@ -217,6 +222,7 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
 
 pub struct LsService {
     logger: Arc<Logger>,
+    pending_shut_down: AtomicBool,
     shut_down: AtomicBool,
     msg_reader: Box<MessageReader + Sync + Send>,
     output: Box<Output + Sync + Send>,
@@ -239,6 +245,7 @@ impl LsService {
                -> Arc<LsService> {
         Arc::new(LsService {
             logger: logger.clone(),
+            pending_shut_down: AtomicBool::new(false),
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
             output: output,
@@ -281,16 +288,35 @@ impl LsService {
         self.handler.init(init.rootPath, &*self.output);
     }
 
+    fn shutdown(&self, id: usize) {
+        self.pending_shut_down.store(true, Ordering::SeqCst);
+        self.output.success(id, serde_json::to_string(&serde_json::Value::Null).unwrap());
+    }
+    fn exit(&self, _id:usize) {
+        if !self.pending_shut_down.load(Ordering::SeqCst) {
+            // TODO Set exit code.
+            self.logger.log("Exit without shutting down first!");
+        }
+        self.shut_down.store(true, Ordering::SeqCst);
+        ::std::sync::atomic::fence(Ordering::SeqCst);
+        // TODO Do this in a portable manner.
+        use libc;
+        unsafe {
+            libc::close(libc::STDIN_FILENO);
+        }
+    }
+
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
-        let c = match this.msg_reader.read_message() {
+        let c = match this.msg_reader.read_message(&*this) {
             Some(c) => c,
             None => return ServerStateChange::Break,
         };
 
         let this = this.clone();
         thread::spawn(move || {
+            let parsed_message = parse_message(&c);
             // FIXME(45) refactor to generate this match.
-            match parse_message(&c) {
+            match parsed_message {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
                     this.logger.log(&format!("request to cancel {}\n", id));
                 },
@@ -306,7 +332,11 @@ impl LsService {
                         }
                         Method::Shutdown => {
                             this.logger.log(&format!("shutting down...\n"));
-                            this.shut_down.store(true, Ordering::SeqCst);
+                            this.shutdown(id)
+                        }
+                        Method::Exit => {
+                            this.logger.log(&format!("Exiting...\n"));
+                            this.exit(id)
                         }
                         Method::Hover(params) => {
                             this.logger.log(&format!("command(hover): {:?}\n", params));
@@ -387,7 +417,7 @@ impl Logger {
 }
 
 pub trait MessageReader {
-    fn read_message(&self) -> Option<String>;
+    fn read_message(&self, &LsService) -> Option<String>;
 }
 
 struct StdioMsgReader {
@@ -395,7 +425,7 @@ struct StdioMsgReader {
 }
 
 impl MessageReader for StdioMsgReader {
-    fn read_message(&self) -> Option<String> {
+    fn read_message(&self, ls_service: &LsService) -> Option<String> {
         macro_rules! handle_err {
             ($e: expr, $s: expr) => {
                 match $e {
@@ -411,6 +441,14 @@ impl MessageReader for StdioMsgReader {
         // Read in the "Content-length: xx" part
         let mut buffer = String::new();
         handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
+
+        if buffer.len() == 0 && ls_service.shut_down.load(Ordering::SeqCst) {
+            self.logger.log("Expected and got empty header when shutting down\n");
+            return None;
+        } else if ls_service.shut_down.load(Ordering::SeqCst) {
+            self.logger.log("Got non-empty header when shutting down\n");
+            return None;
+        }
 
         let res: Vec<&str> = buffer.split(" ").collect();
 
