@@ -28,7 +28,9 @@ for [Visual Studio Code](https://code.visualstudio.com/).
 ## Building
 
 Since the RLS is closely linked to the compiler and is in active development,
-you'll need a recent nightly compiler to build it.
+you'll need a recent nightly compiler to build it.  In our experience, the 
+nightly from rustup should be avoided for the time being.  Instead use a nightly 
+you build, or one from a direct download.
 
 Use `cargo build` to build.
 
