@@ -28,7 +28,7 @@ use vfs::Vfs;
 
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Position {
-    pub filepath: String,
+    pub filepath: PathBuf,
     pub line: usize,
     pub col: usize,
 }
@@ -100,7 +100,7 @@ pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
     rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![])
 }
 
-pub fn fmt(file_name: &str, vfs: Arc<Vfs>) -> FmtOutput {
+pub fn fmt(file_name: &Path, vfs: Arc<Vfs>) -> FmtOutput {
     let path = PathBuf::from(file_name);
     let input = match vfs.load_file(&path) {
         Ok(s) => FmtInput::Text(s),
@@ -164,7 +164,7 @@ pub fn goto_def(source: Input, analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> Ou
                     let (line, col) = session.load_file(source_path)
                                              .point_to_coords(mtch.point)
                                              .unwrap();
-                    let fpath = source_path.to_str().unwrap().to_owned();
+                    let fpath = source_path.to_owned();
                     Some(Position {
                         filepath: fpath,
                         line: line,
@@ -218,7 +218,7 @@ pub fn title(source: Input, analysis: Arc<AnalysisHost>) -> Option<Title> {
     rustw_handle.join().ok()
 }
 
-pub fn symbols(file_name: String, analysis: Arc<AnalysisHost>) -> Vec<Symbol> {
+pub fn symbols(file_name: PathBuf, analysis: Arc<AnalysisHost>) -> Vec<Symbol> {
     let t = thread::current();
     let rustw_handle = thread::spawn(move || {
         let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);

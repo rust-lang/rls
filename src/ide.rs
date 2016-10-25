@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::path::PathBuf;
+
 use analysis::{raw, Span};
 use serde_json;
 
@@ -34,14 +36,14 @@ pub enum FmtOutput {
 
 #[derive(Debug, Deserialize)]
 pub struct ChangeInput {
-    pub project_path: String,
+    pub project_path: PathBuf,
     pub changes: Vec<Change>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SaveInput {
-    pub project_path: String,
-    pub saved_file: String,
+    pub project_path: PathBuf,
+    pub saved_file: PathBuf,
 }
 
 macro_rules! from_bytes {

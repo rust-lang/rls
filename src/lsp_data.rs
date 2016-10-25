@@ -10,15 +10,18 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::path::{Path, PathBuf};
 
 use analysis::Span;
+use hyper::Url;
 use serde::{Serialize, Serializer};
 
 macro_rules! impl_file_name {
     ($ty_name: ty) => {
         impl $ty_name {
-            pub fn file_name(&self) -> &str {
-                &self.uri["file://".len()..]
+            pub fn file_name(&self) -> PathBuf {
+                let uri = Url::parse(&self.uri).unwrap();
+                uri.to_file_path().unwrap()
             }
         }
     }
@@ -53,7 +56,7 @@ impl Range {
         }
     }
 
-    pub fn to_span(&self, fname: String) -> Span {
+    pub fn to_span(&self, fname: PathBuf) -> Span {
         Span {
             file_name: fname,
             line_start: self.start.line,
@@ -74,14 +77,14 @@ pub struct Location {
 impl Location {
     pub fn from_span(span: &Span) -> Location {
         Location {
-            uri: format!("file://{}", span.file_name),
+            uri: Url::from_file_path(&span.file_name).unwrap().into_string(),
             range: Range::from_span(span),
         }
     }
 
-    pub fn from_position(file_name: &str, line: usize, col: usize) -> Location {
+    pub fn from_position(file_name: &Path, line: usize, col: usize) -> Location {
         Location {
-            uri: format!("file://{}", file_name),
+            uri: Url::from_file_path(&file_name).unwrap().into_string(),
             range: Range {
                 start: Position {
                     line: line,
@@ -101,7 +104,7 @@ impl Location {
 #[derive(Debug, Deserialize)]
 pub struct InitializeParams {
     pub processId: usize,
-    pub rootPath: String
+    pub rootPath: PathBuf
 }
 
 #[derive(Debug, Deserialize)]

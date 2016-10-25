@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use analysis::{AnalysisHost, Span};
+use hyper::Url;
 use vfs::{Vfs, Change};
 use racer::core::{self, find_definition, complete_from_file};
 use rustfmt::{Input as FmtInput, format_input};
@@ -22,7 +23,7 @@ use ls_server::{ResponseData, Output, Logger};
 
 use std::collections::HashMap;
 use std::panic;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -31,8 +32,8 @@ pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
-    current_project: Mutex<Option<String>>,
-    previous_build_results: Mutex<HashMap<String, Vec<Diagnostic>>>,
+    current_project: Mutex<Option<PathBuf>>,
+    previous_build_results: Mutex<HashMap<PathBuf, Vec<Diagnostic>>>,
     logger: Arc<Logger>,
 }
 
@@ -51,7 +52,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn init(&self, root_path: String, out: &Output) {
+    pub fn init(&self, root_path: PathBuf, out: &Output) {
         {
             let mut results = self.previous_build_results.lock().unwrap();
             results.clear();
@@ -63,10 +64,10 @@ impl ActionHandler {
         self.build(&root_path, BuildPriority::Normal, out);
     }
 
-    pub fn build(&self, project_path: &str, priority: BuildPriority, out: &Output) {
+    pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
         out.notify("rustDocument/diagnosticsBegin");
 
-        self.logger.log(&format!("\nBUILDING {}\n", project_path));
+        self.logger.log(&format!("\nBUILDING {:?}\n", project_path));
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
@@ -126,9 +127,7 @@ impl ActionHandler {
                         notifications.push(NotificationMessage::new(
                             "textDocument/publishDiagnostics".to_string(),
                             PublishDiagnosticsParams {
-                                uri: "file://".to_string() +
-                                    project_path + "/" +
-                                    k,
+                                uri: Url::from_file_path(project_path.join(k)).unwrap().into_string(),
                                 diagnostics: v.clone()
                             }
                         ));
@@ -144,7 +143,7 @@ impl ActionHandler {
 
                 out.notify("rustDocument/diagnosticsEnd");
 
-                self.logger.log(&format!("reload analysis: {}", project_path));
+                self.logger.log(&format!("reload analysis: {:?}", project_path));
                 self.analysis.reload(&project_path).unwrap();
             }
             BuildResult::Squashed => {
@@ -160,7 +159,7 @@ impl ActionHandler {
     }
 
     pub fn on_change(&self, change: ChangeParams, out: &Output) {
-        let fname: String = change.textDocument.uri.chars().skip("file://".len()).collect();
+        let fname: PathBuf = Url::parse(&change.textDocument.uri).unwrap().to_file_path().unwrap();
         let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
             Change {
                 span: i.range.to_span(fname.clone()),
@@ -191,7 +190,7 @@ impl ActionHandler {
     
         let rustw_handle = thread::spawn(move || {
             let file_name = doc.textDocument.file_name();
-            let symbols = analysis.symbols(file_name).unwrap_or(vec![]);
+            let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
             t.unpark();
 
             symbols.into_iter().map(|s| {
@@ -213,7 +212,7 @@ impl ActionHandler {
         let vfs: &Vfs = &self.vfs;
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let pos = adjust_vscode_pos_for_racer(params.position);
-            let file_path = &Path::new(params.textDocument.file_name());
+            let file_path = &params.textDocument.file_name();
 
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
@@ -302,7 +301,7 @@ impl ActionHandler {
         // Racer thread.
         let racer_handle = thread::spawn(move || {
             let pos = adjust_vscode_pos_for_racer(params.position);
-            let file_path = &Path::new(params.textDocument.file_name());
+            let file_path = &params.textDocument.file_name();
 
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
@@ -322,7 +321,7 @@ impl ActionHandler {
                         let (line, col) = session.load_file(source_path)
                                                  .point_to_coords(mtch.point)
                                                  .unwrap();
-                        Some(Location::from_position(source_path.to_str().unwrap(),
+                        Some(Location::from_position(source_path,
                                                      adjust_racer_line_for_vscode(line),
                                                      col))
                     } else {
@@ -400,7 +399,7 @@ impl ActionHandler {
     pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
         self.logger.log(&format!("Reformat: {} {:?}\n", id, doc));
 
-        let path = &Path::new(doc.file_name());
+        let path = &doc.file_name();
         let input = match self.vfs.load_file(path) {
             Ok(s) => FmtInput::Text(s),
             Err(e) => {
@@ -445,7 +444,7 @@ impl ActionHandler {
     fn convert_pos_to_span(&self, doc: &Document, pos: &Position) -> Span {
         let fname = doc.file_name();
         self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
-        let line = self.vfs.load_line(Path::new(&fname), pos.line);
+        let line = self.vfs.load_line(&fname, pos.line);
         self.logger.log(&format!("\nGOT LINE: {:?}", line));
         let start_pos = {
             let mut tmp = Position { line: pos.line, character: 1 };

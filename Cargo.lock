@@ -59,7 +59,7 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "time 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)",
- "url 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "url 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -125,7 +125,7 @@ dependencies = [
  "traitobject 0.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "typeable 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicase 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "url 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "url 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -255,7 +255,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "rls-analysis"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-analysis#c7de77599daa7136c85f6c045c4998ff24a5fd5c"
+source = "git+https://github.com/nrc/rls-analysis#480bf1a9577aabb31952fc2ff4ad2e39e7c0bb58"
 dependencies = [
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -266,7 +266,7 @@ dependencies = [
 [[package]]
 name = "rls-vfs"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-vfs#5d27352e192279e81aca666b1817c5968a942878"
+source = "git+https://github.com/nrc/rls-vfs#9c204a63e0e8cc99f023c88e238894f1dbc8df42"
 dependencies = [
  "rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)",
  "serde 0.8.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -576,7 +576,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "url"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "idna 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -682,7 +682,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum unicode-segmentation 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b905d0fc2a1f0befd86b0e72e31d1787944efef9d38b9358a9e92a69757f7e3b"
 "checksum unicode-width 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "2d6722facc10989f63ee0e20a83cd4e1714a9ae11529403ac7e0afd069abc39e"
 "checksum unicode-xid 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "36dff09cafb4ec7c8cf0023eb0b686cb6ce65499116a12201c9e11840ca01beb"
-"checksum url 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8527c62d9869a08325c38272b3f85668df22a65890c61a639d233dc0ed0b23a2"
+"checksum url 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9ba5a45db1d2e0effb7a1c00cc73ffc63a973da8c7d1fcd5b46f24285ade6c54"
 "checksum utf8-ranges 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "a1ca13c08c41c9c3e04224ed9ff80461d97e121589ff27c753a16cb10830ae0f"
 "checksum vec_map 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cac5efe5cb0fa14ec2f84f83c701c562ee63f6dcc680861b21d65c682adfb05f"
 "checksum walkdir 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "c66c0b9792f0a765345452775f3adbd28dde9d33f30d13e5dcc5ae17cf6f3780"

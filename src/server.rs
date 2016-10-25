@@ -24,7 +24,7 @@ use analysis::AnalysisHost;
 use serde_json;
 
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
@@ -68,11 +68,11 @@ macro_rules! dispatch_action_with_vfs {
 impl MyService {
     dispatch_action_with_vfs!(complete, Position);
     dispatch_action_with_vfs!(goto_def, Input);
-    dispatch_action!(symbols, String);
+    dispatch_action!(symbols, PathBuf);
     dispatch_action!(find_refs, Input);
     dispatch_action!(title, Input);
 
-    fn fmt(&self, file_name: &str) -> Vec<u8> {
+    fn fmt(&self, file_name: &Path) -> Vec<u8> {
         let result = fmt(file_name, self.vfs.clone());
         if let FmtOutput::Change(ref s) = result {
             self.vfs.set_file(&Path::new(file_name), s);
@@ -81,7 +81,7 @@ impl MyService {
         reply.as_bytes().to_vec()
     }
 
-    fn build(&self, project_path: &str, priority: BuildPriority) -> Vec<u8> {
+    fn build(&self, project_path: &Path, priority: BuildPriority) -> Vec<u8> {
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Squashed => {
@@ -92,7 +92,7 @@ impl MyService {
                 let reply = serde_json::to_string(&result).unwrap();
                 // println!("build result: {:?}", result);
 
-                println!("Refreshing rustw cache: {}", project_path);
+                println!("Refreshing rustw cache: {:?}", project_path);
                 self.analysis.reload(project_path).unwrap();
 
                 reply.as_bytes().to_vec()
@@ -119,7 +119,7 @@ impl MyService {
             }
         } else if action == "/symbols" {
             if let Ok(file_name) = parse_string(body) {
-                self.symbols(file_name, self.analysis.clone())
+                self.symbols(Path::new(&file_name).to_owned(), self.analysis.clone())
             } else {
                 b"{}\n".to_vec()
             }
@@ -147,7 +147,7 @@ impl MyService {
             }
         } else if action == "/on_save" {
             if let Ok(save) = SaveInput::from_bytes(body) {
-                println!("on save: {}", &save.saved_file);
+                println!("on save: {:?}", &save.saved_file);
                 self.vfs.file_saved(&Path::new(&save.saved_file)).unwrap();
 
                 self.build(&save.project_path, BuildPriority::Immediate)
@@ -157,13 +157,12 @@ impl MyService {
         } else if action == "/on_build" {
             if let Ok(file_name) = parse_string(body) {
                 println!("Refreshing rustw cache");
-                self.analysis.reload(Path::new(&file_name).file_name().unwrap()
-                    .to_str().unwrap()).unwrap();
+                self.analysis.reload(Path::new(&file_name)).unwrap();
             }
             b"{}\n".to_vec()
         } else if action == "/fmt" {
             if let Ok(file_name) = parse_string(body) {
-                self.fmt(&file_name)
+                self.fmt(Path::new(&file_name))
             } else {
                 b"{}\n".to_vec()
             }

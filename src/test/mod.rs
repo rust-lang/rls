@@ -29,8 +29,9 @@ use vfs;
 
 use self::types::src;
 
+use hyper::Url;
 use serde_json;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // TODO we should wait for all threads to exit, rather than use a hacky timeout
 const TEST_WAIT_TIME: u64 = 1500;
@@ -40,14 +41,16 @@ fn test_simple_goto_def() {
     let _cr = CwdRestorer::new();
 
     init_env("hello");
-    let mut cache = types::Cache::new(".");
+    let mut cache = types::Cache::new(Path::new("."));
     mock_server(|server| {
+        let source_file_path = Path::new("src").join("main.rs");
+
         // Build.
-        assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input("src/main.rs")));
+        assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input(&source_file_path)));
 
         // Goto def.
-        let output = server.handle_action("/goto_def", &cache.mk_input(src("src/main.rs", 13, "world")));
-        assert_output(&mut cache, &output, src("src/main.rs", 12, "world"), Provider::Compiler);
+        let output = server.handle_action("/goto_def", &cache.mk_input(src(&source_file_path, 13, "world")));
+        assert_output(&mut cache, &output, src(&source_file_path, 12, "world"), Provider::Compiler);
     });
 }
 
@@ -65,15 +68,17 @@ fn test_abs_path() {
     // will end up getting passed to the RLS.
     cwd_copy.push("test_data");
     cwd_copy.push("hello");
-    let mut cache = types::Cache::new(cwd_copy.canonicalize().unwrap().to_str().unwrap());
+    let mut cache = types::Cache::new(&cwd_copy);
 
     mock_server(|server| {
+        let source_file_path = Path::new("src").join("main.rs");
+
         // Build.
-        assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input("src/main.rs")));
+        assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input(&source_file_path)));
 
         // Goto def.
-        let output = server.handle_action("/goto_def", &cache.mk_input(src("src/main.rs", 13, "world")));
-        assert_output(&mut cache, &output, src("src/main.rs", 12, "world"), Provider::Compiler);
+        let output = server.handle_action("/goto_def", &cache.mk_input(src(&source_file_path, 13, "world")));
+        assert_output(&mut cache, &output, src(&source_file_path, 12, "world"), Provider::Compiler);
     });
 }
 
@@ -82,12 +87,20 @@ fn test_simple_goto_def_ls() {
     let _cr = CwdRestorer::new();
 
     init_env("hello");
-    let mut cache = types::Cache::new(".");
+    let mut cache = types::Cache::new(Path::new("."));
+
+    let source_file_path = Path::new("src").join("main.rs");
+
     let messages = vec![Message::new("initialize",
-                                     vec![("processId", "0".to_owned()), ("rootPath", format!("\"{}\"", cache.abs_path(".")))]),
+                                     vec![("processId", "0".to_owned()), ("rootPath", format!("{}",
+                                               serde_json::to_string(&cache.abs_path(Path::new("."))).expect("couldn't convert path to JSON")
+                                     ))]),
                         Message::new("textDocument/definition",
-                                     vec![("textDocument", format!("{{\"uri\":\"file://{}\"}}", cache.abs_path("src/main.rs"))),
-                                          ("position", cache.mk_ls_position(src("src/main.rs", 13, "world")))])];
+                                     vec![("textDocument", format!("{{\"uri\":{}}}",
+                                               serde_json::to_string(
+                                                   &Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL").as_str().to_owned()
+                                               ).expect("couldn't convert path to JSON"))),
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
     let (server, results) = mock_lsp_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -99,7 +112,7 @@ fn test_simple_goto_def_ls() {
     // Goto def.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    // TODO structural checking of result, rather than looking for a string - src("src/main.rs", 12, "world")
+    // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
 }
 
