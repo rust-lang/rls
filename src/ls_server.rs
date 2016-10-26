@@ -382,7 +382,7 @@ impl Logger {
         let mut log_file = self.log_file.lock().unwrap();
         // FIXME(#40) write thread id to log_file
         log_file.write_all(s.as_bytes()).unwrap();
-        // writeln!(::std::io::stderr(), "{}", msg);
+        // writeln!(::std::io::stderr(), "{}", s);
     }
 }
 
@@ -411,6 +411,11 @@ impl MessageReader for StdioMsgReader {
         // Read in the "Content-length: xx" part
         let mut buffer = String::new();
         handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
+
+        if buffer.len() == 0 {
+            self.logger.log("Header is empty");
+            return None;
+        }
 
         let res: Vec<&str> = buffer.split(" ").collect();
 
@@ -511,11 +516,13 @@ impl Output for StdioOutput {
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
     let logger = Arc::new(Logger::new());
+    logger.log(&format!("\nLanguage Server Starting up\n"));
     let service = LsService::new(analysis,
                                  vfs,
                                  build_queue,
                                  Box::new(StdioMsgReader { logger: logger.clone() }),
                                  Box::new(StdioOutput { logger: logger.clone() } ),
-                                 logger);
+                                 logger.clone());
     LsService::run(service);
+    logger.log(&format!("\nServer shutting down.\n"));
 }
