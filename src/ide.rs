@@ -74,6 +74,7 @@ pub fn parse_string(input: &[u8]) -> Result<String, serde_json::Error> {
     serde_json::from_str(&s)
 }
 
+// TODO: deprecate/remove in favor of ls_types::SymbolKind ?
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub enum VscodeKind {

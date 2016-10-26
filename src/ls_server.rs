@@ -23,6 +23,7 @@ use std::io::{self, Read, Write, ErrorKind};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
+use std::path::PathBuf;
 
 
 #[derive(Debug, new)]
@@ -61,7 +62,7 @@ enum Method {
 
 #[derive(Debug)]
 enum Notification {
-    CancelRequest(usize),
+    CancelRequest(NumberOrString),
     Change(ChangeParams),
 }
 
@@ -91,13 +92,13 @@ macro_rules! serializable_enum {
 }
 
 serializable_enum!(ResponseData,
-    Init(InitializeCapabilities),
+    Init(InitializeResult),
     SymbolInfo(Vec<SymbolInformation>),
     CompletionItems(Vec<CompletionItem>),
     WorkspaceEdit(WorkspaceEdit),
     TextEdit([TextEdit; 1]),
     Locations(Vec<Location>),
-    HoverSuccess(HoverSuccessContents)
+    HoverSuccess(Hover)
 );
 
 // FIXME(45) generate this function.
@@ -251,34 +252,36 @@ impl LsService {
     }
 
     fn init(&self, id: usize, init: InitializeParams) {
-        let result = InitializeCapabilities {
+        let result = InitializeResult {
             capabilities: ServerCapabilities {
-                textDocumentSync: DocumentSyncKind::Incremental as usize,
-                hoverProvider: true,
-                completionProvider: CompletionOptions {
-                    resolveProvider: true,
-                    triggerCharacters: vec![".".to_string()],
-                },
+                text_document_sync: Some(TextDocumentSyncKind::Incremental),
+                hover_provider: Some(true),
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(true),
+                    trigger_characters: vec![".".to_string()],
+                }),
                 // TODO
-                signatureHelpProvider: SignatureHelpOptions {
-                    triggerCharacters: vec![],
-                },
-                definitionProvider: true,
-                referencesProvider: true,
+                signature_help_provider: Some(SignatureHelpOptions {
+                    trigger_characters: Some(vec![]),
+                }),
+                definition_provider: Some(true),
+                references_provider: Some(true),
                 // TODO
-                documentHighlightProvider: false,
-                documentSymbolProvider: true,
-                workshopSymbolProvider: true,
-                codeActionProvider: false,
+                document_highlight_provider: Some(false),
+                document_symbol_provider: Some(true),
+                workspace_symbol_provider: Some(true),
+                code_action_provider: Some(false),
                 // TODO maybe?
-                codeLensProvider: false,
-                documentFormattingProvider: true,
-                documentRangeFormattingProvider: true,
-                renameProvider: true,
+                code_lens_provider: None,
+                document_formatting_provider: Some(true),
+                document_range_formatting_provider: Some(true),
+                document_on_type_formatting_provider: None, // TODO: review this, maybe add?
+                rename_provider: Some(true),
             }
         };
         self.output.success(id, ResponseData::Init(result));
-        self.handler.init(init.rootPath, &*self.output);
+        let root_path = init.root_path.map(|str| PathBuf::from(str));
+        self.handler.init(root_path, &*self.output);
     }
 
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
@@ -292,7 +295,7 @@ impl LsService {
             // FIXME(45) refactor to generate this match.
             match parse_message(&c) {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    this.logger.log(&format!("request to cancel {}\n", id));
+                    this.logger.log(&format!("request to cancel {:?}\n", id));
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
                     this.logger.log(&format!("notification(change): {:?}\n", change));
@@ -339,13 +342,13 @@ impl LsService {
                         Method::Reformat(params) => {
                             // FIXME take account of options.
                             this.logger.log(&format!("command(reformat): {:?}\n", params));
-                            this.handler.reformat(id, params.textDocument, &*this.output);
+                            this.handler.reformat(id, params.text_document, &*this.output);
                         }
                         Method::ReformatRange(params) => {
                             // FIXME reformats the whole file, not just a range.
                             // FIXME take account of options.
                             this.logger.log(&format!("command(reformat): {:?}\n", params));
-                            this.handler.reformat(id, params.textDocument, &*this.output);
+                            this.handler.reformat(id, params.text_document, &*this.output);
                         }
                     }
                 }

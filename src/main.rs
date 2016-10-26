@@ -10,6 +10,7 @@
 
 #![feature(rustc_private)]
 #![feature(proc_macro)]
+#![feature(try_from)]
 
 #[macro_use]
 extern crate hyper;
@@ -23,6 +24,8 @@ extern crate serde_derive;
 extern crate derive_new;
 extern crate racer;
 extern crate rustfmt;
+
+extern crate languageserver_types as ls_types;
 
 use std::sync::Arc;
 

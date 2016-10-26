@@ -8,77 +8,79 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
+use std::convert::TryFrom;
+
 use analysis::Span;
+use analysis::raw;
 use hyper::Url;
-use serde::{Serialize, Serializer};
+use serde::{Serialize};
 
 macro_rules! impl_file_name {
     ($ty_name: ty) => {
         impl $ty_name {
             pub fn file_name(&self) -> PathBuf {
-                let uri = Url::parse(&self.uri).unwrap();
-                uri.to_file_path().unwrap()
+                uri_string_to_file_name(&self.uri)
             }
         }
     }
 }
 
-/// Position in a text document expressed as zero-based line and character offset.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Position {
-    pub line: usize,
-    pub character: usize,
+pub fn uri_string_to_file_name(uri: &str) -> PathBuf {
+    let uri = Url::parse(&uri).unwrap();
+    uri.to_file_path().unwrap()
 }
 
-/// A range in a text document expressed as (zero-based) start and end positions.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Range {
-    pub start: Position,
-    /// End position is exclusive
-    pub end: Position,
+pub fn from_usize(pos: usize) -> u64 {
+	TryFrom::try_from(pos).unwrap() // XXX: Should we do error handling or assume it's ok?
 }
 
-impl Range {
+pub fn to_usize(pos: u64) -> usize {
+	TryFrom::try_from(pos).unwrap() // FIXME: for this one we definitely need to add error checking
+}
+
+pub use ls_types::Position;
+
+pub use ls_types::Range;
+
+pub struct RangeUtil;
+
+impl RangeUtil {
     pub fn from_span(span: &Span) -> Range {
         Range {
             start: Position {
-                line: span.line_start,
-                character: span.column_start,
+                line: from_usize(span.line_start),
+                character: from_usize(span.column_start),
             },
             end: Position {
-                line: span.line_end,
-                character: span.column_end,
+                line: from_usize(span.line_end),
+                character: from_usize(span.column_end),
             },
         }
     }
 
-    pub fn to_span(&self, fname: PathBuf) -> Span {
+    pub fn to_span(this: Range, fname: PathBuf) -> Span {
         Span {
             file_name: fname,
-            line_start: self.start.line,
-            column_start: self.start.character,
-            line_end: self.end.line,
-            column_end: self.end.character,
+            line_start: to_usize(this.start.line),
+            column_start: to_usize(this.start.character),
+            line_end: to_usize(this.end.line),
+            column_end: to_usize(this.end.character),
         }
     }
 }
 
-/// Represents a location inside a resource, such as a line inside a text file.
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Location {
-    pub uri: String,
-    pub range: Range,
-}
+pub use ls_types::Location;
 
-impl Location {
+pub struct LocationUtil;
+
+impl LocationUtil {
     pub fn from_span(span: &Span) -> Location {
         Location {
             uri: Url::from_file_path(&span.file_name).unwrap().into_string(),
-            range: Range::from_span(span),
+            range: RangeUtil::from_span(span),
         }
     }
 
@@ -87,47 +89,23 @@ impl Location {
             uri: Url::from_file_path(&file_name).unwrap().into_string(),
             range: Range {
                 start: Position {
-                    line: line,
-                    character: col,
+                    line: from_usize(line),
+                    character: from_usize(col),
                 },
                 end: Position {
-                    line: line,
-                    character: col,
+                    line: from_usize(line),
+                    character: from_usize(col),
                 },
             },
         }
     }
 }
 
-/// The initialize request is sent as the first request from the client to the server.
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct InitializeParams {
-    pub processId: usize,
-    pub rootPath: PathBuf
-}
+pub use ls_types::InitializeParams;
+pub use ls_types::NumberOrString;
 
-#[derive(Debug, Deserialize)]
-pub struct Document {
-    pub uri: String
-}
-
-impl_file_name!(Document);
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct TextDocumentIdentifier {
-    pub uri: String
-}
-
-impl_file_name!(TextDocumentIdentifier);
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct VersionedTextDocumentIdentifier {
-    pub version: u64,
-    pub uri: String
-}
+pub use ls_types::TextDocumentIdentifier;
+pub use ls_types::VersionedTextDocumentIdentifier;
 
 /// An event describing a change to a text document. If range and rangeLength are omitted
 /// the new text is considered to be the full content of the document.
@@ -138,21 +116,34 @@ pub struct TextDocumentContentChangeEvent {
     pub rangeLength: Option<u32>,
     pub text: String
 }
+//pub use ls_types::TextDocumentContentChangeEvent;
 
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct ReferenceContext {
-    pub includeDeclaration: bool,
+
+pub use ls_types::ReferenceContext;
+
+pub use ls_types::SymbolInformation;
+pub use ls_types::SymbolKind;
+
+pub fn sk_from_def_kind(k: raw::DefKind) -> SymbolKind {
+    match k {
+        raw::DefKind::Enum => SymbolKind::Enum,
+        raw::DefKind::Tuple => SymbolKind::Array,
+        raw::DefKind::Struct => SymbolKind::Class,
+        raw::DefKind::Trait => SymbolKind::Interface,
+        raw::DefKind::Function => SymbolKind::Function,
+        raw::DefKind::Method => SymbolKind::Function,
+        raw::DefKind::Macro => SymbolKind::Function,
+        raw::DefKind::Mod => SymbolKind::Module,
+        raw::DefKind::Type => SymbolKind::Interface,
+        raw::DefKind::Local => SymbolKind::Variable,
+        raw::DefKind::Static => SymbolKind::Variable,
+        raw::DefKind::Const => SymbolKind::Variable,
+        raw::DefKind::Field => SymbolKind::Variable,
+        raw::DefKind::Import => SymbolKind::Module,
+    }
 }
 
-/// Represents information about programming constructs like variables, classes,
-/// interfaces etc.
-#[derive(Debug, Serialize)]
-pub struct SymbolInformation {
-    pub name: String,
-    pub kind: u32, // can be made to numeric enum
-    pub location: Location,
-}
+
 
 #[derive(Debug, Deserialize)]
 pub struct CompilerMessageCode {
@@ -167,37 +158,9 @@ pub struct CompilerMessage {
     pub spans: Vec<Span>,
 }
 
-/// Represents a diagnostic, such as a compiler error or warning.
-/// Diagnostic objects are only valid in the scope of a resource.
-#[derive(Debug, Clone, Serialize)]
-pub struct Diagnostic {
-    pub range: Range,
-    pub severity: DiagnosticSeverity,
-    pub code: String,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum DiagnosticSeverity {
-    Error = 1,
-    Warning = 2,
-//    Information = 3,
-//    Hint = 4
-}
-
-impl Serialize for DiagnosticSeverity {
-    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error>
-        where S: Serializer
-    {
-        serializer.serialize_u8(*self as u8)
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct PublishDiagnosticsParams {
-    pub uri: String,
-    pub diagnostics: Vec<Diagnostic>,
-}
+pub use ls_types::Diagnostic;
+pub use ls_types::DiagnosticSeverity;
+pub use ls_types::PublishDiagnosticsParams;
 
 /// An event-like (no response needed) notification message.
 #[derive(Debug, Serialize)]
@@ -219,26 +182,10 @@ impl <T> NotificationMessage<T> where T: Debug + Serialize {
     }
 }
 
-/// A workspace edit represents changes to many resources managed in the workspace.
-#[derive(Debug, Serialize)]
-pub struct WorkspaceEdit {
-    pub changes: HashMap<String, Vec<TextEdit>>,
-}
+pub use ls_types::WorkspaceEdit;
 
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct ReferenceParams {
-    pub textDocument: Document,
-    pub position: Position,
-    pub context: ReferenceContext,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct TextDocumentPositionParams {
-    pub textDocument: Document,
-    pub position: Position,
-}
+pub use ls_types::ReferenceParams;
+pub use ls_types::TextDocumentPositionParams;
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
@@ -247,130 +194,44 @@ pub struct ChangeParams {
     pub contentChanges: Vec<TextDocumentContentChangeEvent>
 }
 
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct HoverParams {
-    pub textDocument: Document,
-    pub position: Position
+pub type HoverParams = TextDocumentPositionParams;
+pub use ls_types::RenameParams;
+pub use ls_types::DocumentSymbolParams;
+
+
+pub use ls_types::CancelParams;
+pub use ls_types::TextDocumentSyncKind;
+
+pub use ls_types::MarkedString;
+
+pub use ls_types::Hover;
+pub use ls_types::InitializeResult;
+
+pub use ls_types::CompletionItem;
+
+pub fn new_completion_item(label: String, detail: String) -> CompletionItem {
+	CompletionItem {
+        label : label,
+        kind: None,
+        detail: Some(detail),
+        documentation: None,
+        sort_text: None,
+        filter_text: None,
+        insert_text: None,
+        text_edit: None,
+        additional_text_edits: None,
+        command: None,
+        data: None,
+	}
 }
 
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct RenameParams {
-    pub textDocument: Document,
-    pub position: Position,
-    pub newName: String,
-}
+pub use ls_types::TextEdit;
+pub use ls_types::CompletionOptions;
 
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct DocumentSymbolParams {
-    pub textDocument: Document,
-}
+pub use ls_types::SignatureHelpOptions;
 
-#[derive(Debug, Deserialize)]
-pub struct CancelParams {
-    pub id: usize
-}
+pub use ls_types::DocumentFormattingParams;
+pub use ls_types::DocumentRangeFormattingParams;
+pub use ls_types::FormattingOptions;
 
-/// Defines how the host (editor) should sync document changes to the language server.
-#[derive(Debug, Serialize)]
-pub enum DocumentSyncKind {
-    // None = 0,
-    /// Documents are synced by always sending the full content of the document.
-    // Full = 1,
-    /// Documents are synced by sending the full content on open. After that only incremental
-    /// updates to the document are sent.
-    Incremental = 2,
-}
-
-#[derive(Debug, Serialize)]
-pub struct MarkedString {
-    pub language: String,
-    pub value: String
-}
-
-#[derive(Debug, Serialize)]
-pub struct HoverSuccessContents {
-    pub contents: Vec<MarkedString>
-}
-
-#[derive(Debug, Serialize)]
-pub struct InitializeCapabilities {
-    pub capabilities: ServerCapabilities
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CompletionItem {
-    pub label: String,
-    pub detail: String,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Serialize)]
-pub struct TextEdit {
-    pub range: Range,
-    pub newText: String,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Serialize)]
-pub struct CompletionOptions {
-    /// The server provides support to resolve additional information for a completion item.
-    pub resolveProvider: bool,
-    pub triggerCharacters: Vec<String>,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Serialize)]
-pub struct SignatureHelpOptions {
-    pub triggerCharacters: Vec<String>,
-}
-
-// #[allow(non_snake_case)]
-// #[derive(Debug, Serialize)]
-// pub struct CodeLensOptions {
-//     pub resolveProvider: bool,
-// }
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct DocumentFormattingParams {
-    pub textDocument: TextDocumentIdentifier,
-    pub options: FormattingOptions,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct DocumentRangeFormattingParams {
-    pub textDocument: TextDocumentIdentifier,
-    pub range: Range,
-    pub options: FormattingOptions,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct FormattingOptions {
-    pub tabSize: u32,
-    pub insertSpaces: bool,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Serialize)]
-pub struct ServerCapabilities {
-    pub textDocumentSync: usize,
-    pub hoverProvider: bool,
-    pub completionProvider: CompletionOptions,
-    pub signatureHelpProvider: SignatureHelpOptions,
-    pub definitionProvider: bool,
-    pub referencesProvider: bool,
-    pub documentHighlightProvider: bool,
-    pub documentSymbolProvider: bool,
-    pub workshopSymbolProvider: bool,
-    pub codeActionProvider: bool,
-    pub codeLensProvider: bool,
-    pub documentFormattingProvider: bool,
-    pub documentRangeFormattingProvider: bool,
-    // pub documentOnTypeFormattingProvider
-    pub renameProvider: bool,
-}
+pub use ls_types::ServerCapabilities;
