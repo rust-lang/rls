@@ -18,6 +18,9 @@ use analysis::raw;
 use hyper::Url;
 use serde::{Serialize};
 
+
+pub use ls_types::*;
+
 macro_rules! impl_file_name {
     ($ty_name: ty) => {
         impl $ty_name {
@@ -41,9 +44,9 @@ pub fn to_usize(pos: u64) -> usize {
 	TryFrom::try_from(pos).unwrap() // FIXME: for this one we definitely need to add error checking
 }
 
-pub use ls_types::Position;
-
-pub use ls_types::Range;
+pub fn new_pos(line: u64, character: u64,) -> Position {
+	Position { line: line, character: character }
+}
 
 pub struct RangeUtil;
 
@@ -72,8 +75,6 @@ impl RangeUtil {
     }
 }
 
-pub use ls_types::Location;
-
 pub struct LocationUtil;
 
 impl LocationUtil {
@@ -101,29 +102,6 @@ impl LocationUtil {
     }
 }
 
-pub use ls_types::InitializeParams;
-pub use ls_types::NumberOrString;
-
-pub use ls_types::TextDocumentIdentifier;
-pub use ls_types::VersionedTextDocumentIdentifier;
-
-/// An event describing a change to a text document. If range and rangeLength are omitted
-/// the new text is considered to be the full content of the document.
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct TextDocumentContentChangeEvent {
-    pub range: Range,
-    pub rangeLength: Option<u32>,
-    pub text: String
-}
-//pub use ls_types::TextDocumentContentChangeEvent;
-
-
-pub use ls_types::ReferenceContext;
-
-pub use ls_types::SymbolInformation;
-pub use ls_types::SymbolKind;
-
 pub fn sk_from_def_kind(k: raw::DefKind) -> SymbolKind {
     match k {
         raw::DefKind::Enum => SymbolKind::Enum,
@@ -143,7 +121,25 @@ pub fn sk_from_def_kind(k: raw::DefKind) -> SymbolKind {
     }
 }
 
+pub fn new_completion_item(label: String, detail: String) -> CompletionItem {
+	CompletionItem {
+        label : label,
+        kind: None,
+        detail: Some(detail),
+        documentation: None,
+        sort_text: None,
+        filter_text: None,
+        insert_text: None,
+        text_edit: None,
+        additional_text_edits: None,
+        command: None,
+        data: None,
+	}
+}
 
+pub type HoverParams = TextDocumentPositionParams;
+
+/* ----------------- These are not LSP types: ----------------- */
 
 #[derive(Debug, Deserialize)]
 pub struct CompilerMessageCode {
@@ -158,9 +154,7 @@ pub struct CompilerMessage {
     pub spans: Vec<Span>,
 }
 
-pub use ls_types::Diagnostic;
-pub use ls_types::DiagnosticSeverity;
-pub use ls_types::PublishDiagnosticsParams;
+/* ----------------- These are not LSP types either, but JSON-RPC stuff : ----------------- */
 
 /// An event-like (no response needed) notification message.
 #[derive(Debug, Serialize)]
@@ -181,57 +175,3 @@ impl <T> NotificationMessage<T> where T: Debug + Serialize {
         }
     }
 }
-
-pub use ls_types::WorkspaceEdit;
-
-pub use ls_types::ReferenceParams;
-pub use ls_types::TextDocumentPositionParams;
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-pub struct ChangeParams {
-    pub textDocument: VersionedTextDocumentIdentifier,
-    pub contentChanges: Vec<TextDocumentContentChangeEvent>
-}
-
-pub type HoverParams = TextDocumentPositionParams;
-pub use ls_types::RenameParams;
-pub use ls_types::DocumentSymbolParams;
-
-
-pub use ls_types::CancelParams;
-pub use ls_types::TextDocumentSyncKind;
-
-pub use ls_types::MarkedString;
-
-pub use ls_types::Hover;
-pub use ls_types::InitializeResult;
-
-pub use ls_types::CompletionItem;
-
-pub fn new_completion_item(label: String, detail: String) -> CompletionItem {
-	CompletionItem {
-        label : label,
-        kind: None,
-        detail: Some(detail),
-        documentation: None,
-        sort_text: None,
-        filter_text: None,
-        insert_text: None,
-        text_edit: None,
-        additional_text_edits: None,
-        command: None,
-        data: None,
-	}
-}
-
-pub use ls_types::TextEdit;
-pub use ls_types::CompletionOptions;
-
-pub use ls_types::SignatureHelpOptions;
-
-pub use ls_types::DocumentFormattingParams;
-pub use ls_types::DocumentRangeFormattingParams;
-pub use ls_types::FormattingOptions;
-
-pub use ls_types::ServerCapabilities;

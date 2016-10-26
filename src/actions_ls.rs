@@ -162,11 +162,22 @@ impl ActionHandler {
         }
     }
 
-    pub fn on_change(&self, change: ChangeParams, out: &Output) {
-        let fname: PathBuf = Url::parse(&change.textDocument.uri).unwrap().to_file_path().unwrap();
-        let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
+    pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
+        let fname: PathBuf = Url::parse(&change.text_document.uri).unwrap().to_file_path().unwrap();
+        let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
+        	let range = match i.range {
+        		Some(some) => { some } 
+        		None => { 
+        			// In this case the range is considered to be the whole document,
+        			// as specified by LSP
+        			
+        			// FIXME: to do, endpos must be the end of the document, this is not correct
+        			let end_pos = new_pos(0, 0);
+        			Range{ start : new_pos(0, 0), end : end_pos }
+        		}
+        	};
             Change {
-                span: RangeUtil::to_span(i.range, fname.clone()),
+                span: RangeUtil::to_span(range, fname.clone()),
                 text: i.text.clone()
             }
         }).collect();

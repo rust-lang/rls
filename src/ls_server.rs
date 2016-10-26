@@ -63,7 +63,7 @@ enum Method {
 #[derive(Debug)]
 enum Notification {
     CancelRequest(NumberOrString),
-    Change(ChangeParams),
+    Change(DidChangeTextDocumentParams),
 }
 
 /// Creates an public enum whose variants all contain a single serializable payload
@@ -127,7 +127,7 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Hover(method)}))
                 }
                 "textDocument/didChange" => {
-                    let method: ChangeParams =
+                    let method: DidChangeTextDocumentParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Notification(Notification::Change(method)))
                 }
