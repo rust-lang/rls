@@ -270,34 +270,40 @@ impl BuildQueue {
                             let remaining = &out[i + exit_str.len() ..];
                             let end = remaining.find('`').unwrap();
                             let remaining = &remaining[..end];
-                            let split = remaining.split(' ');
 
                             let mut result = vec![];
+
                             let mut in_quoted_arg = false;
+                            let mut current_arg = String::with_capacity(64);
 
-                            for element in split {
-                                assert!(!element.is_empty());
+                            for c in remaining.chars() {
+                                match (in_quoted_arg, c) {
+                                    (false, '"') => {
+                                        // Opening quote of quoted arg
+                                    },
 
-                                if in_quoted_arg {
-                                    let last = result.last_mut().unwrap();
-                                    *last += " ";
-                                    if element.chars().rev().next().unwrap() == '"' {
-                                        *last += &element[..(element.len() - 1)];
-                                        in_quoted_arg = false;
-                                    }
-                                    else {
-                                        *last += element;
-                                    }
+                                    (true, '"') | (false, ' ') => {
+                                        // End of current arg
+
+                                        if !current_arg.is_empty() {
+                                            result.push(current_arg);
+                                            current_arg = String::with_capacity(64);
+                                        }
+                                    },
+
+                                    (_, c) => {
+                                        // Part of current arg
+                                        current_arg.push(c);
+                                    },
                                 }
-                                else {
-                                    if element.chars().next().unwrap() == '"' {
-                                        in_quoted_arg = true;
-                                        result.push(element[1..].into());
-                                    }
-                                    else {
-                                        result.push(element.into());
-                                    }
+
+                                if c == '"' {
+                                    in_quoted_arg = !in_quoted_arg;
                                 }
+                            }
+
+                            if !current_arg.is_empty() {
+                                result.push(current_arg);
                             }
 
                             assert!(!in_quoted_arg);
