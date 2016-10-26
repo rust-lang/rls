@@ -51,7 +51,7 @@ use std::time::Duration;
 /// it was squashed.
 pub struct BuildQueue {
     build_dir: Mutex<Option<PathBuf>>,
-    cmd_line_args: Mutex<Option<Vec<String>>>,
+    cmd_line_args: Mutex<Vec<String>>,
     // True if a build is running.
     // Note I have been conservative with Ordering when accessing this atomic,
     // we might be able to do better.
@@ -95,7 +95,7 @@ impl BuildQueue {
     pub fn new(vfs: Arc<Vfs>) -> BuildQueue {
         BuildQueue {
             build_dir: Mutex::new(None),
-            cmd_line_args: Mutex::new(None),
+            cmd_line_args: Mutex::new(vec![]),
             running: AtomicBool::new(false),
             pending: Mutex::new(vec![]),
             vfs: vfs,
@@ -120,7 +120,7 @@ impl BuildQueue {
                 self.cancel_pending();
 
                 let mut cmd_line_args = self.cmd_line_args.lock().unwrap();
-                *cmd_line_args = None;
+                *cmd_line_args = vec![];
             }
         }
 
@@ -243,7 +243,7 @@ impl BuildQueue {
         let build_dir = &self.build_dir.lock().unwrap();
         let build_dir = build_dir.as_ref().unwrap();
 
-        if cmd_line_args.is_none() {
+        if cmd_line_args.is_empty() {
             let mut cmd = Command::new("cargo");
             // Using rustc rather than build means we can set flags which are
             // used only on the last crate.
@@ -329,10 +329,10 @@ impl BuildQueue {
                 }
             };
 
-            *cmd_line_args = Some(new_cmd_line_args);
+            *cmd_line_args = new_cmd_line_args;
         }
 
-        self.rustc(cmd_line_args.as_ref().unwrap().clone(), build_dir)
+        self.rustc(cmd_line_args.clone(), build_dir)
     }
 
     // Runs a single instance of rustc. Runs in-process.
