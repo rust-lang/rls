@@ -37,15 +37,15 @@ pub fn uri_string_to_file_name(uri: &str) -> PathBuf {
 }
 
 pub fn from_usize(pos: usize) -> u64 {
-	TryFrom::try_from(pos).unwrap() // XXX: Should we do error handling or assume it's ok?
+    TryFrom::try_from(pos).unwrap() // XXX: Should we do error handling or assume it's ok?
 }
 
 pub fn to_usize(pos: u64) -> usize {
-	TryFrom::try_from(pos).unwrap() // FIXME: for this one we definitely need to add error checking
+    TryFrom::try_from(pos).unwrap() // FIXME: for this one we definitely need to add error checking
 }
 
 pub fn new_pos(line: u64, character: u64,) -> Position {
-	Position { line: line, character: character }
+    Position { line: line, character: character }
 }
 
 pub struct RangeUtil;
@@ -122,7 +122,7 @@ pub fn sk_from_def_kind(k: raw::DefKind) -> SymbolKind {
 }
 
 pub fn new_completion_item(label: String, detail: String) -> CompletionItem {
-	CompletionItem {
+    CompletionItem {
         label : label,
         kind: None,
         detail: Some(detail),
@@ -134,7 +134,7 @@ pub fn new_completion_item(label: String, detail: String) -> CompletionItem {
         additional_text_edits: None,
         command: None,
         data: None,
-	}
+    }
 }
 
 pub type HoverParams = TextDocumentPositionParams;
