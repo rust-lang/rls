@@ -241,7 +241,7 @@ impl ActionHandler {
             let pos = session.load_file(file_path).coords_to_point(to_usize(pos.line), to_usize(pos.character)).unwrap();
             let results = complete_from_file(&src.code, file_path, pos, &session);
 
-            results.map(|comp| new_completion_item(
+            results.map(|comp| CompletionItem::new_simple(
                 comp.matchstr.clone(),
                 comp.contextstr.clone(),
             )).collect()
@@ -371,7 +371,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn hover(&self, id: usize, params: HoverParams, out: &Output) {
+    pub fn hover(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, &params.position);
 

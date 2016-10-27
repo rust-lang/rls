@@ -118,24 +118,6 @@ pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
     }
 }
 
-pub fn new_completion_item(label: String, detail: String) -> CompletionItem {
-    CompletionItem {
-        label : label,
-        kind: None,
-        detail: Some(detail),
-        documentation: None,
-        sort_text: None,
-        filter_text: None,
-        insert_text: None,
-        text_edit: None,
-        additional_text_edits: None,
-        command: None,
-        data: None,
-    }
-}
-
-pub type HoverParams = TextDocumentPositionParams;
-
 /* ----------------- These are not LSP types: ----------------- */
 
 #[derive(Debug, Deserialize)]

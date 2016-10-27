@@ -49,7 +49,7 @@ struct Request {
 enum Method {
     Shutdown,
     Initialize(InitializeParams),
-    Hover(HoverParams),
+    Hover(TextDocumentPositionParams),
     GotoDef(TextDocumentPositionParams),
     FindAllRef(ReferenceParams),
     Symbols(DocumentSymbolParams),
@@ -122,7 +122,7 @@ fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
                 }
                 "textDocument/hover" => {
                     let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
-                    let method: HoverParams =
+                    let method: TextDocumentPositionParams =
                         serde_json::from_value(params.unwrap().to_owned()).unwrap();
                     Ok(ServerMessage::Request(Request{id: id, method: Method::Hover(method)}))
                 }
