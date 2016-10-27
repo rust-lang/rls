@@ -304,7 +304,9 @@ impl BuildQueue {
                             }
 
                             if !current_arg.is_empty() {
-                                result.push(current_arg);
+                                if current_arg != "--aBogusArgument" {
+                                    result.push(current_arg);
+                                }
                             }
 
                             assert!(!in_quoted_arg);
