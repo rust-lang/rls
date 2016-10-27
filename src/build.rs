@@ -273,28 +273,29 @@ impl BuildQueue {
 
                             let mut result = vec![];
 
+                            const ARG_STRING_DEFAULT_CAPACITY: usize = 64;
+
                             let mut in_quoted_arg = false;
-                            let mut current_arg = String::with_capacity(64);
+                            let mut current_arg = String::with_capacity(ARG_STRING_DEFAULT_CAPACITY);
 
                             for c in remaining.chars() {
                                 match (in_quoted_arg, c) {
-                                    (false, '"') => {
-                                        // Opening quote of quoted arg
-                                    },
+                                    // Opening quote of quoted arg
+                                    (false, '"') => { }
 
-                                    (true, '"') | (false, ' ') => {
-                                        // End of current arg
-
+                                    // End of current arg
+                                    (true, '"') | (false, ' ') =>
                                         if !current_arg.is_empty() {
-                                            result.push(current_arg);
-                                            current_arg = String::with_capacity(64);
-                                        }
-                                    },
+                                            if current_arg != "--aBogusArgument" {
+                                                result.push(current_arg);
+                                            }
 
-                                    (_, c) => {
-                                        // Part of current arg
-                                        current_arg.push(c);
-                                    },
+                                            current_arg = String::with_capacity(ARG_STRING_DEFAULT_CAPACITY);
+                                        },
+
+                                    // Part of current arg
+                                    (_, c) =>
+                                        current_arg.push(c)
                                 }
 
                                 if c == '"' {
@@ -307,8 +308,6 @@ impl BuildQueue {
                             }
 
                             assert!(!in_quoted_arg);
-
-                            result.retain(|el| { el != "--aBogusArgument" });
 
                             result.push("--sysroot".into());
                             let sysroot = env::var("SYS_ROOT").expect("No SYS_ROOT env var given");
