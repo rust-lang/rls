@@ -386,13 +386,13 @@ impl ActionHandler {
 
             let mut contents = vec![];
             if !docs.is_empty() {
-                contents.push(MarkedString::LanguageString { language: "markdown".into(), value: docs });
+                contents.push(MarkedString::from_markdown(docs.into()));
             }
             if !doc_url.is_empty() {
-                contents.push(MarkedString::LanguageString { language: "url".into(), value: doc_url });
+                contents.push(MarkedString::from_language_code("url".into(), doc_url.into()));
             }
             if !ty.is_empty() {
-                contents.push(MarkedString::LanguageString { language: "rust".into(), value: ty });
+                contents.push(MarkedString::from_language_code("rust".into(), ty.into()));
             }
             Hover {
                 contents: contents,
