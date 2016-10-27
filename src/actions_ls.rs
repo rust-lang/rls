@@ -89,7 +89,7 @@ impl ActionHandler {
                                 continue;
                             }
                             let mut diag = Diagnostic {
-                                range: RangeUtil::from_span(&method.spans[0]),
+                                range: ls_util::range_from_span(&method.spans[0]),
                                 severity: Some(if method.level == "error" {
                                     DiagnosticSeverity::Error
                                 } else {
@@ -177,7 +177,7 @@ impl ActionHandler {
                 }
             };
             Change {
-                span: RangeUtil::to_span(range, fname.clone()),
+                span: ls_util::range_to_span(range, fname.clone()),
                 text: i.text.clone()
             }
         }).collect();
@@ -211,8 +211,8 @@ impl ActionHandler {
             symbols.into_iter().map(|s| {
                 SymbolInformation {
                     name: s.name,
-                    kind: sk_from_def_kind(s.kind),
-                    location: LocationUtil::from_span(&s.span),
+                    kind: source_kind_from_def_kind(s.kind),
+                    location: ls_util::location_from_span(&s.span),
                     container_name: None // TODO: more info could be added here
                 }
             }).collect()
@@ -269,7 +269,7 @@ impl ActionHandler {
         let mut edits: HashMap<String, Vec<TextEdit>> = HashMap::new();
 
         for item in result.iter() {
-            let loc = LocationUtil::from_span(&item);
+            let loc = ls_util::location_from_span(&item);
             edits.entry(loc.uri).or_insert(vec![]).push(TextEdit {
                 range: loc.range,
                 new_text: params.new_name.clone(),
@@ -294,7 +294,7 @@ impl ActionHandler {
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
         let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
-        let refs: Vec<_> = result.iter().map(|item| LocationUtil::from_span(&item)).collect();
+        let refs: Vec<_> = result.iter().map(|item| ls_util::location_from_span(&item)).collect();
 
         out.success(id, ResponseData::Locations(refs));
     }
@@ -337,7 +337,7 @@ impl ActionHandler {
                         let (line, col) = session.load_file(source_path)
                                                  .point_to_coords(mtch.point)
                                                  .unwrap();
-                        Some(LocationUtil::from_position(source_path,
+                        Some(ls_util::location_from_position(source_path,
                                                      adjust_racer_line_for_vscode(line),
                                                      col))
                     } else {
@@ -351,7 +351,7 @@ impl ActionHandler {
         let compiler_result = compiler_handle.join();
         match compiler_result {
             Ok(Ok(r)) => {
-                let result = vec![LocationUtil::from_span(&r)];
+                let result = vec![ls_util::location_from_span(&r)];
                 self.logger.log(&format!("\nGOING TO: {:?}\n", result));
                 out.success(id, ResponseData::Locations(result));
             }

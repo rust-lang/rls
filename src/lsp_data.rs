@@ -9,7 +9,7 @@
 // except according to those terms.
 
 use std::fmt::Debug;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use std::convert::TryFrom;
 
@@ -45,10 +45,14 @@ pub fn to_usize(pos: u64) -> usize {
 }
 
 
-pub struct RangeUtil;
+pub mod ls_util {
+    use super::*;
+    use std::path::{Path, PathBuf};
 
-impl RangeUtil {
-    pub fn from_span(span: &Span) -> Range {
+    use analysis::Span;
+    use hyper::Url;
+    
+    pub fn range_from_span(span: &Span) -> Range {
         Range {
             start: Position::new(
                 from_usize(span.line_start),
@@ -61,7 +65,7 @@ impl RangeUtil {
         }
     }
 
-    pub fn to_span(this: Range, fname: PathBuf) -> Span {
+    pub fn range_to_span(this: Range, fname: PathBuf) -> Span {
         Span {
             file_name: fname,
             line_start: to_usize(this.start.line),
@@ -70,19 +74,15 @@ impl RangeUtil {
             column_end: to_usize(this.end.character),
         }
     }
-}
-
-pub struct LocationUtil;
-
-impl LocationUtil {
-    pub fn from_span(span: &Span) -> Location {
+    
+    pub fn location_from_span(span: &Span) -> Location {
         Location {
             uri: Url::from_file_path(&span.file_name).unwrap().into_string(),
-            range: RangeUtil::from_span(span),
+            range: range_from_span(span),
         }
     }
 
-    pub fn from_position(file_name: &Path, line: usize, col: usize) -> Location {
+    pub fn location_from_position(file_name: &Path, line: usize, col: usize) -> Location {
         Location {
             uri: Url::from_file_path(&file_name).unwrap().into_string(),
             range: Range {
@@ -99,7 +99,7 @@ impl LocationUtil {
     }
 }
 
-pub fn sk_from_def_kind(k: raw::DefKind) -> SymbolKind {
+pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
     match k {
         raw::DefKind::Enum => SymbolKind::Enum,
         raw::DefKind::Tuple => SymbolKind::Array,
