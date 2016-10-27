@@ -92,7 +92,7 @@ fn test_simple_goto_def_ls() {
     let source_file_path = Path::new("src").join("main.rs");
 
     let messages = vec![Message::new("initialize",
-                                     vec![("processId", "0".to_owned()), ("rootPath", format!("{}",
+                                     vec![("processId", "0".to_owned()), ("capabilities", "null".to_owned()), ("rootPath", format!("{}",
                                                serde_json::to_string(&cache.abs_path(Path::new("."))).expect("couldn't convert path to JSON")
                                      ))]),
                         Message::new("textDocument/definition",
