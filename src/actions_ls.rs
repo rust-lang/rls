@@ -172,8 +172,8 @@ impl ActionHandler {
                     // as specified by LSP
                     
                     // FIXME: to do, endpos must be the end of the document, this is not correct
-                    let end_pos = new_pos(0, 0);
-                    Range{ start : new_pos(0, 0), end : end_pos }
+                    let end_pos = Position::new(0, 0);
+                    Range{ start : Position::new(0, 0), end : end_pos }
                 }
             };
             Change {
@@ -438,14 +438,8 @@ impl ActionHandler {
                 let text = String::from_utf8(buf).unwrap();
                 let result = [TextEdit {
                     range: Range {
-                        start: Position {
-                            line: 0,
-                            character: 0,
-                        },
-                        end: Position {
-                            line: from_usize(text.lines().count()),
-                            character: 0,
-                        },
+                        start: Position::new(0, 0),
+                        end: Position::new(from_usize(text.lines().count()), 0),
                     },
                     new_text: text,
                 }];
@@ -464,7 +458,7 @@ impl ActionHandler {
         let line = self.vfs.load_line(&fname, to_usize(pos.line));
         self.logger.log(&format!("\nGOT LINE: {:?}", line));
         let start_pos = {
-            let mut tmp = Position { line: pos.line, character: 1 };
+            let mut tmp = Position::new(pos.line, 1);
             for (i, c) in line.clone().unwrap().chars().enumerate() {
                 if !(c.is_alphanumeric() || c == '_') {
                     tmp.character = from_usize(i + 1);
@@ -477,7 +471,7 @@ impl ActionHandler {
         };
 
         let end_pos = {
-            let mut tmp = Position { line: pos.line, character: pos.character };
+            let mut tmp = Position::new(pos.line, pos.character);
             for (i, c) in line.unwrap().chars().skip(to_usize(pos.character)).enumerate() {
                 if !(c.is_alphanumeric() || c == '_') {
                     break;

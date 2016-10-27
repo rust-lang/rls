@@ -44,23 +44,20 @@ pub fn to_usize(pos: u64) -> usize {
     TryFrom::try_from(pos).unwrap() // FIXME: for this one we definitely need to add error checking
 }
 
-pub fn new_pos(line: u64, character: u64,) -> Position {
-    Position { line: line, character: character }
-}
 
 pub struct RangeUtil;
 
 impl RangeUtil {
     pub fn from_span(span: &Span) -> Range {
         Range {
-            start: Position {
-                line: from_usize(span.line_start),
-                character: from_usize(span.column_start),
-            },
-            end: Position {
-                line: from_usize(span.line_end),
-                character: from_usize(span.column_end),
-            },
+            start: Position::new(
+                from_usize(span.line_start),
+                from_usize(span.column_start),
+            ),
+            end: Position::new(
+                from_usize(span.line_end),
+                from_usize(span.column_end),
+            ),
         }
     }
 
