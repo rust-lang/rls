@@ -75,6 +75,8 @@ pub fn parse_string(input: &[u8]) -> Result<String, serde_json::Error> {
 }
 
 // TODO: deprecate/remove in favor of ls_types::SymbolKind ?
+// This type is at the moment only used by the HTTP server interface, 
+// which is planned to be removed, according to @nrc
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub enum VscodeKind {
