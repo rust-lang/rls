@@ -276,15 +276,16 @@ impl BuildQueue {
                             const ARG_STRING_DEFAULT_CAPACITY: usize = 64;
 
                             let mut in_quoted_arg = false;
+                            let mut in_escaped_character = false;
                             let mut current_arg = String::with_capacity(ARG_STRING_DEFAULT_CAPACITY);
 
                             for c in remaining.chars() {
-                                match (in_quoted_arg, c) {
+                                match (in_escaped_character, in_quoted_arg, c) {
                                     // Opening quote of quoted arg
-                                    (false, '"') => { }
+                                    (false, false, '"') => { }
 
                                     // End of current arg
-                                    (true, '"') | (false, ' ') =>
+                                    (false, true, '"') | (false, false, ' ') =>
                                         if !current_arg.is_empty() {
                                             if current_arg != "--aBogusArgument" {
                                                 result.push(current_arg);
@@ -293,9 +294,23 @@ impl BuildQueue {
                                             current_arg = String::with_capacity(ARG_STRING_DEFAULT_CAPACITY);
                                         },
 
-                                    // Part of current arg
-                                    (_, c) =>
-                                        current_arg.push(c)
+                                    // Part of current arg, regular character
+                                    (false, _, c) if c != '\\' =>
+                                        current_arg.push(c),
+
+                                    // Part of current arg, beginning of escaped character
+                                    (false, _, _) =>
+                                        in_escaped_character = true,
+
+                                    // Part of current arg, end of escaped character
+                                    (true, _, c) => {
+                                        // Paths on Windows contain backslashes and cargo doesn't escape them
+                                        if cfg!(windows) && c != '"' {
+                                            current_arg.push('\\');
+                                        }
+                                        current_arg.push(c);
+                                        in_escaped_character = false;
+                                    }
                                 }
 
                                 if c == '"' {
