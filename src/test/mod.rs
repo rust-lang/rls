@@ -91,23 +91,23 @@ fn test_simple_goto_def_ls() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let messages = vec![Message::new("initialize",
-                                     vec![("processId", "0".to_owned()), ("rootPath", format!("{}",
-                                               serde_json::to_string(&cache.abs_path(Path::new("."))).expect("couldn't convert path to JSON")
-                                     ))]),
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
+                                                 .expect("couldn't convert path to JSON"));
+    let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
+                                                        ("rootPath", root_path)]),
                         Message::new("textDocument/definition",
-                                     vec![("textDocument", format!("{{\"uri\":{}}}",
-                                               serde_json::to_string(
-                                                   &Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL").as_str().to_owned()
-                                               ).expect("couldn't convert path to JSON"))),
+                                     vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
     let (server, results) = mock_lsp_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
-                                       &ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       &ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
     // Goto def.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
