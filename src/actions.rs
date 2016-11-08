@@ -19,7 +19,7 @@ use serde_json;
 use build::*;
 use lsp_data::*;
 use ide::VscodeKind;
-use ls_server::{ResponseData, Output, Logger};
+use server::{ResponseData, Output, Logger};
 
 use std::collections::HashMap;
 use std::panic;

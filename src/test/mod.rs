@@ -9,7 +9,7 @@
 // except according to those terms.
 
 // Utilities and infrastructure for testing. Tests in this module test the
-// testing infrastructure *not* the RLS. 
+// testing infrastructure *not* the RLS.
 
 mod types;
 
@@ -19,12 +19,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use actions_http::Provider;
 use analysis;
 use build;
-use ide::Output;
-use ls_server;
-use server;
+use ide::{Output, Provider};
+use server as ls_server;
+//use server;
 use vfs;
 
 use self::types::src;
@@ -35,24 +34,6 @@ use std::path::{Path, PathBuf};
 
 // TODO we should wait for all threads to exit, rather than use a hacky timeout
 const TEST_WAIT_TIME: u64 = 1500;
-
-#[test]
-fn test_simple_goto_def() {
-    let _cr = CwdRestorer::new();
-
-    init_env("hello");
-    let mut cache = types::Cache::new(Path::new("."));
-    mock_server(|server| {
-        let source_file_path = Path::new("src").join("main.rs");
-
-        // Build.
-        assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input(&source_file_path)));
-
-        // Goto def.
-        let output = server.handle_action("/goto_def", &cache.mk_input(src(&source_file_path, 13, "world")));
-        assert_output(&mut cache, &output, src(&source_file_path, 12, "world"), Provider::Compiler);
-    });
-}
 
 #[test]
 fn test_abs_path() {
@@ -70,20 +51,34 @@ fn test_abs_path() {
     cwd_copy.push("hello");
     let mut cache = types::Cache::new(&cwd_copy);
 
-    mock_server(|server| {
-        let source_file_path = Path::new("src").join("main.rs");
+    let source_file_path = Path::new("src").join("main.rs");
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
+                                                        .expect("couldn't convert path to JSON"));
+    let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
+                                                        ("rootPath", root_path)]),
+                        Message::new("textDocument/definition",
+                                     vec![("textDocument", text_doc),
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
+    let (server, results) = mock_lsp_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-        // Build.
-        assert_non_empty(&server.handle_action("/on_save", &cache.mk_save_input(&source_file_path)));
-
-        // Goto def.
-        let output = server.handle_action("/goto_def", &cache.mk_input(src(&source_file_path, 13, "world")));
-        assert_output(&mut cache, &output, src(&source_file_path, 12, "world"), Provider::Compiler);
-    });
+    // Goto def.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
 }
 
 #[test]
-fn test_simple_goto_def_ls() {
+fn test_simple_goto_def() {
     let _cr = CwdRestorer::new();
 
     init_env("hello");
@@ -116,6 +111,7 @@ fn test_simple_goto_def_ls() {
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
 }
 
+/*
 // Initialise and run the internals of an RLS server.
 fn mock_server<F>(f: F)
     where F: FnOnce(&server::MyService)
@@ -131,6 +127,7 @@ fn mock_server<F>(f: F)
 
     f(&handler);
 }
+*/
 
 // Initialise and run the internals of an LS protocol RLS server.
 fn mock_lsp_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
@@ -270,7 +267,7 @@ fn assert_output(cache: &mut types::Cache, output: &[u8], src: types::Src, p: Pr
 fn assert_non_empty(output: &[u8]) {
     if output == b"{}\n" {
         panic!("Empty output");
-    }    
+    }
 }
 
 const FAIL_MSG: &'static str = "Error initialising environment";
