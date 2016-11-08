@@ -12,6 +12,7 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use std::convert::TryFrom;
+use std::error::Error;
 
 use analysis::Span;
 use analysis::raw;
@@ -31,9 +32,13 @@ macro_rules! impl_file_name {
     }
 }
 
-pub fn uri_string_to_file_name(uri: &str) -> PathBuf {
-    let uri = Url::parse(&uri).unwrap();
-    uri.to_file_path().unwrap()
+pub fn parse_file_path(uri: &Url) -> Result<PathBuf, Box<Error>> {
+    
+    if uri.scheme() != "file" {
+        return Err("URI scheme is not `file`".into());
+    }
+    
+    uri.to_file_path().map_err(|_err| "Invalid file path in URI".into())
 }
 
 pub fn from_usize(pos: usize) -> u64 {
@@ -77,14 +82,14 @@ pub mod ls_util {
     
     pub fn location_from_span(span: &Span) -> Location {
         Location {
-            uri: Url::from_file_path(&span.file_name).unwrap().into_string(),
+            uri: Url::from_file_path(&span.file_name).unwrap(),
             range: range_from_span(span),
         }
     }
 
     pub fn location_from_position(file_name: &Path, line: usize, col: usize) -> Location {
         Location {
-            uri: Url::from_file_path(&file_name).unwrap().into_string(),
+            uri: Url::from_file_path(&file_name).unwrap(),
             range: Range {
                 start: Position {
                     line: from_usize(line),

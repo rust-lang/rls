@@ -130,10 +130,10 @@ impl ActionHandler {
                     for (k, v) in results.iter() {
                         notifications.push(NotificationMessage::new(
                             "textDocument/publishDiagnostics".to_string(),
-                            PublishDiagnosticsParams {
-                                uri: Url::from_file_path(project_path.join(k)).unwrap().into_string(),
-                                diagnostics: v.clone()
-                            }
+                            PublishDiagnosticsParams::new(
+                                Url::from_file_path(project_path.join(k)).unwrap(),
+                                v.clone(),
+                            )
                         ));
                     }
                 }
@@ -163,7 +163,7 @@ impl ActionHandler {
     }
 
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
-        let fname: PathBuf = Url::parse(&change.text_document.uri).unwrap().to_file_path().unwrap();
+        let fname: PathBuf = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
             let range = match i.range {
                 Some(some) => { some } 
@@ -204,7 +204,7 @@ impl ActionHandler {
         let analysis = self.analysis.clone();
     
         let rustw_handle = thread::spawn(move || {
-            let file_name = uri_string_to_file_name(&doc.text_document.uri);
+            let file_name = parse_file_path(&doc.text_document.uri).unwrap();
             let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
             t.unpark();
 
@@ -228,7 +228,7 @@ impl ActionHandler {
         let vfs: &Vfs = &self.vfs;
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let pos = adjust_vscode_pos_for_racer(params.position);
-            let file_path = &uri_string_to_file_name(&params.text_document.uri);
+            let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
@@ -266,7 +266,7 @@ impl ActionHandler {
 
         let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
 
-        let mut edits: HashMap<String, Vec<TextEdit>> = HashMap::new();
+        let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
         for item in result.iter() {
             let loc = ls_util::location_from_span(&item);
@@ -317,7 +317,7 @@ impl ActionHandler {
         // Racer thread.
         let racer_handle = thread::spawn(move || {
             let pos = adjust_vscode_pos_for_racer(params.position);
-            let file_path = &uri_string_to_file_name(&params.text_document.uri);
+            let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
@@ -416,7 +416,7 @@ impl ActionHandler {
     pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
         self.logger.log(&format!("Reformat: {} {:?}\n", id, doc));
 
-        let path = &uri_string_to_file_name(&doc.uri);
+        let path = &parse_file_path(&doc.uri).unwrap();
         let input = match self.vfs.load_file(path) {
             Ok(s) => FmtInput::Text(s),
             Err(e) => {
@@ -453,7 +453,7 @@ impl ActionHandler {
     }
 
     fn convert_pos_to_span(&self, doc: &TextDocumentIdentifier, pos: &Position) -> Span {
-        let fname = uri_string_to_file_name(&doc.uri);
+        let fname = parse_file_path(&doc.uri).unwrap();
         self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
         let line = self.vfs.load_line(&fname, to_usize(pos.line));
         self.logger.log(&format!("\nGOT LINE: {:?}", line));

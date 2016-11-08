@@ -13,7 +13,7 @@ serde = "0.8"
 serde_json = "0.8"
 serde_derive = "0.8"
 derive-new = "0.1"
-languageserver-types = { version = "0.4.0", git = "https://github.com/gluon-lang/languageserver-types" }
+languageserver-types = { version = "0.5.0", git = "https://github.com/gluon-lang/languageserver-types" }
 
 [dev-dependencies]
 env_logger = "0.3.0"
