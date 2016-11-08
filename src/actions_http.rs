@@ -88,7 +88,7 @@ pub fn find_refs(source: Input, analysis: Arc<AnalysisHost>) -> Vec<Span> {
     let span = source.span;
     println!("title for: {:?}", span);
     let rustw_handle = thread::spawn(move || {
-        let result = analysis.find_all_refs(&span);
+        let result = analysis.find_all_refs(&span, true);
         t.unpark();
 
         println!("rustw find_all_refs: {:?}", result);

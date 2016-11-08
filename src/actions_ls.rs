@@ -256,7 +256,7 @@ impl ActionHandler {
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
-            let result = analysis.find_all_refs(&span);
+            let result = analysis.find_all_refs(&span, true);
             t.unpark();
 
             result
@@ -285,7 +285,7 @@ impl ActionHandler {
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
-            let result = analysis.find_all_refs(&span);
+            let result = analysis.find_all_refs(&span, params.context.include_declaration);
             t.unpark();
 
             result
