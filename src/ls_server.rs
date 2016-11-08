@@ -82,6 +82,7 @@ serializable_enum!(ResponseData,
     WorkspaceEdit(WorkspaceEdit),
     TextEdit([TextEdit; 1]),
     Locations(Vec<Location>),
+    Highlights(Vec<DocumentHighlight>),
     HoverSuccess(HoverSuccessContents)
 );
 
@@ -153,6 +154,7 @@ messages! {
         "textDocument/definition" => GotoDef(TextDocumentPositionParams);
         "textDocument/references" => FindAllRef(ReferenceParams);
         "textDocument/completion" => Complete(TextDocumentPositionParams);
+        "textDocument/documentHighlight" => Highlight(TextDocumentPositionParams);
         // currently, we safely ignore this as a pass-through since we fully handle
         // textDocument/completion.  In the future, we may want to use this method as a
         // way to more lazily fill out completion information
@@ -225,8 +227,7 @@ impl LsService {
                 },
                 definitionProvider: true,
                 referencesProvider: true,
-                // TODO
-                documentHighlightProvider: false,
+                documentHighlightProvider: true,
                 documentSymbolProvider: true,
                 workshopSymbolProvider: true,
                 codeActionProvider: false,
@@ -283,6 +284,10 @@ impl LsService {
                         Method::CompleteResolve(params) => {
                             this.logger.log(&format!("command(complete): {:?}\n", params));
                             this.output.success(id, ResponseData::CompletionItems(vec![params]))
+                        }
+                        Method::Highlight(params) => {
+                            this.logger.log(&format!("command(highlight): {:?}\n", params));
+                            this.handler.highlight(id, params, &*this.output);
                         }
                         Method::Symbols(params) => {
                             this.logger.log(&format!("command(goto): {:?}\n", params));

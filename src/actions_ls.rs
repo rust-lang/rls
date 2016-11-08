@@ -187,7 +187,7 @@ impl ActionHandler {
     pub fn symbols(&self, id: usize, doc: DocumentSymbolParams, out: &Output) {
         let t = thread::current();
         let analysis = self.analysis.clone();
-    
+
         let rustw_handle = thread::spawn(move || {
             let file_name = doc.textDocument.file_name();
             let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
@@ -261,6 +261,29 @@ impl ActionHandler {
         }
 
         out.success(id, ResponseData::WorkspaceEdit(WorkspaceEdit { changes: edits }));
+    }
+
+    pub fn highlight(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+        let t = thread::current();
+        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
+        let analysis = self.analysis.clone();
+
+        let rustw_handle = thread::spawn(move || {
+            let result = analysis.find_all_refs(&span, true);
+            t.unpark();
+
+            result
+        });
+
+        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+
+        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let refs: Vec<_> = result.iter().map(|item| DocumentHighlight {
+            range: Range::from_span(&item),
+            kind: 1
+        }).collect();
+
+        out.success(id, ResponseData::Highlights(refs));
     }
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
@@ -348,7 +371,7 @@ impl ActionHandler {
                     }
                     _ => {
                         self.logger.log("\nError in Racer\n");
-                        out.failure(id, "GotoDef failed to complete successfully");                        
+                        out.failure(id, "GotoDef failed to complete successfully");
                     }
                 }
             }

@@ -306,6 +306,12 @@ pub struct CompletionItem {
     pub detail: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct DocumentHighlight {
+    pub range: Range,
+    pub kind: usize,
+}
+
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize)]
 pub struct TextEdit {
