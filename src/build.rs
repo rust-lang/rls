@@ -327,8 +327,26 @@ impl BuildQueue {
                             assert!(!in_quoted_arg);
 
                             result.push("--sysroot".into());
-                            let sysroot = env::var("SYS_ROOT").expect("No SYS_ROOT env var given");
-                            result.push(sysroot.into());
+                            let home = option_env!("RUSTUP_HOME")
+                                               .or(option_env!("MULTIRUST_HOME"));
+                            let toolchain = option_env!("RUSTUP_TOOLCHAIN")
+                                                    .or(option_env!("MULTIRUST_TOOLCHAIN"));
+                            let sys_root = if let (Some(home), Some(toolchain)) = (home, toolchain) {
+                                format!("{}/toolchains/{}", home, toolchain)
+                            } else {
+                                option_env!("SYSROOT")
+                                    .map(|s| s.to_owned())
+                                    .or(Command::new("rustc")
+                                        .arg("--print")
+                                        .arg("sysroot")
+                                        .output()
+                                        .ok()
+                                        .and_then(|out| String::from_utf8(out.stdout).ok())
+                                        .map(|s| s.trim().to_owned()))
+                                    .expect("need to specify SYSROOT env var, \
+                                             or use rustup or multirust")
+                            };
+                            result.push(sys_root.into());
 
                             result
                         }
