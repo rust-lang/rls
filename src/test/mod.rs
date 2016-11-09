@@ -58,6 +58,7 @@ fn test_abs_path() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                         .expect("couldn't convert path to JSON"));
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
+                                                        ("capabilities", "null".to_owned()),
                                                         ("rootPath", root_path)]),
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
@@ -92,6 +93,7 @@ fn test_simple_goto_def() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
+                                                        ("capabilities", "null".to_owned()),
                                                         ("rootPath", root_path)]),
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
