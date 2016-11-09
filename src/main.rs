@@ -29,12 +29,10 @@ extern crate languageserver_types as ls_types;
 
 use std::sync::Arc;
 
-mod actions_http;
 mod build;
 mod ide;
 mod server;
-mod ls_server;
-mod actions_ls;
+mod actions;
 mod lsp_data;
 
 #[cfg(test)]
@@ -44,17 +42,9 @@ mod test;
 const COMPILER_TIMEOUT: u64 = 500;
 
 pub fn main() {
-    use std::env;
-
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
     let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
 
-    let args: Vec<String> = env::args().collect();
-
-    if args.contains(&"--http".to_string()) {
-        server::run_server(analysis, vfs, build_queue);
-    } else {
-        ls_server::run_server(analysis, vfs, build_queue);
-    }
+    server::run_server(analysis, vfs, build_queue);
 }

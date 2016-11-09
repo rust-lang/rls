@@ -13,9 +13,8 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader};
 
-use actions_http::Position;
 use analysis::Span;
-use ide::{Input, SaveInput};
+use ide::{Input, SaveInput, Position};
 use serde_json;
 
 #[derive(Clone, Copy, Debug)]
