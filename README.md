@@ -37,20 +37,14 @@ Use `cargo build` to build.
 
 ## Running
 
-To run the RLS, you need to specify the sysroot as an environment variable (this
-should become unnecessary in the future). This is the route directory of your
-Rust installation. You can find the sysroot with `rustc --print sysroot`.
-
-If you have installed Rust directly it will probably be `/usr/local`; if you are using
-a home-made compiler, it will be something like `~/rust/x86_64-unknown-linux-gnu/stage2`;
-with Rustup it will change depending on the version of Rust being used, it
-should be something like `~/multirust/toolchain/nightly-x86_64-unknown-linux-gnu`.
-
-Run with:
+You can run the rls by hand with:
 
 ```
-SYS_ROOT=/usr/local cargo run
+cargo run
 ```
+
+Though more commonly, you'll use an IDE plugin to invoke it for you. For this to work,
+ensure that the `rls` command is in your path.
 
 To work with the RLS, your project must be buildable using `cargo build`. If you
 use syntax extensions or build scripts, it is likely things will go wrong.
@@ -68,37 +62,12 @@ There is a different visual code extension for each, both in the above repo.
 Running each extensions is a bit different. Assuming you'll be doing this for
 development, you probably don't want to install the extensions.
 
-### LS protocol
-
-The LS protocol is the future and is the preferred way to use the RLS, however,
-it might be a bit flakey in places since it has not seen as much use and testing.
-
-When using the LS protocol, VSCode will start the RLS for you. Therefore to run,
-you just need to open the VSCode extension and run it. However, you must setup
-the environment variables as described above and you must ensure the RLS is in
-your path so VSCode can run it. See [ls.sh](ls.sh) for an example of how to run.
-
-### HTTP protocol
-
-This is basically legacy and will likely be removed at some point. However, some
-things may still work a bit better, and debugging can be easier.
-
-To use the http protocol you need to run the RLS yourself as described above, with the `--http` parameter.
-
-```
-SYS_ROOT=/usr/local cargo run -- --http
-```
-
-Then you can just open the extension in VSCode and run it (F5).
-
-It should all just work! You might need to make an edit and save before some of
-the features kick in (which is a bug - https://github.com/jonathandturner/rustls_vscode/issues/3).
-
+VSCode will start the RLS for you. Therefore to run, you just need to open the VSCode extension and run it. 
+However, you must install the rls in your path so that the RLS can find it.
 
 ## Testing
 
-Test using `RUST_TEST_THREADS=1 cargo test`, however you must set `SYS_ROOT` as
-described above.
+Test using `RUST_TEST_THREADS=1 cargo test`.
 
 Testing is unfortunately minimal. There is support for regression tests, but not
 many actual tests exists yet. There is signifcant [work to do](https://github.com/jonathandturner/rustls/issues/12)
@@ -147,7 +116,6 @@ compiler, something like:
 
 ```
 export RUSTC="/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin/rustc"
-export SYS_ROOT="/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2"
 cargo run
 ```
 
