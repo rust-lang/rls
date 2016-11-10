@@ -61,7 +61,7 @@ impl ActionHandler {
             let mut current_project = self.current_project.lock().unwrap();
             *current_project = Some(root_path.clone());
         }
-        self.build(&root_path, BuildPriority::Normal, out);
+        self.build(&root_path, BuildPriority::Immediate, out);
     }
 
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
