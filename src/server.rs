@@ -16,11 +16,9 @@ use build::*;
 use lsp_data::*;
 use actions::ActionHandler;
 
-use std::env;
 use std::fmt;
-use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write, ErrorKind};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
@@ -177,7 +175,6 @@ messages! {
 }
 
 pub struct LsService {
-    logger: Arc<Logger>,
     shut_down: AtomicBool,
     msg_reader: Box<MessageReader + Sync + Send>,
     output: Box<Output + Sync + Send>,
@@ -195,15 +192,13 @@ impl LsService {
                vfs: Arc<Vfs>,
                build_queue: Arc<BuildQueue>,
                reader: Box<MessageReader + Send + Sync>,
-               output: Box<Output + Send + Sync>,
-               logger: Arc<Logger>)
+               output: Box<Output + Send + Sync>)
                -> Arc<LsService> {
         Arc::new(LsService {
-            logger: logger.clone(),
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
             output: output,
-            handler: ActionHandler::new(analysis, vfs, build_queue, logger),
+            handler: ActionHandler::new(analysis, vfs, build_queue),
         })
     }
 
@@ -255,69 +250,69 @@ impl LsService {
             // FIXME(45) refactor to generate this match.
             match parse_message(&c) {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    this.logger.log(&format!("request to cancel {}\n", id));
+                    trace!("request to cancel {}", id);
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
-                    this.logger.log(&format!("notification(change): {:?}\n", change));
+                    trace!("notification(change): {:?}", change);
                     this.handler.on_change(change, &*this.output);
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
                         Method::Initialize(init) => {
-                            this.logger.log(&format!("command(init): {:?}\n", init));
+                            trace!("command(init): {:?}", init);
                             this.init(id, init);
                         }
                         Method::Shutdown => {
-                            this.logger.log(&format!("shutting down...\n"));
+                            trace!("shutting down...");
                             this.shut_down.store(true, Ordering::SeqCst);
                         }
                         Method::Hover(params) => {
-                            this.logger.log(&format!("command(hover): {:?}\n", params));
+                            trace!("command(hover): {:?}", params);
                             this.handler.hover(id, params, &*this.output);
                         }
                         Method::GotoDef(params) => {
-                            this.logger.log(&format!("command(goto): {:?}\n", params));
+                            trace!("command(goto): {:?}", params);
                             this.handler.goto_def(id, params, &*this.output);
                         }
                         Method::Complete(params) => {
-                            this.logger.log(&format!("command(complete): {:?}\n", params));
+                            trace!("command(complete): {:?}", params);
                             this.handler.complete(id, params, &*this.output);
                         }
                         Method::CompleteResolve(params) => {
-                            this.logger.log(&format!("command(complete): {:?}\n", params));
+                            trace!("command(complete): {:?}", params);
                             this.output.success(id, ResponseData::CompletionItems(vec![params]))
                         }
                         Method::Highlight(params) => {
-                            this.logger.log(&format!("command(highlight): {:?}\n", params));
+                            trace!("command(highlight): {:?}", params);
                             this.handler.highlight(id, params, &*this.output);
                         }
                         Method::Symbols(params) => {
-                            this.logger.log(&format!("command(goto): {:?}\n", params));
+                            trace!("command(goto): {:?}", params);
                             this.handler.symbols(id, params, &*this.output);
                         }
                         Method::FindAllRef(params) => {
-                            this.logger.log(&format!("command(find_all_refs): {:?}\n", params));
+                            trace!("command(find_all_refs): {:?}", params);
                             this.handler.find_all_refs(id, params, &*this.output);
                         }
                         Method::Rename(params) => {
-                            this.logger.log(&format!("command(rename): {:?}\n", params));
+                            trace!("command(rename): {:?}", params);
                             this.handler.rename(id, params, &*this.output);
                         }
                         Method::Reformat(params) => {
                             // FIXME take account of options.
-                            this.logger.log(&format!("command(reformat): {:?}\n", params));
+                            trace!("command(reformat): {:?}", params);
                             this.handler.reformat(id, params.textDocument, &*this.output);
                         }
                         Method::ReformatRange(params) => {
                             // FIXME reformats the whole file, not just a range.
                             // FIXME take account of options.
-                            this.logger.log(&format!("command(reformat): {:?}\n", params));
+                            trace!("command(reformat): {:?}", params);
                             this.handler.reformat(id, params.textDocument, &*this.output);
                         }
                     }
                 }
                 Err(e) => {
-                    this.logger.log(&format!("parsing invalid message: {:?}", e));
+                    trace!("parsing invalid message: {:?}", e);
                     if let Some(id) = e.id {
                         this.output.failure(id, "Unsupported message");
                     }
@@ -328,38 +323,11 @@ impl LsService {
     }
 }
 
-pub struct Logger {
-    log_file: Mutex<File>,
-}
-
-impl Logger {
-    pub fn new() -> Logger {
-        // note: logging is totally optional, but it gives us a way to see behind the scenes
-        let log_file = OpenOptions::new().append(true)
-                                         .write(true)
-                                         .create(true)
-                                         .open(env::temp_dir().join("rls_log.txt"))
-                                         .expect("Couldn't open log file");
-        Logger {
-            log_file: Mutex::new(log_file),
-        }
-    }
-
-    pub fn log(&self, s: &str) {
-        let mut log_file = self.log_file.lock().unwrap();
-        // FIXME(#40) write thread id to log_file
-        log_file.write_all(s.as_bytes()).unwrap();
-        // writeln!(::std::io::stderr(), "{}", s);
-    }
-}
-
 pub trait MessageReader {
     fn read_message(&self) -> Option<String>;
 }
 
-struct StdioMsgReader {
-    logger: Arc<Logger>,
-}
+struct StdioMsgReader;
 
 impl MessageReader for StdioMsgReader {
     fn read_message(&self) -> Option<String> {
@@ -368,7 +336,7 @@ impl MessageReader for StdioMsgReader {
                 match $e {
                     Ok(x) => x,
                     Err(_) => {
-                        self.logger.log($s);
+                        debug!($s);
                         return None;
                     }
                 }
@@ -380,7 +348,7 @@ impl MessageReader for StdioMsgReader {
         handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
 
         if buffer.len() == 0 {
-            self.logger.log("Header is empty");
+            info!("Header is empty");
             return None;
         }
 
@@ -388,17 +356,17 @@ impl MessageReader for StdioMsgReader {
 
         // Make sure we see the correct header
         if res.len() != 2 {
-            self.logger.log("Header is malformed");
+            info!("Header is malformed");
             return None;
         }
 
         if res[0] == "Content-length:" {
-            self.logger.log("Header is missing 'Content-length'");
+            info!("Header is missing 'Content-length'");
             return None;
         }
 
         let size = handle_err!(usize::from_str_radix(&res[1].trim(), 10), "Couldn't read size");
-        self.logger.log(&format!("now reading: {} bytes\n", size));
+        trace!("reading: {} bytes", size);
 
         // Skip the new lines
         let mut tmp = String::new();
@@ -408,8 +376,6 @@ impl MessageReader for StdioMsgReader {
         handle_err!(io::stdin().read_exact(&mut content), "Could not read from stdin");
 
         let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
-
-        self.logger.log(&format!("in came: {}\n", content));
 
         Some(content)
     }
@@ -470,15 +436,13 @@ pub trait Output {
     }
 }
 
-struct StdioOutput {
-    logger: Arc<Logger>,
-}
+struct StdioOutput;
 
 impl Output for StdioOutput {
     fn response(&self, output: String) {
         let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
 
-        self.logger.log(&format!("OUTPUT: {:?}", o));
+        debug!("response: {:?}", o);
 
         print!("{}", o);
         io::stdout().flush().unwrap();
@@ -486,14 +450,12 @@ impl Output for StdioOutput {
 }
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
-    let logger = Arc::new(Logger::new());
-    logger.log(&format!("\nLanguage Server Starting up\n"));
+    debug!("Language Server Starting up");
     let service = LsService::new(analysis,
                                  vfs,
                                  build_queue,
-                                 Box::new(StdioMsgReader { logger: logger.clone() }),
-                                 Box::new(StdioOutput { logger: logger.clone() } ),
-                                 logger.clone());
+                                 Box::new(StdioMsgReader),
+                                 Box::new(StdioOutput));
     LsService::run(service);
-    logger.log(&format!("\nServer shutting down.\n"));
+    debug!("Server shutting down");
 }

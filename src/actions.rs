@@ -19,7 +19,7 @@ use serde_json;
 use build::*;
 use lsp_data::*;
 use ide::VscodeKind;
-use server::{ResponseData, Output, Logger};
+use server::{ResponseData, Output};
 
 use std::collections::HashMap;
 use std::panic;
@@ -34,21 +34,18 @@ pub struct ActionHandler {
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
     previous_build_results: Mutex<HashMap<PathBuf, Vec<Diagnostic>>>,
-    logger: Arc<Logger>,
 }
 
 impl ActionHandler {
     pub fn new(analysis: Arc<AnalysisHost>,
            vfs: Arc<Vfs>,
-           build_queue: Arc<BuildQueue>,
-           logger: Arc<Logger>) -> ActionHandler {
+           build_queue: Arc<BuildQueue>) -> ActionHandler {
         ActionHandler {
             analysis: analysis,
             vfs: vfs,
             build_queue: build_queue,
             current_project: Mutex::new(None),
             previous_build_results: Mutex::new(HashMap::new()),
-            logger: logger,
         }
     }
 
@@ -67,11 +64,11 @@ impl ActionHandler {
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
         out.notify("rustDocument/diagnosticsBegin");
 
-        self.logger.log(&format!("\nBUILDING {:?}\n", project_path));
+        debug!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
-                self.logger.log(&format!("\nBUILDING - Success\n"));
+                debug!("build - Success");
                 {
                     let mut results = self.previous_build_results.lock().unwrap();
                     // We must not clear the hashmap, just the values in each list.
@@ -111,8 +108,8 @@ impl ActionHandler {
                             }
                         }
                         Err(e) => {
-                            self.logger.log(&format!("<<ERROR>> {:?}", e));
-                            self.logger.log(&format!("<<FROM>> {}", msg));
+                            debug!("build error {:?}", e);
+                            debug!("from {}", msg);
                         }
                     }
                 }
@@ -143,16 +140,15 @@ impl ActionHandler {
 
                 out.notify("rustDocument/diagnosticsEnd");
 
-                self.logger.log(&format!("reload analysis: {:?}", project_path));
+                trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(&project_path).unwrap();
             }
             BuildResult::Squashed => {
-                self.logger.log(&format!("\nBUILDING - Squashed\n"));
+                trace!("build - Squashed");
                 out.notify("rustDocument/diagnosticsEnd");
             },
             BuildResult::Err => {
-                // TODO why are we erroring out?
-                self.logger.log(&format!("\nBUILDING - Error\n"));
+                trace!("build - Error");
                 out.notify("rustDocument/diagnosticsEnd");
             },
         }
@@ -168,7 +164,7 @@ impl ActionHandler {
         }).collect();
         self.vfs.on_changes(&changes).unwrap();
 
-        self.logger.log(&format!("CHANGES: {:?}", changes));
+        trace!("on_change: {:?}", changes);
 
         self.build_current_project(out);
     }
@@ -180,7 +176,7 @@ impl ActionHandler {
         };
         match current_project {
             Some(ref current_project) => self.build(&current_project, BuildPriority::Normal, out),
-            None => self.logger.log("No project path"),
+            None => debug!("build_current_project - no project path"),
         }
     }
 
@@ -359,18 +355,18 @@ impl ActionHandler {
         match compiler_result {
             Ok(Ok(r)) => {
                 let result = vec![Location::from_span(&r)];
-                self.logger.log(&format!("\nGOING TO: {:?}\n", result));
+                trace!("goto_def TO: {:?}", result);
                 out.success(id, ResponseData::Locations(result));
             }
             _ => {
-                self.logger.log("\nUsing Racer\n");
+                info!("goto_def - falling back to Racer");
                 match racer_handle.join() {
                     Ok(Some(r)) => {
-                        self.logger.log(&format!("\nGOING TO: {:?}\n", r));
+                        trace!("goto_def: {:?}", r);
                         out.success(id, ResponseData::Locations(vec![r]));
                     }
                     _ => {
-                        self.logger.log("\nError in Racer\n");
+                        debug!("Error in Racer");
                         out.failure(id, "GotoDef failed to complete successfully");
                     }
                 }
@@ -382,7 +378,7 @@ impl ActionHandler {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.textDocument, &params.position);
 
-        self.logger.log(&format!("\nHovering span: {:?}\n", span));
+        trace!("hover: {:?}", span);
 
         let analysis = self.analysis.clone();
         let rustw_handle = thread::spawn(move || {
@@ -420,13 +416,13 @@ impl ActionHandler {
     }
 
     pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
-        self.logger.log(&format!("Reformat: {} {:?}\n", id, doc));
+        trace!("Reformat: {} {:?}", id, doc);
 
         let path = &doc.file_name();
         let input = match self.vfs.load_file(path) {
             Ok(s) => FmtInput::Text(s),
             Err(e) => {
-                self.logger.log(&format!("Reformat failed: {:?}\n", e));
+                debug!("Reformat failed: {:?}", e);
                 out.failure(id, "Reformat failed to complete successfully");
                 return;
             }
@@ -458,7 +454,7 @@ impl ActionHandler {
                 out.success(id, ResponseData::TextEdit(result))
             }
             Err(e) => {
-                self.logger.log(&format!("Reformat failed: {:?}\n", e));
+                debug!("Reformat failed: {:?}", e);
                 out.failure(id, "Reformat failed to complete successfully")
             }
         }
@@ -466,9 +462,8 @@ impl ActionHandler {
 
     fn convert_pos_to_span(&self, doc: &Document, pos: &Position) -> Span {
         let fname = doc.file_name();
-        self.logger.log(&format!("\nWorking on: {:?} {:?}", fname, pos));
+        trace!("convert_pos_to_span: {:?} {:?}", fname, pos);
         let line = self.vfs.load_line(&fname, pos.line);
-        self.logger.log(&format!("\nGOT LINE: {:?}", line));
         let start_pos = {
             let mut tmp = Position { line: pos.line, character: 1 };
             for (i, c) in line.clone().unwrap().chars().enumerate() {

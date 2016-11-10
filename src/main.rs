@@ -12,17 +12,20 @@
 #![feature(proc_macro)]
 
 #[macro_use]
+extern crate derive_new;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+#[macro_use]
 extern crate hyper;
+extern crate racer;
 extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;
+extern crate rustfmt;
 extern crate serde;
-extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate derive_new;
-extern crate racer;
-extern crate rustfmt;
+extern crate serde_json;
 
 use std::sync::Arc;
 
@@ -39,6 +42,8 @@ mod test;
 const COMPILER_TIMEOUT: u64 = 500;
 
 pub fn main() {
+    env_logger::init().unwrap();
+
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
     let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
