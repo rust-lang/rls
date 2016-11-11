@@ -128,8 +128,7 @@ fn test_parse_error_on_malformed_input() {
     let reader = Box::new(NoneMsgReader);
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    let logger = Arc::new(ls_server::Logger::new());
-    let server = ls_server::LsService::new(analysis, vfs, build_queue, reader, output, logger);
+    let server = ls_server::LsService::new(analysis, vfs, build_queue, reader, output);
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Break);
@@ -166,8 +165,7 @@ fn mock_lsp_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResu
     let reader = Box::new(MockMsgReader { messages: messages, cur: AtomicUsize::new(0) });
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    let logger = Arc::new(ls_server::Logger::new());
-    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output, logger), results)
+    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
 }
 
 // Despite the use of AtomicUsize and thus being Sync, this struct is not properly
