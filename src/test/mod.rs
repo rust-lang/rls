@@ -113,6 +113,32 @@ fn test_simple_goto_def() {
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
 }
 
+
+#[test]
+fn test_parse_error_on_malformed_input() {
+    struct NoneMsgReader;
+
+    impl ls_server::MessageReader for NoneMsgReader {
+        fn read_message(&self) -> Option<String> { None }
+    }
+
+    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
+    let vfs = Arc::new(vfs::Vfs::new());
+    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
+    let reader = Box::new(NoneMsgReader);
+    let output = Box::new(RecordOutput::new());
+    let results = output.output.clone();
+    let logger = Arc::new(ls_server::Logger::new());
+    let server = ls_server::LsService::new(analysis, vfs, build_queue, reader, output, logger);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Break);
+
+    let error = results.lock().unwrap()
+        .pop().expect("no error response");
+    assert!(error.contains(r#""code": -32700"#))
+}
+
 /*
 // Initialise and run the internals of an RLS server.
 fn mock_server<F>(f: F)

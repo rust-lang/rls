@@ -248,7 +248,10 @@ impl LsService {
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
         let c = match this.msg_reader.read_message() {
             Some(c) => c,
-            None => return ServerStateChange::Break,
+            None => {
+                this.output.parse_error();
+                return ServerStateChange::Break
+            },
         };
 
         let this = this.clone();
@@ -418,6 +421,10 @@ impl MessageReader for StdioMsgReader {
 
 pub trait Output {
     fn response(&self, output: String);
+
+    fn parse_error(&self) {
+        self.response(r#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
+    }
 
     fn failure(&self, id: usize, message: &str) {
         // For now this is a catch-all for any error back to the consumer of the RLS
