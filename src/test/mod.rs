@@ -62,7 +62,7 @@ fn test_abs_path() {
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_lsp_server(messages);
+    let (server, results) = mock_with_messages(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -96,7 +96,7 @@ fn test_simple_goto_def() {
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_lsp_server(messages);
+    let (server, results) = mock_with_messages(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -113,27 +113,44 @@ fn test_simple_goto_def() {
 
 
 #[test]
-fn test_parse_error_on_malformed_input() {
-    struct NoneMsgReader;
-
-    impl ls_server::MessageReader for NoneMsgReader {
-        fn read_message(&self) -> Option<String> { None }
-    }
-
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let reader = Box::new(NoneMsgReader);
-    let output = Box::new(RecordOutput::new());
-    let results = output.output.clone();
-    let server = ls_server::LsService::new(analysis, vfs, build_queue, reader, output);
+fn test_parse_error_on_malformed_header() {
+    let (server, results) = mock_lsp_server(RepeatMsgReader(None));
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Break);
 
     let error = results.lock().unwrap()
         .pop().expect("no error response");
-    assert!(error.contains(r#""code": -32700"#))
+    assert!(error.contains(r#""code":-32700"#));
+    assert!(error.contains("Parse error"));
+}
+
+#[test]
+fn test_parse_error_on_malformed_json() {
+    let (server, results) = mock_lsp_server(RepeatMsgReader(Some("{".to_owned())));
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Break);
+
+    let error = results.lock().unwrap()
+        .pop().expect("no error response");
+    assert!(error.contains(r#""code":-32700"#));
+    assert!(error.contains("Parse error"));
+}
+
+#[test]
+fn test_invalid_request_for_bad_request() {
+    let (server, results) = mock_lsp_server(RepeatMsgReader(Some("{}".to_owned())));
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+
+    thread::sleep(Duration::from_millis(TEST_WAIT_TIME));
+
+    let error = results.lock().unwrap()
+        .pop().expect("no error response");
+    assert!(error.contains(r#""code":-32600"#));
+    assert!(error.contains("Invalid Request"));
 }
 
 /*
@@ -155,16 +172,29 @@ fn mock_server<F>(f: F)
 */
 
 // Initialise and run the internals of an LS protocol RLS server.
-fn mock_lsp_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
+fn mock_with_messages(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
+{
+    mock_lsp_server(MockMsgReader { messages: messages, cur: AtomicUsize::new(0) })
+}
+
+fn mock_lsp_server<M>(msg_reader: M) -> (Arc<ls_server::LsService>, LsResultList)
+    where M: ls_server::MessageReader + Sync + Send + 'static
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
     let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let reader = Box::new(MockMsgReader { messages: messages, cur: AtomicUsize::new(0) });
+    let reader = Box::new(msg_reader);
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
     (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
 }
+
+struct RepeatMsgReader(Option<String>);
+
+impl ls_server::MessageReader for RepeatMsgReader{
+    fn read_message(&self) -> Option<String> { self.0.clone() }
+}
+
 
 // Despite the use of AtomicUsize and thus being Sync, this struct is not properly
 // thread-safe, the assumption is we will process one message at a time.

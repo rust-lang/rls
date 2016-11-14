@@ -99,9 +99,7 @@ macro_rules! messages {
         enum Method {
             $($method_name$(($method_arg))*,)*
         }
-        fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
-            let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
-
+        fn parse_message(ls_command: serde_json::Value) -> Result<ServerMessage, ParseError>  {
             let params = ls_command.lookup("params");
 
             macro_rules! params_as {
@@ -237,10 +235,16 @@ impl LsService {
     }
 
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
-        let c = match this.msg_reader.read_message() {
-            Some(c) => c,
+        let cmd: serde_json::Value = match this.msg_reader.read_message() {
+            Some(c) => match serde_json::from_str(&c) {
+                Ok(v) => v,
+                Err(e) => {
+                    this.output.response(ErrorResponse::parse_error(Some(format!("{:?}", e))));
+                    return ServerStateChange::Break
+                }
+            },
             None => {
-                this.output.parse_error();
+                this.output.response(ErrorResponse::parse_error(None));
                 return ServerStateChange::Break
             },
         };
@@ -248,7 +252,7 @@ impl LsService {
         let this = this.clone();
         thread::spawn(move || {
             // FIXME(45) refactor to generate this match.
-            match parse_message(&c) {
+            match parse_message(cmd) {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
                     trace!("request to cancel {}", id);
                 },
@@ -313,9 +317,7 @@ impl LsService {
                 }
                 Err(e) => {
                     trace!("parsing invalid message: {:?}", e);
-                    if let Some(id) = e.id {
-                        this.output.failure(id, "Unsupported message");
-                    }
+                    this.output.response(ErrorResponse::invalid_request(e.id, format!("{:?}", e)))
                 },
             }
         });
@@ -384,37 +386,14 @@ impl MessageReader for StdioMsgReader {
 pub trait Output {
     fn response(&self, output: String);
 
-    fn parse_error(&self) {
-        self.response(r#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
-    }
-
     fn failure(&self, id: usize, message: &str) {
         // For now this is a catch-all for any error back to the consumer of the RLS
         const METHOD_NOT_FOUND: i64 = -32601;
-
-        #[derive(Serialize)]
-        struct ResponseError {
-            code: i64,
-            message: String
-        }
-
-        #[derive(Serialize)]
-        struct ResponseFailure {
-            jsonrpc: &'static str,
-            id: usize,
-            error: ResponseError,
-        }
-
-        let rf = ResponseFailure {
-            jsonrpc: "2.0",
-            id: id,
-            error: ResponseError {
-                code: METHOD_NOT_FOUND,
-                message: message.to_owned(),
-            },
-        };
-        let output = serde_json::to_string(&rf).unwrap();
-        self.response(output);
+        self.response(ErrorResponseData {
+            code: METHOD_NOT_FOUND,
+            message: message.to_owned(),
+            data: None,
+        }.into_json_string(Some(id)))
     }
 
     fn success(&self, id: usize, data: ResponseData) {
@@ -433,6 +412,49 @@ pub trait Output {
             &NotificationMessage::new(message.to_owned(), ())
         ).unwrap();
         self.response(output);
+    }
+}
+
+#[derive(Serialize)]
+struct ErrorResponse {
+    jsonrpc: &'static str,
+    id: Option<usize>,
+    error: ErrorResponseData,
+}
+
+#[derive(Serialize)]
+struct ErrorResponseData {
+    code: i64,
+    message: String,
+    data: Option<String>,
+}
+
+impl ErrorResponse {
+    fn parse_error(data: Option<String>) -> String {
+        ErrorResponseData {
+            code: -32700,
+            message: "Parse error".to_owned(),
+            data: data,
+        }.into_json_string(None)
+    }
+
+    fn invalid_request(request_id: Option<usize>, data: String) -> String {
+        ErrorResponseData {
+            code: -32600,
+            message: "Invalid Request".to_owned(),
+            data: Some(data),
+        }.into_json_string(request_id)
+    }
+}
+
+impl ErrorResponseData {
+    fn into_json_string(self, request_id: Option<usize>) -> String {
+        let er = ErrorResponse {
+            jsonrpc: "2.0",
+            id: request_id,
+            error: self,
+        };
+        serde_json::to_string(&er).unwrap()
     }
 }
 
