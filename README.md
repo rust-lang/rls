@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/jonathandturner/rls.svg?branch=master)](https://travis-ci.org/jonathandturner/rls)
+
 # Rust Language Service (RLS)
 
 **This project is in the early stages of development, it is not yet ready for real
