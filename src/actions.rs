@@ -141,7 +141,7 @@ impl ActionHandler {
                 out.notify("rustDocument/diagnosticsEnd");
 
                 trace!("reload analysis: {:?}", project_path);
-                self.analysis.reload(&project_path).unwrap();
+                self.analysis.reload(&project_path, false).unwrap();
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
