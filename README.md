@@ -58,11 +58,7 @@ To run with VSCode, you'll need a recent version of that
 
 You'll then need a copy of our [VSCode extension](https://github.com/jonathandturner/rustls_vscode).
 
-The RLS can operate via two different protocols: via a custom http protocol and
-via the [Language Server protocol](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md).
-There is a different visual code extension for each, both in the above repo.
-Running each extensions is a bit different. Assuming you'll be doing this for
-development, you probably don't want to install the extensions.
+The RLS can operates via the [Language Server protocol](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md).
 
 VSCode will start the RLS for you. Therefore to run, you just need to open the VSCode extension and run it. 
 However, you must install the rls in your path so that the RLS can find it.
