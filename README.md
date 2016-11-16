@@ -187,15 +187,8 @@ Reading, processing, and storing the analysis data is handled by the
 
 ### Communicating with IDEs
 
-There are two ways the RLS communicates with IDEs - a custom http protocol and
+The RLS communicates with IDEs via
 the [Language Server protocol](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md).
-These have very different code paths through the RLS and require very different
-clients, such as IDE plugins (e.g., see the discussion above about VSCode
-extensions).
-
-The LS protocol is the preferred mechanism and http is somewhat legacy. If all
-goes well (we iron out the bugs from the LS protocol and support is feasible for
-all clients), then it will be deprecated and removed.
 
 The LS protocol uses JSON sent over stdin/stdout. The JSON is rather dynamic -
 we can't make structs to easily map to many of the protocol objects. The client
@@ -207,11 +200,6 @@ request, then send a message later with the result of the task.
 
 Associating requests with replies is done using an id which must be handled by
 the RLS.
-
-Under the http protocol, the RLS works as an http server, replying to requests.
-It cannot send extra notifications to the client. Communication is JSON over
-http. The JSON structs are all defined in the RLS. Much of the server-aspects
-are handled by Hyper (associating requests with replies, threading, etc.)
 
 ## Contributing
 
