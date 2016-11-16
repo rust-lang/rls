@@ -237,7 +237,9 @@ impl LsService {
         };
         self.output.success(id, ResponseData::Init(result));
         let root_path = init.root_path.map(|str| PathBuf::from(str));
-        self.handler.init(root_path, &*self.output);
+        if let Some(root_path) = root_path {
+            self.handler.init(root_path, &*self.output);
+        }
     }
 
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {

@@ -11,7 +11,6 @@
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use std::convert::TryFrom;
 use std::error::Error;
 
 use analysis::Span;
@@ -33,24 +32,25 @@ macro_rules! impl_file_name {
 }
 
 pub fn parse_file_path(uri: &Url) -> Result<PathBuf, Box<Error>> {
-    
     if uri.scheme() != "file" {
-        return Err("URI scheme is not `file`".into());
+        Err("URI scheme is not `file`".into())
+    } else {
+        uri.to_file_path().map_err(|_err| "Invalid file path in URI".into())
     }
-    
-    uri.to_file_path().map_err(|_err| "Invalid file path in URI".into())
 }
 
 pub fn from_usize(pos: usize) -> u64 {
-    TryFrom::try_from(pos).unwrap() // XXX: Should we do error handling or assume it's ok?
+    pos as u64
 }
 
 pub fn to_usize(pos: u64) -> usize {
-    TryFrom::try_from(pos).unwrap() // FIXME: for this one we definitely need to add error checking
+    pos as usize // Truncation might happen if usize is 32 bits.
 }
 
 
 pub mod ls_util {
+    use vfs::Vfs;
+
     use super::*;
     use std::path::{Path, PathBuf};
 
@@ -78,6 +78,13 @@ pub mod ls_util {
             line_end: to_usize(this.end.line),
             column_end: to_usize(this.end.character),
         }
+    }
+    
+    pub fn range_from_vfs_file(_vfs: &Vfs, _fname: &Path) -> Range {
+        // FIXME: todo, endpos must be the end of the document, this is not correct
+        
+        let end_pos = Position::new(0, 0);
+        Range{ start : Position::new(0, 0), end : end_pos }
     }
     
     pub fn location_from_span(span: &Span) -> Location {
@@ -123,7 +130,8 @@ pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
     }
 }
 
-/* ----------------- These are not LSP types: ----------------- */
+/* -----------------  Compiler message  ----------------- */
+// FIXME: These types are not LSP related, should be moved to a different module.
 
 #[derive(Debug, Deserialize)]
 pub struct CompilerMessageCode {
@@ -138,7 +146,8 @@ pub struct CompilerMessage {
     pub spans: Vec<Span>,
 }
 
-/* ----------------- These are not LSP types either, but JSON-RPC stuff : ----------------- */
+/* -----------------  JSON-RPC protocol types ----------------- */
+// FIXME: These types are not directly LSP related, should be moved to a JSON-RPC module.
 
 /// An event-like (no response needed) notification message.
 #[derive(Debug, Serialize)]

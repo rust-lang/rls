@@ -10,7 +10,6 @@
 
 #![feature(rustc_private)]
 #![feature(proc_macro)]
-#![feature(try_from)]
 
 #[macro_use]
 extern crate derive_new;

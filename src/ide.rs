@@ -10,7 +10,7 @@
 
 use std::path::PathBuf;
 
-use analysis::{raw, Span};
+use analysis::{Span};
 
 use vfs::Change;
 

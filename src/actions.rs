@@ -48,15 +48,11 @@ impl ActionHandler {
         }
     }
 
-    pub fn init(&self, root_path: Option<PathBuf>, out: &Output) {
+    pub fn init(&self, root_path: PathBuf, out: &Output) {
         {
             let mut results = self.previous_build_results.lock().unwrap();
             results.clear();
         }
-        let root_path = match root_path {
-            Some(some) => some, 
-            None => return
-        };
         {
             let mut current_project = self.current_project.lock().unwrap();
             *current_project = Some(root_path.clone());
@@ -161,17 +157,11 @@ impl ActionHandler {
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
         let fname: PathBuf = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
-            let range = match i.range {
-                Some(some) => { some } 
-                None => {
-                    // In this case the range is considered to be the whole document,
-                    // as specified by LSP
-                    
-                    // FIXME: to do, endpos must be the end of the document, this is not correct
-                    let end_pos = Position::new(0, 0);
-                    Range{ start : Position::new(0, 0), end : end_pos }
-                }
-            };
+            let range = i.range.unwrap_or_else(|| {
+                // In this case the range is considered to be the whole document,
+                // as specified by LSP
+                ls_util::range_from_vfs_file(&self.vfs, &fname)
+            });
             Change {
                 span: ls_util::range_to_span(range, fname.clone()),
                 text: i.text.clone()
@@ -209,7 +199,7 @@ impl ActionHandler {
                     name: s.name,
                     kind: source_kind_from_def_kind(s.kind),
                     location: ls_util::location_from_span(&s.span),
-                    container_name: None // TODO: more info could be added here
+                    container_name: None // FIXME: more info could be added here
                 }
             }).collect()
         });
@@ -357,8 +347,8 @@ impl ActionHandler {
                                                  .point_to_coords(mtch.point)
                                                  .unwrap();
                         Some(ls_util::location_from_position(source_path,
-                                                     adjust_racer_line_for_vscode(line),
-                                                     col))
+                                                             adjust_racer_line_for_vscode(line),
+                                                             col))
                     } else {
                         None
                     }
