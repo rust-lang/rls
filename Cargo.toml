@@ -12,7 +12,7 @@ rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
 serde = "0.8"
 serde_json = "0.8"
 serde_derive = "0.8"
-derive-new = "0.1"
+derive-new = "0.3"
 env_logger = "0.3"
 
 [dependencies.hyper]
