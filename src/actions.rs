@@ -18,7 +18,6 @@ use serde_json;
 
 use build::*;
 use lsp_data::*;
-use ide::VscodeKind;
 use server::{ResponseData, Output};
 
 use std::collections::HashMap;
@@ -83,16 +82,17 @@ impl ActionHandler {
                                 continue;
                             }
                             let mut diag = Diagnostic {
-                                range: Range::from_span(&method.spans[0]),
-                                severity: if method.level == "error" {
+                                range: ls_util::range_from_span(&method.spans[0]),
+                                severity: Some(if method.level == "error" {
                                     DiagnosticSeverity::Error
                                 } else {
                                     DiagnosticSeverity::Warning
-                                },
-                                code: match method.code {
+                                }),
+                                code: Some(NumberOrString::String(match method.code {
                                     Some(c) => c.code.clone(),
                                     None => String::new(),
-                                },
+                                })),
+                                source: Some("rustc".into()),
                                 message: method.message.clone(),
                             };
 
@@ -123,10 +123,10 @@ impl ActionHandler {
                     for (k, v) in results.iter() {
                         notifications.push(NotificationMessage::new(
                             "textDocument/publishDiagnostics".to_string(),
-                            PublishDiagnosticsParams {
-                                uri: Url::from_file_path(project_path.join(k)).unwrap().into_string(),
-                                diagnostics: v.clone()
-                            }
+                            PublishDiagnosticsParams::new(
+                                Url::from_file_path(project_path.join(k)).unwrap(),
+                                v.clone(),
+                            )
                         ));
                     }
                 }
@@ -154,11 +154,16 @@ impl ActionHandler {
         }
     }
 
-    pub fn on_change(&self, change: ChangeParams, out: &Output) {
-        let fname: PathBuf = Url::parse(&change.textDocument.uri).unwrap().to_file_path().unwrap();
-        let changes: Vec<Change> = change.contentChanges.iter().map(move |i| {
+    pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
+        let fname: PathBuf = parse_file_path(&change.text_document.uri).unwrap();
+        let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
+            let range = i.range.unwrap_or_else(|| {
+                // In this case the range is considered to be the whole document,
+                // as specified by LSP
+                ls_util::range_from_vfs_file(&self.vfs, &fname)
+            });
             Change {
-                span: i.range.to_span(fname.clone()),
+                span: ls_util::range_to_span(range, fname.clone()),
                 text: i.text.clone()
             }
         }).collect();
@@ -185,15 +190,16 @@ impl ActionHandler {
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
-            let file_name = doc.textDocument.file_name();
+            let file_name = parse_file_path(&doc.text_document.uri).unwrap();
             let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
             t.unpark();
 
             symbols.into_iter().map(|s| {
                 SymbolInformation {
                     name: s.name,
-                    kind: VscodeKind::from(s.kind) as u32,
-                    location: Location::from_span(&s.span),
+                    kind: source_kind_from_def_kind(s.kind),
+                    location: ls_util::location_from_span(&s.span),
+                    container_name: None // FIXME: more info could be added here
                 }
             }).collect()
         });
@@ -208,7 +214,7 @@ impl ActionHandler {
         let vfs: &Vfs = &self.vfs;
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let pos = adjust_vscode_pos_for_racer(params.position);
-            let file_path = &params.textDocument.file_name();
+            let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
@@ -218,13 +224,13 @@ impl ActionHandler {
 
             let src = session.load_file(file_path);
 
-            let pos = session.load_file(file_path).coords_to_point(pos.line, pos.character).unwrap();
+            let pos = session.load_file(file_path).coords_to_point(to_usize(pos.line), to_usize(pos.character)).unwrap();
             let results = complete_from_file(&src.code, file_path, pos, &session);
 
-            results.map(|comp| CompletionItem {
-                label: comp.matchstr.clone(),
-                detail: comp.contextstr.clone(),
-            }).collect()
+            results.map(|comp| CompletionItem::new_simple(
+                comp.matchstr.clone(),
+                comp.contextstr.clone(),
+            )).collect()
         }).unwrap_or(vec![]);
 
         out.success(id, ResponseData::CompletionItems(result));
@@ -232,7 +238,7 @@ impl ActionHandler {
 
     pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, &params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
@@ -246,13 +252,13 @@ impl ActionHandler {
 
         let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
 
-        let mut edits: HashMap<String, Vec<TextEdit>> = HashMap::new();
+        let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
         for item in result.iter() {
-            let loc = Location::from_span(&item);
+            let loc = ls_util::location_from_span(&item);
             edits.entry(loc.uri).or_insert(vec![]).push(TextEdit {
                 range: loc.range,
-                newText: params.newName.clone(),
+                new_text: params.new_name.clone(),
             });
         }
 
@@ -261,7 +267,7 @@ impl ActionHandler {
 
     pub fn highlight(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, &params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
@@ -275,8 +281,8 @@ impl ActionHandler {
 
         let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
         let refs: Vec<_> = result.iter().map(|item| DocumentHighlight {
-            range: Range::from_span(&item),
-            kind: 1
+            range: ls_util::range_from_span(&item),
+            kind: Some(DocumentHighlightKind::Text),
         }).collect();
 
         out.success(id, ResponseData::Highlights(refs));
@@ -284,11 +290,11 @@ impl ActionHandler {
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, &params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
-            let result = analysis.find_all_refs(&span, params.context.includeDeclaration);
+            let result = analysis.find_all_refs(&span, params.context.include_declaration);
             t.unpark();
 
             result
@@ -297,7 +303,7 @@ impl ActionHandler {
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
         let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
-        let refs: Vec<_> = result.iter().map(|item| Location::from_span(&item)).collect();
+        let refs: Vec<_> = result.iter().map(|item| ls_util::location_from_span(&item)).collect();
 
         out.success(id, ResponseData::Locations(refs));
     }
@@ -305,7 +311,7 @@ impl ActionHandler {
     pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         // Save-analysis thread.
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, &params.position);
         let analysis = self.analysis.clone();
         let vfs = self.vfs.clone();
 
@@ -320,7 +326,7 @@ impl ActionHandler {
         // Racer thread.
         let racer_handle = thread::spawn(move || {
             let pos = adjust_vscode_pos_for_racer(params.position);
-            let file_path = &params.textDocument.file_name();
+            let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
             let cache = core::FileCache::new();
             let session = core::Session::from_path(&cache, file_path, file_path);
@@ -332,7 +338,7 @@ impl ActionHandler {
 
             find_definition(&src.code,
                             file_path,
-                            src.coords_to_point(pos.line, pos.character).unwrap(),
+                            src.coords_to_point(to_usize(pos.line), to_usize(pos.character)).unwrap(),
                             &session)
                 .and_then(|mtch| {
                     let source_path = &mtch.filepath;
@@ -340,9 +346,9 @@ impl ActionHandler {
                         let (line, col) = session.load_file(source_path)
                                                  .point_to_coords(mtch.point)
                                                  .unwrap();
-                        Some(Location::from_position(source_path,
-                                                     adjust_racer_line_for_vscode(line),
-                                                     col))
+                        Some(ls_util::location_from_position(source_path,
+                                                             adjust_racer_line_for_vscode(line),
+                                                             col))
                     } else {
                         None
                     }
@@ -354,7 +360,7 @@ impl ActionHandler {
         let compiler_result = compiler_handle.join();
         match compiler_result {
             Ok(Ok(r)) => {
-                let result = vec![Location::from_span(&r)];
+                let result = vec![ls_util::location_from_span(&r)];
                 trace!("goto_def TO: {:?}", result);
                 out.success(id, ResponseData::Locations(result));
             }
@@ -374,9 +380,9 @@ impl ActionHandler {
         }
     }
 
-    pub fn hover(&self, id: usize, params: HoverParams, out: &Output) {
+    pub fn hover(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.textDocument, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, &params.position);
 
         trace!("hover: {:?}", span);
 
@@ -389,16 +395,17 @@ impl ActionHandler {
 
             let mut contents = vec![];
             if !docs.is_empty() {
-                contents.push(MarkedString { language: "markdown".into(), value: docs });
+                contents.push(MarkedString::from_markdown(docs.into()));
             }
             if !doc_url.is_empty() {
-                contents.push(MarkedString { language: "url".into(), value: doc_url });
+                contents.push(MarkedString::from_language_code("url".into(), doc_url.into()));
             }
             if !ty.is_empty() {
-                contents.push(MarkedString { language: "rust".into(), value: ty });
+                contents.push(MarkedString::from_language_code("rust".into(), ty.into()));
             }
-            HoverSuccessContents {
-                contents: contents
+            Hover {
+                contents: contents,
+                range: None, // TODO: maybe add?
             }
         });
 
@@ -418,7 +425,7 @@ impl ActionHandler {
     pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
         trace!("Reformat: {} {:?}", id, doc);
 
-        let path = &doc.file_name();
+        let path = &parse_file_path(&doc.uri).unwrap();
         let input = match self.vfs.load_file(path) {
             Ok(s) => FmtInput::Text(s),
             Err(e) => {
@@ -440,16 +447,10 @@ impl ActionHandler {
                 let text = String::from_utf8(buf).unwrap();
                 let result = [TextEdit {
                     range: Range {
-                        start: Position {
-                            line: 0,
-                            character: 0,
-                        },
-                        end: Position {
-                            line: text.lines().count(),
-                            character: 0,
-                        },
+                        start: Position::new(0, 0),
+                        end: Position::new(from_usize(text.lines().count()), 0),
                     },
-                    newText: text,
+                    new_text: text,
                 }];
                 out.success(id, ResponseData::TextEdit(result))
             }
@@ -460,17 +461,17 @@ impl ActionHandler {
         }
     }
 
-    fn convert_pos_to_span(&self, doc: &Document, pos: &Position) -> Span {
-        let fname = doc.file_name();
+    fn convert_pos_to_span(&self, doc: &TextDocumentIdentifier, pos: &Position) -> Span {
+        let fname = parse_file_path(&doc.uri).unwrap();
         trace!("convert_pos_to_span: {:?} {:?}", fname, pos);
-        let line = self.vfs.load_line(&fname, pos.line);
+        let line = self.vfs.load_line(&fname, to_usize(pos.line));
         let start_pos = {
-            let mut tmp = Position { line: pos.line, character: 1 };
+            let mut tmp = Position::new(pos.line, 1);
             for (i, c) in line.clone().unwrap().chars().enumerate() {
                 if !(c.is_alphanumeric() || c == '_') {
-                    tmp.character = i + 1;
+                    tmp.character = from_usize(i + 1);
                 }
-                if i == pos.character {
+                if from_usize(i) == pos.character {
                     break;
                 }
             }
@@ -478,22 +479,22 @@ impl ActionHandler {
         };
 
         let end_pos = {
-            let mut tmp = Position { line: pos.line, character: pos.character };
-            for (i, c) in line.unwrap().chars().skip(pos.character).enumerate() {
+            let mut tmp = Position::new(pos.line, pos.character);
+            for (i, c) in line.unwrap().chars().skip(to_usize(pos.character)).enumerate() {
                 if !(c.is_alphanumeric() || c == '_') {
                     break;
                 }
-                tmp.character = i + pos.character + 1;
+                tmp.character = from_usize(i) + pos.character + 1;
             }
             tmp
         };
 
         Span {
             file_name: fname.to_owned(),
-            line_start: start_pos.line,
-            column_start: start_pos.character,
-            line_end: end_pos.line,
-            column_end: end_pos.character,
+            line_start: to_usize(start_pos.line),
+            column_start: to_usize(start_pos.character),
+            line_end: to_usize(end_pos.line),
+            column_end: to_usize(end_pos.character),
         }
     }
 }

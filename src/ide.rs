@@ -10,7 +10,7 @@
 
 use std::path::PathBuf;
 
-use analysis::{raw, Span};
+use analysis::{Span};
 
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Position {
@@ -41,51 +41,4 @@ pub enum Output {
 pub struct SaveInput {
     pub project_path: PathBuf,
     pub saved_file: PathBuf,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Serialize)]
-pub enum VscodeKind {
-    File,
-    Module,
-    Namespace,
-    Package,
-    Class,
-    Method,
-    Property,
-    Field,
-    Constructor,
-    Enum,
-    Interface,
-    Function,
-    Variable,
-    Constant,
-    String,
-    Number,
-    Boolean,
-    Array,
-    Object,
-    Key,
-    Null
-}
-
-impl From<raw::DefKind> for VscodeKind {
-    fn from(k: raw::DefKind) -> VscodeKind {
-        match k {
-            raw::DefKind::Enum => VscodeKind::Enum,
-            raw::DefKind::Tuple => VscodeKind::Array,
-            raw::DefKind::Struct => VscodeKind::Class,
-            raw::DefKind::Trait => VscodeKind::Interface,
-            raw::DefKind::Function => VscodeKind::Function,
-            raw::DefKind::Method => VscodeKind::Function,
-            raw::DefKind::Macro => VscodeKind::Function,
-            raw::DefKind::Mod => VscodeKind::Module,
-            raw::DefKind::Type => VscodeKind::Interface,
-            raw::DefKind::Local => VscodeKind::Variable,
-            raw::DefKind::Static => VscodeKind::Variable,
-            raw::DefKind::Const => VscodeKind::Variable,
-            raw::DefKind::Field => VscodeKind::Variable,
-            raw::DefKind::Import => VscodeKind::Module,
-        }
-    }
 }

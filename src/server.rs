@@ -21,6 +21,8 @@ use std::io::{self, Read, Write, ErrorKind};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
+use std::path::PathBuf;
+
 
 #[derive(Debug, new)]
 struct ParseError {
@@ -43,8 +45,8 @@ struct Request {
 
 #[derive(Debug)]
 enum Notification {
-    CancelRequest(usize),
-    Change(ChangeParams),
+    CancelRequest(NumberOrString),
+    Change(DidChangeTextDocumentParams),
 }
 
 /// Creates an public enum whose variants all contain a single serializable payload
@@ -73,14 +75,14 @@ macro_rules! serializable_enum {
 }
 
 serializable_enum!(ResponseData,
-    Init(InitializeCapabilities),
+    Init(InitializeResult),
     SymbolInfo(Vec<SymbolInformation>),
     CompletionItems(Vec<CompletionItem>),
     WorkspaceEdit(WorkspaceEdit),
     TextEdit([TextEdit; 1]),
     Locations(Vec<Location>),
     Highlights(Vec<DocumentHighlight>),
-    HoverSuccess(HoverSuccessContents)
+    HoverSuccess(Hover)
 );
 
 // Generates the Method enum and parse_message function.
@@ -147,7 +149,7 @@ messages! {
     methods {
         "shutdown" => Shutdown;
         "initialize" => Initialize(InitializeParams);
-        "textDocument/hover" => Hover(HoverParams);
+        "textDocument/hover" => Hover(TextDocumentPositionParams);
         "textDocument/definition" => GotoDef(TextDocumentPositionParams);
         "textDocument/references" => FindAllRef(ReferenceParams);
         "textDocument/completion" => Complete(TextDocumentPositionParams);
@@ -162,7 +164,7 @@ messages! {
         "textDocument/rangeFormatting" => ReformatRange(DocumentRangeFormattingParams);
     }
     notifications {
-        "textDocument/didChange" => Change(params_as!(ChangeParams));
+        "textDocument/didChange" => Change(params_as!(DidChangeTextDocumentParams));
         "$/cancelRequest" => CancelRequest(params_as!(CancelParams).id);
     }
     // TODO handle me
@@ -207,33 +209,37 @@ impl LsService {
     }
 
     fn init(&self, id: usize, init: InitializeParams) {
-        let result = InitializeCapabilities {
+        let result = InitializeResult {
             capabilities: ServerCapabilities {
-                textDocumentSync: DocumentSyncKind::Incremental as usize,
-                hoverProvider: true,
-                completionProvider: CompletionOptions {
-                    resolveProvider: true,
-                    triggerCharacters: vec![".".to_string()],
-                },
+                text_document_sync: Some(TextDocumentSyncKind::Incremental),
+                hover_provider: Some(true),
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(true),
+                    trigger_characters: vec![".".to_string()],
+                }),
                 // TODO
-                signatureHelpProvider: SignatureHelpOptions {
-                    triggerCharacters: vec![],
-                },
-                definitionProvider: true,
-                referencesProvider: true,
-                documentHighlightProvider: true,
-                documentSymbolProvider: true,
-                workshopSymbolProvider: true,
-                codeActionProvider: false,
+                signature_help_provider: Some(SignatureHelpOptions {
+                    trigger_characters: Some(vec![]),
+                }),
+                definition_provider: Some(true),
+                references_provider: Some(true),
+                document_highlight_provider: Some(true),
+                document_symbol_provider: Some(true),
+                workspace_symbol_provider: Some(true),
+                code_action_provider: Some(false),
                 // TODO maybe?
-                codeLensProvider: false,
-                documentFormattingProvider: true,
-                documentRangeFormattingProvider: true,
-                renameProvider: true,
+                code_lens_provider: None,
+                document_formatting_provider: Some(true),
+                document_range_formatting_provider: Some(true),
+                document_on_type_formatting_provider: None, // TODO: review this, maybe add?
+                rename_provider: Some(true),
             }
         };
         self.output.success(id, ResponseData::Init(result));
-        self.handler.init(init.rootPath, &*self.output);
+        let root_path = init.root_path.map(|str| PathBuf::from(str));
+        if let Some(root_path) = root_path {
+            self.handler.init(root_path, &*self.output);
+        }
     }
 
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
@@ -250,7 +256,7 @@ impl LsService {
             // FIXME(45) refactor to generate this match.
             match parse_message(&c) {
                 Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    trace!("request to cancel {}", id);
+                    trace!("request to cancel {:?}", id);
                 },
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
                     trace!("notification(change): {:?}", change);
@@ -301,13 +307,13 @@ impl LsService {
                         Method::Reformat(params) => {
                             // FIXME take account of options.
                             trace!("command(reformat): {:?}", params);
-                            this.handler.reformat(id, params.textDocument, &*this.output);
+                            this.handler.reformat(id, params.text_document, &*this.output);
                         }
                         Method::ReformatRange(params) => {
                             // FIXME reformats the whole file, not just a range.
                             // FIXME take account of options.
                             trace!("command(reformat): {:?}", params);
-                            this.handler.reformat(id, params.textDocument, &*this.output);
+                            this.handler.reformat(id, params.text_document, &*this.output);
                         }
                     }
                 }
