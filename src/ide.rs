@@ -12,8 +12,6 @@ use std::path::PathBuf;
 
 use analysis::{raw, Span};
 
-use vfs::Change;
-
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Position {
     pub filepath: PathBuf,
@@ -37,12 +35,6 @@ pub struct Input {
 pub enum Output {
     Ok(Position, Provider),
     Err,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ChangeInput {
-    pub project_path: PathBuf,
-    pub changes: Vec<Change>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
