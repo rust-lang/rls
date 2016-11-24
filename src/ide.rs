@@ -25,12 +25,6 @@ pub enum Provider {
     Racer,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Input {
-    pub pos: Position,
-    pub span: Span,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Output {
     Ok(Position, Provider),

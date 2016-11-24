@@ -301,17 +301,7 @@ version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "rls-analysis"
-version = "0.1.0"
-source = "git+https://github.com/nrc/rls-analysis#d2a5957aaac401fb2ec0ec6d39c7f15097dfa5f8"
-dependencies = [
- "derive-new 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-serialize 0.3.21 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 0.8.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 0.8.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
+FIXME!!!!
 
 [[package]]
 name = "rls-vfs"

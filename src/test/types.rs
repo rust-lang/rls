@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader};
 
 use analysis::Span;
-use ide::{Input, SaveInput, Position};
+use ide::{SaveInput, Position};
 use serde_json;
 
 #[derive(Clone, Copy, Debug)]
@@ -84,16 +84,6 @@ impl Cache {
             result
         };
         result
-    }
-
-    pub fn mk_input(&mut self, src: Src) -> Vec<u8> {
-        let span = self.mk_span(src);
-        let pos = self.mk_position(src);
-        let input = Input { pos: pos, span: span };
-
-        let s = serde_json::to_string(&input).unwrap();
-        let s = format!("{{{}}}", s.replace("\"", "\\\""));
-        s.as_bytes().to_vec()
     }
 
     pub fn mk_save_input(&self, file_name: &Path) -> Vec<u8> {

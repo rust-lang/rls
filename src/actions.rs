@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use analysis::{AnalysisHost, Span};
+use analysis::compiler_message::CompilerMessage;
 use hyper::Url;
 use vfs::{Vfs, Change};
 use racer::core::{self, find_definition, complete_from_file};
@@ -76,8 +77,8 @@ impl ActionHandler {
                     }
                 }
                 for msg in x.iter() {
-                    match serde_json::from_str::<CompilerMessage>(&msg) {
-                        Ok(method) => {
+                    match CompilerMessage::from_json_str(&msg) {
+                        Some(method) => {
                             if method.spans.is_empty() {
                                 continue;
                             }
@@ -107,9 +108,8 @@ impl ActionHandler {
                                 results.entry(method.spans[0].file_name.clone()).or_insert(vec![]).push(diag);
                             }
                         }
-                        Err(e) => {
-                            debug!("build error {:?}", e);
-                            debug!("from {}", msg);
+                        None => {
+                            debug!("build error from {}", msg);
                         }
                     }
                 }
