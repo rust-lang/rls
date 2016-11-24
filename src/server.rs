@@ -10,205 +10,57 @@
 
 use analysis::AnalysisHost;
 use vfs::Vfs;
-use serde_json;
 
 use build::*;
 use lsp_data::*;
 use actions::ActionHandler;
 
-use std::fmt;
-use std::io::{self, Read, Write, ErrorKind};
+use std::io::{self};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::path::PathBuf;
 
+use rust_lsp::lsp::LSPEndpoint;
+use rust_lsp::lsp::LanguageServerHandling;
+use rust_lsp::lsp::LSCompletable;
+use rust_lsp::lsp_transport::LSPMessageReader;
+use rust_lsp::lsp_transport::LSPMessageWriter;
 
-#[derive(Debug, new)]
-struct ParseError {
-    kind: ErrorKind,
-    message: &'static str,
-    id: Option<usize>,
-}
+use rust_lsp::jsonrpc::Endpoint;
+use rust_lsp::jsonrpc::MethodCompletable;
+use rust_lsp::jsonrpc::method_types::MethodError;
+use rust_lsp::jsonrpc::service_util::MessageWriter;
+use rust_lsp::jsonrpc::service_util::MessageReader;
+use rust_lsp::util::core::GResult;
 
-#[derive(Debug)]
-enum ServerMessage {
-    Request(Request),
-    Notification(Notification)
-}
-
-#[derive(Debug)]
-struct Request {
-    id: usize,
-    method: Method
-}
-
-#[derive(Debug)]
-enum Notification {
-    CancelRequest(NumberOrString),
-    Change(DidChangeTextDocumentParams),
-}
-
-/// Creates an public enum whose variants all contain a single serializable payload
-/// with an automatic json to_string implementation
-macro_rules! serializable_enum {
-    ($enum_name:ident, $($variant_name:ident($variant_type:ty)),*) => (
-
-        pub enum $enum_name {
-            $(
-                $variant_name($variant_type),
-            )*
-        }
-
-        impl fmt::Display for $enum_name {
-            fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-                let value = match *self {
-                    $(
-                        $enum_name::$variant_name(ref value) => serde_json::to_string(value),
-                    )*
-                }.unwrap();
-
-                write!(f, "{}", value)
-            }
-        }
-    )
-}
-
-serializable_enum!(ResponseData,
-    Init(InitializeResult),
-    SymbolInfo(Vec<SymbolInformation>),
-    CompletionItems(Vec<CompletionItem>),
-    WorkspaceEdit(WorkspaceEdit),
-    TextEdit([TextEdit; 1]),
-    Locations(Vec<Location>),
-    Highlights(Vec<DocumentHighlight>),
-    HoverSuccess(Hover)
-);
-
-// Generates the Method enum and parse_message function.
-macro_rules! messages {
-    (
-        methods {
-            // $method_arg is really a 0-1 repetition
-            $($method_str: pat => $method_name: ident $(($method_arg: ty))*;)*
-        }
-        notifications {
-            $($notif_str: pat => $notif_name: ident($notif_arg: expr);)*
-        }
-        $($other_str: pat => $other_expr: expr;)*
-    ) => {
-        #[derive(Debug)]
-        enum Method {
-            $($method_name$(($method_arg))*,)*
-        }
-        fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
-            let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
-
-            let params = ls_command.lookup("params");
-
-            macro_rules! params_as {
-                ($ty: ty) => ({
-                    let method: $ty =
-                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
-                    method
-                });
-            }
-            macro_rules! id {
-                () => ((ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize)));
-            }
-
-            if let Some(v) = ls_command.lookup("method") {
-                if let Some(name) = v.as_str() {
-                    match name {
-                        $(
-                            $method_str => {
-                                let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
-                                Ok(ServerMessage::Request(Request{id: id, method: Method::$method_name$((params_as!($method_arg)))* }))
-                            }
-                        )*
-                        $(
-                            $notif_str => {
-                                Ok(ServerMessage::Notification(Notification::$notif_name($notif_arg)))
-                            }
-                        )*
-                        $(
-                            $other_str => $other_expr,
-                        )*
-                    }
-                } else {
-                    Err(ParseError::new(ErrorKind::InvalidData, "Method is not a string", id!()))
-                }
-            } else {
-                Err(ParseError::new(ErrorKind::InvalidData, "Method not found", id!()))
-            }
-        }
-    };
-}
-
-messages! {
-    methods {
-        "shutdown" => Shutdown;
-        "initialize" => Initialize(InitializeParams);
-        "textDocument/hover" => Hover(TextDocumentPositionParams);
-        "textDocument/definition" => GotoDef(TextDocumentPositionParams);
-        "textDocument/references" => FindAllRef(ReferenceParams);
-        "textDocument/completion" => Complete(TextDocumentPositionParams);
-        "textDocument/documentHighlight" => Highlight(TextDocumentPositionParams);
-        // currently, we safely ignore this as a pass-through since we fully handle
-        // textDocument/completion.  In the future, we may want to use this method as a
-        // way to more lazily fill out completion information
-        "completionItem/resolve" => CompleteResolve(CompletionItem);
-        "textDocument/documentSymbol" => Symbols(DocumentSymbolParams);
-        "textDocument/rename" => Rename(RenameParams);
-        "textDocument/formatting" => Reformat(DocumentFormattingParams);
-        "textDocument/rangeFormatting" => ReformatRange(DocumentRangeFormattingParams);
-    }
-    notifications {
-        "textDocument/didChange" => Change(params_as!(DidChangeTextDocumentParams));
-        "$/cancelRequest" => CancelRequest(params_as!(CancelParams).id);
-    }
-    // TODO handle me
-    "textDocument/didOpen" => Err(ParseError::new(ErrorKind::InvalidData, "didOpen", None));
-    // TODO handle me
-    "$/setTraceNotification" => Err(ParseError::new(ErrorKind::InvalidData, "setTraceNotification", None));
-    // TODO handle me
-    "workspace/didChangeConfiguration" => Err(ParseError::new(ErrorKind::InvalidData, "didChangeConfiguration", None));
-    _ => Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", id!()));
-}
 
 pub struct LsService {
     shut_down: AtomicBool,
-    msg_reader: Box<MessageReader + Sync + Send>,
-    output: Box<Output + Sync + Send>,
-    handler: ActionHandler,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone, Copy)]
-pub enum ServerStateChange {
-    Continue,
-    Break,
+    handler: Arc<ActionHandler>,
+    output : Endpoint,
 }
 
 impl LsService {
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
                build_queue: Arc<BuildQueue>,
-               reader: Box<MessageReader + Send + Sync>,
-               output: Box<Output + Send + Sync>)
-               -> Arc<LsService> {
-        Arc::new(LsService {
+               output: Endpoint)
+               -> LsService {
+        LsService {
             shut_down: AtomicBool::new(false),
-            msg_reader: reader,
+            handler: Arc::new(ActionHandler::new(analysis, vfs, build_queue)),
             output: output,
-            handler: ActionHandler::new(analysis, vfs, build_queue),
-        })
+        }
     }
-
-    pub fn run(this: Arc<Self>) {
-        while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
+    
+    pub fn run<T : MessageReader>(self, msg_reader: &mut T) {
+        let ep_out = self.output.clone();
+        LSPEndpoint::run_server(msg_reader, ep_out, self);
     }
-
-    fn init(&self, id: usize, init: InitializeParams) {
+    
+    fn init(&self, init: InitializeParams, completable: MethodCompletable<InitializeResult, InitializeError>) {
+        
         let result = InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncKind::Incremental),
@@ -235,233 +87,237 @@ impl LsService {
                 rename_provider: Some(true),
             }
         };
-        self.output.success(id, ResponseData::Init(result));
+        
+        completable.complete(Ok(result));
+        
+        let output = self.output.clone();
+        let handler = self.handler.clone();
         let root_path = init.root_path.map(|str| PathBuf::from(str));
-        if let Some(root_path) = root_path {
-            self.handler.init(root_path, &*self.output);
-        }
-    }
-
-    pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
-        let c = match this.msg_reader.read_message() {
-            Some(c) => c,
-            None => {
-                this.output.parse_error();
-                return ServerStateChange::Break
-            },
-        };
-
-        let this = this.clone();
+        
         thread::spawn(move || {
-            // FIXME(45) refactor to generate this match.
-            match parse_message(&c) {
-                Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    trace!("request to cancel {:?}", id);
-                },
-                Ok(ServerMessage::Notification(Notification::Change(change))) => {
-                    trace!("notification(change): {:?}", change);
-                    this.handler.on_change(change, &*this.output);
-                }
-                Ok(ServerMessage::Request(Request{id, method})) => {
-                    match method {
-                        Method::Initialize(init) => {
-                            trace!("command(init): {:?}", init);
-                            this.init(id, init);
-                        }
-                        Method::Shutdown => {
-                            trace!("shutting down...");
-                            this.shut_down.store(true, Ordering::SeqCst);
-                        }
-                        Method::Hover(params) => {
-                            trace!("command(hover): {:?}", params);
-                            this.handler.hover(id, params, &*this.output);
-                        }
-                        Method::GotoDef(params) => {
-                            trace!("command(goto): {:?}", params);
-                            this.handler.goto_def(id, params, &*this.output);
-                        }
-                        Method::Complete(params) => {
-                            trace!("command(complete): {:?}", params);
-                            this.handler.complete(id, params, &*this.output);
-                        }
-                        Method::CompleteResolve(params) => {
-                            trace!("command(complete): {:?}", params);
-                            this.output.success(id, ResponseData::CompletionItems(vec![params]))
-                        }
-                        Method::Highlight(params) => {
-                            trace!("command(highlight): {:?}", params);
-                            this.handler.highlight(id, params, &*this.output);
-                        }
-                        Method::Symbols(params) => {
-                            trace!("command(goto): {:?}", params);
-                            this.handler.symbols(id, params, &*this.output);
-                        }
-                        Method::FindAllRef(params) => {
-                            trace!("command(find_all_refs): {:?}", params);
-                            this.handler.find_all_refs(id, params, &*this.output);
-                        }
-                        Method::Rename(params) => {
-                            trace!("command(rename): {:?}", params);
-                            this.handler.rename(id, params, &*this.output);
-                        }
-                        Method::Reformat(params) => {
-                            // FIXME take account of options.
-                            trace!("command(reformat): {:?}", params);
-                            this.handler.reformat(id, params.text_document, &*this.output);
-                        }
-                        Method::ReformatRange(params) => {
-                            // FIXME reformats the whole file, not just a range.
-                            // FIXME take account of options.
-                            trace!("command(reformat range): {:?}", params);
-                            this.handler.reformat(id, params.text_document, &*this.output);
-                        }
-                    }
-                }
-                Err(e) => {
-                    trace!("parsing invalid message: {:?}", e);
-                    if let Some(id) = e.id {
-                        this.output.failure(id, "Unsupported message");
-                    }
-                },
+            if let Some(root_path) = root_path {
+                handler.init(root_path, output);
             }
         });
-        ServerStateChange::Continue
+    }
+
+    pub fn error_not_available<DATA>(data : DATA) -> MethodError<DATA> {
+        let msg = "Functionality not implemented.".to_string();
+        MethodError::<DATA> { code : 1, message : msg, data : data }
+    }
+    
+}
+
+// TODO Cancel support
+impl LanguageServerHandling for LsService {
+    
+    fn initialize(&mut self, init: InitializeParams, completable: MethodCompletable<InitializeResult, InitializeError>) {
+        trace!("command(init): {:?}\n", init);
+        self.init(init, completable);
+    }
+    fn shutdown(&mut self, _params: (), completable: LSCompletable<()>) {
+        trace!("shutting down...\n");
+        self.shut_down.store(true, Ordering::SeqCst);
+        completable.complete(Ok(()))
+    }
+    fn exit(&mut self, _: ()) {
+    }
+    
+    fn workspace_change_configuration(&mut self, _: DidChangeConfigurationParams) {
+        // TODO handle me
+    }
+    
+    fn did_open_text_document(&mut self, _: DidOpenTextDocumentParams) {
+        // TODO handle me
+    }
+    
+    fn did_change_text_document(&mut self, params: DidChangeTextDocumentParams) {
+        trace!("notification(change): {:?}\n", params);
+        self.handler.on_change(params, self.output.clone())
+    }
+    
+    fn did_close_text_document(&mut self, _: DidCloseTextDocumentParams) {
+        // TODO handle me
+    }
+    
+    fn did_save_text_document(&mut self, _: DidSaveTextDocumentParams) {
+        // TODO handle me
+    }
+    
+    fn did_change_watched_files(&mut self, _: DidChangeWatchedFilesParams) {
+        // TODO handle me
+    }
+    
+    fn completion(&mut self, params: TextDocumentPositionParams, completable: LSCompletable<CompletionList>) {
+        trace!("command(complete): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.complete(params));
+        });
+    }
+    fn resolve_completion_item(&mut self, params: CompletionItem, completable: LSCompletable<CompletionItem>) {
+        trace!("command(complete): {:?}\n", params);
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(Ok(params));
+        });
+    }
+    fn hover(&mut self, params: TextDocumentPositionParams, completable: LSCompletable<Hover>) {
+        trace!("command(hover): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.hover(params));
+        });
+    }
+    fn signature_help(&mut self, _params: TextDocumentPositionParams, completable: LSCompletable<SignatureHelp>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn goto_definition(&mut self, params: TextDocumentPositionParams, completable: LSCompletable<Vec<Location>>) {
+        trace!("command(goto): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.goto_def(params));
+        });
+    }
+    fn references(&mut self, params: ReferenceParams, completable: LSCompletable<Vec<Location>>) {
+        trace!("command(find_all_refs): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.find_all_refs(params));
+        });
+    }
+    fn document_highlight(&mut self, params: TextDocumentPositionParams, completable: LSCompletable<Vec<DocumentHighlight>>) {
+        trace!("command(highlight): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.highlight(params));
+        });
+    }
+    fn document_symbols(&mut self, params: DocumentSymbolParams, completable: LSCompletable<Vec<SymbolInformation>>) {
+        trace!("command(goto): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.symbols(params));
+        });
+    }
+    fn workspace_symbols(&mut self, _params: WorkspaceSymbolParams, completable: LSCompletable<Vec<SymbolInformation>>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn code_action(&mut self, _params: CodeActionParams, completable: LSCompletable<Vec<Command>>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn code_lens(&mut self, _params: CodeLensParams, completable: LSCompletable<Vec<CodeLens>>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn code_lens_resolve(&mut self, _params: CodeLens, completable: LSCompletable<CodeLens>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn document_link(&mut self, _params: DocumentLinkParams, completable: LSCompletable<Vec<DocumentLink>>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+           // FIXME todo
+           completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn document_link_resolve(&mut self, _params: DocumentLink, completable: LSCompletable<DocumentLink>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+           // FIXME todo
+           completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn formatting(&mut self, params: DocumentFormattingParams, completable: LSCompletable<Vec<TextEdit>>) {
+        // FIXME take account of options.
+        trace!("command(reformat): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.reformat(params.text_document));
+        });
+    }
+    fn range_formatting(&mut self, params: DocumentRangeFormattingParams, completable: LSCompletable<Vec<TextEdit>>) {
+        // FIXME reformats the whole file, not just a range.
+        // FIXME take account of options.
+        trace!("command(reformat range): {:?}", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.reformat(params.text_document));
+        });
+    }
+    fn on_type_formatting(&mut self, _params: DocumentOnTypeFormattingParams, completable: LSCompletable<Vec<TextEdit>>) {
+        let _handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(Err(Self::error_not_available(())));
+        });
+    }
+    fn rename(&mut self, params: RenameParams, completable: LSCompletable<WorkspaceEdit>) {
+        trace!("command(rename): {:?}\n", params);
+        let handler = self.handler.clone();
+        thread::spawn(move || {
+            completable.complete(handler.rename(params));
+        });
     }
 }
 
-pub trait MessageReader {
-    fn read_message(&self) -> Option<String>;
+struct StdioMsgReader {
 }
-
-struct StdioMsgReader;
 
 impl MessageReader for StdioMsgReader {
-    fn read_message(&self) -> Option<String> {
-        macro_rules! handle_err {
-            ($e: expr, $s: expr) => {
-                match $e {
-                    Ok(x) => x,
-                    Err(_) => {
-                        debug!($s);
-                        return None;
-                    }
-                }
+    fn read_next(&mut self) -> GResult<String> {
+        let stdin = io::stdin();
+        let input: &mut io::BufRead = &mut stdin.lock(); 
+        let msg_result = LSPMessageReader(input).read_next();
+        
+        match msg_result {
+            Ok(ref ok) => { 
+                debug!("Read message: {}\n", ok);
+            } 
+            Err(ref error) => { 
+                info!("Error reading message: {}\n", error);
             }
-        }
-
-        // Read in the "Content-length: xx" part
-        let mut buffer = String::new();
-        handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
-
-        if buffer.len() == 0 {
-            info!("Header is empty");
-            return None;
-        }
-
-        let res: Vec<&str> = buffer.split(" ").collect();
-
-        // Make sure we see the correct header
-        if res.len() != 2 {
-            info!("Header is malformed");
-            return None;
-        }
-
-        if res[0] == "Content-length:" {
-            info!("Header is missing 'Content-length'");
-            return None;
-        }
-
-        let size = handle_err!(usize::from_str_radix(&res[1].trim(), 10), "Couldn't read size");
-        trace!("reading: {} bytes", size);
-
-        // Skip the new lines
-        let mut tmp = String::new();
-        handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
-
-        let mut content = vec![0; size];
-        handle_err!(io::stdin().read_exact(&mut content), "Could not read from stdin");
-
-        let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
-
-        Some(content)
-    }
-}
-
-pub trait Output {
-    fn response(&self, output: String);
-
-    fn parse_error(&self) {
-        self.response(r#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
-    }
-
-    fn failure(&self, id: usize, message: &str) {
-        // For now this is a catch-all for any error back to the consumer of the RLS
-        const METHOD_NOT_FOUND: i64 = -32601;
-
-        #[derive(Serialize)]
-        struct ResponseError {
-            code: i64,
-            message: String
-        }
-
-        #[derive(Serialize)]
-        struct ResponseFailure {
-            jsonrpc: &'static str,
-            id: usize,
-            error: ResponseError,
-        }
-
-        let rf = ResponseFailure {
-            jsonrpc: "2.0",
-            id: id,
-            error: ResponseError {
-                code: METHOD_NOT_FOUND,
-                message: message.to_owned(),
-            },
         };
-        let output = serde_json::to_string(&rf).unwrap();
-        self.response(output);
-    }
-
-    fn success(&self, id: usize, data: ResponseData) {
-        // {
-        //     jsonrpc: String,
-        //     id: usize,
-        //     result: String,
-        // }
-        let output = format!("{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{}}}", id, data);
-
-        self.response(output);
-    }
-
-    fn notify(&self, message: &str) {
-        let output = serde_json::to_string(
-            &NotificationMessage::new(message.to_owned(), ())
-        ).unwrap();
-        self.response(output);
+        msg_result
     }
 }
 
-struct StdioOutput;
+struct StdioOutput {
+}
 
-impl Output for StdioOutput {
-    fn response(&self, output: String) {
-        let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
-
-        debug!("response: {:?}", o);
-
-        print!("{}", o);
-        io::stdout().flush().unwrap();
+impl MessageWriter for StdioOutput {
+    fn write_message(&mut self, msg: &str) -> GResult<()> {
+        debug!("Writing message: {}\n", msg);
+        LSPMessageWriter(io::stdout()).write_message(msg)
     }
 }
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
-    debug!("Language Server Starting up");
+    
+    debug!("\nLanguage Server Starting up\n");
+    
+    let msg_writer_provider = || StdioOutput { };
+    
+    let output = LSPEndpoint::create_lsp_output(msg_writer_provider);
+    
     let service = LsService::new(analysis,
                                  vfs,
                                  build_queue,
-                                 Box::new(StdioMsgReader),
-                                 Box::new(StdioOutput));
-    LsService::run(service);
-    debug!("Server shutting down");
+                                 output.clone(),
+    );
+    let mut reader = StdioMsgReader { };
+    LsService::run(service, &mut reader);
+    debug!("\nServer shutting down.\n");
 }

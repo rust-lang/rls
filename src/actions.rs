@@ -20,7 +20,6 @@ use Span;
 
 use build::*;
 use lsp_data::*;
-use server::{ResponseData, Output};
 
 use std::collections::HashMap;
 use std::panic;
@@ -29,6 +28,16 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use rust_lsp::jsonrpc::method_types::MethodError;
+use rust_lsp::jsonrpc::Endpoint;
+use rust_lsp::lsp::LSResult;
+use rust_lsp::lsp::client_rpc_handle;
+use rust_lsp::lsp::LspClientRpc;
+
+pub fn notify(output: &Endpoint, method_name: &str) {
+    // TODO: handle ouput write errors
+    output.send_notification(method_name, ()).ok();
+}
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
@@ -51,7 +60,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn init(&self, root_path: PathBuf, out: &Output) {
+    pub fn init(&self, root_path: PathBuf, output: Endpoint) {
         {
             let mut results = self.previous_build_results.lock().unwrap();
             results.clear();
@@ -60,10 +69,10 @@ impl ActionHandler {
             let mut current_project = self.current_project.lock().unwrap();
             *current_project = Some(root_path.clone());
         }
-        self.build(&root_path, BuildPriority::Immediate, out);
+        self.build(&root_path, BuildPriority::Immediate, output);
     }
 
-    pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
+    pub fn build(&self, project_path: &Path, priority: BuildPriority, mut output: Endpoint) {
         #[derive(Debug, Deserialize)]
         pub struct CompilerMessageCode {
             pub code: String
@@ -79,7 +88,7 @@ impl ActionHandler {
 
         // We use `rustDocument` document here since these notifications are
         // custom to the RLS and not part of the LS protocol.
-        out.notify("rustDocument/diagnosticsBegin");
+        notify(&output, "rustDocument/diagnosticsBegin");
 
         debug!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
@@ -134,40 +143,38 @@ impl ActionHandler {
                     // errors for those files.
                     let results = self.previous_build_results.lock().unwrap();
                     for (k, v) in results.iter() {
-                        notifications.push(NotificationMessage::new(
-                            "textDocument/publishDiagnostics".to_string(),
+                        notifications.push(
                             PublishDiagnosticsParams::new(
                                 Url::from_file_path(project_path.join(k)).unwrap(),
                                 v.clone(),
                             )
-                        ));
+                        );
                     }
                 }
 
                 // TODO we don't send an OK notification if there were no errors
                 for notification in notifications {
-                    // FIXME(43) factor out the notification mechanism.
-                    let output = serde_json::to_string(&notification).unwrap();
-                    out.response(output);
+                    client_rpc_handle(&mut output).publish_diagnostics(notification)
+                        .unwrap_or_else(|err| { debug!("Error on publish_diagnostics {:?}", err); });
                 }
 
-                out.notify("rustDocument/diagnosticsEnd");
+                notify(&output, "rustDocument/diagnosticsEnd");
 
                 trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(&project_path, false).unwrap();
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                out.notify("rustDocument/diagnosticsEnd");
+                notify(&output, "rustDocument/diagnosticsEnd");
             },
             BuildResult::Err => {
                 trace!("build - Error");
-                out.notify("rustDocument/diagnosticsEnd");
+                notify(&output, "rustDocument/diagnosticsEnd");
             },
         }
     }
 
-    pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
+    pub fn on_change(&self, change: DidChangeTextDocumentParams, endpoint: Endpoint) {
         let fname: PathBuf = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
             let range = i.range.unwrap_or_else(|| {
@@ -185,21 +192,26 @@ impl ActionHandler {
 
         trace!("on_change: {:?}", changes);
 
-        self.build_current_project(out);
+        self.build_current_project(endpoint);
     }
 
-    fn build_current_project(&self, out: &Output) {
+    fn build_current_project(&self, endpoint: Endpoint) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
             current_project.clone()
         };
         match current_project {
-            Some(ref current_project) => self.build(&current_project, BuildPriority::Normal, out),
+            Some(ref current_project) => self.build(&current_project, BuildPriority::Normal, endpoint),
             None => debug!("build_current_project - no project path"),
         }
     }
 
-    pub fn symbols(&self, id: usize, doc: DocumentSymbolParams, out: &Output) {
+    pub fn error_op_failure<DATA>(msg: String, data : DATA) -> MethodError<DATA> {
+        // TODO error codE?
+        MethodError::<DATA>{ code : 1, message : msg, data : data }
+    }
+
+    pub fn symbols(&self, doc: DocumentSymbolParams) -> LSResult<Vec<SymbolInformation>, ()> {
         let t = thread::current();
         let analysis = self.analysis.clone();
 
@@ -221,10 +233,10 @@ impl ActionHandler {
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
         let result = rustw_handle.join().unwrap_or(vec![]);
-        out.success(id, ResponseData::SymbolInfo(result));
+        Ok(result)
     }
 
-    pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn complete(&self, params: TextDocumentPositionParams) -> LSResult<CompletionList, ()> {
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
@@ -240,10 +252,10 @@ impl ActionHandler {
             )).collect()
         }).unwrap_or(vec![]);
 
-        out.success(id, ResponseData::CompletionItems(result));
+        Ok(CompletionList{ is_incomplete: false, items : result })
     }
 
-    pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
+    pub fn rename(&self, params: RenameParams) -> LSResult<WorkspaceEdit, ()> {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
@@ -269,10 +281,10 @@ impl ActionHandler {
             });
         }
 
-        out.success(id, ResponseData::WorkspaceEdit(WorkspaceEdit { changes: edits }));
+        Ok(WorkspaceEdit{ changes: edits })
     }
 
-    pub fn highlight(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn highlight(&self, params: TextDocumentPositionParams) -> LSResult<Vec<DocumentHighlight>, ()> {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
@@ -292,10 +304,10 @@ impl ActionHandler {
             kind: Some(DocumentHighlightKind::Text),
         }).collect();
 
-        out.success(id, ResponseData::Highlights(refs));
+        Ok(refs)
     }
 
-    pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
+    pub fn find_all_refs(&self, params: ReferenceParams) -> LSResult<Vec<Location>, ()> {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
@@ -312,10 +324,10 @@ impl ActionHandler {
         let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
         let refs: Vec<_> = result.iter().map(|item| ls_util::rls_to_location(&item)).collect();
 
-        out.success(id, ResponseData::Locations(refs));
+        Ok(refs)
     }
 
-    pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn goto_def(&self, params: TextDocumentPositionParams) -> LSResult<Vec<Location>, ()> {
         // Save-analysis thread.
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
@@ -349,25 +361,25 @@ impl ActionHandler {
             Ok(Ok(r)) => {
                 let result = vec![ls_util::rls_to_location(&r)];
                 trace!("goto_def TO: {:?}", result);
-                out.success(id, ResponseData::Locations(result));
+                Ok(result)
             }
             _ => {
                 info!("goto_def - falling back to Racer");
                 match racer_handle.join() {
                     Ok(Some(r)) => {
                         trace!("goto_def: {:?}", r);
-                        out.success(id, ResponseData::Locations(vec![r]));
+                        Ok(vec![r])
                     }
                     _ => {
                         debug!("Error in Racer");
-                        out.failure(id, "GotoDef failed to complete successfully");
+                        Err(Self::error_op_failure("GotoDef failed to complete successfully".into(), ()))
                     }
                 }
             }
         }
     }
 
-    pub fn hover(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn hover(&self, params: TextDocumentPositionParams) -> LSResult<Hover, ()> {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
 
@@ -401,24 +413,23 @@ impl ActionHandler {
         let result = rustw_handle.join();
         match result {
             Ok(r) => {
-                out.success(id, ResponseData::HoverSuccess(r));
+                Ok(r)
             }
             Err(_) => {
-                out.failure(id, "Hover failed to complete successfully");
+                Err(Self::error_op_failure("Hover failed to complete successfully".into(), ()))
             }
         }
     }
-
-    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
-        trace!("Reformat: {} {:?}", id, doc);
+    
+    pub fn reformat(&self, doc: TextDocumentIdentifier) -> LSResult<Vec<TextEdit>, ()> {
+        trace!("Reformat: {:?}", doc);
 
         let path = &parse_file_path(&doc.uri).unwrap();
         let input = match self.vfs.load_file(path) {
             Ok(s) => FmtInput::Text(s),
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
-                out.failure(id, "Reformat failed to complete successfully");
-                return;
+                return Err(Self::error_op_failure("Reformat failed to complete successfully".into(), ()))
             }
         };
 
@@ -432,18 +443,18 @@ impl ActionHandler {
                 // Note that we don't need to keep the VFS up to date, the client
                 // echos back the change to us.
                 let text = String::from_utf8(buf).unwrap();
-                let result = [TextEdit {
+                let result = vec![TextEdit {
                     range: Range {
                         start: Position::new(0, 0),
                         end: Position::new(text.lines().count() as u64, 0),
                     },
                     new_text: text,
                 }];
-                out.success(id, ResponseData::TextEdit(result))
+                Ok(result)
             }
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
-                out.failure(id, "Reformat failed to complete successfully")
+                Err(Self::error_op_failure("Reformat failed to complete successfully".into(), ()))
             }
         }
     }

@@ -29,7 +29,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
-extern crate languageserver_types as ls_types;
+use rust_lsp::ls_types;
+extern crate rust_lsp;
 
 use std::sync::Arc;
 

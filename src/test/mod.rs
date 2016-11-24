@@ -31,6 +31,14 @@ use hyper::Url;
 use serde_json;
 use std::path::{Path, PathBuf};
 
+use rust_lsp::lsp::*;
+use rust_lsp::jsonrpc::service_util::MessageWriter;
+use rust_lsp::jsonrpc::service_util::MessageReader;
+use rust_lsp::jsonrpc::service_util::GResult;
+use rust_lsp::jsonrpc::RequestHandler;
+use rust_lsp::jsonrpc::EndpointHandler;
+
+
 // TODO we should wait for all threads to exit, rather than use a hacky timeout
 const TEST_WAIT_TIME: u64 = 1500;
 
@@ -64,19 +72,20 @@ fn test_abs_path() {
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_server(messages);
+    
+    let (mut server_ep, mut msg_reader, results) = mock_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
     // Goto def.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""start":{"character":8,"line":11}"#)]);
+    
+    server_ep.endpoint.shutdown_and_join();
 }
 
 #[test]
@@ -100,18 +109,20 @@ fn test_goto_def() {
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_server(messages);
+    
+    let (mut server_ep, mut msg_reader, results) = mock_server(messages);
+    
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""start":{"character":8,"line":11}"#)]);
+    
+    server_ep.endpoint.shutdown_and_join();
 }
 
 #[test]
@@ -135,17 +146,19 @@ fn test_hover() {
                         Message::new("textDocument/hover",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_server(messages);
+
+    let (mut server_ep, mut msg_reader, results) = mock_server(messages);
+    
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"language\":\"rust\",\"value\":\"&str\"}]")]);
+    
+    server_ep.endpoint.shutdown_and_join();
 }
 
 #[test]
@@ -185,16 +198,16 @@ fn test_find_all_refs() {
         }}
     }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
 
-    let (server, results) = mock_raw_server(messages);
+    let (mut server_ep, mut msg_reader, results) = mock_raw_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
+
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
+    
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
                                                                      .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#),]);
 }
@@ -233,16 +246,16 @@ fn test_highlight() {
         }}
     }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
 
-    let (server, results) = mock_raw_server(messages);
+    let (mut server_ep, mut msg_reader, results) = mock_raw_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
+    
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
+    
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
                                                                      .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#),]);
 }
@@ -282,16 +295,15 @@ fn test_rename() {
         }}
     }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
 
-    let (server, results) = mock_raw_server(messages);
+    let (mut server_ep, mut msg_reader, results) = mock_raw_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
+    
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
                                                                      .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#)
                                                                      .expect_contains(r#"{"changes""#),]);
@@ -318,46 +330,24 @@ fn test_completion() {
                         Message::new("textDocument/completion",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "rld")))])];
-    let (server, results) = mock_server(messages);
+
+    let (mut server_ep, mut msg_reader, results) = mock_server(messages);
+    
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"label\":\"world\",\"detail\":\"let world = \\\"world\\\";\"}]")]);
+    server_ep.handle_incoming_message(&msg_reader.read_next().unwrap());
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"[{"detail":"let world = \"world\";","label":"world"}]"#)]);
+    
+    server_ep.endpoint.shutdown_and_join();
 }
 
-#[test]
-fn test_parse_error_on_malformed_input() {
-    let _ = env_logger::init();
-    struct NoneMsgReader;
-
-    impl ls_server::MessageReader for NoneMsgReader {
-        fn read_message(&self) -> Option<String> { None }
-    }
-
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let reader = Box::new(NoneMsgReader);
-    let output = Box::new(RecordOutput::new());
-    let results = output.output.clone();
-    let server = ls_server::LsService::new(analysis, vfs, build_queue, reader, output);
-
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Break);
-
-    let error = results.lock().unwrap()
-        .pop().expect("no error response");
-    assert!(error.contains(r#""code": -32700"#))
-}
 
 // Initialise and run the internals of an LS protocol RLS server.
-fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
+fn mock_server(messages: Vec<Message>) -> (EndpointHandler, MockMsgReader, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
@@ -365,11 +355,18 @@ fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultLi
     let reader = Box::new(MockMsgReader { messages: messages, cur: AtomicUsize::new(0) });
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
+    
+    let output = *output;
+   	let ep = LSPEndpoint::create_lsp_output(|| output );
+    let ls_svc = ls_server::LsService::new(analysis, vfs, build_queue, ep.clone());
+	let req_handler : Box<RequestHandler> = Box::new(ServerRequestHandler(ls_svc));
+    let endpoint = EndpointHandler::create(ep, req_handler);
+    
+    (endpoint, *reader, results)
 }
 
 // Initialise and run the internals of an LS protocol RLS server.
-fn mock_raw_server(messages: Vec<String>) -> (Arc<ls_server::LsService>, LsResultList)
+fn mock_raw_server(messages: Vec<String>) -> (EndpointHandler, MockRawMsgReader, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
@@ -377,7 +374,14 @@ fn mock_raw_server(messages: Vec<String>) -> (Arc<ls_server::LsService>, LsResul
     let reader = Box::new(MockRawMsgReader { messages: messages, cur: AtomicUsize::new(0) });
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
+    
+    let output = *output;
+   	let ep = LSPEndpoint::create_lsp_output(|| output );
+    let ls_svc = ls_server::LsService::new(analysis, vfs, build_queue, ep.clone());
+	let req_handler : Box<RequestHandler> = Box::new(ServerRequestHandler(ls_svc));
+    let endpoint = EndpointHandler::create(ep, req_handler);
+    
+    (endpoint, *reader, results)
 }
 
 // Despite the use of AtomicUsize and thus being Sync, this struct is not properly
@@ -411,10 +415,11 @@ impl Message {
     }
 }
 
-impl ls_server::MessageReader for MockMsgReader {
-    fn read_message(&self) -> Option<String> {
+impl MessageReader for MockMsgReader {
+   	fn read_next(&mut self) -> GResult<String> {
+   	    
         if self.cur.load(Ordering::SeqCst) >= self.messages.len() {
-            return None;
+            return Err("End of stream reached.".into());
         }
 
         let message = &self.messages[self.cur.load(Ordering::SeqCst)];
@@ -422,23 +427,23 @@ impl ls_server::MessageReader for MockMsgReader {
 
         let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
         // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
-        let result = format!("{{\"method\":\"{}\",\"id\":42,\"params\":{{{}}}}}", message.method, params);
+        let result = format!(r#"{{"method":"{}","jsonrpc":"2.0","id":42,"params":{{{}}}}}"#, message.method, params);
         // println!("read_message: `{}`", result);
 
-        Some(result)
+        Ok(result)
     }
 }
 
-impl ls_server::MessageReader for MockRawMsgReader {
-    fn read_message(&self) -> Option<String> {
+impl MessageReader for MockRawMsgReader {
+    fn read_next(&mut self) -> GResult<String> {
         if self.cur.load(Ordering::SeqCst) >= self.messages.len() {
-            return None;
+            return Err("End of stream reached.".into());
         }
 
         let message = &self.messages[self.cur.load(Ordering::SeqCst)];
         self.cur.fetch_add(1, Ordering::SeqCst);
 
-        Some(message.clone())
+        Ok(message.clone())
     }
 }
 
@@ -456,10 +461,11 @@ impl RecordOutput {
     }
 }
 
-impl ls_server::Output for RecordOutput {
-    fn response(&self, output: String) {
+impl MessageWriter for RecordOutput {
+    fn write_message(&mut self, msg: &str) -> GResult<()> {
         let mut records = self.output.lock().unwrap();
-        records.push(output);
+        records.push(msg.into());
+        Ok(())
     }
 }
 
