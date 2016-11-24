@@ -130,22 +130,6 @@ pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
     }
 }
 
-/* -----------------  Compiler message  ----------------- */
-// FIXME: These types are not LSP related, should be moved to a different module.
-
-#[derive(Debug, Deserialize)]
-pub struct CompilerMessageCode {
-    pub code: String
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CompilerMessage {
-    pub message: String,
-    pub code: Option<CompilerMessageCode>,
-    pub level: String,
-    pub spans: Vec<Span>,
-}
-
 /* -----------------  JSON-RPC protocol types ----------------- */
 // FIXME: These types are not directly LSP related, should be moved to a JSON-RPC module.
 
