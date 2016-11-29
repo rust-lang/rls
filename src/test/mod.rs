@@ -63,7 +63,7 @@ fn test_abs_path() {
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_lsp_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -98,7 +98,7 @@ fn test_goto_def() {
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_lsp_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -132,7 +132,7 @@ fn test_hover() {
                         Message::new("textDocument/hover",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
-    let (server, results) = mock_lsp_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -165,7 +165,7 @@ fn test_completion() {
                         Message::new("textDocument/completion",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 13, "rld")))])];
-    let (server, results) = mock_lsp_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -202,26 +202,8 @@ fn test_parse_error_on_malformed_input() {
     assert!(error.contains(r#""code": -32700"#))
 }
 
-/*
-// Initialise and run the internals of an RLS server.
-fn mock_server<F>(f: F)
-    where F: FnOnce(&server::MyService)
-{
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let handler = server::MyService {
-        analysis: analysis,
-        vfs: vfs,
-        build_queue: build_queue,
-    };
-
-    f(&handler);
-}
-*/
-
 // Initialise and run the internals of an LS protocol RLS server.
-fn mock_lsp_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
+fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
