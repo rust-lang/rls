@@ -146,6 +146,152 @@ fn test_hover() {
 }
 
 #[test]
+fn test_find_all_refs() {
+    let _cr = CwdRestorer::new();
+
+    init_env("hello");
+    let mut cache = types::Cache::new(Path::new("."));
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
+                                                 .expect("couldn't convert path to JSON"));
+    let messages = vec![format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "initialize",
+        "id": 0,
+        "params": {{
+            "processId": "0",
+            "capabilities": null,
+            "rootPath": {}
+        }}
+    }}"#, root_path), format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "textDocument/references",
+        "id": 42,
+        "params": {{
+            "textDocument": {},
+            "position": {},
+            "context": {{
+                "includeDeclaration": true
+            }}
+        }}
+    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
+
+    let (server, results) = mock_raw_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#),]);
+}
+
+#[test]
+fn test_highlight() {
+    let _cr = CwdRestorer::new();
+
+    init_env("hello");
+    let mut cache = types::Cache::new(Path::new("."));
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
+                                                 .expect("couldn't convert path to JSON"));
+    let messages = vec![format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "initialize",
+        "id": 0,
+        "params": {{
+            "processId": "0",
+            "capabilities": null,
+            "rootPath": {}
+        }}
+    }}"#, root_path), format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "textDocument/documentHighlight",
+        "id": 42,
+        "params": {{
+            "textDocument": {},
+            "position": {}
+        }}
+    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
+
+    let (server, results) = mock_raw_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#),]);
+}
+
+#[test]
+fn test_rename() {
+    let _cr = CwdRestorer::new();
+
+    init_env("hello");
+    let mut cache = types::Cache::new(Path::new("."));
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
+                                                 .expect("couldn't convert path to JSON"));
+    let messages = vec![format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "initialize",
+        "id": 0,
+        "params": {{
+            "processId": "0",
+            "capabilities": null,
+            "rootPath": {}
+        }}
+    }}"#, root_path), format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "textDocument/rename",
+        "id": 42,
+        "params": {{
+            "textDocument": {},
+            "position": {},
+            "newName": "foo"
+        }}
+    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
+
+    let (server, results) = mock_raw_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#)
+                                                                     .expect_contains(r#"{"changes""#),]);
+}
+
+#[test]
 fn test_completion() {
     let _cr = CwdRestorer::new();
 
@@ -214,11 +360,31 @@ fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultLi
     (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
 }
 
+// Initialise and run the internals of an LS protocol RLS server.
+fn mock_raw_server(messages: Vec<String>) -> (Arc<ls_server::LsService>, LsResultList)
+{
+    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
+    let vfs = Arc::new(vfs::Vfs::new());
+    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
+    let reader = Box::new(MockRawMsgReader { messages: messages, cur: AtomicUsize::new(0) });
+    let output = Box::new(RecordOutput::new());
+    let results = output.output.clone();
+    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
+}
+
 // Despite the use of AtomicUsize and thus being Sync, this struct is not properly
 // thread-safe, the assumption is we will process one message at a time.
 // In particular, we do not expect simultaneus calls to `read_message`.
 struct MockMsgReader {
     messages: Vec<Message>,
+    cur: AtomicUsize,
+}
+
+// Despite the use of AtomicUsize and thus being Sync, this struct is not properly
+// thread-safe, the assumption is we will process one message at a time.
+// In particular, we do not expect simultaneus calls to `read_message`.
+struct MockRawMsgReader {
+    messages: Vec<String>,
     cur: AtomicUsize,
 }
 
@@ -252,6 +418,24 @@ impl ls_server::MessageReader for MockMsgReader {
         // println!("read_message: `{}`", result);
 
         Some(result)
+    }
+}
+
+impl ls_server::MessageReader for MockRawMsgReader {
+    fn read_message(&self) -> Option<String> {
+        if self.cur.load(Ordering::SeqCst) >= self.messages.len() {
+            return None;
+        }
+
+        let message = &self.messages[self.cur.load(Ordering::SeqCst)];
+        self.cur.fetch_add(1, Ordering::SeqCst);
+
+        //let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
+        // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
+        //let result = format!("{{\"method\":\"{}\",\"id\":42,\"params\":{{{}}}}}", message.method, params);
+        // println!("read_message: `{}`", result);
+
+        Some(message.clone())
     }
 }
 
