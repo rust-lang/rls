@@ -56,7 +56,7 @@ pub mod ls_util {
 
     use analysis::Span;
     use hyper::Url;
-    
+
     pub fn range_from_span(span: &Span) -> Range {
         Range {
             start: Position::new(
@@ -79,14 +79,14 @@ pub mod ls_util {
             column_end: to_usize(this.end.character),
         }
     }
-    
+
     pub fn range_from_vfs_file(_vfs: &Vfs, _fname: &Path) -> Range {
         // FIXME: todo, endpos must be the end of the document, this is not correct
-        
+
         let end_pos = Position::new(0, 0);
         Range{ start : Position::new(0, 0), end : end_pos }
     }
-    
+
     pub fn location_from_span(span: &Span) -> Location {
         Location {
             uri: Url::from_file_path(&span.file_name).unwrap(),
