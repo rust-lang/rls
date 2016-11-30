@@ -63,6 +63,12 @@ The RLS can operate via the [Language Server protocol](https://github.com/Micros
 VSCode will start the RLS for you. Therefore to run, you just need to open the VSCode extension and run it. 
 However, you must install the rls in your path so that the RLS can find it.
 
+Be sure to provide an RLS_ROOT environment variable.  Point this variable at the root of the RLS checkout:
+
+```
+export RLS_ROOT=/Source/rls
+```
+
 ## Testing
 
 Test using `RUST_TEST_THREADS=1 cargo test`.
