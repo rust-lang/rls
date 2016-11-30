@@ -11,7 +11,7 @@
 use analysis::{AnalysisHost, Span};
 use hyper::Url;
 use vfs::{Vfs, Change};
-use racer::core::{self, find_definition, complete_from_file};
+use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::config::{self, WriteMode};
 use serde_json;
@@ -211,21 +211,14 @@ impl ActionHandler {
     }
 
     pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
-        let vfs: &Vfs = &self.vfs;
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
-            let pos = adjust_vscode_pos_for_racer(params.position);
             let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
-            let cache = core::FileCache::new();
-            let session = core::Session::from_path(&cache, file_path, file_path);
-            for (path, txt) in vfs.get_cached_files() {
-                session.cache_file_contents(&path, txt);
-            }
+            let cache = racer::FileCache::new(self.vfs.clone());
+            let session = racer::Session::new(&cache);
 
-            let src = session.load_file(file_path);
-
-            let pos = session.load_file(file_path).coords_to_point(to_usize(pos.line), to_usize(pos.character)).unwrap();
-            let results = complete_from_file(&src.code, file_path, pos, &session);
+            let location = pos_to_racer_location(&params.position);
+            let results = racer::complete_from_file(file_path, location, &session);
 
             results.map(|comp| CompletionItem::new_simple(
                 comp.matchstr.clone(),
@@ -325,34 +318,14 @@ impl ActionHandler {
 
         // Racer thread.
         let racer_handle = thread::spawn(move || {
-            let pos = adjust_vscode_pos_for_racer(params.position);
             let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
-            let cache = core::FileCache::new();
-            let session = core::Session::from_path(&cache, file_path, file_path);
-            for (path, txt) in vfs.get_cached_files() {
-                session.cache_file_contents(&path, txt);
-            }
+            let cache = racer::FileCache::new(vfs);
+            let session = racer::Session::new(&cache);
+            let location = pos_to_racer_location(&params.position);
 
-            let src = session.load_file(file_path);
-
-            find_definition(&src.code,
-                            file_path,
-                            src.coords_to_point(to_usize(pos.line), to_usize(pos.character)).unwrap(),
-                            &session)
-                .and_then(|mtch| {
-                    let source_path = &mtch.filepath;
-                    if mtch.point != 0 {
-                        let (line, col) = session.load_file(source_path)
-                                                 .point_to_coords(mtch.point)
-                                                 .unwrap();
-                        Some(ls_util::location_from_position(source_path,
-                                                             adjust_racer_line_for_vscode(line),
-                                                             col))
-                    } else {
-                        None
-                    }
-                })
+            racer::find_definition(file_path, location, &session)
+                .and_then(location_from_racer_match)
         });
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
@@ -499,14 +472,17 @@ impl ActionHandler {
     }
 }
 
-fn adjust_vscode_pos_for_racer(mut source: Position) -> Position {
-    source.line += 1;
-    source
+fn pos_to_racer_location(pos: &Position) -> racer::Location {
+    racer::Location::Coords(racer::Coordinate {
+        line: to_usize(pos.line) + 1,
+        column: to_usize(pos.character)
+    })
 }
 
-fn adjust_racer_line_for_vscode(mut line: usize) -> usize {
-    if line > 0 {
-        line -= 1;
-    }
-    line
+fn location_from_racer_match(mtch: racer::Match) -> Option<Location> {
+    let source_path = &mtch.filepath;
+
+    mtch.coords.map(|racer::Coordinate { line, column }| {
+        ls_util::location_from_position(source_path, line - 1, column)
+    })
 }
