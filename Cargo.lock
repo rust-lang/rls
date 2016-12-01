@@ -7,7 +7,7 @@ dependencies = [
  "hyper 0.9.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "languageserver-types 0.5.0 (git+https://github.com/gluon-lang/languageserver-types)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "racer 1.2.10 (git+https://github.com/phildawes/racer)",
+ "racer 2.0.0 (git+https://github.com/phildawes/racer)",
  "rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)",
  "rls-vfs 0.1.0 (git+https://github.com/nrc/rls-vfs)",
  "rustfmt 0.6.3 (git+https://github.com/rust-lang-nursery/rustfmt)",
@@ -271,8 +271,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "racer"
-version = "1.2.10"
-source = "git+https://github.com/phildawes/racer#bb8c53362ab4d00dfffcffa8decc8aa141fcbdb9"
+version = "2.0.0"
+source = "git+https://github.com/phildawes/racer#9dc0da54f886bb02ad13e6ffad4126bd63ec235f"
 dependencies = [
  "clap 2.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -316,12 +316,10 @@ dependencies = [
 [[package]]
 name = "rls-vfs"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-vfs#9c204a63e0e8cc99f023c88e238894f1dbc8df42"
+source = "git+https://github.com/nrc/rls-vfs#3eb09adde6c443149c9a926bb5d073645d1e0bfe"
 dependencies = [
+ "racer 2.0.0 (git+https://github.com/phildawes/racer)",
  "rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)",
- "serde 0.8.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 0.8.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -698,7 +696,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum num_cpus 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8890e6084723d57d0df8d2720b0d60c6ee67d6c93e7169630e4371e88765dcad"
 "checksum quote 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "4c5cf478fe1006dbcc72567121d23dbdae5f1632386068c5c86ff4f645628504"
 "checksum quote 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "ea1e0c9bc6bfb0a60d539aab6e338207c1a5456e62f5bd5375132cee119aa4b3"
-"checksum racer 1.2.10 (git+https://github.com/phildawes/racer)" = "<none>"
+"checksum racer 2.0.0 (git+https://github.com/phildawes/racer)" = "<none>"
 "checksum regex 0.1.80 (registry+https://github.com/rust-lang/crates.io-index)" = "4fd4ace6a8cf7860714a2c2280d6c1f7e6a413486c13298bbc86fd3da019402f"
 "checksum regex-syntax 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "f9ec002c35e86791825ed294b50008eea9ddfc8def4420124fbc6b08db834957"
 "checksum rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)" = "<none>"

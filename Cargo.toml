@@ -7,7 +7,7 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 log = "0.3"
 racer = { git = "https://github.com/phildawes/racer" }
 rls-analysis = { git = "https://github.com/nrc/rls-analysis" }
-rls-vfs = { git = "https://github.com/nrc/rls-vfs" }
+rls-vfs = { git = "https://github.com/nrc/rls-vfs", features = ["racer-impls"] }
 rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
 serde = "0.8"
 serde_json = "0.8"
