@@ -11,6 +11,7 @@
 #![feature(rustc_private)]
 #![feature(proc_macro)]
 
+extern crate cargo;
 #[macro_use]
 extern crate derive_new;
 #[macro_use]

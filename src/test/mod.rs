@@ -438,11 +438,6 @@ impl ls_server::MessageReader for MockRawMsgReader {
         let message = &self.messages[self.cur.load(Ordering::SeqCst)];
         self.cur.fetch_add(1, Ordering::SeqCst);
 
-        //let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
-        // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
-        //let result = format!("{{\"method\":\"{}\",\"id\":42,\"params\":{{{}}}}}", message.method, params);
-        // println!("read_message: `{}`", result);
-
         Some(message.clone())
     }
 }

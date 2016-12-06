@@ -312,7 +312,7 @@ impl LsService {
                         Method::ReformatRange(params) => {
                             // FIXME reformats the whole file, not just a range.
                             // FIXME take account of options.
-                            trace!("command(reformat): {:?}", params);
+                            trace!("command(reformat range): {:?}", params);
                             this.handler.reformat(id, params.text_document, &*this.output);
                         }
                     }
