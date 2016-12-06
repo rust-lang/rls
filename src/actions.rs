@@ -63,7 +63,7 @@ impl ActionHandler {
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
         out.notify("rustDocument/diagnosticsBegin");
 
-        debug!("build {:?}", project_path);
+        println!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {

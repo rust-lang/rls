@@ -13,10 +13,6 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader};
 
-use analysis::Span;
-use ide::{Input, SaveInput, Position};
-use serde_json;
-
 #[derive(Clone, Copy, Debug)]
 pub struct Src<'a, 'b> {
     pub file_name: &'a Path,
@@ -46,28 +42,6 @@ impl Cache {
         }
     }
 
-    pub fn mk_span(&mut self, src: Src) -> Span {
-        let line = self.get_line(src);
-        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
-        Span {
-            file_name: self.abs_path(src.file_name),
-            line_start: src.line - 1,
-            line_end: src.line - 1,
-            column_start: char_of_byte_index(&line, col),
-            column_end: char_of_byte_index(&line, col + src.name.len()),
-        }
-    }
-
-    pub fn mk_position(&mut self, src: Src) -> Position {
-        let line = self.get_line(src);
-        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
-        Position {
-            filepath: self.abs_path(src.file_name),
-            line: src.line - 1,
-            col: char_of_byte_index(&line, col),
-        }
-    }
-
     pub fn mk_ls_position(&mut self, src: Src) -> String {
         let line = self.get_line(src);
         let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
@@ -84,26 +58,6 @@ impl Cache {
             result
         };
         result
-    }
-
-    pub fn mk_input(&mut self, src: Src) -> Vec<u8> {
-        let span = self.mk_span(src);
-        let pos = self.mk_position(src);
-        let input = Input { pos: pos, span: span };
-
-        let s = serde_json::to_string(&input).unwrap();
-        let s = format!("{{{}}}", s.replace("\"", "\\\""));
-        s.as_bytes().to_vec()
-    }
-
-    pub fn mk_save_input(&self, file_name: &Path) -> Vec<u8> {
-        let input = SaveInput {
-            project_path: self.abs_path(Path::new(".")),
-            saved_file: file_name.to_owned(),
-        };
-        let s = serde_json::to_string(&input).unwrap();
-        let s = format!("{{{}}}", s.replace("\"", "\\\""));
-        s.as_bytes().to_vec()
     }
 
     fn get_line(&mut self, src: Src) -> String {

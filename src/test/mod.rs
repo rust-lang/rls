@@ -18,12 +18,11 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
+use env_logger;
 
 use analysis;
 use build;
-use ide::{Output, Provider};
 use server as ls_server;
-//use server;
 use vfs;
 
 use self::types::src;
@@ -37,7 +36,9 @@ const TEST_WAIT_TIME: u64 = 1500;
 
 #[test]
 fn test_abs_path() {
+    let _ = env_logger::init();
     let _cr = CwdRestorer::new();
+
     // Change directory to 'src', just a directory that is not an ancestor of
     // the test data.
     let mut cwd = env::current_dir().unwrap();
@@ -80,6 +81,7 @@ fn test_abs_path() {
 
 #[test]
 fn test_goto_def() {
+    let _ = env_logger::init();
     let _cr = CwdRestorer::new();
 
     init_env("hello");
@@ -114,6 +116,7 @@ fn test_goto_def() {
 
 #[test]
 fn test_hover() {
+    let _ = env_logger::init();
     let _cr = CwdRestorer::new();
 
     init_env("hello");
@@ -147,6 +150,7 @@ fn test_hover() {
 
 #[test]
 fn test_find_all_refs() {
+    let _ = env_logger::init();
     let _cr = CwdRestorer::new();
 
     init_env("hello");
@@ -197,6 +201,7 @@ fn test_find_all_refs() {
 
 #[test]
 fn test_highlight() {
+    let _ = env_logger::init();
     let _cr = CwdRestorer::new();
 
     init_env("hello");
@@ -244,6 +249,7 @@ fn test_highlight() {
 
 #[test]
 fn test_rename() {
+    let _ = env_logger::init();
     let _cr = CwdRestorer::new();
 
     init_env("hello");
@@ -293,6 +299,7 @@ fn test_rename() {
 
 #[test]
 fn test_completion() {
+    let _ = env_logger::init();
     let _cr = CwdRestorer::new();
 
     init_env("hello");
@@ -326,6 +333,7 @@ fn test_completion() {
 
 #[test]
 fn test_parse_error_on_malformed_input() {
+    let _ = env_logger::init();
     struct NoneMsgReader;
 
     impl ls_server::MessageReader for NoneMsgReader {
@@ -491,7 +499,7 @@ impl ExpectedMessage {
 fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     thread::sleep(Duration::from_millis(TEST_WAIT_TIME));
     let mut results = results.lock().unwrap();
-    println!("expect_messages: results: {:?}, expected: {:?}", *results, expected);
+    println!("expect_messages: results: {:?},\nexpected: {:?}", *results, expected);
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
         let values: serde_json::Value = serde_json::from_str(found).unwrap();
@@ -504,26 +512,6 @@ fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
         }
     }
     *results = vec![];
-}
-
-// Assert that the result of a query is a certain span given by a certain provider.
-fn assert_output(cache: &mut types::Cache, output: &[u8], src: types::Src, p: Provider) {
-    assert_non_empty(output);
-    let output = serde_json::from_slice(output).expect("Couldn't deserialise output");
-    match output {
-        Output::Ok(pos, provider) => {
-            assert_eq!(pos, cache.mk_position(src));
-            assert_eq!(provider, p)
-        }
-        Output::Err => panic!("Output was error"),
-    }
-}
-
-// Assert that the output of a query is not an empty struct.
-fn assert_non_empty(output: &[u8]) {
-    if output == b"{}\n" {
-        panic!("Empty output");
-    }
 }
 
 const FAIL_MSG: &'static str = "Error initialising environment";

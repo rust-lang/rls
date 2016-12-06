@@ -371,7 +371,7 @@ impl BuildQueue {
 
     // Runs a single instance of rustc. Runs in-process.
     fn rustc(&self, args: Vec<String>, build_dir: &Path) -> BuildResult {
-        //println!("args: `{:?}`", args);
+        println!("args: `{:?}`", args);
 
         let changed = self.vfs.get_cached_files();
 
