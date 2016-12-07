@@ -6,19 +6,19 @@ extern crate sample_project;
 ///
 /// * one thing
 /// * another thing
-struct Foo {
-    x: u32,
-    y: u32,
+pub struct Foo {
+    pub x: u32,
+    pub y: u32,
 }
 
 
 // mod sub_mod;
 
-fn foo_maker() -> Foo {
+pub fn foo_maker() -> Foo {
     Foo { x: 3, y: 4 }
 }
 
-fn main() {
+pub fn main() {
     let mut bar = 42;
     let f = bar;
     let g = &mut bar;
@@ -26,16 +26,16 @@ fn main() {
     let _ = foo + 2;
     println!("Hello world! {} {}", foo, g);
 
-    let a = Arc::new(42);
-    let b = Once::new();
+    let _a = Arc::new(42);
+    let _b = Once::new();
     // let c = sub_mod::foo();
-    let d = String::new();
+    let _d = String::new();
 
-    let e = Foo { x: 3, y: 4 };
+    let _e = Foo { x: 3, y: 4 };
 
-    let v: Vec<i32> = Vec::new();
+    let _v: Vec<i32> = Vec::new();
 
-    let x = foo_maker();
+    let _x = foo_maker();
 
     fn bar(x: i32) {
         let y = x;
