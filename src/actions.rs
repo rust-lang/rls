@@ -61,7 +61,7 @@ impl ActionHandler {
     }
 
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
-        out.notify("rustDocument/diagnosticsBegin");
+        out.notify("textDocument/diagnosticsBegin");
 
         println!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
@@ -138,18 +138,18 @@ impl ActionHandler {
                     out.response(output);
                 }
 
-                out.notify("rustDocument/diagnosticsEnd");
+                out.notify("textDocument/diagnosticsEnd");
 
                 trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(&project_path, false).unwrap();
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                out.notify("rustDocument/diagnosticsEnd");
+                out.notify("textDocument/diagnosticsEnd");
             },
             BuildResult::Err => {
                 trace!("build - Error");
-                out.notify("rustDocument/diagnosticsEnd");
+                out.notify("textDocument/diagnosticsEnd");
             },
         }
     }
