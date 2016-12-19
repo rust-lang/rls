@@ -100,7 +100,7 @@ impl ActionHandler {
                                 continue;
                             }
                             let span = message.spans[0].rls_span().zero_indexed();
-                            let mut diag = Diagnostic {
+                            let diag = Diagnostic {
                                 range: ls_util::range_from_span(&span),
                                 severity: Some(if message.level == "error" {
                                     DiagnosticSeverity::Error

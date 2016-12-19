@@ -34,7 +34,6 @@ extern crate languageserver_types as ls_types;
 use std::sync::Arc;
 
 mod build;
-mod ide;
 mod server;
 mod actions;
 mod lsp_data;
