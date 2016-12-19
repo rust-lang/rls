@@ -64,6 +64,19 @@ impl ActionHandler {
     }
 
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
+        #[derive(Debug, Deserialize)]
+        pub struct CompilerMessageCode {
+            pub code: String
+        }
+
+        #[derive(Debug, Deserialize)]
+        pub struct CompilerMessage {
+            pub message: String,
+            pub code: Option<CompilerMessageCode>,
+            pub level: String,
+            pub spans: Vec<span::compiler::DiagnosticSpan>,
+        }
+
         // We use `rustDocument` document here since these notifications are
         // custom to the RLS and not part of the LS protocol.
         out.notify("rustDocument/diagnosticsBegin");
@@ -82,34 +95,29 @@ impl ActionHandler {
                 }
                 for msg in x.iter() {
                     match serde_json::from_str::<CompilerMessage>(&msg) {
-                        Ok(method) => {
-                            if method.spans.is_empty() {
+                        Ok(message) => {
+                            if message.spans.is_empty() {
                                 continue;
                             }
+                            let span = message.spans[0].rls_span().zero_indexed();
                             let mut diag = Diagnostic {
-                                range: ls_util::range_from_span(&method.spans[0]),
-                                severity: Some(if method.level == "error" {
+                                range: ls_util::range_from_span(&span),
+                                severity: Some(if message.level == "error" {
                                     DiagnosticSeverity::Error
                                 } else {
                                     DiagnosticSeverity::Warning
                                 }),
-                                code: Some(NumberOrString::String(match method.code {
+                                code: Some(NumberOrString::String(match message.code {
                                     Some(c) => c.code.clone(),
                                     None => String::new(),
                                 })),
                                 source: Some("rustc".into()),
-                                message: method.message.clone(),
+                                message: message.message.clone(),
                             };
-
-                            //adjust diagnostic range for LSP
-                            diag.range.start.line -= 1;
-                            diag.range.start.character -= 1;
-                            diag.range.end.line -= 1;
-                            diag.range.end.character -= 1;
 
                             {
                                 let mut results = self.previous_build_results.lock().unwrap();
-                                results.entry(method.spans[0].file.clone()).or_insert(vec![]).push(diag);
+                                results.entry(span.file.clone()).or_insert(vec![]).push(diag);
                             }
                         }
                         Err(e) => {
