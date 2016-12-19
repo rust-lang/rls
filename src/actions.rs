@@ -8,13 +8,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use analysis::{AnalysisHost, Span};
+use analysis::{AnalysisHost};
 use hyper::Url;
 use vfs::{Vfs, Change};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::config::{self, WriteMode};
 use serde_json;
+use span;
+use Span;
 
 use build::*;
 use lsp_data::*;
@@ -26,6 +28,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
@@ -106,7 +109,7 @@ impl ActionHandler {
 
                             {
                                 let mut results = self.previous_build_results.lock().unwrap();
-                                results.entry(method.spans[0].file_name.clone()).or_insert(vec![]).push(diag);
+                                results.entry(method.spans[0].file.clone()).or_insert(vec![]).push(diag);
                             }
                         }
                         Err(e) => {
@@ -439,7 +442,7 @@ impl ActionHandler {
     fn convert_pos_to_span(&self, doc: &TextDocumentIdentifier, pos: &Position) -> Span {
         let fname = parse_file_path(&doc.uri).unwrap();
         trace!("convert_pos_to_span: {:?} {:?}", fname, pos);
-        let line = self.vfs.load_line(&fname, to_usize(pos.line));
+        let line = self.vfs.load_line(&fname, span::Row::new(pos.line as u32));
         let start_pos = {
             let mut tmp = Position::new(pos.line, 1);
             for (i, c) in line.clone().unwrap().chars().enumerate() {
@@ -464,13 +467,11 @@ impl ActionHandler {
             tmp
         };
 
-        Span {
-            file_name: fname.to_owned(),
-            line_start: to_usize(start_pos.line),
-            column_start: to_usize(start_pos.character),
-            line_end: to_usize(end_pos.line),
-            column_end: to_usize(end_pos.character),
-        }
+        Span::new(span::Row::new(start_pos.line as u32),
+                  span::Row::new(end_pos.line as u32),
+                  span::Column::new(start_pos.character as u32),
+                  span::Column::new(end_pos.character as u32),
+                  fname.to_owned())
     }
 }
 

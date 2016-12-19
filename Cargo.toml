@@ -7,6 +7,7 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 cargo = { path = "../cargo" }
 log = "0.3"
 racer = { git = "https://github.com/phildawes/racer" }
+rls-span = { git = "https://github.com/nrc/rls-span" }
 rls-analysis = { git = "https://github.com/nrc/rls-analysis" }
 rls-vfs = { git = "https://github.com/nrc/rls-vfs", features = ["racer-impls"] }
 rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }

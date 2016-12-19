@@ -10,6 +10,7 @@ dependencies = [
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "racer 2.0.0 (git+https://github.com/phildawes/racer)",
  "rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)",
+ "rls-span 0.1.0 (git+https://github.com/nrc/rls-span)",
  "rls-vfs 0.1.0 (git+https://github.com/nrc/rls-vfs)",
  "rustfmt 0.6.3 (git+https://github.com/rust-lang-nursery/rustfmt)",
  "serde 0.8.20 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -599,10 +600,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "rls-analysis"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-analysis#688b16b169731688d371b7500e7a47f67647bec9"
+source = "git+https://github.com/nrc/rls-analysis#1b1bd704b5a1013e1e7a7babd5c7be69d2944678"
 dependencies = [
  "derive-new 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rls-span 0.1.0 (git+https://github.com/nrc/rls-span)",
  "rustc-serialize 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 0.8.20 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -610,12 +612,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "rls-span"
+version = "0.1.0"
+source = "git+https://github.com/nrc/rls-span#c6b40f80c755f4d676d222ccfe13df67cd6239e8"
+dependencies = [
+ "serde 0.8.20 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 0.8.20 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "rls-vfs"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-vfs#7dd3b7f5eb85bedbb419306df2368be17d3d8e1c"
+source = "git+https://github.com/nrc/rls-vfs#55630800103c91e2a5ee90f3aa67ee1e576d0922"
 dependencies = [
  "racer 2.0.0 (git+https://github.com/phildawes/racer)",
- "rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)",
+ "rls-span 0.1.0 (git+https://github.com/nrc/rls-span)",
 ]
 
 [[package]]
@@ -1085,6 +1096,7 @@ dependencies = [
 "checksum regex 0.1.80 (registry+https://github.com/rust-lang/crates.io-index)" = "4fd4ace6a8cf7860714a2c2280d6c1f7e6a413486c13298bbc86fd3da019402f"
 "checksum regex-syntax 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "f9ec002c35e86791825ed294b50008eea9ddfc8def4420124fbc6b08db834957"
 "checksum rls-analysis 0.1.0 (git+https://github.com/nrc/rls-analysis)" = "<none>"
+"checksum rls-span 0.1.0 (git+https://github.com/nrc/rls-span)" = "<none>"
 "checksum rls-vfs 0.1.0 (git+https://github.com/nrc/rls-vfs)" = "<none>"
 "checksum rustc-serialize 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)" = "237546c689f20bb44980270c73c3b9edd0891c1be49cc1274406134a66d3957b"
 "checksum rustc_version 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "c5f5376ea5e30ce23c03eb77cbe4962b988deead10910c372b226388b594c084"

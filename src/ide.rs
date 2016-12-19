@@ -9,8 +9,7 @@
 // except according to those terms.
 
 use std::path::PathBuf;
-
-use analysis::{Span};
+use Span;
 
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Position {

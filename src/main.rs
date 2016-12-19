@@ -22,6 +22,7 @@ extern crate hyper;
 extern crate racer;
 extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;
+extern crate rls_span as span;
 extern crate rustfmt;
 extern crate serde;
 #[macro_use]
@@ -43,6 +44,8 @@ mod test;
 
 // Timeout = 0.5s (totally arbitrary).
 const COMPILER_TIMEOUT: u64 = 500;
+
+type Span = span::Span<span::ZeroIndexed>;
 
 pub fn main() {
     env_logger::init().unwrap();

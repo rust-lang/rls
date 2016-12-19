@@ -10,13 +10,14 @@
 
 use std::fmt::Debug;
 use std::path::PathBuf;
-
 use std::error::Error;
 
-use analysis::Span;
+use Span;
+
 use analysis::raw;
 use hyper::Url;
-use serde::{Serialize};
+use serde::Serialize;
+use span;
 
 
 pub use ls_types::*;
@@ -49,35 +50,33 @@ pub fn to_usize(pos: u64) -> usize {
 
 
 pub mod ls_util {
-    use vfs::Vfs;
-
     use super::*;
+    use Span;
+
     use std::path::{Path, PathBuf};
 
-    use analysis::Span;
     use hyper::Url;
+    use vfs::Vfs;
 
     pub fn range_from_span(span: &Span) -> Range {
         Range {
             start: Position::new(
-                from_usize(span.line_start),
-                from_usize(span.column_start),
+                span.range.row_start.0 as u64,
+                span.range.col_start.0 as u64,
             ),
             end: Position::new(
-                from_usize(span.line_end),
-                from_usize(span.column_end),
+                span.range.row_end.0 as u64,
+                span.range.col_end.0 as u64,
             ),
         }
     }
 
     pub fn range_to_span(this: Range, fname: PathBuf) -> Span {
-        Span {
-            file_name: fname,
-            line_start: to_usize(this.start.line),
-            column_start: to_usize(this.start.character),
-            line_end: to_usize(this.end.line),
-            column_end: to_usize(this.end.character),
-        }
+        Span::new(span::Row::new(this.start.line as u32),
+                  span::Row::new(this.end.line as u32),
+                  span::Column::new(this.start.character as u32),
+                  span::Column::new(this.end.character as u32),
+                  fname)
     }
 
     pub fn range_from_vfs_file(_vfs: &Vfs, _fname: &Path) -> Range {
@@ -89,7 +88,7 @@ pub mod ls_util {
 
     pub fn location_from_span(span: &Span) -> Location {
         Location {
-            uri: Url::from_file_path(&span.file_name).unwrap(),
+            uri: Url::from_file_path(&span.file).unwrap(),
             range: range_from_span(span),
         }
     }
