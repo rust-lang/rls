@@ -61,7 +61,9 @@ impl ActionHandler {
     }
 
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
-        out.notify("textDocument/diagnosticsBegin");
+        // We use `rustDocument` document here since these notifications are
+        // custom to the RLS and not part of the LS protocol.
+        out.notify("rustDocument/diagnosticsBegin");
 
         debug!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
@@ -138,18 +140,18 @@ impl ActionHandler {
                     out.response(output);
                 }
 
-                out.notify("textDocument/diagnosticsEnd");
+                out.notify("rustDocument/diagnosticsEnd");
 
                 trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(&project_path, false).unwrap();
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                out.notify("textDocument/diagnosticsEnd");
+                out.notify("rustDocument/diagnosticsEnd");
             },
             BuildResult::Err => {
                 trace!("build - Error");
-                out.notify("textDocument/diagnosticsEnd");
+                out.notify("rustDocument/diagnosticsEnd");
             },
         }
     }
