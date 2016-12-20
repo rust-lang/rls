@@ -614,7 +614,7 @@ dependencies = [
 [[package]]
 name = "rls-span"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-span#bcd5851cc6cf9af60842d92f58bdda01876e89ad"
+source = "git+https://github.com/nrc/rls-span#3c047e116f4df92f7c28f0438fc970d39dee653c"
 dependencies = [
  "serde 0.8.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 0.8.20 (registry+https://github.com/rust-lang/crates.io-index)",

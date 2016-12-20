@@ -467,7 +467,7 @@ impl ActionHandler {
                 }
             }
             trace!("start: {}", col);
-            span::Position::new(pos.row, span::Column::new(col as u32))
+            span::Position::new(pos.row, span::Column::new_zero_indexed(col as u32))
         };
 
         let end_pos = {
@@ -479,7 +479,7 @@ impl ActionHandler {
                 col += 1;
             }
             trace!("end: {}", col);
-            span::Position::new(pos.row, span::Column::new(col as u32))
+            span::Position::new(pos.row, span::Column::new_zero_indexed(col as u32))
         };
 
         Span::from_positions(start_pos,
@@ -498,7 +498,7 @@ fn racer_coord(line: span::Row<span::OneIndexed>,
 }
 
 fn from_racer_coord(coord: racer::Coordinate) -> (span::Row<span::OneIndexed>,span::Column<span::ZeroIndexed>) {
-    (span::Row::new(coord.line as u32), span::Column::new(coord.column as u32))
+    (span::Row::new_one_indexed(coord.line as u32), span::Column::new_zero_indexed(coord.column as u32))
 }
 
 fn pos_to_racer_location(pos: Position) -> racer::Location {

@@ -52,7 +52,8 @@ pub mod ls_util {
     }
 
     pub fn position_to_rls(p: Position) -> span::Position<span::ZeroIndexed> {
-        span::Position::new(span::Row::new(p.line as u32), span::Column::new(p.character as u32))
+        span::Position::new(span::Row::new_zero_indexed(p.line as u32),
+                            span::Column::new_zero_indexed(p.character as u32))
     }
 
     // An RLS span has the same info as an LSP Location
