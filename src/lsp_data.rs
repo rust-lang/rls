@@ -17,7 +17,6 @@ use hyper::Url;
 use serde::Serialize;
 use span;
 
-
 pub use ls_types::*;
 
 macro_rules! impl_file_name {
@@ -38,73 +37,58 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, Box<Error>> {
     }
 }
 
-pub fn from_usize(pos: usize) -> u64 {
-    pos as u64
-}
-
-pub fn to_usize(pos: u64) -> usize {
-    pos as usize // Truncation might happen if usize is 32 bits.
-}
-
 
 pub mod ls_util {
     use super::*;
     use Span;
 
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use hyper::Url;
     use vfs::Vfs;
 
-    pub fn range_from_span(span: &Span) -> Range {
-        Range {
-            start: Position::new(
-                span.range.row_start.0 as u64,
-                span.range.col_start.0 as u64,
-            ),
-            end: Position::new(
-                span.range.row_end.0 as u64,
-                span.range.col_end.0 as u64,
-            ),
+    pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {
+        span::Range::from_positions(position_to_rls(r.start), position_to_rls(r.end))
+    }
+
+    pub fn position_to_rls(p: Position) -> span::Position<span::ZeroIndexed> {
+        span::Position::new(span::Row::new(p.line as u32), span::Column::new(p.character as u32))
+    }
+
+    // An RLS span has the same info as an LSP Location
+    pub fn rls_to_location(span: &Span) -> Location {
+        Location {
+            uri: Url::from_file_path(&span.file).unwrap(),
+            range: rls_to_range(span.range),
         }
     }
 
-    pub fn range_to_span(this: Range, fname: PathBuf) -> Span {
-        Span::new(span::Row::new(this.start.line as u32),
-                  span::Row::new(this.end.line as u32),
-                  span::Column::new(this.start.character as u32),
-                  span::Column::new(this.end.character as u32),
-                  fname)
+    pub fn rls_location_to_location(l: &span::Location<span::ZeroIndexed>) -> Location {
+        Location {
+            uri: Url::from_file_path(&l.file).unwrap(),
+            range: rls_to_range(span::Range::from_positions(l.position, l.position)),
+        }
+    }
+
+    pub fn rls_to_range(r: span::Range<span::ZeroIndexed>) -> Range {
+        Range {
+            start: rls_to_position(r.start()),
+            end: rls_to_position(r.end()),
+        }
+    }
+
+    pub fn rls_to_position(p: span::Position<span::ZeroIndexed>) -> Position {
+        Position {
+            line: p.row.0 as u64,
+            character: p.col.0 as u64,
+        }
     }
 
     pub fn range_from_vfs_file(_vfs: &Vfs, _fname: &Path) -> Range {
         // FIXME: todo, endpos must be the end of the document, this is not correct
 
         let end_pos = Position::new(0, 0);
-        Range{ start : Position::new(0, 0), end : end_pos }
-    }
-
-    pub fn location_from_span(span: &Span) -> Location {
-        Location {
-            uri: Url::from_file_path(&span.file).unwrap(),
-            range: range_from_span(span),
-        }
-    }
-
-    pub fn location_from_position(file_name: &Path, line: usize, col: usize) -> Location {
-        Location {
-            uri: Url::from_file_path(&file_name).unwrap(),
-            range: Range {
-                start: Position {
-                    line: from_usize(line),
-                    character: from_usize(col),
-                },
-                end: Position {
-                    line: from_usize(line),
-                    character: from_usize(col),
-                },
-            },
-        }
+        Range{ start: Position::new(0, 0), end: end_pos }
     }
 }
 

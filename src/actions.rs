@@ -101,7 +101,7 @@ impl ActionHandler {
                             }
                             let span = message.spans[0].rls_span().zero_indexed();
                             let diag = Diagnostic {
-                                range: ls_util::range_from_span(&span),
+                                range: ls_util::rls_to_range(span.range),
                                 severity: Some(if message.level == "error" {
                                     DiagnosticSeverity::Error
                                 } else {
@@ -175,8 +175,9 @@ impl ActionHandler {
                 // as specified by LSP
                 ls_util::range_from_vfs_file(&self.vfs, &fname)
             });
+            let range = ls_util::range_to_rls(range);
             Change {
-                span: ls_util::range_to_span(range, fname.clone()),
+                span: Span::from_range(range, fname.clone()),
                 text: i.text.clone()
             }
         }).collect();
@@ -211,7 +212,7 @@ impl ActionHandler {
                 SymbolInformation {
                     name: s.name,
                     kind: source_kind_from_def_kind(s.kind),
-                    location: ls_util::location_from_span(&s.span),
+                    location: ls_util::rls_to_location(&s.span),
                     container_name: None // FIXME: more info could be added here
                 }
             }).collect()
@@ -230,7 +231,7 @@ impl ActionHandler {
             let cache = racer::FileCache::new(self.vfs.clone());
             let session = racer::Session::new(&cache);
 
-            let location = pos_to_racer_location(&params.position);
+            let location = pos_to_racer_location(params.position);
             let results = racer::complete_from_file(file_path, location, &session);
 
             results.map(|comp| CompletionItem::new_simple(
@@ -244,7 +245,7 @@ impl ActionHandler {
 
     pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
@@ -261,7 +262,7 @@ impl ActionHandler {
         let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
         for item in result.iter() {
-            let loc = ls_util::location_from_span(&item);
+            let loc = ls_util::rls_to_location(&item);
             edits.entry(loc.uri).or_insert(vec![]).push(TextEdit {
                 range: loc.range,
                 new_text: params.new_name.clone(),
@@ -273,10 +274,10 @@ impl ActionHandler {
 
     pub fn highlight(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
 
-        let rustw_handle = thread::spawn(move || {
+        let handle = thread::spawn(move || {
             let result = analysis.find_all_refs(&span, true);
             t.unpark();
 
@@ -285,9 +286,9 @@ impl ActionHandler {
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
-        let refs: Vec<_> = result.iter().map(|item| DocumentHighlight {
-            range: ls_util::range_from_span(&item),
+        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let refs: Vec<_> = result.iter().map(|span| DocumentHighlight {
+            range: ls_util::rls_to_range(span.range),
             kind: Some(DocumentHighlightKind::Text),
         }).collect();
 
@@ -296,10 +297,10 @@ impl ActionHandler {
 
     pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
 
-        let rustw_handle = thread::spawn(move || {
+        let handle = thread::spawn(move || {
             let result = analysis.find_all_refs(&span, params.context.include_declaration);
             t.unpark();
 
@@ -308,8 +309,8 @@ impl ActionHandler {
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
-        let refs: Vec<_> = result.iter().map(|item| ls_util::location_from_span(&item)).collect();
+        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let refs: Vec<_> = result.iter().map(|item| ls_util::rls_to_location(&item)).collect();
 
         out.success(id, ResponseData::Locations(refs));
     }
@@ -317,7 +318,7 @@ impl ActionHandler {
     pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         // Save-analysis thread.
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
         let vfs = self.vfs.clone();
 
@@ -335,7 +336,7 @@ impl ActionHandler {
 
             let cache = racer::FileCache::new(vfs);
             let session = racer::Session::new(&cache);
-            let location = pos_to_racer_location(&params.position);
+            let location = pos_to_racer_location(params.position);
 
             racer::find_definition(file_path, location, &session)
                 .and_then(location_from_racer_match)
@@ -346,7 +347,7 @@ impl ActionHandler {
         let compiler_result = compiler_handle.join();
         match compiler_result {
             Ok(Ok(r)) => {
-                let result = vec![ls_util::location_from_span(&r)];
+                let result = vec![ls_util::rls_to_location(&r)];
                 trace!("goto_def TO: {:?}", result);
                 out.success(id, ResponseData::Locations(result));
             }
@@ -368,7 +369,7 @@ impl ActionHandler {
 
     pub fn hover(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, &params.position);
+        let span = self.convert_pos_to_span(&params.text_document, params.position);
 
         trace!("hover: {:?}", span);
 
@@ -434,7 +435,7 @@ impl ActionHandler {
                 let result = [TextEdit {
                     range: Range {
                         start: Position::new(0, 0),
-                        end: Position::new(from_usize(text.lines().count()), 0),
+                        end: Position::new(text.lines().count() as u64, 0),
                     },
                     new_text: text,
                 }];
@@ -447,53 +448,70 @@ impl ActionHandler {
         }
     }
 
-    fn convert_pos_to_span(&self, doc: &TextDocumentIdentifier, pos: &Position) -> Span {
+    fn convert_pos_to_span(&self, doc: &TextDocumentIdentifier, pos: Position) -> Span {
         let fname = parse_file_path(&doc.uri).unwrap();
         trace!("convert_pos_to_span: {:?} {:?}", fname, pos);
-        let line = self.vfs.load_line(&fname, span::Row::new(pos.line as u32));
+
+        let pos = ls_util::position_to_rls(pos);
+        let line = self.vfs.load_line(&fname, pos.row).unwrap();
+        trace!("line: `{}`", line);
+
         let start_pos = {
-            let mut tmp = Position::new(pos.line, 1);
-            for (i, c) in line.clone().unwrap().chars().enumerate() {
+            let mut col = 0;
+            for (i, c) in line.chars().enumerate() {
                 if !(c.is_alphanumeric() || c == '_') {
-                    tmp.character = from_usize(i + 1);
+                    col = i + 1;
                 }
-                if from_usize(i) == pos.character {
+                if i == pos.col.0 as usize {
                     break;
                 }
             }
-            tmp
+            trace!("start: {}", col);
+            span::Position::new(pos.row, span::Column::new(col as u32))
         };
 
         let end_pos = {
-            let mut tmp = Position::new(pos.line, pos.character);
-            for (i, c) in line.unwrap().chars().skip(to_usize(pos.character)).enumerate() {
+            let mut col = pos.col.0 as usize;
+            for c in line.chars().skip(col) {
                 if !(c.is_alphanumeric() || c == '_') {
                     break;
                 }
-                tmp.character = from_usize(i) + pos.character + 1;
+                col += 1;
             }
-            tmp
+            trace!("end: {}", col);
+            span::Position::new(pos.row, span::Column::new(col as u32))
         };
 
-        Span::new(span::Row::new(start_pos.line as u32),
-                  span::Row::new(end_pos.line as u32),
-                  span::Column::new(start_pos.character as u32),
-                  span::Column::new(end_pos.character as u32),
-                  fname.to_owned())
+        Span::from_positions(start_pos,
+                             end_pos,
+                             fname.to_owned())
     }
 }
 
-fn pos_to_racer_location(pos: &Position) -> racer::Location {
-    racer::Location::Coords(racer::Coordinate {
-        line: to_usize(pos.line) + 1,
-        column: to_usize(pos.character)
-    })
+fn racer_coord(line: span::Row<span::OneIndexed>,
+               column: span::Column<span::ZeroIndexed>)
+               -> racer::Coordinate {
+    racer::Coordinate {
+        line: line.0 as usize,
+        column: column.0 as usize,
+    }
+}
+
+fn from_racer_coord(coord: racer::Coordinate) -> (span::Row<span::OneIndexed>,span::Column<span::ZeroIndexed>) {
+    (span::Row::new(coord.line as u32), span::Column::new(coord.column as u32))
+}
+
+fn pos_to_racer_location(pos: Position) -> racer::Location {
+    let pos = ls_util::position_to_rls(pos);
+    racer::Location::Coords(racer_coord(pos.row.one_indexed(), pos.col))
 }
 
 fn location_from_racer_match(mtch: racer::Match) -> Option<Location> {
     let source_path = &mtch.filepath;
 
-    mtch.coords.map(|racer::Coordinate { line, column }| {
-        ls_util::location_from_position(source_path, line - 1, column)
+    mtch.coords.map(|coord| {
+        let (row, col) = from_racer_coord(coord);
+        let loc = span::Location::new(row.zero_indexed(), col, source_path);
+        ls_util::rls_location_to_location(&loc)
     })
 }
