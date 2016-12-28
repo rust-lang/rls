@@ -5,6 +5,9 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
 [dependencies]
 cargo = { path = "../cargo" }
+derive-new = "0.3"
+env_logger = "0.3"
+languageserver-types = { version = "0.5.0", git = "https://github.com/gluon-lang/languageserver-types" }
 log = "0.3"
 racer = { git = "https://github.com/phildawes/racer" }
 rls-span = { git = "https://github.com/nrc/rls-span" }
@@ -14,9 +17,6 @@ rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
 serde = "0.8"
 serde_json = "0.8"
 serde_derive = "0.8"
-derive-new = "0.3"
-env_logger = "0.3"
-languageserver-types = { version = "0.5.0", git = "https://github.com/gluon-lang/languageserver-types" }
 
 [dependencies.hyper]
 version = "0.9"

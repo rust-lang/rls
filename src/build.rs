@@ -12,8 +12,7 @@ extern crate rustc_driver;
 extern crate syntax;
 
 use cargo::core::{PackageId, MultiShell};
-use cargo::ops::cargo_check::{with_check_env, Options};
-use cargo::ops::{compile_with_exec, Executor, Context, ContinueBuild};
+use cargo::ops::{compile_with_exec, Executor, Context, ContinueBuild, with_check_ws, CompileOptions, CompileMode};
 use cargo::util::{Config, ProcessBuilder, ProcessError, homedir};
 
 use vfs::Vfs;
@@ -352,9 +351,11 @@ impl BuildQueue {
             let config = Config::new(shell,
                                      build_dir.clone(),
                                      homedir(&build_dir).unwrap());
-            with_check_env(Options::default(), &config, |ws, opts| {
-                    compile_with_exec(ws, opts, &mut exec)?;
-                    Ok(Some(()))
+            with_check_ws(None, &config, |ws| {
+                    CompileOptions::with_default(&config, CompileMode::Check, |opts| {
+                        compile_with_exec(ws, &opts, &mut exec)?;
+                        Ok(Some(()))
+                    })
                 })
                 .expect("could not run cargo");
         });
