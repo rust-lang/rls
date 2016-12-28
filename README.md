@@ -94,11 +94,33 @@ its declaration in a library must match exactly. Since ids are very unstable,
 the data used by the RLS for libraries must match exactly with the crate that
 your source code links with.
 
-You need to generate the above data for the standard libraries if you want the
-RLS to know about them. Furthermore, you must do so for the exact version of the
-libraries which your code uses. The easiest (but certainly not the quickest) way
-to do this is to build the compiler and libraries from source, and use these
-libraries with your code.
+You need a version of the above data which exactly matches the standard
+libraries you will use with your project. You can do this either by downloading
+matching data, or by building your own std libs and emitting the data at the
+same time.
+
+### Download the libs
+
+TODO check this is true
+
+You must be using nightly, find out what date nightly you have. Note that this
+may not be the date given by `--version` (build date vs distribution date). The
+easiest way to do this is to download a specific day's nightly and use that.
+Then, navigate to the [Rust archives](https://static.rust-lang.org/dist/index.html)
+and click through to your Rust's date. You will see a lot of files. Fine one
+that looks like `rust-analysis- nightly-$YOUR_TARGET_TRIPLE.tar.gz`, and
+download it. For example, if you are on regular Linux and have a compiler for
+21st December 2016, you will want `https://static.rust-lang.org/dist/2016-12-21/rust-analysis-nightly-x86_64 -unknown-linux-gnu.tar.gz`.
+
+OK, now open the archive. Navigate through the various sub-directories to find
+one called `analysis`. It will be somewhere like: `rust-analysis-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/analysis`.
+You must extract that `analysis` directory to your Rust sysroot, e.g., (on
+Linux, no multi- rust/rustup) `/usr/local`. To find your sysroot you can use
+`rustc --print=sysroot`. Note that if you change Rust installation (e.g., using
+rustup), your sysroot might change.
+
+
+### Build it yourself
 
 In your Rust directory, you want to run the following:
 
@@ -112,22 +134,19 @@ a slower machine.
 
 If all goes well, you should have a bunch of JSON data in a directory like
 `~/rust/x86_64-unknown-linux-gnu/stage2/lib/rustlib/x86_64-unknown-linux-gnu/lib/save-analysis`.
-You need to copy all those files (should be around 16) into `libs/save-analysis`
-in the root of your project directory (i.e., next to `src` and `target`).
+
+You need to copy all those files (should be around 16) into a directory called
+`analysis` in your Rust sysroot (see above for details).
 
 Finally, to run the RLS you'll need to set things up to use the newly built
 compiler, something like:
 
 ```
 export RUSTC="/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin/rustc"
-cargo run
 ```
 
-Yeah, sorry, it's quite the process, like I said we should be able to do better
-than this...
-
-You'll also need to use the above script to run the RLS if you're making changes
-to the compiler which affect the RLS.
+Either before you run the RLS, or before you run the IDE which will start the
+RLS.
 
 
 ## Implementation overview
