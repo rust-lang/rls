@@ -8,13 +8,11 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::fmt::Debug;
 use std::path::PathBuf;
 use std::error::Error;
 
 use analysis::raw;
 use hyper::Url;
-use serde::Serialize;
 use span;
 
 pub use ls_types::*;
@@ -112,24 +110,3 @@ pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
     }
 }
 
-/* -----------------  JSON-RPC protocol types ----------------- */
-
-/// An event-like (no response needed) notification message.
-#[derive(Debug, Serialize)]
-pub struct NotificationMessage<T>
-    where T: Debug + Serialize
-{
-    jsonrpc: &'static str,
-    pub method: String,
-    pub params: T,
-}
-
-impl <T> NotificationMessage<T> where T: Debug + Serialize {
-    pub fn new(method: String, params: T) -> Self {
-        NotificationMessage {
-            jsonrpc: "2.0",
-            method: method,
-            params: params
-        }
-    }
-}
