@@ -11,9 +11,10 @@
 extern crate rustc_driver;
 extern crate syntax;
 
-use cargo::core::{PackageId, MultiShell};
-use cargo::ops::{compile_with_exec, Executor, Context, ContinueBuild, with_check_ws, CompileOptions, CompileMode};
+use cargo::core::{PackageId, MultiShell, Workspace};
+use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode};
 use cargo::util::{Config, ProcessBuilder, ProcessError, homedir};
+use cargo::util::important_paths::find_root_manifest_for_wd;
 
 use vfs::Vfs;
 
@@ -258,11 +259,10 @@ impl BuildQueue {
 
     // Runs an in-process instance of Cargo.
     fn cargo(&self, build_dir: PathBuf) -> BuildResult {
-        #[derive(Clone)]
         struct RlsExecutor {
             cmd_line_args: Arc<Mutex<Vec<String>>>,
             cmd_line_envs: Arc<Mutex<HashMap<String, Option<OsString>>>>,
-            cur_package_id: Option<PackageId>,
+            cur_package_id: Mutex<Option<PackageId>>,
         }
 
         impl RlsExecutor {
@@ -270,22 +270,27 @@ impl BuildQueue {
                 RlsExecutor {
                     cmd_line_args: cmd_line_args,
                     cmd_line_envs: cmd_line_envs,
-                    cur_package_id: None,
+                    cur_package_id: Mutex::new(None),
                 }
             }
         }
 
         impl Executor for RlsExecutor {
-            fn init(&mut self, cx: &Context) {
-                self.cur_package_id = Some(cx.ws
-                                             .current_opt()
-                                             .expect("No current package in Cargo")
-                                             .package_id()
-                                             .clone());
+            fn init(&self, cx: &Context) {
+                let mut cur_package_id = self.cur_package_id.lock().unwrap();
+                *cur_package_id = Some(cx.ws
+                                         .current_opt()
+                                         .expect("No current package in Cargo")
+                                         .package_id()
+                                         .clone());
             }
 
-            fn exec(&self, cmd: ProcessBuilder, id: &PackageId) -> Result<ContinueBuild, ProcessError> {
-                if id == self.cur_package_id.as_ref().expect("Executor has not been initialised") {
+            fn exec(&self, cmd: ProcessBuilder, id: &PackageId) -> Result<(), ProcessError> {
+                let is_primary_crate = {
+                    let cur_package_id = self.cur_package_id.lock().unwrap();
+                    id == cur_package_id.as_ref().expect("Executor has not been initialised")
+                };
+                if is_primary_crate {
                     let mut args: Vec<_> =
                         cmd.get_args().iter().map(|a| a.clone().into_string().unwrap()).collect();
 
@@ -320,17 +325,15 @@ impl BuildQueue {
                         let mut queue_envs = self.cmd_line_envs.lock().unwrap();
                         *queue_envs = envs.clone();
                     }
-
-                    Ok(ContinueBuild::Stop)
                 } else {
                     cmd.exec()?;
-                    Ok(ContinueBuild::Continue)
                 }
+                Ok(())
             }
         }
 
         trace!("cargo - `{:?}`", build_dir);
-        let mut exec = RlsExecutor::new(self.cmd_line_args.clone(), self.cmd_line_envs.clone());
+        let exec = RlsExecutor::new(self.cmd_line_args.clone(), self.cmd_line_envs.clone());
 
         let out = Arc::new(Mutex::new(vec![]));
         let err = Arc::new(Mutex::new(vec![]));
@@ -341,6 +344,7 @@ impl BuildQueue {
         // we may be in separate threads we need to block and wait our thread.
         // However, if Cargo doesn't run a separate thread, then we'll just wait
         // forever. Therefore, we spawn an extra thread here to be safe.
+        // TODO thread should catch panics
         let handle = thread::spawn(move || {
             env::set_var("CARGO_TARGET_DIR", &Path::new("target").join("rls"));
             env::set_var("RUSTFLAGS",
@@ -351,13 +355,10 @@ impl BuildQueue {
             let config = Config::new(shell,
                                      build_dir.clone(),
                                      homedir(&build_dir).unwrap());
-            with_check_ws(None, &config, |ws| {
-                    CompileOptions::with_default(&config, CompileMode::Check, |opts| {
-                        compile_with_exec(ws, &opts, &mut exec)?;
-                        Ok(Some(()))
-                    })
-                })
-                .expect("could not run cargo");
+            let root = find_root_manifest_for_wd(None, config.cwd()).expect("could not find root manifest");
+            let ws = Workspace::new(&root, &config).expect("could not create cargo workspace");
+            let opts = CompileOptions::default(&config, CompileMode::Check);
+            compile_with_exec(&ws, &opts, Arc::new(exec)).expect("could not run cargo");
         });
 
         trace!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
