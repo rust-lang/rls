@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
 [dependencies]
-cargo = { path = "../cargo" }
+cargo = { git = "https://github.com/rust-lang/cargo" }
 derive-new = "0.3"
 env_logger = "0.3"
 languageserver-types = { git = "https://github.com/gluon-lang/languageserver-types" }
