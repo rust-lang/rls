@@ -1,11 +1,15 @@
 language: rust
-sudo: false
+sudo: true
 cache: cargo
 os:
   - linux
   - osx
 rust:
   - nightly
+before_install:
+  - sudo add-apt-repository ppa:kubuntu-ppa/backports -y
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq cmake=2.8.12.2-0ubuntu1~ubuntu12.04.1~ppa2
 script:
   - cargo build --verbose
   - RUST_TEST_THREADS=1 cargo test --verbose
