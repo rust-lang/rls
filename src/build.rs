@@ -294,6 +294,29 @@ impl BuildQueue {
                     let mut args: Vec<_> =
                         cmd.get_args().iter().map(|a| a.clone().into_string().unwrap()).collect();
 
+                    // FIXME here and below should check $RUSTC before using rustc.
+                    {
+                        // Cargo is going to expect to get dep-info for this crate, so we shell out
+                        // to rustc to get that. This is not really ideal, because we are going to
+                        // compute this info anyway when we run rustc ourselves, but we don't do
+                        // that before we return to Cargo.
+                        // FIXME Don't do this. Instead either persuade Cargo that it doesn't need
+                        // this info at all, or start our build here rather than on another thread
+                        // so the dep-info is ready by the time we return from this callback.
+                        let mut cmd_dep_info = Command::new("rustc");
+                        for a in &args {
+                            if a.starts_with("--emit") {
+                                cmd_dep_info.arg("--emit=dep-info");
+                            } else {
+                                cmd_dep_info.arg(a);
+                            }
+                        }
+                        if let Some(cwd) = cmd.get_cwd() {
+                            cmd_dep_info.current_dir(cwd);
+                        }
+                        cmd_dep_info.status().expect("Couldn't execute rustc");
+                    }
+
                     args.insert(0, "rustc".to_owned());
                     args.push("--sysroot".to_owned());
                     let home = option_env!("RUSTUP_HOME").or(option_env!("MULTIRUST_HOME"));
@@ -315,6 +338,9 @@ impl BuildQueue {
                     };
                     args.push(sys_root.to_owned());
 
+                    // let file_path = file_path_for_rmeta(&args);
+                    // File::create(file_path).expect("Could not write to file");
+
                     let envs = cmd.get_envs();
 
                     {
@@ -325,10 +351,11 @@ impl BuildQueue {
                         let mut queue_envs = self.cmd_line_envs.lock().unwrap();
                         *queue_envs = envs.clone();
                     }
+
+                    Ok(())
                 } else {
-                    cmd.exec()?;
+                    cmd.exec()
                 }
-                Ok(())
             }
         }
 
