@@ -9,7 +9,6 @@
 // except according to those terms.
 
 #![feature(rustc_private)]
-#![feature(proc_macro)]
 
 extern crate cargo;
 #[macro_use]
