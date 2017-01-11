@@ -81,7 +81,7 @@ before we have a comprehensive testing story.
 ## Standard library support
 
 Getting the RLS to work with the standard libraries takes a little more work, we
-hope to address this in the future for a more ergonomic solution (https://github.com/jonathandturner/rustls/issues/9).
+hope to address this in the future for a more ergonomic solution (https://github.com/jonathandturner/rustls/issues/88).
 
 The way it works is that when the libraries are built, the compiler can emit all
 the data that the RLS needs. This can be read by the RLS on startup and used to
