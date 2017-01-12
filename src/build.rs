@@ -12,14 +12,15 @@ extern crate rustc_driver;
 extern crate syntax;
 
 use cargo::core::{PackageId, MultiShell, Workspace};
-use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode};
-use cargo::util::{Config, ProcessBuilder, ProcessError, homedir};
+use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter};
+use cargo::util::{Config as CargoConfig, ProcessBuilder, ProcessError, homedir};
 use cargo::util::important_paths::find_root_manifest_for_wd;
 
 use vfs::Vfs;
-
 use self::rustc_driver::{RustcDefaultCalls, run_compiler, run};
 use self::syntax::codemap::{FileLoader, RealFileLoader};
+
+use config::Config;
 
 use std::collections::HashMap;
 use std::env;
@@ -66,6 +67,7 @@ pub struct BuildQueue {
     // A vec of channels to pending build threads.
     pending: Mutex<Vec<Sender<Signal>>>,
     vfs: Arc<Vfs>,
+    config: Mutex<Config>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -107,6 +109,7 @@ impl BuildQueue {
             running: AtomicBool::new(false),
             pending: Mutex::new(vec![]),
             vfs: vfs,
+            config: Mutex::new(Config::default()),
         }
     }
 
@@ -126,6 +129,9 @@ impl BuildQueue {
             if reset || prev_build_dir.is_none() {
                 *prev_build_dir = Some(build_dir.to_owned());
                 self.cancel_pending();
+
+                let mut config = self.config.lock().unwrap();
+                *config = Config::from_path(build_dir);
 
                 let mut cmd_line_args = self.cmd_line_args.lock().unwrap();
                 *cmd_line_args = vec![];
@@ -351,6 +357,7 @@ impl BuildQueue {
                     args.push(sys_root.to_owned());
 
                     let envs = cmd.get_envs();
+                    trace!("envs: {:?}", envs);
 
                     {
                         let mut queue_args = self.cmd_line_args.lock().unwrap();
@@ -377,6 +384,11 @@ impl BuildQueue {
         let out_clone = out.clone();
         let err_clone = err.clone();
 
+        let rls_config = {
+            let rls_config = self.config.lock().unwrap();
+            rls_config.clone()
+        };
+
         // Cargo may or may not spawn threads to run the various builds, since
         // we may be in separate threads we need to block and wait our thread.
         // However, if Cargo doesn't run a separate thread, then we'll just wait
@@ -388,12 +400,15 @@ impl BuildQueue {
                           -Zcontinue-parse-after-error");
             let shell = MultiShell::from_write(Box::new(BufWriter(out.clone())),
                                                Box::new(BufWriter(err.clone())));
-            let config = Config::new(shell,
-                                     build_dir.clone(),
-                                     homedir(&build_dir).unwrap());
+            let config = CargoConfig::new(shell,
+                                          build_dir.clone(),
+                                          homedir(&build_dir).unwrap());
             let root = find_root_manifest_for_wd(None, config.cwd()).expect("could not find root manifest");
             let ws = Workspace::new(&root, &config).expect("could not create cargo workspace");
-            let opts = CompileOptions::default(&config, CompileMode::Check);
+            let mut opts = CompileOptions::default(&config, CompileMode::Check);
+            if rls_config.build_lib {
+                opts.filter = CompileFilter::new(true, &[], &[], &[], &[]);
+            }
             compile_with_exec(&ws, &opts, Arc::new(exec)).expect("could not run cargo");
         });
 

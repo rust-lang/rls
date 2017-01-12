@@ -18,17 +18,18 @@ extern crate log;
 extern crate env_logger;
 #[macro_use]
 extern crate hyper;
+extern crate languageserver_types as ls_types;
 extern crate racer;
 extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;
 extern crate rls_span as span;
+extern crate rustc_serialize;
 extern crate rustfmt;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-
-extern crate languageserver_types as ls_types;
+extern crate toml;
 
 use std::sync::Arc;
 
@@ -36,6 +37,7 @@ mod build;
 mod server;
 mod actions;
 mod lsp_data;
+mod config;
 
 #[cfg(test)]
 mod test;
