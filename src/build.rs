@@ -294,6 +294,18 @@ impl BuildQueue {
                     let mut args: Vec<_> =
                         cmd.get_args().iter().map(|a| a.clone().into_string().unwrap()).collect();
 
+                    // We end up taking this code path for build scripts, we don't
+                    // want to do that, so we check here if the crate is actually
+                    // being linked (c.f., emit=metadata) and if just call the
+                    // usual rustc. This is clearly a bit fragile (if the emit
+                    // string changes, we get screwed).
+                    if args.contains(&"--emit=dep-info,link".to_owned()) {
+                        trace!("rustc not intercepted (link)");
+                        return cmd.exec();
+                    }
+
+                    trace!("intercepted rustc, args: {:?}", args);
+
                     // FIXME here and below should check $RUSTC before using rustc.
                     {
                         // Cargo is going to expect to get dep-info for this crate, so we shell out
@@ -338,9 +350,6 @@ impl BuildQueue {
                     };
                     args.push(sys_root.to_owned());
 
-                    // let file_path = file_path_for_rmeta(&args);
-                    // File::create(file_path).expect("Could not write to file");
-
                     let envs = cmd.get_envs();
 
                     {
@@ -354,6 +363,7 @@ impl BuildQueue {
 
                     Ok(())
                 } else {
+                    trace!("rustc not intercepted");
                     cmd.exec()
                 }
             }
@@ -371,7 +381,6 @@ impl BuildQueue {
         // we may be in separate threads we need to block and wait our thread.
         // However, if Cargo doesn't run a separate thread, then we'll just wait
         // forever. Therefore, we spawn an extra thread here to be safe.
-        // TODO thread should catch panics
         let handle = thread::spawn(move || {
             env::set_var("CARGO_TARGET_DIR", &Path::new("target").join("rls"));
             env::set_var("RUSTFLAGS",
