@@ -47,6 +47,7 @@ struct Request {
 enum Notification {
     CancelRequest(NumberOrString),
     Change(DidChangeTextDocumentParams),
+    Save(DidSaveTextDocumentParams),
 }
 
 /// Creates an public enum whose variants all contain a single serializable payload
@@ -165,6 +166,7 @@ messages! {
     }
     notifications {
         "textDocument/didChange" => Change(params_as!(DidChangeTextDocumentParams));
+        "textDocument/didSave" => Save(params_as!(DidSaveTextDocumentParams));
         "$/cancelRequest" => CancelRequest(params_as!(CancelParams).id);
     }
     // TODO handle me
@@ -261,6 +263,10 @@ impl LsService {
                 Ok(ServerMessage::Notification(Notification::Change(change))) => {
                     trace!("notification(change): {:?}", change);
                     this.handler.on_change(change, &*this.output);
+                }
+                Ok(ServerMessage::Notification(Notification::Save(save))) => {
+                    trace!("notification(save): {:?}", save);
+                    this.handler.on_save(save, &*this.output);
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {

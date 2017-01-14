@@ -188,6 +188,12 @@ impl ActionHandler {
         self.build_current_project(out);
     }
 
+    pub fn on_save(&self, save: DidSaveTextDocumentParams, out: &Output) {
+        let fname: PathBuf = parse_file_path(&save.text_document.uri).unwrap();
+        self.vfs.file_saved(&fname).unwrap();
+        self.build_current_project(out);
+    }
+
     fn build_current_project(&self, out: &Output) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
