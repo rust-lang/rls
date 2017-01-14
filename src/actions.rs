@@ -385,7 +385,7 @@ impl ActionHandler {
                 contents.push(MarkedString::from_markdown(docs.into()));
             }
             if !doc_url.is_empty() {
-                contents.push(MarkedString::from_language_code("url".into(), doc_url.into()));
+                contents.push(MarkedString::from_markdown(doc_url.into()));
             }
             if !ty.is_empty() {
                 contents.push(MarkedString::from_language_code("rust".into(), ty.into()));
