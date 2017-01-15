@@ -336,6 +336,8 @@ impl BuildQueue {
                     }
 
                     args.insert(0, "rustc".to_owned());
+                    args.push("--cfg".to_owned());
+                    args.push("test".to_owned());
                     args.push("--sysroot".to_owned());
                     let home = option_env!("RUSTUP_HOME").or(option_env!("MULTIRUST_HOME"));
                     let toolchain = option_env!("RUSTUP_TOOLCHAIN").or(option_env!("MULTIRUST_TOOLCHAIN"));
@@ -414,7 +416,7 @@ impl BuildQueue {
 
         trace!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
         trace!("cargo stderr {}", String::from_utf8(err_clone.lock().unwrap().to_owned()).unwrap());
-        
+
         if let Err(_) = handle.join() {
             BuildResult::Err
         } else {
