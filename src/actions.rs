@@ -168,7 +168,7 @@ impl ActionHandler {
     }
 
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
-        let fname: PathBuf = parse_file_path(&change.text_document.uri).unwrap();
+        let fname = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
             let range = i.range.unwrap_or_else(|| {
                 // In this case the range is considered to be the whole document,
@@ -185,16 +185,22 @@ impl ActionHandler {
 
         trace!("on_change: {:?}", changes);
 
-        self.build_current_project(out);
+        self.build_current_project(BuildPriority::Normal, out);
     }
 
-    fn build_current_project(&self, out: &Output) {
+    pub fn on_save(&self, save: DidSaveTextDocumentParams, out: &Output) {
+        let fname = parse_file_path(&save.text_document.uri).unwrap();
+        self.vfs.file_saved(&fname).unwrap();
+        self.build_current_project(BuildPriority::Immediate, out);
+    }
+
+    fn build_current_project(&self, priority: BuildPriority, out: &Output) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
             current_project.clone()
         };
         match current_project {
-            Some(ref current_project) => self.build(&current_project, BuildPriority::Normal, out),
+            Some(ref current_project) => self.build(&current_project, priority, out),
             None => debug!("build_current_project - no project path"),
         }
     }
