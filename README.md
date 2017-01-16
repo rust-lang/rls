@@ -1,11 +1,11 @@
 [![Build Status](https://travis-ci.org/jonathandturner/rls.svg?branch=master)](https://travis-ci.org/jonathandturner/rls) [![Build status](https://ci.appveyor.com/api/projects/status/bp7swli8buxegr4t?svg=true)](https://ci.appveyor.com/project/jonathandturner/rls)
 
-# Rust Language Service (RLS)
+# Rust Language Server (RLS)
 
 **This project is in the early stages of development, it is not yet ready for real
 use. It will probably eat your laundry.**
 
-The RLS provides a service that runs in the background, providing IDEs,
+The RLS provides a server that runs in the background, providing IDEs,
 editors, and other tools with information about Rust programs. It supports
 functionality such as 'goto definition', symbol search, reformatting, and code
 completion, and enables renaming and refactorings.
