@@ -1,0 +1,36 @@
+environment:
+  global:
+    RUST_TEST_THREADS: 1
+    PROJECT_NAME: rls
+  matrix:
+    # Nightly channel
+    - TARGET: i686-pc-windows-gnu
+      CHANNEL: nightly
+      BITS: 32
+    - TARGET: i686-pc-windows-msvc
+      CHANNEL: nightly
+      BITS: 32
+    - TARGET: x86_64-pc-windows-gnu
+      CHANNEL: nightly
+      BITS: 64
+    - TARGET: x86_64-pc-windows-msvc
+      CHANNEL: nightly
+      BITS: 64
+
+install:
+  - set PATH=C:\msys64\mingw%BITS%\bin;C:\msys64\usr\bin;%PATH%
+  - curl -sSf -o rustup-init.exe https://win.rustup.rs
+  - rustup-init.exe --default-host %TARGET% --default-toolchain %CHANNEL% -y
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - rustc -Vv
+  - cargo -V
+
+build: false
+
+test_script:
+  - cargo build --verbose
+  - cargo test --verbose
+
+cache:
+  - target
+  - C:\Users\appveyor\.cargo\registry
