@@ -75,6 +75,7 @@ impl ActionHandler {
             pub code: Option<CompilerMessageCode>,
             pub level: String,
             pub spans: Vec<span::compiler::DiagnosticSpan>,
+            pub children: Vec<CompilerMessage>,
         }
 
         // We use `rustDocument` document here since these notifications are
@@ -100,6 +101,22 @@ impl ActionHandler {
                                 continue;
                             }
                             let span = message.spans[0].rls_span().zero_indexed();
+
+                            // build a more sophisticated error message
+                            let mut message_text = message.message.clone();
+                            for sp in &message.spans {
+                                if sp.is_primary && sp.label.is_some() {
+                                    message_text.push_str("\n");
+                                    message_text.push_str(sp.label.as_ref().unwrap());
+                                }
+                            }
+                            if !message.children.is_empty() {
+                                message_text.push_str("\n");
+                                for child in &message.children {
+                                    message_text.push_str(&format!("\n{}: {}", child.level, child.message));
+                                }
+                            }
+
                             let diag = Diagnostic {
                                 range: ls_util::rls_to_range(span.range),
                                 severity: Some(if message.level == "error" {
@@ -112,7 +129,7 @@ impl ActionHandler {
                                     None => String::new(),
                                 })),
                                 source: Some("rustc".into()),
-                                message: message.message.clone(),
+                                message: message_text,
                             };
 
                             {
