@@ -16,7 +16,6 @@ use analysis::raw;
 use hyper::Url;
 use serde::Serialize;
 use span;
-use vfs;
 
 pub use ls_types::*;
 
@@ -86,17 +85,20 @@ pub mod ls_util {
         }
     }
 
-    pub fn range_from_vfs_file(_vfs: &Vfs, _fname: &Path) -> Result<Range, vfs::Error> {
-        let content = _vfs.load_file(_fname)?;
+    /// Creates a `Range` spanning the whole file as currently known by `Vfs`
+    ///
+    /// Panics if `Vfs` cannot load the file.
+    pub fn range_from_vfs_file(vfs: &Vfs, fname: &Path) -> Range {
+        let content = vfs.load_file(fname).unwrap();
         if content.is_empty() {
-            Ok(Range {start: Position::new(0, 0), end: Position::new(0, 0)})
+            Range {start: Position::new(0, 0), end: Position::new(0, 0)}
         } else {
             // range is zero-based and the end position is exclusive
-            Ok(Range {
+            Range {
                 start: Position::new(0, 0),
                 end: Position::new(content.lines().count() as u64 - 1,
                         content.lines().last().expect("String is not empty.").chars().count() as u64)
-            })
+            }
         }
     }
 }

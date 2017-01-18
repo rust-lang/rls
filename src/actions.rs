@@ -173,7 +173,7 @@ impl ActionHandler {
             let range = i.range.unwrap_or_else(|| {
                 // In this case the range is considered to be the whole document,
                 // as specified by LSP
-                ls_util::range_from_vfs_file(&self.vfs, &fname).unwrap()
+                ls_util::range_from_vfs_file(&self.vfs, &fname)
             });
             let range = ls_util::range_to_rls(range);
             Change {
@@ -437,7 +437,7 @@ impl ActionHandler {
             Ok(_) => {
                 // Note that we don't need to keep the VFS up to date, the client
                 // echos back the change to us.
-                let range = ls_util::range_from_vfs_file(&self.vfs, &path).unwrap();
+                let range = ls_util::range_from_vfs_file(&self.vfs, &path);
                 let text = String::from_utf8(buf).unwrap();
                 let result = [TextEdit {
                     range: range,
