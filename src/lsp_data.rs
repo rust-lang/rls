@@ -85,11 +85,21 @@ pub mod ls_util {
         }
     }
 
-    pub fn range_from_vfs_file(_vfs: &Vfs, _fname: &Path) -> Range {
-        // FIXME: todo, endpos must be the end of the document, this is not correct
-
-        let end_pos = Position::new(0, 0);
-        Range{ start: Position::new(0, 0), end: end_pos }
+    /// Creates a `Range` spanning the whole file as currently known by `Vfs`
+    ///
+    /// Panics if `Vfs` cannot load the file.
+    pub fn range_from_vfs_file(vfs: &Vfs, fname: &Path) -> Range {
+        let content = vfs.load_file(fname).unwrap();
+        if content.is_empty() {
+            Range {start: Position::new(0, 0), end: Position::new(0, 0)}
+        } else {
+            // range is zero-based and the end position is exclusive
+            Range {
+                start: Position::new(0, 0),
+                end: Position::new(content.lines().count() as u64 - 1,
+                        content.lines().last().expect("String is not empty.").chars().count() as u64)
+            }
+        }
     }
 }
 
