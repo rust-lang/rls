@@ -624,7 +624,7 @@ dependencies = [
 [[package]]
 name = "rls-vfs"
 version = "0.1.0"
-source = "git+https://github.com/nrc/rls-vfs#75b11a532c4e5a421e4119615eaaeb8c4fb3d5de"
+source = "git+https://github.com/nrc/rls-vfs#19025b262d4170891d56ae4de84740f99df1bc86"
 dependencies = [
  "racer 2.0.4 (git+https://github.com/phildawes/racer)",
  "rls-span 0.1.0 (git+https://github.com/nrc/rls-span)",
