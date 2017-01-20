@@ -170,15 +170,17 @@ impl ActionHandler {
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
         let fname = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
-            let range = i.range.unwrap_or_else(|| {
-                // In this case the range is considered to be the whole document,
-                // as specified by LSP
-                ls_util::range_from_vfs_file(&self.vfs, &fname)
-            });
-            let range = ls_util::range_to_rls(range);
-            Change {
-                span: Span::from_range(range, fname.clone()),
-                text: i.text.clone()
+            if let Some(range) = i.range {
+                let range = ls_util::range_to_rls(range);
+                Change::ReplaceText {
+                    span: Span::from_range(range, fname.clone()),
+                    text: i.text.clone()
+                }
+            } else {
+                Change::AddFile {
+                    file: fname.clone(),
+                    text: i.text.clone(),
+                }
             }
         }).collect();
         self.vfs.on_changes(&changes).unwrap();
