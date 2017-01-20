@@ -155,14 +155,18 @@ impl ActionHandler {
 
                 trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(&project_path, false).unwrap();
+
+                out.notify("rustDocument/dataProcessingDone");
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
                 out.notify("rustDocument/diagnosticsEnd");
+                out.notify("rustDocument/dataProcessingDone");
             },
             BuildResult::Err => {
                 trace!("build - Error");
                 out.notify("rustDocument/diagnosticsEnd");
+                out.notify("rustDocument/dataProcessingDone");
             },
         }
     }
