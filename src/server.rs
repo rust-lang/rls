@@ -45,7 +45,8 @@ struct Request {
 
 #[derive(Debug)]
 enum Notification {
-    CancelRequest(NumberOrString),
+    Exit,
+    CancelRequest(CancelParams),
     Change(DidChangeTextDocumentParams),
     Save(DidSaveTextDocumentParams),
 }
@@ -94,7 +95,7 @@ macro_rules! messages {
             $($method_str: pat => $method_name: ident $(($method_arg: ty))*;)*
         }
         notifications {
-            $($notif_str: pat => $notif_name: ident($notif_arg: expr);)*
+            $($notif_str: pat => $notif_name: ident $(($notif_arg: ty))*;)*
         }
         $($other_str: pat => $other_expr: expr;)*
     ) => {
@@ -129,7 +130,7 @@ macro_rules! messages {
                         )*
                         $(
                             $notif_str => {
-                                Ok(ServerMessage::Notification(Notification::$notif_name($notif_arg)))
+                                Ok(ServerMessage::Notification(Notification::$notif_name$((params_as!($notif_arg)))*))
                             }
                         )*
                         $(
@@ -165,9 +166,10 @@ messages! {
         "textDocument/rangeFormatting" => ReformatRange(DocumentRangeFormattingParams);
     }
     notifications {
-        "textDocument/didChange" => Change(params_as!(DidChangeTextDocumentParams));
-        "textDocument/didSave" => Save(params_as!(DidSaveTextDocumentParams));
-        "$/cancelRequest" => CancelRequest(params_as!(CancelParams).id);
+        "exit" => Exit;
+        "textDocument/didChange" => Change(DidChangeTextDocumentParams);
+        "textDocument/didSave" => Save(DidSaveTextDocumentParams);
+        "$/cancelRequest" => CancelRequest(CancelParams);
     }
     // TODO handle me
     "textDocument/didOpen" => Err(ParseError::new(ErrorKind::InvalidData, "didOpen", None));
@@ -207,7 +209,7 @@ impl LsService {
     }
 
     pub fn run(this: Arc<Self>) {
-        while !this.shut_down.load(Ordering::SeqCst) && LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
+        while LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
     fn init(&self, id: usize, init: InitializeParams) {
@@ -256,17 +258,38 @@ impl LsService {
         let this = this.clone();
         thread::spawn(move || {
             // FIXME(45) refactor to generate this match.
-            match parse_message(&c) {
-                Ok(ServerMessage::Notification(Notification::CancelRequest(id))) => {
-                    trace!("request to cancel {:?}", id);
-                },
-                Ok(ServerMessage::Notification(Notification::Change(change))) => {
-                    trace!("notification(change): {:?}", change);
-                    this.handler.on_change(change, &*this.output);
+            let message = parse_message(&c);
+            {
+                let shut_down = this.shut_down.load(Ordering::SeqCst);
+                if shut_down {
+                    if let Ok(ServerMessage::Notification(Notification::Exit)) = message {
+                    } else {
+                        // We're shutdown, ignore any messages other than 'exit'. This is not actually
+                        // in the spec, I'm not sure we should do this, but it kinda makes sense.
+                        return;
+                    }
                 }
-                Ok(ServerMessage::Notification(Notification::Save(save))) => {
-                    trace!("notification(save): {:?}", save);
-                    this.handler.on_save(save, &*this.output);
+            }
+            match message {
+                Ok(ServerMessage::Notification(method)) => {
+                    match method {
+                        Notification::Exit => {
+                            trace!("exiting...");
+                            let shut_down = this.shut_down.load(Ordering::SeqCst);
+                            ::std::process::exit(if shut_down { 0 } else { 1 });
+                        }
+                        Notification::CancelRequest(params) => {
+                            trace!("request to cancel {:?}", params.id);
+                        }
+                        Notification::Change(change) => {
+                            trace!("notification(change): {:?}", change);
+                            this.handler.on_change(change, &*this.output);
+                        }
+                        Notification::Save(save) => {
+                            trace!("notification(save): {:?}", save);
+                            this.handler.on_save(save, &*this.output);
+                        }
+                    }
                 }
                 Ok(ServerMessage::Request(Request{id, method})) => {
                     match method {
