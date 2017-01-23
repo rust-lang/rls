@@ -77,6 +77,64 @@ impl ActionHandler {
             pub spans: Vec<span::compiler::DiagnosticSpan>,
         }
 
+        fn parse_compiler_messages(messages: &Vec<String>,
+                                   results: &mut HashMap<PathBuf, Vec<Diagnostic>>) {
+            for msg in messages {
+                let message = match serde_json::from_str::<CompilerMessage>(&msg) {
+                    Ok(message) => message,
+                    Err(e) => {
+                        debug!("build error {:?}", e);
+                        debug!("from {}", msg);
+                        continue;
+                    }
+                };
+
+                if message.spans.is_empty() {
+                    continue;
+                }
+
+                let span = message.spans[0].rls_span().zero_indexed();
+
+                let diag = Diagnostic {
+                    range: ls_util::rls_to_range(span.range),
+                    severity: Some(if message.level == "error" {
+                        DiagnosticSeverity::Error
+                    } else {
+                        DiagnosticSeverity::Warning
+                    }),
+                    code: Some(NumberOrString::String(match message.code {
+                        Some(c) => c.code.clone(),
+                        None => String::new(),
+                    })),
+                    source: Some("rustc".into()),
+                    message: message.message.clone(),
+                };
+
+                let mut results = results.entry(span.file.clone()).or_insert(vec![]);
+
+                results.push(diag);
+            }
+        }
+
+        fn convert_build_results_to_notifications(
+            build_results: &HashMap<PathBuf, Vec<Diagnostic>>,
+            project_path: &Path
+        ) -> Vec<NotificationMessage<PublishDiagnosticsParams>> {
+            build_results
+            .iter()
+            .map(|(path, diags)| {
+                let method = "textDocument/publishDiagnostics".to_string();
+
+                let params = PublishDiagnosticsParams::new(
+                    Url::from_file_path(project_path.join(path)).unwrap(),
+                    diags.clone(),
+                );
+
+                NotificationMessage::new(method, params)
+            })
+            .collect()
+        }
+
         // We use `rustDocument` document here since these notifications are
         // custom to the RLS and not part of the LS protocol.
         out.notify("rustDocument/diagnosticsBegin");
@@ -86,63 +144,18 @@ impl ActionHandler {
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
                 debug!("build - Success");
+
+                self.clear_build_results();
+
                 {
                     let mut results = self.previous_build_results.lock().unwrap();
-                    // We must not clear the hashmap, just the values in each list.
-                    for v in &mut results.values_mut() {
-                        v.clear();
-                    }
-                }
-                for msg in x.iter() {
-                    match serde_json::from_str::<CompilerMessage>(&msg) {
-                        Ok(message) => {
-                            if message.spans.is_empty() {
-                                continue;
-                            }
-                            let span = message.spans[0].rls_span().zero_indexed();
-                            let diag = Diagnostic {
-                                range: ls_util::rls_to_range(span.range),
-                                severity: Some(if message.level == "error" {
-                                    DiagnosticSeverity::Error
-                                } else {
-                                    DiagnosticSeverity::Warning
-                                }),
-                                code: Some(NumberOrString::String(match message.code {
-                                    Some(c) => c.code.clone(),
-                                    None => String::new(),
-                                })),
-                                source: Some("rustc".into()),
-                                message: message.message.clone(),
-                            };
-
-                            {
-                                let mut results = self.previous_build_results.lock().unwrap();
-                                results.entry(span.file.clone()).or_insert(vec![]).push(diag);
-                            }
-                        }
-                        Err(e) => {
-                            debug!("build error {:?}", e);
-                            debug!("from {}", msg);
-                        }
-                    }
+                    parse_compiler_messages(x, &mut results);
                 }
 
-                let mut notifications = vec![];
-                {
-                    // These notifications will include empty sets of errors for files
-                    // which had errors, but now don't. This instructs the IDE to clear
-                    // errors for those files.
+                let notifications = {
                     let results = self.previous_build_results.lock().unwrap();
-                    for (k, v) in results.iter() {
-                        notifications.push(NotificationMessage::new(
-                            "textDocument/publishDiagnostics".to_string(),
-                            PublishDiagnosticsParams::new(
-                                Url::from_file_path(project_path.join(k)).unwrap(),
-                                v.clone(),
-                            )
-                        ));
-                    }
-                }
+                    convert_build_results_to_notifications(&results, project_path)
+                };
 
                 // TODO we don't send an OK notification if there were no errors
                 for notification in notifications {
@@ -164,6 +177,17 @@ impl ActionHandler {
                 trace!("build - Error");
                 out.notify("rustDocument/diagnosticsEnd");
             },
+        }
+    }
+
+    fn clear_build_results(&self) {
+        {
+            let mut results = self.previous_build_results.lock().unwrap();
+            // We must not clear the hashmap, just the values in each list.
+            // This allows us to save allocated before memory.
+            for v in &mut results.values_mut() {
+                v.clear();
+            }
         }
     }
 
