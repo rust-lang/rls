@@ -32,7 +32,6 @@ install:
 build: false
 
 test_script:
-  - cargo build --verbose
   - set RUST_TEST_THREADS=1
   - cargo test --verbose
 
