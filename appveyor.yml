@@ -33,7 +33,8 @@ build: false
 
 test_script:
   - cargo build --verbose
-  - RUST_TEST_THREADS=1 cargo test --verbose
+  - set RUST_TEST_THREADS=1
+  - cargo test --verbose
 
 cache:
   - target
