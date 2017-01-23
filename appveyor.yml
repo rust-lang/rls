@@ -1,5 +1,4 @@
 environment:
-  RUSTFLAGS: -Zunstable-options -Ctarget-feature=+crt-static
   global:
     RUST_TEST_THREADS: 1
     PROJECT_NAME: rls
