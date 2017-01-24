@@ -4,15 +4,15 @@ environment:
     PROJECT_NAME: rls
   matrix:
     # Nightly channel
- #   - TARGET: i686-pc-windows-gnu
- #     CHANNEL: nightly
- #     BITS: 32
- #   - TARGET: i686-pc-windows-msvc
- #     CHANNEL: nightly
- #     BITS: 32
- #   - TARGET: x86_64-pc-windows-gnu
- #     CHANNEL: nightly
- #     BITS: 64
+    - TARGET: i686-pc-windows-gnu
+      CHANNEL: nightly
+      BITS: 32
+    - TARGET: i686-pc-windows-msvc
+      CHANNEL: nightly
+      BITS: 32
+    - TARGET: x86_64-pc-windows-gnu
+      CHANNEL: nightly
+      BITS: 64
     - TARGET: x86_64-pc-windows-msvc
       CHANNEL: nightly
       BITS: 64
@@ -23,7 +23,11 @@ install:
   # Install rust, x86_64-pc-windows-msvc host
   - rustup-init.exe -y --default-host x86_64-pc-windows-msvc --default-toolchain nightly-x86_64-pc-windows-msvc
   # Install the target we're compiling for
-  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin;C:\Users\appveyor\.multirust\toolchains\nightly-x86_64-pc-windows-msvc\bin
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - if "%TARGET%" == "i686-pc-windows-gnu" set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-i686-pc-windows-gnu\bin
+  - if "%TARGET%" == "i686-pc-windows-msvc" set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-i686-pc-windows-msvc\bin
+  - if "%TARGET%" == "x86_64-pc-windows-gnu" set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-x86_64-pc-windows-gnu\bin
+  - if "%TARGET%" == "x86_64-pc-windows-msvc" set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-x86_64-pc-windows-msvc\bin
   - if NOT "%TARGET%" == "x86_64-pc-windows-msvc" rustup target add %TARGET%
   - rustc -Vv
   - cargo -V
