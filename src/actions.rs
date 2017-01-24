@@ -29,13 +29,14 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+type BuildResults = HashMap<PathBuf, Vec<Diagnostic>>;
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
-    previous_build_results: Mutex<HashMap<PathBuf, Vec<Diagnostic>>>,
+    previous_build_results: Mutex<BuildResults>,
 }
 
 impl ActionHandler {
@@ -78,6 +79,92 @@ impl ActionHandler {
             pub children: Vec<CompilerMessage>,
         }
 
+        fn clear_build_results(results: &mut BuildResults) {
+            // We must not clear the hashmap, just the values in each list.
+            // This allows us to save allocated before memory.
+            for v in &mut results.values_mut() {
+                v.clear();
+            }
+        }
+
+        fn parse_compiler_messages(messages: &[String], results: &mut BuildResults) {
+            /// Builds a more sophisticated error message
+            fn compose_message(compiler_message: &CompilerMessage) -> String {
+                let mut message = compiler_message.message.clone();
+
+                for sp in &compiler_message.spans {
+                    if sp.is_primary && sp.label.is_some() {
+                        message.push_str("\n");
+                        message.push_str(sp.label.as_ref().unwrap());
+                    }
+                }
+
+                if !compiler_message.children.is_empty() {
+                    message.push_str("\n");
+                    for child in &compiler_message.children {
+                        message.push_str(&format!("\n{}: {}", child.level, child.message));
+                    }
+                }
+
+                message
+            }
+
+            for msg in messages {
+                let message = match serde_json::from_str::<CompilerMessage>(&msg) {
+                    Ok(message) => message,
+                    Err(e) => {
+                        debug!("build error {:?}", e);
+                        debug!("from {}", msg);
+                        continue;
+                    }
+                };
+
+                if message.spans.is_empty() {
+                    continue;
+                }
+
+                let span = message.spans[0].rls_span().zero_indexed();
+
+                let message_text = compose_message(&message);
+
+                let diag = Diagnostic {
+                    range: ls_util::rls_to_range(span.range),
+                    severity: Some(if message.level == "error" {
+                        DiagnosticSeverity::Error
+                    } else {
+                        DiagnosticSeverity::Warning
+                    }),
+                    code: Some(NumberOrString::String(match message.code {
+                        Some(c) => c.code.clone(),
+                        None => String::new(),
+                    })),
+                    source: Some("rustc".into()),
+                    message: message_text,
+                };
+
+                results.entry(span.file.clone()).or_insert(vec![]).push(diag);
+            }
+        }
+
+        fn convert_build_results_to_notifications(build_results: &BuildResults,
+                                                  project_path: &Path)
+            -> Vec<NotificationMessage<PublishDiagnosticsParams>>
+        {
+            build_results
+            .iter()
+            .map(|(path, diagnostics)| {
+                let method = "textDocument/publishDiagnostics".to_string();
+
+                let params = PublishDiagnosticsParams::new(
+                    Url::from_file_path(project_path.join(path)).unwrap(),
+                    diagnostics.clone(),
+                );
+
+                NotificationMessage::new(method, params)
+            })
+            .collect()
+        }
+
         // We use `rustDocument` document here since these notifications are
         // custom to the RLS and not part of the LS protocol.
         out.notify("rustDocument/diagnosticsBegin");
@@ -87,79 +174,16 @@ impl ActionHandler {
         match result {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
                 debug!("build - Success");
-                {
+
+                // These notifications will include empty sets of errors for files
+                // which had errors, but now don't. This instructs the IDE to clear
+                // errors for those files.
+                let notifications = {
                     let mut results = self.previous_build_results.lock().unwrap();
-                    // We must not clear the hashmap, just the values in each list.
-                    for v in &mut results.values_mut() {
-                        v.clear();
-                    }
-                }
-                for msg in x.iter() {
-                    match serde_json::from_str::<CompilerMessage>(&msg) {
-                        Ok(message) => {
-                            if message.spans.is_empty() {
-                                continue;
-                            }
-                            let span = message.spans[0].rls_span().zero_indexed();
-
-                            // build a more sophisticated error message
-                            let mut message_text = message.message.clone();
-                            for sp in &message.spans {
-                                if sp.is_primary && sp.label.is_some() {
-                                    message_text.push_str("\n");
-                                    message_text.push_str(sp.label.as_ref().unwrap());
-                                }
-                            }
-                            if !message.children.is_empty() {
-                                message_text.push_str("\n");
-                                for child in &message.children {
-                                    message_text.push_str(&format!("\n{}: {}", child.level, child.message));
-                                }
-                            }
-
-                            let diag = Diagnostic {
-                                range: ls_util::rls_to_range(span.range),
-                                severity: Some(if message.level == "error" {
-                                    DiagnosticSeverity::Error
-                                } else {
-                                    DiagnosticSeverity::Warning
-                                }),
-                                code: Some(NumberOrString::String(match message.code {
-                                    Some(c) => c.code.clone(),
-                                    None => String::new(),
-                                })),
-                                source: Some("rustc".into()),
-                                message: message_text,
-                            };
-
-                            {
-                                let mut results = self.previous_build_results.lock().unwrap();
-                                results.entry(span.file.clone()).or_insert(vec![]).push(diag);
-                            }
-                        }
-                        Err(e) => {
-                            debug!("build error {:?}", e);
-                            debug!("from {}", msg);
-                        }
-                    }
-                }
-
-                let mut notifications = vec![];
-                {
-                    // These notifications will include empty sets of errors for files
-                    // which had errors, but now don't. This instructs the IDE to clear
-                    // errors for those files.
-                    let results = self.previous_build_results.lock().unwrap();
-                    for (k, v) in results.iter() {
-                        notifications.push(NotificationMessage::new(
-                            "textDocument/publishDiagnostics".to_string(),
-                            PublishDiagnosticsParams::new(
-                                Url::from_file_path(project_path.join(k)).unwrap(),
-                                v.clone(),
-                            )
-                        ));
-                    }
-                }
+                    clear_build_results(&mut results);
+                    parse_compiler_messages(x, &mut results);
+                    convert_build_results_to_notifications(&results, project_path)
+                };
 
                 // TODO we don't send an OK notification if there were no errors
                 for notification in notifications {
