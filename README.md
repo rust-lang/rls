@@ -51,6 +51,32 @@ ensure that the `rls` command is in your path.
 To work with the RLS, your project must be buildable using `cargo build`. If you
 use syntax extensions or build scripts, it is likely things will go wrong.
 
+If you're using recent versions of rustup, you will also need to make sure that the
+compiler dynamic libraries are available for the RLS to load.  You can see where they 
+are using:
+
+```
+rustc --print sysroot
+```
+
+This will show you where the compiler keeps the dynamic libs.  In Windows, this will be 
+in the `bin` directory under this path.  On other platforms, it will be in the `lib`
+directory.
+
+On Windows, make sure this path (plus `bin`) is in your PATH.  For example:
+
+```
+set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-i686-pc-windows-gnu\bin
+```
+
+For Mac, you need to set the DYLD_LIBRARY_PATH.  For example:
+
+```
+export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-darwin/lib
+```
+
+I believe Linux is the same, except it uses LD_LIBRARY_PATH.
+
 ### VSCode integration
 
 To run with VSCode, you'll need a recent version of that
