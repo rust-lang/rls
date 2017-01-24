@@ -34,7 +34,7 @@ build: false
 
 test_script:
   - set RUST_TEST_THREADS=1
-  - cargo test --target %TARGET% --verbose
+  - cargo test --release --target %TARGET% --verbose
 
 cache:
   - target
