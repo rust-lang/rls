@@ -4,15 +4,15 @@ environment:
     PROJECT_NAME: rls
   matrix:
     # Nightly channel
-    - TARGET: i686-pc-windows-gnu
-      CHANNEL: nightly
-      BITS: 32
+    #- TARGET: i686-pc-windows-gnu
+    #  CHANNEL: nightly
+    #  BITS: 32
     - TARGET: i686-pc-windows-msvc
       CHANNEL: nightly
       BITS: 32
-    - TARGET: x86_64-pc-windows-gnu
-      CHANNEL: nightly
-      BITS: 64
+    #- TARGET: x86_64-pc-windows-gnu
+    #  CHANNEL: nightly
+    #  BITS: 64
     - TARGET: x86_64-pc-windows-msvc
       CHANNEL: nightly
       BITS: 64
