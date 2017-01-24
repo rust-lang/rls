@@ -14,4 +14,4 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade cmake; fi
 script:
   - cargo build --verbose
-  - RUST_TEST_THREADS=1 cargo test --verbose
+  - RUST_TEST_THREADS=1 cargo test --release --verbose
