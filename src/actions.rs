@@ -29,13 +29,14 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+type BuildResults = HashMap<PathBuf, Vec<Diagnostic>>;
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
-    previous_build_results: Mutex<HashMap<PathBuf, Vec<Diagnostic>>>,
+    previous_build_results: Mutex<BuildResults>,
 }
 
 impl ActionHandler {
@@ -77,8 +78,7 @@ impl ActionHandler {
             pub spans: Vec<span::compiler::DiagnosticSpan>,
         }
 
-        fn parse_compiler_messages(messages: &Vec<String>,
-                                   results: &mut HashMap<PathBuf, Vec<Diagnostic>>) {
+        fn parse_compiler_messages(messages: &Vec<String>, results: &mut BuildResults) {
             for msg in messages {
                 let message = match serde_json::from_str::<CompilerMessage>(&msg) {
                     Ok(message) => message,
@@ -117,7 +117,7 @@ impl ActionHandler {
         }
 
         fn convert_build_results_to_notifications(
-            build_results: &HashMap<PathBuf, Vec<Diagnostic>>,
+            build_results: &BuildResults,
             project_path: &Path
         ) -> Vec<NotificationMessage<PublishDiagnosticsParams>> {
             build_results
