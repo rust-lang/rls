@@ -78,7 +78,15 @@ impl ActionHandler {
             pub spans: Vec<span::compiler::DiagnosticSpan>,
         }
 
-        fn parse_compiler_messages(messages: &Vec<String>, results: &mut BuildResults) {
+        fn clear_build_results(results: &mut BuildResults) {
+            // We must not clear the hashmap, just the values in each list.
+            // This allows us to save allocated before memory.
+            for v in &mut results.values_mut() {
+                v.clear();
+            }
+        }
+
+        fn parse_compiler_messages(messages: &[String], results: &mut BuildResults) {
             for msg in messages {
                 let message = match serde_json::from_str::<CompilerMessage>(&msg) {
                     Ok(message) => message,
@@ -110,24 +118,22 @@ impl ActionHandler {
                     message: message.message.clone(),
                 };
 
-                let mut results = results.entry(span.file.clone()).or_insert(vec![]);
-
-                results.push(diag);
+                results.entry(span.file.clone()).or_insert(vec![]).push(diag);
             }
         }
 
-        fn convert_build_results_to_notifications(
-            build_results: &BuildResults,
-            project_path: &Path
-        ) -> Vec<NotificationMessage<PublishDiagnosticsParams>> {
+        fn convert_build_results_to_notifications(build_results: &BuildResults,
+                                                  project_path: &Path)
+            -> Vec<NotificationMessage<PublishDiagnosticsParams>>
+        {
             build_results
             .iter()
-            .map(|(path, diags)| {
+            .map(|(path, diagnostics)| {
                 let method = "textDocument/publishDiagnostics".to_string();
 
                 let params = PublishDiagnosticsParams::new(
                     Url::from_file_path(project_path.join(path)).unwrap(),
-                    diags.clone(),
+                    diagnostics.clone(),
                 );
 
                 NotificationMessage::new(method, params)
@@ -145,15 +151,13 @@ impl ActionHandler {
             BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
                 debug!("build - Success");
 
-                self.clear_build_results();
-
-                {
-                    let mut results = self.previous_build_results.lock().unwrap();
-                    parse_compiler_messages(x, &mut results);
-                }
-
+                // These notifications will include empty sets of errors for files
+                // which had errors, but now don't. This instructs the IDE to clear
+                // errors for those files.
                 let notifications = {
-                    let results = self.previous_build_results.lock().unwrap();
+                    let mut results = self.previous_build_results.lock().unwrap();
+                    clear_build_results(&mut results);
+                    parse_compiler_messages(x, &mut results);
                     convert_build_results_to_notifications(&results, project_path)
                 };
 
@@ -177,17 +181,6 @@ impl ActionHandler {
                 trace!("build - Error");
                 out.notify("rustDocument/diagnosticsEnd");
             },
-        }
-    }
-
-    fn clear_build_results(&self) {
-        {
-            let mut results = self.previous_build_results.lock().unwrap();
-            // We must not clear the hashmap, just the values in each list.
-            // This allows us to save allocated before memory.
-            for v in &mut results.values_mut() {
-                v.clear();
-            }
         }
     }
 
