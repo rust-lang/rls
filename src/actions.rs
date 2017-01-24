@@ -88,6 +88,27 @@ impl ActionHandler {
         }
 
         fn parse_compiler_messages(messages: &[String], results: &mut BuildResults) {
+            /// Builds a more sophisticated error message
+            fn compose_message(compiler_message: &CompilerMessage) -> String {
+                let mut message = compiler_message.message.clone();
+
+                for sp in &compiler_message.spans {
+                    if sp.is_primary && sp.label.is_some() {
+                        message.push_str("\n");
+                        message.push_str(sp.label.as_ref().unwrap());
+                    }
+                }
+
+                if !compiler_message.children.is_empty() {
+                    message.push_str("\n");
+                    for child in &compiler_message.children {
+                        message.push_str(&format!("\n{}: {}", child.level, child.message));
+                    }
+                }
+
+                message
+            }
+
             for msg in messages {
                 let message = match serde_json::from_str::<CompilerMessage>(&msg) {
                     Ok(message) => message,
@@ -104,22 +125,7 @@ impl ActionHandler {
 
                 let span = message.spans[0].rls_span().zero_indexed();
 
-                // build a more sophisticated error message
-                let mut message_text = message.message.clone();
-
-                for sp in &message.spans {
-                    if sp.is_primary && sp.label.is_some() {
-                        message_text.push_str("\n");
-                        message_text.push_str(sp.label.as_ref().unwrap());
-                    }
-                }
-
-                if !message.children.is_empty() {
-                    message_text.push_str("\n");
-                    for child in &message.children {
-                        message_text.push_str(&format!("\n{}: {}", child.level, child.message));
-                    }
-                }
+                let message_text = compose_message(&message);
 
                 let diag = Diagnostic {
                     range: ls_util::rls_to_range(span.range),
