@@ -250,6 +250,20 @@ request, then send a message later with the result of the task.
 Associating requests with replies is done using an id which must be handled by
 the RLS.
 
+
+### Extensions to the Language Server Protocol
+
+The RLS uses some custom extensions to the Language Server Protocol. Currently
+these are all sent from the RLS to an LSP client and are only used to improve
+the user experience by showing progress indicators.
+
+* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent before a
+  build starts and before any diagnostics from a build are sent.
+* `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
+  is complete (successfully or not, or even skipped) and all post-build analysis
+  by the RLS is complete.
+
+
 ## Contributing
 
 The RLS is open source and we'd love you to contribute to the project. Testing,
