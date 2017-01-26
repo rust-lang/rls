@@ -212,21 +212,29 @@ impl ActionHandler {
 
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
         let fname = parse_file_path(&change.text_document.uri).unwrap();
-        let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
-            if let Some(range) = i.range {
-                let range = ls_util::range_to_rls(range);
-                Change::ReplaceText {
-                    span: Span::from_range(range, fname.clone()),
-                    text: i.text.clone()
+        let changes: Vec<Change> = {
+            let fname = fname.clone();
+            change.content_changes.iter().map(move |i| {
+                if let Some(range) = i.range {
+                    let range = ls_util::range_to_rls(range);
+                    Change::ReplaceText {
+                        span: Span::from_range(range, fname.clone()),
+                        text: i.text.clone()
+                    }
+                } else {
+                    Change::AddFile {
+                        file: fname.clone(),
+                        text: i.text.clone(),
+                    }
                 }
-            } else {
-                Change::AddFile {
-                    file: fname.clone(),
-                    text: i.text.clone(),
-                }
-            }
-        }).collect();
+            }).collect()
+        };
         self.vfs.on_changes(&changes).unwrap();
+        {
+            // invalidate racer cache
+            let cache = self.racer_cache.lock().unwrap();
+            cache.remove_file(&fname);
+        }
 
         trace!("on_change: {:?}", changes);
 
