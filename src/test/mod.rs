@@ -35,6 +35,7 @@ use std::path::{Path, PathBuf};
 const TEST_WAIT_TIME: u64 = 1500;
 
 #[test]
+#[cfg(not(windows))]
 fn test_abs_path() {
     let _ = env_logger::init();
     let _cr = CwdRestorer::new();
