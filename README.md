@@ -1,4 +1,6 @@
-[![Build Status](https://travis-ci.org/jonathandturner/rls.svg?branch=master)](https://travis-ci.org/jonathandturner/rls) [![Build status](https://ci.appveyor.com/api/projects/status/bp7swli8buxegr4t?svg=true)](https://ci.appveyor.com/project/jonathandturner/rls)
+[![Build Status](https://travis-ci.org/rust-lang-nursery/rls.svg?branch=master)](https://travis-ci.org/rust-lang-nursery/rls) [![Build status](https://ci.appveyor.com/api/projects/status/cxfejvsqnnc1oygs?svg=true)](https://ci.appveyor.com/project/jonathandturner/rls-x6grn)
+
+
 
 # Rust Language Server (RLS)
 
