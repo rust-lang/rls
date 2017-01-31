@@ -338,6 +338,10 @@ impl BuildQueue {
                     args.insert(0, "rustc".to_owned());
                     args.push("--cfg".to_owned());
                     args.push("test".to_owned());
+                    args.push("-A".to_owned());
+                    args.push("dead_code".to_owned());
+                    args.push("-A".to_owned());
+                    args.push("unused_imports".to_owned());
                     args.push("--sysroot".to_owned());
                     let home = option_env!("RUSTUP_HOME").or(option_env!("MULTIRUST_HOME"));
                     let toolchain = option_env!("RUSTUP_TOOLCHAIN").or(option_env!("MULTIRUST_TOOLCHAIN"));
