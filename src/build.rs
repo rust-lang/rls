@@ -269,14 +269,18 @@ impl BuildQueue {
             cmd_line_args: Arc<Mutex<Vec<String>>>,
             cmd_line_envs: Arc<Mutex<HashMap<String, Option<OsString>>>>,
             cur_package_id: Mutex<Option<PackageId>>,
+            config: Config,
         }
 
         impl RlsExecutor {
-            fn new(cmd_line_args: Arc<Mutex<Vec<String>>>, cmd_line_envs: Arc<Mutex<HashMap<String, Option<OsString>>>>) -> RlsExecutor {
+            fn new(cmd_line_args: Arc<Mutex<Vec<String>>>,
+                   cmd_line_envs: Arc<Mutex<HashMap<String, Option<OsString>>>>,
+                   config: Config) -> RlsExecutor {
                 RlsExecutor {
                     cmd_line_args: cmd_line_args,
                     cmd_line_envs: cmd_line_envs,
                     cur_package_id: Mutex::new(None),
+                    config: config,
                 }
             }
         }
@@ -336,12 +340,9 @@ impl BuildQueue {
                     }
 
                     args.insert(0, "rustc".to_owned());
-                    args.push("--cfg".to_owned());
-                    args.push("test".to_owned());
-                    args.push("-A".to_owned());
-                    args.push("dead_code".to_owned());
-                    args.push("-A".to_owned());
-                    args.push("unused_imports".to_owned());
+                    if self.config.cfg_test {
+                        args.push("--test".to_owned());
+                    }
                     args.push("--sysroot".to_owned());
                     let home = option_env!("RUSTUP_HOME").or(option_env!("MULTIRUST_HOME"));
                     let toolchain = option_env!("RUSTUP_TOOLCHAIN").or(option_env!("MULTIRUST_TOOLCHAIN"));
@@ -382,18 +383,20 @@ impl BuildQueue {
             }
         }
 
+        let rls_config = {
+            let rls_config = self.config.lock().unwrap();
+            rls_config.clone()
+        };
+
         trace!("cargo - `{:?}`", build_dir);
-        let exec = RlsExecutor::new(self.cmd_line_args.clone(), self.cmd_line_envs.clone());
+        let exec = RlsExecutor::new(self.cmd_line_args.clone(),
+                                    self.cmd_line_envs.clone(),
+                                    rls_config.clone());
 
         let out = Arc::new(Mutex::new(vec![]));
         let err = Arc::new(Mutex::new(vec![]));
         let out_clone = out.clone();
         let err_clone = err.clone();
-
-        let rls_config = {
-            let rls_config = self.config.lock().unwrap();
-            rls_config.clone()
-        };
 
         // Cargo may or may not spawn threads to run the various builds, since
         // we may be in separate threads we need to block and wait our thread.

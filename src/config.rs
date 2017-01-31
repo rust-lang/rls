@@ -192,4 +192,5 @@ macro_rules! create_config {
 
 create_config! {
     build_lib: bool, false, false, "cargo check --lib";
+    cfg_test: bool, true, false, "build cfg(test) code";
 }
