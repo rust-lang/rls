@@ -41,8 +41,8 @@ mod config;
 #[cfg(test)]
 mod test;
 
-// Timeout = 0.5s (totally arbitrary).
-const COMPILER_TIMEOUT: u64 = 500;
+// Timeout = 1.5s (totally arbitrary).
+const COMPILER_TIMEOUT: u64 = 1500;
 
 type Span = span::Span<span::ZeroIndexed>;
 
