@@ -479,8 +479,6 @@ impl ActionHandler {
         match format_input(input, &config, Some(&mut buf)) {
             Ok((summary, ..)) => {
                 // format_input returns Ok even if there are any errors, i.e., parsing errors.
-                // If there are any errors the buffer is empty.
-                // An empty buffer removes the whole content of the document.
                 if summary.has_no_errors() {
                     // Note that we don't need to keep the VFS up to date, the client
                     // echos back the change to us.
