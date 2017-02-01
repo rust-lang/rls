@@ -477,16 +477,23 @@ impl ActionHandler {
 
         let mut buf = Vec::<u8>::new();
         match format_input(input, &config, Some(&mut buf)) {
-            Ok(_) => {
-                // Note that we don't need to keep the VFS up to date, the client
-                // echos back the change to us.
-                let range = ls_util::range_from_vfs_file(&self.vfs, &path);
-                let text = String::from_utf8(buf).unwrap();
-                let result = [TextEdit {
-                    range: range,
-                    new_text: text,
-                }];
-                out.success(id, ResponseData::TextEdit(result))
+            Ok((summary, ..)) => {
+                // format_input returns Ok even if there are any errors, i.e., parsing errors.
+                if summary.has_no_errors() {
+                    // Note that we don't need to keep the VFS up to date, the client
+                    // echos back the change to us.
+                    let range = ls_util::range_from_vfs_file(&self.vfs, &path);
+                    let text = String::from_utf8(buf).unwrap();
+                    let result = [TextEdit {
+                        range: range,
+                        new_text: text,
+                    }];
+                    out.success(id, ResponseData::TextEdit(result))
+                } else {
+                    debug!("reformat: format_input failed: has errors, summary = {:?}", summary);
+
+                    out.failure(id, "Reformat failed to complete successfully")
+                }
             }
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
