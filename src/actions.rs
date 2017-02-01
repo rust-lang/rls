@@ -478,14 +478,10 @@ impl ActionHandler {
         let mut buf = Vec::<u8>::new();
         match format_input(input, &config, Some(&mut buf)) {
             Ok((summary, ..)) => {
-                // It's workaround because currently rustfmt returns ok even if there are parsing errors.
-                // If there are parsing errors the buffer is empty.
-                // Without this condition a text document is erased.
-                if summary.has_parsing_errors() {
-                    debug!("reformat: format_input failed: has parsing errors");
-
-                    out.failure(id, "Reformat failed to complete successfully")
-                } else {
+                // format_input returns Ok even if there are any errors, i.e., parsing errors.
+                // If there are any errors the buffer is empty.
+                // An empty buffer removes the whole content of the document.
+                if summary.has_no_errors() {
                     // Note that we don't need to keep the VFS up to date, the client
                     // echos back the change to us.
                     let range = ls_util::range_from_vfs_file(&self.vfs, &path);
@@ -495,6 +491,10 @@ impl ActionHandler {
                         new_text: text,
                     }];
                     out.success(id, ResponseData::TextEdit(result))
+                } else {
+                    debug!("reformat: format_input failed: has errors, summary = {:?}", summary);
+
+                    out.failure(id, "Reformat failed to complete successfully")
                 }
             }
             Err(e) => {
