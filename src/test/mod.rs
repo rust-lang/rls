@@ -38,7 +38,7 @@ const TEST_WAIT_TIME: u64 = 1500;
 #[cfg(not(windows))]
 fn test_abs_path() {
     let _ = env_logger::init();
-    let _cr = CwdRestorer::new();
+    let _cr = TestCleanup::new();
 
     // Change directory to 'src', just a directory that is not an ancestor of
     // the test data.
@@ -64,7 +64,7 @@ fn test_abs_path() {
                                                         ("rootPath", root_path)]),
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -77,13 +77,13 @@ fn test_abs_path() {
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":20,\"character\":8}")]);
 }
 
 #[test]
 fn test_goto_def() {
     let _ = env_logger::init();
-    let _cr = CwdRestorer::new();
+    let _cr = TestCleanup::new();
 
     init_env("hello");
     let mut cache = types::Cache::new(Path::new("."));
@@ -100,7 +100,7 @@ fn test_goto_def() {
                                                         ("rootPath", root_path)]),
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -112,13 +112,13 @@ fn test_goto_def() {
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":11,\"character\":8}")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":20,\"character\":8}")]);
 }
 
 #[test]
 fn test_hover() {
     let _ = env_logger::init();
-    let _cr = CwdRestorer::new();
+    let _cr = TestCleanup::new();
 
     init_env("hello");
     let mut cache = types::Cache::new(Path::new("."));
@@ -135,7 +135,7 @@ fn test_hover() {
                                                         ("rootPath", root_path)]),
                         Message::new("textDocument/hover",
                                      vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 13, "world")))])];
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -152,7 +152,7 @@ fn test_hover() {
 #[test]
 fn test_find_all_refs() {
     let _ = env_logger::init();
-    let _cr = CwdRestorer::new();
+    let _cr = TestCleanup::new();
 
     init_env("hello");
     let mut cache = types::Cache::new(Path::new("."));
@@ -184,7 +184,7 @@ fn test_find_all_refs() {
                 "includeDeclaration": true
             }}
         }}
-    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
+    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 10, "Bar")))];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -196,14 +196,66 @@ fn test_find_all_refs() {
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
-                                                                     .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#),]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":15,"character":14},"end":{"line":15,"character":17}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":23,"character":15},"end":{"line":23,"character":18}}"#)]);
+}
+
+#[test]
+fn test_find_all_refs_no_cfg_test() {
+    let _ = env_logger::init();
+    let _cr = TestCleanup::new();
+
+    init_env("hello_no_cfg_test");
+    let mut cache = types::Cache::new(Path::new("."));
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
+                                                 .expect("couldn't convert path to JSON"));
+    let messages = vec![format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "initialize",
+        "id": 0,
+        "params": {{
+            "processId": "0",
+            "capabilities": null,
+            "rootPath": {}
+        }}
+    }}"#, root_path), format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "textDocument/references",
+        "id": 42,
+        "params": {{
+            "textDocument": {},
+            "position": {},
+            "context": {{
+                "includeDeclaration": true
+            }}
+        }}
+    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 10, "Bar")))];
+
+    let (server, results) = mock_raw_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":23,"character":15},"end":{"line":23,"character":18}}"#)]);
 }
 
 #[test]
 fn test_highlight() {
     let _ = env_logger::init();
-    let _cr = CwdRestorer::new();
+    let _cr = TestCleanup::new();
 
     init_env("hello");
     let mut cache = types::Cache::new(Path::new("."));
@@ -232,7 +284,7 @@ fn test_highlight() {
             "textDocument": {},
             "position": {}
         }}
-    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
+    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 22, "world")))];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -244,14 +296,14 @@ fn test_highlight() {
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
-                                                                     .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#),]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#),]);
 }
 
 #[test]
 fn test_rename() {
     let _ = env_logger::init();
-    let _cr = CwdRestorer::new();
+    let _cr = TestCleanup::new();
 
     init_env("hello");
     let mut cache = types::Cache::new(Path::new("."));
@@ -281,7 +333,7 @@ fn test_rename() {
             "position": {},
             "newName": "foo"
         }}
-    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 13, "world")))];
+    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 22, "world")))];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -293,15 +345,15 @@ fn test_rename() {
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#)
-                                                                     .expect_contains(r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#)
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
+                                                                     .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#)
                                                                      .expect_contains(r#"{"changes""#),]);
 }
 
 #[test]
 fn test_completion() {
     let _ = env_logger::init();
-    let _cr = CwdRestorer::new();
+    let _cr = TestCleanup::new();
 
     init_env("hello");
     let mut cache = types::Cache::new(Path::new("."));
@@ -318,7 +370,7 @@ fn test_completion() {
                                                         ("rootPath", root_path)]),
                         Message::new("textDocument/completion",
                                      vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 13, "rld")))])];
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "rld")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -512,20 +564,34 @@ fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
 
 const FAIL_MSG: &'static str = "Error initialising environment";
 
-struct CwdRestorer {
+struct TestCleanup {
     old: PathBuf,
 }
 
-impl CwdRestorer {
-    fn new() -> CwdRestorer{
-        CwdRestorer {
+impl TestCleanup {
+    fn new() -> TestCleanup{
+        TestCleanup {
             old: env::current_dir().expect(FAIL_MSG),
         }
     }
 }
 
-impl Drop for CwdRestorer {
+impl Drop for TestCleanup {
     fn drop(&mut self) {
+        use std::fs;
+        //use std::process::Command;
+
         env::set_current_dir(self.old.clone()).expect(FAIL_MSG);
+
+        /*
+        Command::new("sh")
+                .arg("-c")
+                .arg("cargo clean")
+                .output()
+                .expect("failed to remove directory");
+        */
+        let _ = fs::remove_dir_all(Path::new("test_data/hello/target/rls"));
+        let _ = fs::remove_dir_all(Path::new("test_data/hello_no_cfg_test/target/rls"));
+
     }
 }
