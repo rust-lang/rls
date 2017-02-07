@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+mod compiler_message_parsing;
+
 use analysis::{AnalysisHost};
 use hyper::Url;
 use vfs::{Vfs, Change};
@@ -28,6 +30,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
+use self::compiler_message_parsing::{FileDiagnostic, ParseError};
 
 type BuildResults = HashMap<PathBuf, Vec<Diagnostic>>;
 
@@ -65,20 +69,6 @@ impl ActionHandler {
     }
 
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
-        #[derive(Debug, Deserialize)]
-        pub struct CompilerMessageCode {
-            pub code: String
-        }
-
-        #[derive(Debug, Deserialize)]
-        pub struct CompilerMessage {
-            pub message: String,
-            pub code: Option<CompilerMessageCode>,
-            pub level: String,
-            pub spans: Vec<span::compiler::DiagnosticSpan>,
-            pub children: Vec<CompilerMessage>,
-        }
-
         fn clear_build_results(results: &mut BuildResults) {
             // We must not clear the hashmap, just the values in each list.
             // This allows us to save allocated before memory.
@@ -88,61 +78,17 @@ impl ActionHandler {
         }
 
         fn parse_compiler_messages(messages: &[String], results: &mut BuildResults) {
-            /// Builds a more sophisticated error message
-            fn compose_message(compiler_message: &CompilerMessage) -> String {
-                let mut message = compiler_message.message.clone();
-
-                for sp in &compiler_message.spans {
-                    if sp.is_primary && sp.label.is_some() {
-                        message.push_str("\n");
-                        message.push_str(sp.label.as_ref().unwrap());
-                    }
-                }
-
-                if !compiler_message.children.is_empty() {
-                    message.push_str("\n");
-                    for child in &compiler_message.children {
-                        message.push_str(&format!("\n{}: {}", child.level, child.message));
-                    }
-                }
-
-                message
-            }
-
             for msg in messages {
-                let message = match serde_json::from_str::<CompilerMessage>(&msg) {
-                    Ok(message) => message,
-                    Err(e) => {
+                match compiler_message_parsing::parse(msg) {
+                    Ok(FileDiagnostic { file_path, diagnostic }) => {
+                        results.entry(file_path).or_insert(vec![]).push(diagnostic);
+                    }
+                    Err(ParseError::JsonError(e)) => {
                         debug!("build error {:?}", e);
                         debug!("from {}", msg);
-                        continue;
                     }
-                };
-
-                if message.spans.is_empty() {
-                    continue;
+                    Err(ParseError::NoSpans) => {}
                 }
-
-                let span = message.spans[0].rls_span().zero_indexed();
-
-                let message_text = compose_message(&message);
-
-                let diag = Diagnostic {
-                    range: ls_util::rls_to_range(span.range),
-                    severity: Some(if message.level == "error" {
-                        DiagnosticSeverity::Error
-                    } else {
-                        DiagnosticSeverity::Warning
-                    }),
-                    code: Some(NumberOrString::String(match message.code {
-                        Some(c) => c.code.clone(),
-                        None => String::new(),
-                    })),
-                    source: Some("rustc".into()),
-                    message: message_text,
-                };
-
-                results.entry(span.file.clone()).or_insert(vec![]).push(diag);
             }
         }
 
