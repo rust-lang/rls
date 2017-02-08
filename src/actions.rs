@@ -16,10 +16,12 @@ use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::config::{self, WriteMode};
 use serde_json;
 use span;
+use span::compiler::DiagnosticSpan;
 use Span;
 
 use build::*;
 use lsp_data::*;
+use ls_types::Range;
 use server::{ResponseData, Output};
 
 use std::collections::HashMap;
@@ -65,7 +67,7 @@ impl ActionHandler {
     }
 
     pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
-        #[derive(Debug, Deserialize)]
+        #[derive(Clone, Debug, Deserialize)]
         pub struct CompilerMessageCode {
             pub code: String
         }
@@ -75,7 +77,7 @@ impl ActionHandler {
             pub message: String,
             pub code: Option<CompilerMessageCode>,
             pub level: String,
-            pub spans: Vec<span::compiler::DiagnosticSpan>,
+            pub spans: Vec<DiagnosticSpan>,
             pub children: Vec<CompilerMessage>,
         }
 
@@ -89,25 +91,150 @@ impl ActionHandler {
 
         fn parse_compiler_messages(messages: &[String], results: &mut BuildResults) {
             /// Builds a more sophisticated error message
-            fn compose_message(compiler_message: &CompilerMessage) -> String {
-                let mut message = compiler_message.message.clone();
-
-                for sp in &compiler_message.spans {
-                    if sp.is_primary && sp.label.is_some() {
-                        message.push_str("\n");
-                        message.push_str(sp.label.as_ref().unwrap());
-                    }
+            fn compose_message(mut message: String,
+                               label: Option<&String>,
+                               children: &Vec<CompilerMessage>) -> String {
+                if let Some(label) = label {
+                    message.push('\n');
+                    message.push_str(label);
                 }
 
-                if !compiler_message.children.is_empty() {
-                    message.push_str("\n");
-                    for child in &compiler_message.children {
-                        message.push_str(&format!("\n{}: {}", child.level, child.message));
+                if !children.is_empty() {
+                    for child in children {
+                        message.push('\n');
+                        message.push_str(&child.level);
+                        message.push_str(": ");
+                        message.push_str(&child.message);
                     }
                 }
 
                 message
             }
+
+            fn to_range_and_file(span: &DiagnosticSpan) -> (Range, PathBuf) {
+                let Span { range, file } = span.rls_span().zero_indexed();
+
+                let range = ls_util::rls_to_range(range);
+
+                (range, file)
+            }
+
+            fn to_severity(level: &str) -> Option<DiagnosticSeverity> {
+                let severity = if level == "error" {
+                    DiagnosticSeverity::Error
+                } else {
+                    DiagnosticSeverity::Warning
+                };
+
+                Some(severity)
+            }
+
+            fn to_code(code: Option<CompilerMessageCode>) -> Option<NumberOrString> {
+                let code = match code {
+                    Some(c) => c.code,
+                    None => String::new(),
+                };
+                
+                Some(NumberOrString::String(code))
+            }
+
+            fn source() -> Option<String> {
+                Some(String::from("rustc"))
+            }
+
+            fn is_complex_message(compiler_message: &CompilerMessage) -> bool {
+                assert!(!compiler_message.spans.is_empty());
+                compiler_message.spans.len() > 1 || compiler_message.spans[0].expansion.is_some()
+            }
+
+            fn parse_simple_message(compiler_message: CompilerMessage, results: &mut BuildResults) {
+                let CompilerMessage { mut spans, level, code, message, children } = compiler_message;
+                let span = spans.remove(0);
+
+                let (range, file) = to_range_and_file(&span);
+
+                let severity = to_severity(&level);
+
+                let code = to_code(code);
+
+                let source = source();
+
+                let message = compose_message(message, span.label.as_ref(), &children);
+
+                let diag = Diagnostic {
+                    range: range,
+                    severity: severity,
+                    code: code,
+                    source: source,
+                    message: message,
+                };
+
+                results.entry(file).or_insert(vec![]).push(diag);
+            }
+
+            fn parse_complex_message(compiler_message: CompilerMessage,
+                                     complex_message_index: usize,
+                                     results: &mut BuildResults) {
+                let CompilerMessage { mut spans, level, code, message, children } = compiler_message;
+                
+                let severity = to_severity(&level);
+
+                let code = to_code(code);
+
+                let source = source();
+
+                // Take it now. Process it after secondary spans.
+                // Processing is moved after processing secondary spans
+                // to allow move severity, code, source
+                let primary_span = {
+                    let position = spans.iter().position(|s| s.is_primary).expect("no primary span found");
+                    
+                    spans.swap_remove(position)
+                };
+
+                for span in spans {
+                    let message = if let Some(ref label) = span.label {
+                        label
+                    } else {
+                        continue;
+                    };
+
+                    let (range, file) = to_range_and_file(&span);
+
+                    let message = format!("{}: {}", complex_message_index, message);
+
+                    let diag = Diagnostic {
+                        range: range,
+                        severity: severity.clone(),
+                        code: code.clone(),
+                        source: source.clone(),
+                        message: message,
+                    };
+
+                    results.entry(file).or_insert(vec![]).push(diag);
+                }
+
+                // Process primary span
+                {
+                    let message = compose_message(message, primary_span.label.as_ref(), &children);
+
+                    let message = format!("{}: {}", complex_message_index, message);
+
+                    let (range, file) = to_range_and_file(&primary_span);
+
+                    let diag = Diagnostic {
+                        range: range,
+                        severity: severity,
+                        code: code,
+                        source: source,
+                        message: message,
+                    };
+
+                    results.entry(file).or_insert(vec![]).push(diag);
+                }
+            }
+
+            let mut complex_message_index = 1;
 
             for msg in messages {
                 let message = match serde_json::from_str::<CompilerMessage>(&msg) {
@@ -123,26 +250,13 @@ impl ActionHandler {
                     continue;
                 }
 
-                let span = message.spans[0].rls_span().zero_indexed();
+                if is_complex_message(&message) {
+                    parse_complex_message(message, complex_message_index, results)
+                } else {
+                    parse_simple_message(message, results)
+                }
 
-                let message_text = compose_message(&message);
-
-                let diag = Diagnostic {
-                    range: ls_util::rls_to_range(span.range),
-                    severity: Some(if message.level == "error" {
-                        DiagnosticSeverity::Error
-                    } else {
-                        DiagnosticSeverity::Warning
-                    }),
-                    code: Some(NumberOrString::String(match message.code {
-                        Some(c) => c.code.clone(),
-                        None => String::new(),
-                    })),
-                    source: Some("rustc".into()),
-                    message: message_text,
-                };
-
-                results.entry(span.file.clone()).or_insert(vec![]).push(diag);
+                complex_message_index += 1;
             }
         }
 
