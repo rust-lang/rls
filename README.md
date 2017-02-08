@@ -89,7 +89,7 @@ will affect how the RLS operates and how it builds your project.
 Currently we accept the following options:
 
 * `build_lib` (`bool`, defaults to `false`) checks the project as if you passed the `--lib` argument to cargo.
-* `cfg_test` (`bool`, defaults to `false`) checks the project as if you were running `cargo test` rather than `cargo build`. I.e., compiles (but does not run) test code.
+* `cfg_test` (`bool`, defaults to `true`) checks the project as if you were running `cargo test` rather than `cargo build`. I.e., compiles (but does not run) test code.
 
 
 ### VSCode integration
