@@ -37,6 +37,7 @@ pub struct ActionHandler {
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
     previous_build_results: Mutex<BuildResults>,
+    racer_cache: Arc<Mutex<racer::FileCache>>,
 }
 
 impl ActionHandler {
@@ -45,10 +46,11 @@ impl ActionHandler {
            build_queue: Arc<BuildQueue>) -> ActionHandler {
         ActionHandler {
             analysis: analysis,
-            vfs: vfs,
+            vfs: vfs.clone(),
             build_queue: build_queue,
             current_project: Mutex::new(None),
             previous_build_results: Mutex::new(HashMap::new()),
+            racer_cache: Arc::new(Mutex::new(racer::FileCache::new(vfs))),
         }
     }
 
@@ -210,21 +212,29 @@ impl ActionHandler {
 
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
         let fname = parse_file_path(&change.text_document.uri).unwrap();
-        let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
-            if let Some(range) = i.range {
-                let range = ls_util::range_to_rls(range);
-                Change::ReplaceText {
-                    span: Span::from_range(range, fname.clone()),
-                    text: i.text.clone()
+        let changes: Vec<Change> = {
+            let fname = fname.clone();
+            change.content_changes.iter().map(move |i| {
+                if let Some(range) = i.range {
+                    let range = ls_util::range_to_rls(range);
+                    Change::ReplaceText {
+                        span: Span::from_range(range, fname.clone()),
+                        text: i.text.clone()
+                    }
+                } else {
+                    Change::AddFile {
+                        file: fname.clone(),
+                        text: i.text.clone(),
+                    }
                 }
-            } else {
-                Change::AddFile {
-                    file: fname.clone(),
-                    text: i.text.clone(),
-                }
-            }
-        }).collect();
+            }).collect()
+        };
         self.vfs.on_changes(&changes).unwrap();
+        {
+            // invalidate racer cache
+            let cache = self.racer_cache.lock().unwrap();
+            cache.remove_file(&fname);
+        }
 
         trace!("on_change: {:?}", changes);
 
@@ -277,7 +287,7 @@ impl ActionHandler {
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
-            let cache = racer::FileCache::new(self.vfs.clone());
+            let cache = self.racer_cache.as_ref().lock().unwrap();
             let session = racer::Session::new(&cache);
 
             let location = pos_to_racer_location(params.position);
@@ -369,7 +379,7 @@ impl ActionHandler {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
-        let vfs = self.vfs.clone();
+        let racer_cache = self.racer_cache.clone();
 
         let compiler_handle = thread::spawn(move || {
             let result = analysis.goto_def(&span);
@@ -383,7 +393,7 @@ impl ActionHandler {
         let racer_handle = thread::spawn(move || {
             let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
-            let cache = racer::FileCache::new(vfs);
+            let cache = racer_cache.as_ref().lock().unwrap();
             let session = racer::Session::new(&cache);
             let location = pos_to_racer_location(params.position);
 
