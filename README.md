@@ -77,7 +77,20 @@ For Mac, you need to set the DYLD_LIBRARY_PATH.  For example:
 export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-darwin/lib
 ```
 
-I believe Linux is the same, except it uses LD_LIBRARY_PATH.
+I believe Linux is the same, except that it uses LD_LIBRARY_PATH.
+
+
+### Configuration
+
+The RLS can be configured on a per-project basis by adding a file called
+`rls.toml` to the project root (i.e., next to Cargo.toml). Entries in this file
+will affect how the RLS operates and how it builds your project.
+
+Currently we accept the following options:
+
+* `build_lib` (`bool`, defaults to `false`) checks the project as if you passed the `--lib` argument to cargo.
+* `cfg_test` (`bool`, defaults to `false`) checks the project as if you were running `cargo test` rather than `cargo build`. I.e., compiles (but does not run) test code.
+
 
 ### VSCode integration
 
