@@ -106,7 +106,7 @@ macro_rules! messages {
         fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
             let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
 
-            let params = ls_command.lookup("params");
+            let params = ls_command.get("params");
 
             macro_rules! params_as {
                 ($ty: ty) => ({
@@ -116,15 +116,15 @@ macro_rules! messages {
                 });
             }
             macro_rules! id {
-                () => ((ls_command.lookup("id").map(|id| id.as_u64().unwrap() as usize)));
+                () => ((ls_command.get("id").map(|id| id.as_u64().unwrap() as usize)));
             }
 
-            if let Some(v) = ls_command.lookup("method") {
+            if let Some(v) = ls_command.get("method") {
                 if let Some(name) = v.as_str() {
                     match name {
                         $(
                             $method_str => {
-                                let id = ls_command.lookup("id").unwrap().as_u64().unwrap() as usize;
+                                let id = ls_command.get("id").unwrap().as_u64().unwrap() as usize;
                                 Ok(ServerMessage::Request(Request{id: id, method: Method::$method_name$((params_as!($method_arg)))* }))
                             }
                         )*

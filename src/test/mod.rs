@@ -550,9 +550,9 @@ fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
         let values: serde_json::Value = serde_json::from_str(found).unwrap();
-        assert!(values.lookup("jsonrpc").expect("Missing jsonrpc field").as_str().unwrap() == "2.0", "Bad jsonrpc field");
+        assert!(values.get("jsonrpc").expect("Missing jsonrpc field").as_str().unwrap() == "2.0", "Bad jsonrpc field");
         if let Some(id) = expected.id {
-            assert_eq!(values.lookup("id").expect("Missing id field").as_u64().unwrap(), id, "Unexpected id");
+            assert_eq!(values.get("id").expect("Missing id field").as_u64().unwrap(), id, "Unexpected id");
         }
         for c in expected.contains.iter() {
             found.find(c).expect(&format!("Could not find `{}` in `{}`", c, found));
