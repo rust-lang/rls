@@ -25,6 +25,7 @@ use config::Config;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
+use std::fs::{read_dir, remove_file};
 use std::io::{self, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -296,6 +297,26 @@ impl BuildQueue {
             }
 
             fn exec(&self, cmd: ProcessBuilder, id: &PackageId) -> Result<(), ProcessError> {
+                // Delete any stale data. We try and remove any json files with
+                // the same crate name as Cargo would emit. This includes files
+                // with the same crate name but different hashes, e.g., those
+                // made with a different compiler.
+                let args = cmd.get_args();
+                let crate_name = parse_arg(args, "--crate-name").expect("no crate-name in rustc command line");
+                let out_dir = parse_arg(args, "--out-dir").expect("no out-dir in rustc command line");
+                let analysis_dir = Path::new(&out_dir).join("save-analysis");
+                if let Ok(dir_contents) = read_dir(&analysis_dir) {
+                    for entry in dir_contents {
+                        let entry = entry.expect("unexpected error reading save-analysis directory");
+                        let name = entry.file_name();
+                        let name = name.to_str().unwrap();
+                        if name.starts_with(&crate_name) && name.ends_with(".json") {
+                            debug!("removing: `{:?}`", name);
+                            remove_file(entry.path()).expect("could not remove file");
+                        }
+                    }
+                }
+
                 let is_primary_crate = {
                     let cur_package_id = self.cur_package_id.lock().unwrap();
                     id == cur_package_id.as_ref().expect("Executor has not been initialised")
@@ -466,6 +487,15 @@ impl BuildQueue {
             Err(_) => BuildResult::Failure(stderr_json_msg),
         }
     }
+}
+
+fn parse_arg(args: &[OsString], arg: &str) -> Option<String> {
+    for (i, a) in args.iter().enumerate() {
+        if a == arg {
+            return Some(args[i + 1].clone().into_string().unwrap());
+        }
+    }
+    None
 }
 
 // A threadsafe buffer for writing.
