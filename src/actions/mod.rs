@@ -23,6 +23,7 @@ use Span;
 use build::*;
 use lsp_data::*;
 use server::{ResponseData, Output};
+use url_serde;
 
 use std::collections::HashMap;
 use std::panic;
@@ -33,7 +34,63 @@ use std::time::Duration;
 
 use self::compiler_message_parsing::{FileDiagnostic, ParseError};
 
-type BuildResults = HashMap<PathBuf, Vec<Diagnostic>>;
+type BuildResults = HashMap<PathBuf, Vec<RustDiagnostic>>;
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct PublishRustDiagnosticsParams {
+    /// The URI for which diagnostic information is reported.
+    #[serde(deserialize_with = "url_serde::deserialize", serialize_with = "url_serde::serialize")]
+    pub uri: Url,
+
+    /// An array of diagnostic information items.
+    pub diagnostics: Vec<RustDiagnostic>,
+}
+
+impl PublishRustDiagnosticsParams {
+    pub fn new(uri: Url, diagnostics: Vec<RustDiagnostic>) -> PublishRustDiagnosticsParams {
+        PublishRustDiagnosticsParams {
+            uri: uri,
+            diagnostics: diagnostics,
+        }
+    }
+}
+
+/// A range in a text document expressed as (zero-based) start and end positions.
+/// A range is comparable to a selection in an editor. Therefore the end position is exclusive.
+#[derive(Debug, PartialEq, Clone, Default, Deserialize, Serialize)]
+pub struct LabelledRange {
+    /// The range's start position.
+    pub start: Position,
+    /// The range's end position.
+    pub end: Position,
+    /// The optional LabelledRange.
+    pub label: Option<String>,
+}
+
+/// Represents a diagnostic, such as a compiler error or warning.
+/// Diagnostic objects are only valid in the scope of a resource.
+#[derive(Debug, PartialEq, Clone, Default, Deserialize, Serialize)]
+pub struct RustDiagnostic {
+    /// The primary range at which the message applies.
+    pub range: LabelledRange,
+
+    /// The secondary ranges that apply to the message
+    pub secondary: Vec<LabelledRange>,
+
+    /// The diagnostic's severity. Can be omitted. If omitted it is up to the
+    /// client to interpret diagnostics as error, warning, info or hint.
+    pub severity: Option<DiagnosticSeverity>,
+
+    /// The diagnostic's code. Can be omitted.
+    pub code: Option<NumberOrString>,
+    //    code?: number | string;
+    /// A human-readable string describing the source of this
+    /// diagnostic, e.g. 'typescript' or 'super lint'.
+    pub source: Option<String>,
+
+    /// The diagnostic's message.
+    pub message: String,
+}
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
@@ -94,14 +151,14 @@ impl ActionHandler {
 
         fn convert_build_results_to_notifications(build_results: &BuildResults,
                                                   project_path: &Path)
-            -> Vec<NotificationMessage<PublishDiagnosticsParams>>
+            -> Vec<NotificationMessage<PublishRustDiagnosticsParams>>
         {
             build_results
             .iter()
             .map(|(path, diagnostics)| {
                 let method = "textDocument/publishDiagnostics".to_string();
 
-                let params = PublishDiagnosticsParams::new(
+                let params = PublishRustDiagnosticsParams::new(
                     Url::from_file_path(project_path.join(path)).unwrap(),
                     diagnostics.clone(),
                 );
