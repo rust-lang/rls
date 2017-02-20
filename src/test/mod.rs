@@ -257,15 +257,10 @@ fn test_borrow_error() {
     let _cr = TestCleanup::new();
 
     init_env("borrow_error");
-    let mut cache = types::Cache::new(Path::new("."));
-
-    let source_file_path = Path::new("src").join("main.rs");
+    let cache = types::Cache::new(Path::new("."));
 
     let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
                                       .expect("couldn't convert path to JSON"));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
     let messages = vec![format!(r#"{{
         "jsonrpc": "2.0",
         "method": "initialize",
