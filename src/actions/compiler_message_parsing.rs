@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use ls_types::{DiagnosticSeverity, NumberOrString};
 use serde_json;
 use span::compiler::DiagnosticSpan;
-use actions::{RustDiagnostic, LabelledRange};
+use actions::lsp_extensions::{RustDiagnostic, LabelledRange};
 
 use lsp_data::ls_util;
 
