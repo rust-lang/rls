@@ -278,7 +278,7 @@ fn test_borrow_error() {
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("\"secondary\":[{\"start\":{\"line\":3,\"character\":17},\"end\":{\"line\":3,\"character\":18},\"label\":\"second mutable borrow occurs here\"}"),
+                                       ExpectedMessage::new(None).expect_contains("\"secondaryRanges\":[{\"start\":{\"line\":2,\"character\":17},\"end\":{\"line\":2,\"character\":18},\"label\":\"first mutable borrow occurs here\"}"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 

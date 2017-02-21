@@ -36,13 +36,14 @@ pub struct LabelledRange {
 
 /// Represents a diagnostic, such as a compiler error or warning.
 /// Diagnostic objects are only valid in the scope of a resource.
+#[allow(non_snake_case)]
 #[derive(Debug, PartialEq, Clone, Default, Deserialize, Serialize)]
 pub struct RustDiagnostic {
     /// The primary range at which the message applies.
     pub range: LabelledRange,
 
     /// The secondary ranges that apply to the message
-    pub secondary: Vec<LabelledRange>,
+    pub secondaryRanges: Vec<LabelledRange>,
 
     /// The diagnostic's severity. Can be omitted. If omitted it is up to the
     /// client to interpret diagnostics as error, warning, info or hint.

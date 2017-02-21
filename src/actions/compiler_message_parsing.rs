@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use ls_types::{DiagnosticSeverity, NumberOrString};
 use serde_json;
 use span::compiler::DiagnosticSpan;
+use span;
 use actions::lsp_extensions::{RustDiagnostic, LabelledRange};
 
 use lsp_data::ls_util;
@@ -57,28 +58,33 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
     }
 
     let message_text = compose_message(&message);
-    let span = message.spans[0].rls_span().zero_indexed();
-    let range = ls_util::rls_to_range(span.range);
+    let primary = message.spans.iter()
+                                    .filter(|x| x.is_primary)
+                                    .collect::<Vec<&span::compiler::DiagnosticSpan>>()[0].clone();
+    let primary_span = primary.rls_span().zero_indexed();
+    let primary_range = ls_util::rls_to_range(primary_span.range);
 
     // build up the secondary spans
-    let mut secondary = vec![];
-    for span in message.spans.iter().skip(1) {
-        let secondary_range = ls_util::rls_to_range(span.rls_span().zero_indexed().range);
+    let secondary_labels: Vec<LabelledRange> = message.spans.iter()
+                                                            .filter(|x| !x.is_primary)
+                                                            .map(|x| {
+            let secondary_range = ls_util::rls_to_range(x.rls_span().zero_indexed().range);
 
-        secondary.push(LabelledRange {
-            start: secondary_range.start,
-            end: secondary_range.end,
-            label: span.label.clone(),
-        });
-    }
+            LabelledRange {
+                start: secondary_range.start,
+                end: secondary_range.end,
+                label: x.label.clone(),
+            }
+        }).collect();
+
 
     let diagnostic = RustDiagnostic {
         range: LabelledRange {
-            start: range.start,
-            end: range.end,
-            label: message.spans[0].label.clone(),
-        },
-        secondary: secondary,
+                  start: primary_range.start,
+                  end: primary_range.end,
+                  label: primary.label.clone(),
+               },
+        secondaryRanges: secondary_labels,
         severity: Some(if message.level == "error" {
             DiagnosticSeverity::Error
         } else {
@@ -93,7 +99,7 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
     };
 
     Ok(FileDiagnostic {
-        file_path: span.file.clone(),
+        file_path: primary_span.file.clone(),
         diagnostic: diagnostic
     })
 }
