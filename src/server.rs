@@ -84,7 +84,9 @@ serializable_enum!(ResponseData,
     TextEdit([TextEdit; 1]),
     Locations(Vec<Location>),
     Highlights(Vec<DocumentHighlight>),
-    HoverSuccess(Hover)
+    HoverSuccess(Hover),
+    // Empty tuple is represented as null in JSON
+    Null(())
 );
 
 // Generates the Method enum and parse_message function.
@@ -300,6 +302,10 @@ impl LsService {
                         Method::Shutdown => {
                             trace!("shutting down...");
                             this.shut_down.store(true, Ordering::SeqCst);
+
+                            // We must respond, otherwise we wouldn't get a request to exit.
+                            let out = &*this.output;
+                            out.success(id, ResponseData::Null(()));
                         }
                         Method::Hover(params) => {
                             trace!("command(hover): {:?}", params);
