@@ -252,6 +252,37 @@ fn test_find_all_refs_no_cfg_test() {
 }
 
 #[test]
+fn test_borrow_error() {
+    let _ = env_logger::init();
+    let _cr = TestCleanup::new();
+
+    init_env("borrow_error");
+    let cache = types::Cache::new(Path::new("."));
+
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
+    let messages = vec![format!(r#"{{
+        "jsonrpc": "2.0",
+        "method": "initialize",
+        "id": 0,
+        "params": {{
+            "processId": "0",
+            "capabilities": null,
+            "rootPath": {}
+        }}
+    }}"#, root_path)];
+
+    let (server, results) = mock_raw_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("\"secondary\":[{\"start\":{\"line\":3,\"character\":17},\"end\":{\"line\":3,\"character\":18},\"label\":\"second mutable borrow occurs here\"}"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
 fn test_highlight() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();

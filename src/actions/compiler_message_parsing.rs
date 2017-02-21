@@ -10,9 +10,10 @@
 
 use std::path::PathBuf;
 
-use ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
+use ls_types::{DiagnosticSeverity, NumberOrString};
 use serde_json;
 use span::compiler::DiagnosticSpan;
+use actions::lsp_extensions::{RustDiagnostic, LabelledRange};
 
 use lsp_data::ls_util;
 
@@ -33,7 +34,7 @@ struct CompilerMessage {
 #[derive(Debug)]
 pub struct FileDiagnostic {
     pub file_path: PathBuf,
-    pub diagnostic: Diagnostic,
+    pub diagnostic: RustDiagnostic,
 }
 
 #[derive(Debug)]
@@ -55,12 +56,29 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
         return Err(ParseError::NoSpans);
     }
 
-    let span = message.spans[0].rls_span().zero_indexed();
-
     let message_text = compose_message(&message);
+    let span = message.spans[0].rls_span().zero_indexed();
+    let range = ls_util::rls_to_range(span.range);
 
-    let diagnostic = Diagnostic {
-        range: ls_util::rls_to_range(span.range),
+    // build up the secondary spans
+    let mut secondary = vec![];
+    for span in message.spans.iter().skip(1) {
+        let secondary_range = ls_util::rls_to_range(span.rls_span().zero_indexed().range);
+
+        secondary.push(LabelledRange {
+            start: secondary_range.start,
+            end: secondary_range.end,
+            label: span.label.clone(),
+        });
+    }
+
+    let diagnostic = RustDiagnostic {
+        range: LabelledRange {
+            start: range.start,
+            end: range.end,
+            label: message.spans[0].label.clone(),
+        },
+        secondary: secondary,
         severity: Some(if message.level == "error" {
             DiagnosticSeverity::Error
         } else {

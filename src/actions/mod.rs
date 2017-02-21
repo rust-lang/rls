@@ -9,6 +9,7 @@
 // except according to those terms.
 
 mod compiler_message_parsing;
+mod lsp_extensions;
 
 use analysis::{AnalysisHost};
 use hyper::Url;
@@ -31,9 +32,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use self::lsp_extensions::{PublishRustDiagnosticsParams, RustDiagnostic};
 use self::compiler_message_parsing::{FileDiagnostic, ParseError};
 
-type BuildResults = HashMap<PathBuf, Vec<Diagnostic>>;
+type BuildResults = HashMap<PathBuf, Vec<RustDiagnostic>>;
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
@@ -94,17 +96,17 @@ impl ActionHandler {
 
         fn convert_build_results_to_notifications(build_results: &BuildResults,
                                                   project_path: &Path)
-            -> Vec<NotificationMessage<PublishDiagnosticsParams>>
+            -> Vec<NotificationMessage<PublishRustDiagnosticsParams>>
         {
             build_results
             .iter()
             .map(|(path, diagnostics)| {
                 let method = "textDocument/publishDiagnostics".to_string();
 
-                let params = PublishDiagnosticsParams::new(
-                    Url::from_file_path(project_path.join(path)).unwrap(),
-                    diagnostics.clone(),
-                );
+                let params = PublishRustDiagnosticsParams {
+                    uri: Url::from_file_path(project_path.join(path)).unwrap(),
+                    diagnostics: diagnostics.clone(),
+                };
 
                 NotificationMessage::new(method, params)
             })

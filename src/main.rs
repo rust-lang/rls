@@ -29,6 +29,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate toml;
+extern crate url;
+extern crate url_serde;
 
 use std::sync::Arc;
 
