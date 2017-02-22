@@ -83,7 +83,7 @@ impl ActionHandler {
             for msg in messages {
                 match compiler_message_parsing::parse(msg) {
                     Ok(FileDiagnostic { file_path, diagnostic }) => {
-                        results.entry(file_path).or_insert(vec![]).push(diagnostic);
+                        results.entry(file_path).or_insert_with(Vec::new).push(diagnostic);
                     }
                     Err(ParseError::JsonError(e)) => {
                         debug!("build error {:?}", e);
@@ -141,7 +141,7 @@ impl ActionHandler {
                 }
 
                 trace!("reload analysis: {:?}", project_path);
-                self.analysis.reload(&project_path, false).unwrap();
+                self.analysis.reload(project_path, false).unwrap();
 
                 out.notify("rustDocument/diagnosticsEnd");
             }
@@ -191,7 +191,7 @@ impl ActionHandler {
             current_project.clone()
         };
         match current_project {
-            Some(ref current_project) => self.build(&current_project, priority, out),
+            Some(ref current_project) => self.build(current_project, priority, out),
             None => debug!("build_current_project - no project path"),
         }
     }
@@ -202,7 +202,7 @@ impl ActionHandler {
 
         let rustw_handle = thread::spawn(move || {
             let file_name = parse_file_path(&doc.text_document.uri).unwrap();
-            let symbols = analysis.symbols(&file_name).unwrap_or(vec![]);
+            let symbols = analysis.symbols(&file_name).unwrap_or_else(|_| vec![]);
             t.unpark();
 
             symbols.into_iter().map(|s| {
@@ -217,7 +217,7 @@ impl ActionHandler {
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = rustw_handle.join().unwrap_or(vec![]);
+        let result = rustw_handle.join().unwrap_or_else(|_| vec![]);
         out.success(id, ResponseData::SymbolInfo(result));
     }
 
@@ -235,7 +235,7 @@ impl ActionHandler {
                 comp.matchstr.clone(),
                 comp.contextstr.clone(),
             )).collect()
-        }).unwrap_or(vec![]);
+        }).unwrap_or_else(|_| vec![]);
 
         out.success(id, ResponseData::CompletionItems(result));
     }
@@ -254,13 +254,13 @@ impl ActionHandler {
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or_else(Vec::new);
 
         let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
         for item in result.iter() {
-            let loc = ls_util::rls_to_location(&item);
-            edits.entry(loc.uri).or_insert(vec![]).push(TextEdit {
+            let loc = ls_util::rls_to_location(item);
+            edits.entry(loc.uri).or_insert_with(Vec::new).push(TextEdit {
                 range: loc.range,
                 new_text: params.new_name.clone(),
             });
@@ -283,7 +283,7 @@ impl ActionHandler {
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
+        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or_else(Vec::new);
         let refs: Vec<_> = result.iter().map(|span| DocumentHighlight {
             range: ls_util::rls_to_range(span.range),
             kind: Some(DocumentHighlightKind::Text),
@@ -306,8 +306,8 @@ impl ActionHandler {
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or(vec![]);
-        let refs: Vec<_> = result.iter().map(|item| ls_util::rls_to_location(&item)).collect();
+        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or_else(Vec::new);
+        let refs: Vec<_> = result.iter().map(|item| ls_util::rls_to_location(item)).collect();
 
         out.success(id, ResponseData::Locations(refs));
     }
@@ -372,9 +372,9 @@ impl ActionHandler {
 
         let analysis = self.analysis.clone();
         let rustw_handle = thread::spawn(move || {
-            let ty = analysis.show_type(&span).unwrap_or(String::new());
-            let docs = analysis.docs(&span).unwrap_or(String::new());
-            let doc_url = analysis.doc_url(&span).unwrap_or(String::new());
+            let ty = analysis.show_type(&span).unwrap_or_else(|_| String::new());
+            let docs = analysis.docs(&span).unwrap_or_else(|_| String::new());
+            let doc_url = analysis.doc_url(&span).unwrap_or_else(|_| String::new());
             t.unpark();
 
             let mut contents = vec![];
@@ -430,7 +430,7 @@ impl ActionHandler {
                 if summary.has_no_errors() {
                     // Note that we don't need to keep the VFS up to date, the client
                     // echos back the change to us.
-                    let range = ls_util::range_from_vfs_file(&self.vfs, &path);
+                    let range = ls_util::range_from_vfs_file(&self.vfs, path);
                     let text = String::from_utf8(buf).unwrap();
                     let result = [TextEdit {
                         range: range,

@@ -51,7 +51,7 @@ impl From<serde_json::Error> for ParseError {
 }
 
 pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
-    let message = serde_json::from_str::<CompilerMessage>(&message)?;
+    let message = serde_json::from_str::<CompilerMessage>(message)?;
 
     if message.spans.is_empty() {
         return Err(ParseError::NoSpans);

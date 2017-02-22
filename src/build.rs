@@ -44,7 +44,7 @@ use std::time::Duration;
 /// We cannot cancel builds. It might be worth running builds in parallel or
 /// cancelling a started build.
 ///
-/// BuildPriority::Immediate builds are started straightaway. Normal builds are
+/// `BuildPriority::Immediate` builds are started straightaway. Normal builds are
 /// started after a timeout. A new build request cancels any pending build requests.
 ///
 /// From the client's point of view, a build request is not guaranteed to cause
@@ -167,11 +167,9 @@ impl BuildQueue {
                     if signal == Signal::Skip {
                         return BuildResult::Squashed;
                     }
-                } else {
+                } else if rx.try_recv().unwrap_or(Signal::Build) == Signal::Skip {
                     // Doesn't block.
-                    if rx.try_recv().unwrap_or(Signal::Build) == Signal::Skip {
-                        return BuildResult::Squashed;
-                    }
+                    return BuildResult::Squashed;
                 }
             }
         }
@@ -199,13 +197,8 @@ impl BuildQueue {
         if !pending.is_empty() {
             // Kick off one build, then skip the rest.
             let mut pending = pending.iter();
-            loop {
-                let next = pending.next();
-                let next = match next {
-                    Some(n) => n,
-                    None => break,
-                };
-                if let Ok(_) = next.send(Signal::Build) {
+            while let Some(next) = pending.next() {
+                if next.send(Signal::Build).is_ok() {
                     break;
                 }
             }
@@ -252,10 +245,8 @@ impl BuildQueue {
         let build_dir = &self.build_dir.lock().unwrap();
         let build_dir = build_dir.as_ref().unwrap();
 
-        if needs_to_run_cargo {
-            if self.cargo(build_dir.clone()) == BuildResult::Err {
-                return BuildResult::Err;
-            }
+        if needs_to_run_cargo && self.cargo(build_dir.clone()) == BuildResult::Err {
+            return BuildResult::Err;
         }
 
         let cmd_line_args = self.cmd_line_args.lock().unwrap();
@@ -372,7 +363,7 @@ impl BuildQueue {
                     } else {
                         option_env!("SYSROOT")
                             .map(|s| s.to_owned())
-                            .or(Command::new("rustc")
+                            .or_else(|| Command::new("rustc")
                                 .arg("--print")
                                 .arg("sysroot")
                                 .output()
@@ -445,7 +436,7 @@ impl BuildQueue {
         trace!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
         trace!("cargo stderr {}", String::from_utf8(err_clone.lock().unwrap().to_owned()).unwrap());
 
-        if let Err(_) = handle.join() {
+        if handle.join().is_err() {
             BuildResult::Err
         } else {
             BuildResult::Success(vec![])
@@ -458,7 +449,7 @@ impl BuildQueue {
 
         let changed = self.vfs.get_cached_files();
 
-        let _pwd = Environment::push(&Path::new(build_dir), envs);
+        let _pwd = Environment::push(Path::new(build_dir), envs);
         let buf = Arc::new(Mutex::new(vec![]));
         let err_buf = buf.clone();
         let args = args.to_owned();
@@ -483,7 +474,7 @@ impl BuildQueue {
 
         match exit_code {
             Ok(0) => BuildResult::Success(stderr_json_msg),
-            Ok(_) => BuildResult::Failure(stderr_json_msg),
+            Ok(_) |
             Err(_) => BuildResult::Failure(stderr_json_msg),
         }
     }
@@ -582,7 +573,7 @@ fn convert_message_to_json_strings(input: Vec<u8>) -> Vec<String> {
 }
 
 /// Tries to read a file from a list of replacements, and if the file is not
-/// there, then reads it from disk, by delegating to RealFileLoader.
+/// there, then reads it from disk, by delegating to `RealFileLoader`.
 pub struct ReplacedFileLoader {
     replacements: HashMap<PathBuf, String>,
     real_file_loader: RealFileLoader,

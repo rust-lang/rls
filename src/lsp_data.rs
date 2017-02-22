@@ -109,14 +109,14 @@ pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
         raw::DefKind::Tuple => SymbolKind::Array,
         raw::DefKind::Struct => SymbolKind::Class,
         raw::DefKind::Trait => SymbolKind::Interface,
-        raw::DefKind::Function => SymbolKind::Function,
-        raw::DefKind::Method => SymbolKind::Function,
+        raw::DefKind::Function |
+        raw::DefKind::Method |
         raw::DefKind::Macro => SymbolKind::Function,
         raw::DefKind::Mod => SymbolKind::Module,
         raw::DefKind::Type => SymbolKind::Interface,
-        raw::DefKind::Local => SymbolKind::Variable,
-        raw::DefKind::Static => SymbolKind::Variable,
-        raw::DefKind::Const => SymbolKind::Variable,
+        raw::DefKind::Local |
+        raw::DefKind::Static |
+        raw::DefKind::Const |
         raw::DefKind::Field => SymbolKind::Variable,
         raw::DefKind::Import => SymbolKind::Module,
     }
