@@ -436,10 +436,9 @@ impl BuildQueue {
         trace!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
         trace!("cargo stderr {}", String::from_utf8(err_clone.lock().unwrap().to_owned()).unwrap());
 
-        if handle.join().is_err() {
-            BuildResult::Err
-        } else {
-            BuildResult::Success(vec![])
+        match handle.join() {
+            Ok(_) => BuildResult::Success(vec![]),
+            Err(_) => BuildResult::Err
         }
     }
 
@@ -474,8 +473,7 @@ impl BuildQueue {
 
         match exit_code {
             Ok(0) => BuildResult::Success(stderr_json_msg),
-            Ok(_) |
-            Err(_) => BuildResult::Failure(stderr_json_msg),
+            _ => BuildResult::Failure(stderr_json_msg),
         }
     }
 }
