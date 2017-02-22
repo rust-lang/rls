@@ -290,6 +290,7 @@ messages! {
         "textDocument/codeAction" => CodeAction(CodeActionParams);
         "workspace/executeCommand" => ExecuteCommand(ExecuteCommandParams);
         "rustWorkspace/deglob" => Deglob(Location);
+        "rustDocument/implementations" => FindImpls(TextDocumentPositionParams);
     }
     notifications {
         "initialized" => Initialized;
@@ -518,6 +519,7 @@ impl<O: Output> LsService<O> {
                 Deglob(params) => { action: deglob };
                 ExecuteCommand(params) => { action: execute_command };
                 CodeAction(params) => { action: code_action };
+                FindImpls(params) => { action: find_impls };
             }
             notifications {
                 Initialized => {{ self.handler.inited().initialized(self.output.clone()) }};

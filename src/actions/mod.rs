@@ -253,9 +253,32 @@ impl ActionHandler {
         });
     }
 
+    pub fn find_impls<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
+        let t = thread::current();
+        let file_path = parse_file_path!(&params.text_document.uri, "find_impls");
+        let span = self.convert_pos_to_span(file_path, params.position);
+        let type_id = self.analysis.id(&span).expect("Analysis: Getting typeid from span");
+        let analysis = self.analysis.clone();
+
+        let handle = thread::spawn(move || {
+            let result = analysis.find_impls(type_id).map(|spans| {
+                spans.into_iter().map(|x| ls_util::rls_to_location(&x)).collect()
+            });
+            t.unpark();
+            result
+        });
+        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+
+        let result = handle.join();
+        trace!("find_impls: {:?}", result);
+        match result {
+            Ok(Ok(r)) => out.success(id, ResponseData::Locations(r)),
+            _ => out.failure_message(id, ErrorCode::InternalError, "Find Implementations failed to complete successfully"),
+        }
+    }
+
     pub fn on_open<O: Output>(&self, open: DidOpenTextDocumentParams, _out: O) {
         trace!("on_open: {:?}", open.text_document.uri);
-
         let file_path = parse_file_path!(&open.text_document.uri, "on_open");
 
         self.vfs.set_file(&file_path, &open.text_document.text);
