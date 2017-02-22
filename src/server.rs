@@ -24,6 +24,9 @@ use std::thread;
 use std::path::PathBuf;
 
 
+#[derive(Debug, Serialize)]
+pub struct Ack {}
+
 #[derive(Debug, new)]
 struct ParseError {
     kind: ErrorKind,
@@ -85,8 +88,7 @@ serializable_enum!(ResponseData,
     Locations(Vec<Location>),
     Highlights(Vec<DocumentHighlight>),
     HoverSuccess(Hover),
-    // Empty tuple is represented as null in JSON
-    Null(())
+    Ack(Ack)
 );
 
 // Generates the Method enum and parse_message function.
@@ -303,9 +305,8 @@ impl LsService {
                             trace!("shutting down...");
                             this.shut_down.store(true, Ordering::SeqCst);
 
-                            // We must respond, otherwise we wouldn't get a request to exit.
                             let out = &*this.output;
-                            out.success(id, ResponseData::Null(()));
+                            out.success(id, ResponseData::Ack(Ack {}));
                         }
                         Method::Hover(params) => {
                             trace!("command(hover): {:?}", params);
