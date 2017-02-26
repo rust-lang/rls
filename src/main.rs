@@ -13,11 +13,11 @@
 extern crate cargo;
 #[macro_use]
 extern crate derive_new;
-#[macro_use]
-extern crate log;
 extern crate env_logger;
 extern crate hyper;
 extern crate languageserver_types as ls_types;
+#[macro_use]
+extern crate log;
 extern crate racer;
 extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;

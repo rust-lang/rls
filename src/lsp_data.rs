@@ -108,6 +108,7 @@ pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
         raw::DefKind::Enum => SymbolKind::Enum,
         raw::DefKind::Tuple => SymbolKind::Array,
         raw::DefKind::Struct => SymbolKind::Class,
+        raw::DefKind::Union => SymbolKind::Class,
         raw::DefKind::Trait => SymbolKind::Interface,
         raw::DefKind::Function => SymbolKind::Function,
         raw::DefKind::Method => SymbolKind::Function,
