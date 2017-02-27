@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/rust-lang-nursery/rls.svg?branch=master)](https://travis-ci.org/rust-lang-nursery/rls) [![Build status](https://ci.appveyor.com/api/projects/status/cxfejvsqnnc1oygs?svg=true)](https://ci.appveyor.com/project/jonathandturner/rls-x6grn)
+[![Build Status](https://travis-ci.org/rust-lang-nursery/rls.svg?branch=master)](https://travis-ci.org/rust-lang-nursery/rls) [![Build status](https://ci.appveyor.com/api/projects/status/cxfejvsqnnc1oygs?svg=true)](https://ci.appveyor.com/project/rust-lang-nursery/rls-x6grn)
 
 
 
@@ -25,7 +25,7 @@ better experience for larger and larger crates.
 
 The RLS is designed to be frontend-independent. We hope it will be widely
 adopted by different editors and IDEs. To seed development, we provide a
-[reference implementation of an RLS frontend](https://github.com/jonathandturner/rustls_vscode)
+[reference implementation of an RLS frontend](https://github.com/rust-lang-nursery/rls_vscode)
 for [Visual Studio Code](https://code.visualstudio.com/).
 
 
@@ -97,7 +97,7 @@ Currently we accept the following options:
 To run with VSCode, you'll need a recent version of that
 [installed](https://code.visualstudio.com/download).
 
-You'll then need a copy of our [VSCode extension](https://github.com/jonathandturner/rustls_vscode).
+You'll then need a copy of our [VSCode extension](https://github.com/rust-lang-nursery/rls_vscode).
 
 The RLS can operate via the [Language Server protocol](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md).
 
@@ -115,14 +115,14 @@ export RLS_ROOT=/Source/rls
 Test using `RUST_TEST_THREADS=1 cargo test`.
 
 Testing is unfortunately minimal. There is support for regression tests, but not
-many actual tests exists yet. There is signifcant [work to do](https://github.com/jonathandturner/rustls/issues/12)
+many actual tests exists yet. There is signifcant [work to do](https://github.com/rust-lang-nursery/rls/issues/12)
 before we have a comprehensive testing story.
 
 
 ## Standard library support
 
 Getting the RLS to work with the standard libraries takes a little more work, we
-hope to address this in the future for a more ergonomic solution (https://github.com/jonathandturner/rustls/issues/88).
+hope to address this in the future for a more ergonomic solution (https://github.com/rust-lang-nursery/rls/issues/88).
 
 The way it works is that when the libraries are built, the compiler can emit all
 the data that the RLS needs. This can be read by the RLS on startup and used to
@@ -236,7 +236,7 @@ at all.
 The command line we got from Cargo, we chop up and feed to the in-process
 compiler. We then collect error messages and analysis data in JSON format
 (although this is inefficient and [should
-change](https://github.com/jonathandturner/rustls/issues/25)).
+change](https://github.com/rust-lang-nursery/rls/issues/25)).
 
 ### Analysis data
 
@@ -285,8 +285,8 @@ The RLS is open source and we'd love you to contribute to the project. Testing,
 reporting issues, writing documentation, writing tests, writing code, and
 implementing clients are all extremely valuable.
 
-Here is the list of known [issues](https://github.com/jonathandturner/rustls/issues).
-These are [good issues to start on](https://github.com/jonathandturner/rustls/issues?q=is%3Aopen+is%3Aissue+label%3Aeasy).
+Here is the list of known [issues](https://github.com/rust-lang-nursery/rls/issues).
+These are [good issues to start on](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aopen+is%3Aissue+label%3Aeasy).
 
 We're happy to help however we can. The best way to get help is either to
 leave a comment on an issue in this repo, or to ping us (nrc or jntrnr) in #rust-tools
