@@ -223,7 +223,7 @@ impl LsService {
                 hover_provider: Some(true),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(true),
-                    trigger_characters: vec![".".to_string()],
+                    trigger_characters: vec![".".to_string(), ":".to_string()],
                 }),
                 // TODO
                 signature_help_provider: Some(SignatureHelpOptions {
