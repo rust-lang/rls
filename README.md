@@ -32,9 +32,7 @@ for [Visual Studio Code](https://code.visualstudio.com/).
 ## Building
 
 Since the RLS is closely linked to the compiler and is in active development,
-you'll need a recent nightly compiler to build it.  In our experience, the 
-nightly from rustup should be avoided for the time being.  Instead use a nightly 
-you build, or one from a direct download.
+you'll need a recent nightly compiler to build it.
 
 Use `cargo build` to build.
 
@@ -50,20 +48,22 @@ cargo run
 Though more commonly, you'll use an IDE plugin to invoke it for you. For this to work,
 ensure that the `rls` command is in your path.
 
-To work with the RLS, your project must be buildable using `cargo build`. If you
-use syntax extensions or build scripts, it is likely things will go wrong.
+If you want to see information about the standard libraries, then before running
+the RLS, you should run `rustup component add rust-analysis` (more details below).
 
-If you're using recent versions of rustup, you will also need to make sure that the
-compiler dynamic libraries are available for the RLS to load.  You can see where they 
-are using:
+To work with the RLS, your project must be buildable using `cargo build`.
+
+If you're using recent versions of rustup, you will also need to make sure that
+the compiler's dynamic libraries are available for the RLS to load. You can see
+where they  are using:
 
 ```
 rustc --print sysroot
 ```
 
-This will show you where the compiler keeps the dynamic libs.  In Windows, this will be 
-in the `bin` directory under this path.  On other platforms, it will be in the `lib`
-directory.
+This will show you where the compiler keeps the dynamic libs. In Windows, this
+will be  in the `bin` directory under this path. On other platforms, it will be
+in the `lib` directory.
 
 On Windows, make sure this path (plus `bin`) is in your PATH.  For example:
 
@@ -88,8 +88,11 @@ will affect how the RLS operates and how it builds your project.
 
 Currently we accept the following options:
 
-* `build_lib` (`bool`, defaults to `false`) checks the project as if you passed the `--lib` argument to cargo.
-* `cfg_test` (`bool`, defaults to `true`) checks the project as if you were running `cargo test` rather than `cargo build`. I.e., compiles (but does not run) test code.
+* `build_lib` (`bool`, defaults to `false`) checks the project as if you passed
+  the `--lib` argument to cargo.
+* `cfg_test` (`bool`, defaults to `true`) checks the project as if you were
+  running `cargo test` rather than `cargo build`. I.e., compiles (but does not
+  run) test code.
 
 
 ### VSCode integration
@@ -136,56 +139,75 @@ the data used by the RLS for libraries must match exactly with the crate that
 your source code links with.
 
 You need a version of the above data which exactly matches the standard
-libraries you will use with your project. You can do this either by downloading
-matching data, or by building your own std libs and emitting the data at the
-same time.
+libraries you will use with your project. Rustup takes care of this for you and
+is the preferred (and easiest) method for installing this data. If you want to
+use the RLS with a Rust compiler/libraries you have built yourself, then you'll
+need to take some extra steps.
 
-### Download the libs
 
-You must be using nightly, find out what date nightly you have. Note that this
-may not be the date given by `--version` (build date vs distribution date). The
-easiest way to do this is to download a specific day's nightly and use that.
-Then, navigate to the [Rust archives](https://static.rust-lang.org/dist/index.html)
-and click through to your Rust's date. You will see a lot of files. Find one
-that looks like `rust-analysis-nightly-$YOUR_TARGET_TRIPLE.tar.gz`, and
-download it. For example, if you are on regular Linux and have a compiler for
-21st December 2016, you will want `https://static.rust-lang.org/dist/2016-12-21/rust-analysis-nightly-x86_64 -unknown-linux-gnu.tar.gz`.
+### Install with rustup
 
-OK, now open the archive. Navigate through the various sub-directories to find
-one called `analysis`. It will be somewhere like: `rust-analysis-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/analysis`.
-You must extract the JSON files in that `analysis` directory to `lib/save-analysis`
-in your Rust sysroot, e.g., (on Linux, no multi-rust/rustup) `/usr/local/lib/save-analysis`.
-To find your sysroot you can use `rustc --print=sysroot`. Note that if you change
-Rust installation (e.g., using rustup), your sysroot might change.
+You'll need to be using [rustup](https://www.rustup.rs/) to manage your Rust
+compiler toolchains. The RLS does not yet support cross-compilation - your
+compiler host and target must be exactly the same.
+
+You must be using nightly (you need to be using nightly for the RLS to work at
+the moment in any case). To install a nightly toolchain use `rustup install
+nightly`. To switch to using that nightly toolchain by default use `rustup
+default nightly`.
+
+Add the RLS data component using `rustup component add rust-analysis`.
+
+Everything should now work! You may need to restart the RLS.
 
 
 ### Build it yourself
 
-In your Rust directory, you want to run the following:
+When you build Rust, add `-Zsave-analysis-api` to your stage 2 flags, e.g., by
+setting the environment variable:
 
 ```
-# Or whatever -j you usually use.
-RUSTFLAGS_STAGE2='-Zsave-analysis-api' make -j6
+export RUSTFLAGS_STAGE2='-Zsave-analysis-api'
 ```
 
-Then go get a coffee, possibly from a cafe on the other side of town if you have
-a slower machine.
+When the build has finished, you should have a bunch of JSON data in a directory like
+`~/rust1/build/x86_64-unknown-linux-gnu/stage1-std/x86_64-unknown-linux-gnu/release/deps/save-analysis`.
 
-If all goes well, you should have a bunch of JSON data in a directory like
-`~/rust/x86_64-unknown-linux-gnu/stage2/lib/rustlib/x86_64-unknown-linux-gnu/lib/save-analysis`.
+You need to copy all those files (should be around 16) into a new directory:
+`~/rust1/build/x86_64-unknown-linux-gnu/stage2/lib/rustlib/x86_64-unknown-linux-gnu/analysis`
+(assuming you are running the stage 2 compiler you just built. You'll need to
+modify the root directory (`~/rust1` here) and the host triple
+(`x86_64-unknown-linux-gnu` in both places)).
 
-You need to copy all those files (should be around 16) into a directory called
-`analysis` in your Rust sysroot (see above for details).
 
 Finally, to run the RLS you'll need to set things up to use the newly built
 compiler, something like:
 
 ```
-export RUSTC="/home/ncameron/rust/x86_64-unknown-linux-gnu/stage2/bin/rustc"
+export RUSTC="~/rust1/build/x86_64-unknown-linux-gnu/stage2/bin/rustc"
 ```
 
 Either before you run the RLS, or before you run the IDE which will start the
 RLS.
+
+
+### Details
+
+Rustup (or you, manually) will install the rls data (which is a bunch of json
+files) into `$SYSROOT/lib/rustlib/$TARGET_TRIPLE/analysis`, where `$SYSROOT` is
+your Rust sysroot, this can be found using `rustc --print=sysroot`.
+`$TARGET_TRIPLE` is the triple which defines the compilation target. Since the
+RLS currently does not support cross-compilation, this must match your host
+triple. It will look something like `x86_64-unknown-linux-gnu`.
+
+For example, on my system RLS data is installed at:
+
+```
+/home/ncameron/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/analysis
+```
+
+This data is only for the standard libraries, project-specific data is stored
+inside your project's target directory.
 
 
 ## Implementation overview
