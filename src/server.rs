@@ -244,7 +244,7 @@ impl LsService {
             }
         };
         self.output.success(id, ResponseData::Init(result));
-        let root_path = init.root_path.map(|str| PathBuf::from(str));
+        let root_path = init.root_path.map(PathBuf::from);
         if let Some(root_path) = root_path {
             self.handler.init(root_path, &*self.output);
         }
@@ -389,12 +389,12 @@ impl MessageReader for StdioMsgReader {
         let mut buffer = String::new();
         handle_err!(io::stdin().read_line(&mut buffer), "Could not read from stdin");
 
-        if buffer.len() == 0 {
+        if buffer.is_empty() {
             info!("Header is empty");
             return None;
         }
 
-        let res: Vec<&str> = buffer.split(" ").collect();
+        let res: Vec<&str> = buffer.split(' ').collect();
 
         // Make sure we see the correct header
         if res.len() != 2 {
