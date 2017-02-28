@@ -96,7 +96,7 @@ export RLS_ROOT=/Source/rls
 Finally, we need to get the metadata for the standard library.  This lets
 us get additional docs and types for all of `std`.
 
-**Note:** in the future, we hope to move these setup step to `rustup`, so that you only have one step to add IDE support.
+* **Note:** in the future, we hope to move these setup steps to `rustup`, so that you only have one step to add IDE support.*
 
 ## Running
 
