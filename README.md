@@ -4,8 +4,8 @@
 
 # Rust Language Server (RLS)
 
-**This project is in the early stages of development, it is not yet ready for real
-use. It will probably eat your laundry.**
+**This project is in the alpha stage of development. It is likely to be buggy in
+some situations; proceed with caution.**
 
 The RLS provides a server that runs in the background, providing IDEs,
 editors, and other tools with information about Rust programs. It supports
