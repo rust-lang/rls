@@ -160,5 +160,5 @@ Currently we accept the following options:
 
 ## Contributing
 
-You can look in the CONTRIBUTING.md in this repo to learn more about
+You can look in the [contributing.md](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md) in this repo to learn more about
 contributing to this project.
