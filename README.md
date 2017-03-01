@@ -100,16 +100,19 @@ us get additional docs and types for all of `std`.
 rustup component add rust-analysis
 ```
 
-_**Note:** in the future, we hope to move these setup steps to `rustup`, so that you only have one step to add IDE support._
+_**Note:** in the future, we hope to move these setup steps to `rustup`, so that
+you only have one step to add IDE support._
 
 ## Running
 
-Though the RLS is built to work with many IDEs and editors, we currently use VSCode to test the RLS.
+Though the RLS is built to work with many IDEs and editors, we currently use
+VSCode to test the RLS.
 
 To run with VSCode, you'll need a 
 [recent VSCode version](https://code.visualstudio.com/download) installed.
 
-Next, you'll need to run the VSCode extension (for this step, you'll need a recent [node](https://nodejs.org/en/) installed:
+Next, you'll need to run the VSCode extension (for this step, you'll need a
+recent [node](https://nodejs.org/en/) installed:
 
 ```
 git clone https://github.com/jonathandturner/rls_vscode.git
@@ -118,11 +121,14 @@ npm install
 code .
 ```
 
-VSCode will open into the `rls_vscode` project.  From here, click the Debug button on the left-hand side (a bug with a line through it).
-Next, click the green triangle at the top.  This will launch a new instance of VSCode with the `rls_vscode` plugin enabled.  From there,
-you can open your Rust projects using the RLS.
+VSCode will open into the `rls_vscode` project.  From here, click the Debug
+button on the left-hand side (a bug with a line through it). Next, click the
+green triangle at the top.  This will launch a new instance of VSCode with the
+`rls_vscode` plugin enabled.  From there, you can open your Rust projects using
+the RLS.
 
-You'll know it's working when you see this in the status bar at the bottom, with a spinning indicator:
+You'll know it's working when you see this in the status bar at the bottom, with
+a spinning indicator:
 
 `RLS analysis: working /`
 
@@ -130,9 +136,11 @@ Once you see:
 
 `RLS analysis: done`
 
-Then you have the full set of capabilities available to you.  You can goto def, find all refs, rename, goto type, etc.  Completions are
-also available using the heuristics that Racer provides.  As you type, your code will be checked and error squiggles will be reported
-when errors occur.  You can hover these squiggles to see the text of the error.
+Then you have the full set of capabilities available to you.  You can goto def,
+find all refs, rename, goto type, etc.  Completions are also available using the
+heuristics that Racer provides.  As you type, your code will be checked and
+error squiggles will be reported when errors occur.  You can hover these
+squiggles to see the text of the error.
 
 ## Configuration
 
@@ -152,4 +160,5 @@ Currently we accept the following options:
 
 ## Contributing
 
-You can look in the CONTRIBUTING.md in this repo to learn more about contributing to this project.
+You can look in the CONTRIBUTING.md in this repo to learn more about
+contributing to this project.
