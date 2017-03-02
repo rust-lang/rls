@@ -427,7 +427,7 @@ pub trait Output {
     fn response(&self, output: String);
 
     fn parse_error(&self) {
-        self.response(r#"{"jsonrpc": "3.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
+        self.response(r#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
     }
 
     fn failure(&self, id: usize, message: &str) {
@@ -448,7 +448,7 @@ pub trait Output {
         }
 
         let rf = ResponseFailure {
-            jsonrpc: "3.0",
+            jsonrpc: "2.0",
             id: id,
             error: ResponseError {
                 code: METHOD_NOT_FOUND,
@@ -465,7 +465,7 @@ pub trait Output {
         //     id: usize,
         //     result: String,
         // }
-        let output = format!("{{\"jsonrpc\":\"3.0\",\"id\":{},\"result\":{}}}", id, data);
+        let output = format!("{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{}}}", id, data);
 
         self.response(output);
     }

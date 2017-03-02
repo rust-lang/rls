@@ -138,7 +138,7 @@ pub struct NotificationMessage<T>
 impl <T> NotificationMessage<T> where T: Debug + Serialize {
     pub fn new(method: String, params: T) -> Self {
         NotificationMessage {
-            jsonrpc: "3.0",
+            jsonrpc: "2.0",
             method: method,
             params: params
         }
