@@ -94,7 +94,9 @@ export RLS_ROOT=/Source/rls
 ### Step 4: Download standard library metadata
 
 Finally, we need to get the metadata for the standard library.  This lets
-us get additional docs and types for all of `std`.
+us get additional docs and types for all of `std`.  The command is currently only 
+supported on the nightly compilers, though we hope to remove this restriction in
+the future.
 
 ```
 rustup component add rust-analysis
