@@ -164,7 +164,7 @@ fn test_find_all_refs() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "initialize",
         "id": 0,
         "params": {{
@@ -173,7 +173,7 @@ fn test_find_all_refs() {
             "rootPath": {}
         }}
     }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "textDocument/references",
         "id": 42,
         "params": {{
@@ -216,7 +216,7 @@ fn test_find_all_refs_no_cfg_test() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "initialize",
         "id": 0,
         "params": {{
@@ -225,7 +225,7 @@ fn test_find_all_refs_no_cfg_test() {
             "rootPath": {}
         }}
     }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "textDocument/references",
         "id": 42,
         "params": {{
@@ -262,7 +262,7 @@ fn test_borrow_error() {
     let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
                                       .expect("couldn't convert path to JSON"));
     let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "initialize",
         "id": 0,
         "params": {{
@@ -298,7 +298,7 @@ fn test_highlight() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "initialize",
         "id": 0,
         "params": {{
@@ -307,7 +307,7 @@ fn test_highlight() {
             "rootPath": {}
         }}
     }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "textDocument/documentHighlight",
         "id": 42,
         "params": {{
@@ -346,7 +346,7 @@ fn test_rename() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "initialize",
         "id": 0,
         "params": {{
@@ -355,7 +355,7 @@ fn test_rename() {
             "rootPath": {}
         }}
     }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
+        "jsonrpc": "3.0",
         "method": "textDocument/rename",
         "id": 42,
         "params": {{
@@ -581,7 +581,7 @@ fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
         let values: serde_json::Value = serde_json::from_str(found).unwrap();
-        assert!(values.get("jsonrpc").expect("Missing jsonrpc field").as_str().unwrap() == "2.0", "Bad jsonrpc field");
+        assert!(values.get("jsonrpc").expect("Missing jsonrpc field").as_str().unwrap() == "3.0", "Bad jsonrpc field");
         if let Some(id) = expected.id {
             assert_eq!(values.get("id").expect("Missing id field").as_u64().unwrap(), id, "Unexpected id");
         }
