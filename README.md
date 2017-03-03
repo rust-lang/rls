@@ -108,7 +108,7 @@ you only have one step to add IDE support._
 ## Running
 
 Though the RLS is built to work with many IDEs and editors, we currently use
-VSCode to test the RLS.
+VSCode to test the RLS (you can run it manually with the `cargo run` command).
 
 To run with VSCode, you'll need a 
 [recent VSCode version](https://code.visualstudio.com/download) installed.
