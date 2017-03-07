@@ -51,6 +51,7 @@ enum Notification {
     Exit,
     CancelRequest(CancelParams),
     Change(DidChangeTextDocumentParams),
+    Open(DidOpenTextDocumentParams),
     Save(DidSaveTextDocumentParams),
 }
 
@@ -172,11 +173,10 @@ messages! {
     notifications {
         "exit" => Exit;
         "textDocument/didChange" => Change(DidChangeTextDocumentParams);
+        "textDocument/didOpen" => Open(DidOpenTextDocumentParams);
         "textDocument/didSave" => Save(DidSaveTextDocumentParams);
         "$/cancelRequest" => CancelRequest(CancelParams);
     }
-    // TODO handle me
-    "textDocument/didOpen" => Err(ParseError::new(ErrorKind::InvalidData, "didOpen", None));
     // TODO handle me
     "$/setTraceNotification" => Err(ParseError::new(ErrorKind::InvalidData, "setTraceNotification", None));
     // TODO handle me
@@ -288,6 +288,10 @@ impl LsService {
                         Notification::Change(change) => {
                             trace!("notification(change): {:?}", change);
                             this.handler.on_change(change, &*this.output);
+                        }
+                        Notification::Open(open) => {
+                            trace!("notification(open): {:?}", open);
+                            this.handler.on_open(open, &*this.output);
                         }
                         Notification::Save(save) => {
                             trace!("notification(save): {:?}", save);

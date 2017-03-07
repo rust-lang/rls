@@ -156,6 +156,15 @@ impl ActionHandler {
         }
     }
 
+    pub fn on_open(&self, open: DidOpenTextDocumentParams, out: &Output) {
+        let fname = parse_file_path(&open.text_document.uri).unwrap();
+        self.vfs.set_file(fname.as_path(), &open.text_document.text);
+
+        trace!("on_open: {:?}", fname);
+
+        self.build_current_project(BuildPriority::Normal, out);
+    }
+
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
         let fname = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
