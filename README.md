@@ -102,6 +102,9 @@ the future.
 rustup component add rust-analysis
 ```
 
+If you've never set up Racer before, you may also need follow the [Racer configuration
+steps](https://github.com/phildawes/racer#configuration)
+
 _**Note:** in the future, we hope to move these setup steps to `rustup`, so that
 you only have one step to add IDE support._
 
