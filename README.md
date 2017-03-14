@@ -25,7 +25,7 @@ better experience for larger and larger crates.
 
 The RLS is designed to be frontend-independent. We hope it will be widely
 adopted by different editors and IDEs. To seed development, we provide a
-[reference implementation of an RLS frontend](https://github.com/rust-lang-nursery/rls_vscode)
+[reference implementation of an RLS frontend](https://github.com/jonathandturner/rls_vscode)
 for [Visual Studio Code](https://code.visualstudio.com/).
 
 
@@ -165,5 +165,5 @@ Currently we accept the following options:
 
 ## Contributing
 
-You can look in the [contributing.md](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md) in this repo to learn more about
-contributing to this project.
+You can look in the [contributing.md](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md)
+in this repo to learn more about contributing to this project.
