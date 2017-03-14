@@ -119,6 +119,7 @@ pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
         raw::DefKind::Static |
         raw::DefKind::Const |
         raw::DefKind::Field => SymbolKind::Variable,
+        raw::DefKind::Import => SymbolKind::Module,
     }
 }
 
