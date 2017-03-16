@@ -17,7 +17,7 @@ use std::env;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use env_logger;
 
 use analysis;
@@ -31,8 +31,7 @@ use hyper::Url;
 use serde_json;
 use std::path::{Path, PathBuf};
 
-// TODO we should wait for all threads to exit, rather than use a hacky timeout
-const TEST_WAIT_TIME: u64 = 1500;
+const TEST_TIMEOUT_IN_SEC: u64 = 10;
 
 #[test]
 fn test_abs_path() {
@@ -496,12 +495,13 @@ impl Message {
 
 impl ls_server::MessageReader for MockMsgReader {
     fn read_message(&self) -> Option<String> {
-        if self.cur.load(Ordering::SeqCst) >= self.messages.len() {
+        let index = self.cur.fetch_add(1, Ordering::SeqCst);
+
+        if index >= self.messages.len() {
             return None;
         }
 
-        let message = &self.messages[self.cur.load(Ordering::SeqCst)];
-        self.cur.fetch_add(1, Ordering::SeqCst);
+        let message = &self.messages[index];
 
         let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
         // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
@@ -514,12 +514,12 @@ impl ls_server::MessageReader for MockMsgReader {
 
 impl ls_server::MessageReader for MockRawMsgReader {
     fn read_message(&self) -> Option<String> {
-        if self.cur.load(Ordering::SeqCst) >= self.messages.len() {
+        let index = self.cur.fetch_add(1, Ordering::SeqCst);
+        if index >= self.messages.len() {
             return None;
         }
 
-        let message = &self.messages[self.cur.load(Ordering::SeqCst)];
-        self.cur.fetch_add(1, Ordering::SeqCst);
+        let message = &self.messages[index];
 
         Some(message.clone())
     }
@@ -575,8 +575,15 @@ impl ExpectedMessage {
 }
 
 fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
-    thread::sleep(Duration::from_millis(TEST_WAIT_TIME));
+    let start_clock = SystemTime::now();
+    let mut results_count = results.lock().unwrap().len();
+    while (results_count != expected.len()) && (start_clock.elapsed().unwrap().as_secs() < TEST_TIMEOUT_IN_SEC) {
+        thread::sleep(Duration::from_millis(100));
+        results_count = results.lock().unwrap().len();
+    }
+
     let mut results = results.lock().unwrap();
+
     println!("expect_messages: results: {:?},\nexpected: {:?}", *results, expected);
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
@@ -589,6 +596,7 @@ fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
             found.find(c).expect(&format!("Could not find `{}` in `{}`", c, found));
         }
     }
+
     *results = vec![];
 }
 
