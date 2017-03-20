@@ -9,7 +9,7 @@
 // except according to those terms.
 
 mod compiler_message_parsing;
-mod lsp_extensions;
+pub mod lsp_extensions;
 
 use analysis::{AnalysisHost};
 use hyper::Url;
@@ -17,7 +17,6 @@ use vfs::{Vfs, Change};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::config::{self, WriteMode};
-use serde_json;
 use span;
 use Span;
 
@@ -134,24 +133,20 @@ impl ActionHandler {
                 };
 
                 // TODO we don't send an OK notification if there were no errors
-                for notification in notifications {
-                    // FIXME(43) factor out the notification mechanism.
-                    let output = serde_json::to_string(&notification).unwrap();
-                    out.response(output);
-                }
+                out.notify_biuld_results(&notifications);
 
                 trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(project_path, false).unwrap();
 
-                out.notify("rustDocument/diagnosticsEnd");
+                out.notify_end();
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                out.notify("rustDocument/diagnosticsEnd");
+                out.notify_end();
             },
             BuildResult::Err => {
                 trace!("build - Error");
-                out.notify("rustDocument/diagnosticsEnd");
+                out.notify_end();
             },
         }
     }

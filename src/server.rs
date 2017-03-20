@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::path::PathBuf;
-
+use actions::lsp_extensions::PublishRustDiagnosticsParams;
 
 #[derive(Debug, Serialize)]
 pub struct Ack {}
@@ -37,13 +37,13 @@ struct ParseError {
 #[derive(Debug)]
 enum ServerMessage {
     Request(Request),
-    Notification(Notification)
+    Notification(Notification),
 }
 
 #[derive(Debug)]
 struct Request {
     id: usize,
-    method: Method
+    method: Method,
 }
 
 #[derive(Debug)]
@@ -241,7 +241,7 @@ impl LsService {
                 document_range_formatting_provider: Some(true),
                 document_on_type_formatting_provider: None, // TODO: review this, maybe add?
                 rename_provider: Some(true),
-            }
+            },
         };
         self.output.success(id, ResponseData::Init(result));
         let root_path = init.root_path.map(PathBuf::from);
@@ -255,8 +255,8 @@ impl LsService {
             Some(c) => c,
             None => {
                 this.output.parse_error();
-                return ServerStateChange::Break
-            },
+                return ServerStateChange::Break;
+            }
         };
 
         let this = this.clone();
@@ -299,7 +299,7 @@ impl LsService {
                         }
                     }
                 }
-                Ok(ServerMessage::Request(Request{id, method})) => {
+                Ok(ServerMessage::Request(Request { id, method })) => {
                     match method {
                         Method::Initialize(init) => {
                             trace!("command(init): {:?}", init);
@@ -362,7 +362,7 @@ impl LsService {
                     if let Some(id) = e.id {
                         this.output.failure(id, "Unsupported message");
                     }
-                },
+                }
             }
         });
         ServerStateChange::Continue
@@ -441,7 +441,7 @@ pub trait Output {
         #[derive(Serialize)]
         struct ResponseError {
             code: i64,
-            message: String
+            message: String,
         }
 
         #[derive(Serialize)]
@@ -475,10 +475,25 @@ pub trait Output {
     }
 
     fn notify(&self, message: &str) {
-        let output = serde_json::to_string(
-            &NotificationMessage::new(message.to_owned(), ())
-        ).unwrap();
+        let output = serde_json::to_string(&NotificationMessage::new(message.to_owned(), ()))
+            .unwrap();
         self.response(output);
+    }
+
+    fn notify_begin(&self) {
+        self.notify("rustDocument/diagnosticsBegin");
+    }
+
+    fn notify_end(&self) {
+        self.notify("rustDocument/diagnosticsEnd");
+    }
+
+    fn notify_biuld_results(&self,
+                            notifications: &Vec<NotificationMessage<PublishRustDiagnosticsParams>>) {
+        for notification in notifications {
+            let output = serde_json::to_string(&notification).unwrap();
+            self.response(output);
+        }
     }
 }
 
