@@ -22,7 +22,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::path::PathBuf;
-use actions::lsp_extensions::PublishRustDiagnosticsParams;
 
 #[derive(Debug, Serialize)]
 pub struct Ack {}
@@ -480,20 +479,13 @@ pub trait Output {
         self.response(output);
     }
 
-    fn notify_begin(&self) {
-        self.notify("rustDocument/diagnosticsBegin");
-    }
+    fn notify_build_results(&self, notifications: &Vec<String>) {
 
-    fn notify_end(&self) {
-        self.notify("rustDocument/diagnosticsEnd");
-    }
-
-    fn notify_biuld_results(&self,
-                            notifications: &Vec<NotificationMessage<PublishRustDiagnosticsParams>>) {
         for notification in notifications {
             let output = serde_json::to_string(&notification).unwrap();
             self.response(output);
         }
+
     }
 }
 
