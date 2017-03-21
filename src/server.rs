@@ -275,32 +275,25 @@ impl LsService {
             }
             match message {
                 Ok(ServerMessage::Notification(method)) => {
-                    match method {
-                        Notification::Exit => {
-                            trace!("exiting...");
-                            let shut_down = this.shut_down.load(Ordering::SeqCst);
-                            ::std::process::exit(if shut_down { 0 } else { 1 });
-                        }
-                        Notification::CancelRequest(params) => {
-                            trace!("request to cancel {:?}", params.id);
-                        }
-                        Notification::Change(change) => {
-                            trace!("notification(change): {:?}", change);
-                            this.handler.on_change(change, &*this.output);
-                        }
-                        Notification::Open(open) => {
-                            trace!("notification(open): {:?}", open);
-                            this.handler.on_open(open, &*this.output);
-                        }
-                        Notification::Save(save) => {
-                            trace!("notification(save): {:?}", save);
-                            this.handler.on_save(save, &*this.output);
-                        }
-                    }
+                    LsService::handle_notification(this,method);
                 }
                 Ok(ServerMessage::Request(Request { id, method })) => {
-                    match method {
-                        Method::Initialize(init) => {
+                   LsService::handle_request(this, id, method);
+                }
+                Err(e) => {
+                    trace!("parsing invalid message: {:?}", e);
+                    if let Some(id) = e.id {
+                        this.output.failure(id, "Unsupported message");
+                    }
+                }
+            }
+        });
+        ServerStateChange::Continue
+    }
+
+    fn handle_request(this: Arc<Self>, id:usize, method:Method){
+         match method {
+                         Method::Initialize(init) => {
                             trace!("command(init): {:?}", init);
                             this.init(id, init);
                         }
@@ -355,16 +348,32 @@ impl LsService {
                             this.handler.reformat(id, params.text_document, &*this.output);
                         }
                     }
-                }
-                Err(e) => {
-                    trace!("parsing invalid message: {:?}", e);
-                    if let Some(id) = e.id {
-                        this.output.failure(id, "Unsupported message");
+       
+    }
+
+    fn handle_notification(this:Arc<Self>,notficiation:Notification){
+        match notficiation {
+           Notification::Exit => {
+                   trace!("exiting...");
+                   let shut_down = this.shut_down.load(Ordering::SeqCst);
+                            ::std::process::exit(if shut_down { 0 } else { 1 });
+                        }
+                        Notification::CancelRequest(params) => {
+                            trace!("request to cancel {:?}", params.id);
+                        }
+                        Notification::Change(change) => {
+                            trace!("notification(change): {:?}", change);
+                            this.handler.on_change(change, &*this.output);
+                        }
+                        Notification::Open(open) => {
+                            trace!("notification(open): {:?}", open);
+                            this.handler.on_open(open, &*this.output);
+                        }
+                        Notification::Save(save) => {
+                            trace!("notification(save): {:?}", save);
+                            this.handler.on_save(save, &*this.output);
+                        }
                     }
-                }
-            }
-        });
-        ServerStateChange::Continue
     }
 }
 
