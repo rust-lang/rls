@@ -17,7 +17,6 @@ use vfs::{Vfs, Change};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::config::{self, WriteMode};
-use serde_json;
 use span;
 use Span;
 
@@ -115,7 +114,7 @@ impl ActionHandler {
 
         // We use `rustDocument` document here since these notifications are
         // custom to the RLS and not part of the LS protocol.
-        out.notify("rustDocument/diagnosticsBegin");
+        self.notify_begin(out);
 
         debug!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
@@ -134,26 +133,30 @@ impl ActionHandler {
                 };
 
                 // TODO we don't send an OK notification if there were no errors
-                for notification in notifications {
-                    // FIXME(43) factor out the notification mechanism.
-                    let output = serde_json::to_string(&notification).unwrap();
-                    out.response(output);
-                }
+                compiler_message_parsing::notifications_to_json(&notifications);
 
                 trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(project_path, false).unwrap();
 
-                out.notify("rustDocument/diagnosticsEnd");
+                self.notify_end(out);
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                out.notify("rustDocument/diagnosticsEnd");
+                self.notify_end(out);
             },
             BuildResult::Err => {
                 trace!("build - Error");
-                out.notify("rustDocument/diagnosticsEnd");
+                self.notify_end(out);
             },
         }
+    }
+
+    fn notify_begin(&self, out: &Output) {
+        out.notify("rustDocument/diagnosticsBegin");
+    }
+
+    fn notify_end(&self, out: &Output) {
+        out.notify("rustDocument/diagnosticsEnd");
     }
 
     pub fn on_open(&self, open: DidOpenTextDocumentParams, out: &Output) {
