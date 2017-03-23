@@ -31,6 +31,10 @@ for [Visual Studio Code](https://code.visualstudio.com/).
 
 ## Setup
 
+**YOU NEED A VERY RECENT NIGHTLY COMPILER**
+
+Otherwise the RLS will not work very well.
+
 ### Step 1: Clone and build the RLS
 
 Since the RLS is closely linked to the compiler and is in active development,
