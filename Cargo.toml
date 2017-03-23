@@ -10,7 +10,7 @@ env_logger = "0.3"
 languageserver-types = { git = "https://github.com/gluon-lang/languageserver-types" }
 log = "0.3"
 racer = { git = "https://github.com/phildawes/racer" }
-rls-span = { git = "https://github.com/nrc/rls-span", features = ["serialize-serde"] }
+rls-span = { version = "0.1", features = ["serialize-serde"] }
 rls-analysis = { git = "https://github.com/nrc/rls-analysis" }
 rls-vfs = { git = "https://github.com/nrc/rls-vfs", features = ["racer-impls"] }
 rustc-serialize = "0.3"
