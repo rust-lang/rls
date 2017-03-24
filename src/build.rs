@@ -429,17 +429,19 @@ impl BuildQueue {
         // However, if Cargo doesn't run a separate thread, then we'll just wait
         // forever. Therefore, we spawn an extra thread here to be safe.
         let handle = thread::spawn(move || {
-            env::set_var("CARGO_TARGET_DIR", &Path::new("target").join("rls"));
+            env::set_var("CARGO_TARGET_DIR", build_dir.join("target").join("rls"));
             env::set_var("RUSTFLAGS",
                          "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zcontinue-parse-after-error");
             let shell = MultiShell::from_write(Box::new(BufWriter(out.clone())),
                                                Box::new(BufWriter(err.clone())));
             let config = CargoConfig::new(shell,
-                                          build_dir.clone(),
+                                          env::current_dir().unwrap(),
                                           homedir(&build_dir).unwrap());
-            let root = find_root_manifest_for_wd(None, config.cwd()).expect("could not find root manifest");
-            let ws = Workspace::new(&root, &config).expect("could not create cargo workspace");
+            //env::set_current_dir(cwd).expect(FAIL_MSG);
+            let mut manifest_path = build_dir.clone();
+            manifest_path.push("Cargo.toml");
+            let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
             let mut opts = CompileOptions::default(&config, CompileMode::Check);
             if rls_config.build_lib {
                 opts.filter = CompileFilter::new(true, &[], &[], &[], &[]);
@@ -462,7 +464,7 @@ impl BuildQueue {
 
         let changed = self.vfs.get_cached_files();
 
-        let _pwd = Environment::push(Path::new(build_dir), envs);
+        let _pwd = Environment::push(envs);
         let buf = Arc::new(Mutex::new(vec![]));
         let err_buf = buf.clone();
         let args = args.to_owned();
@@ -592,18 +594,15 @@ impl Write for BufWriter {
 
 // An RAII helper to set and reset the current working directory and env vars.
 struct Environment {
-    old_dir: PathBuf,
     old_vars: HashMap<String, Option<OsString>>,
 }
 
 impl Environment {
-    fn push(p: &Path, envs: &HashMap<String, Option<OsString>>) -> Environment {
+    fn push(envs: &HashMap<String, Option<OsString>>) -> Environment {
         let mut result = Environment {
-            old_dir: env::current_dir().unwrap(),
             old_vars: HashMap::new(),
         };
 
-        env::set_current_dir(p).unwrap();
         for (k, v) in envs {
             result.old_vars.insert(k.to_owned(), env::var_os(k));
             match *v {
@@ -617,8 +616,6 @@ impl Environment {
 
 impl Drop for Environment {
     fn drop(&mut self) {
-        env::set_current_dir(&self.old_dir).unwrap();
-
         for (k, v) in &self.old_vars {
             match *v {
                 Some(ref v) => env::set_var(k, v),

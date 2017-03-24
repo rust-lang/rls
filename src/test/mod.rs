@@ -118,16 +118,37 @@ fn test_hover() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hover");
+    //init_env("hover");
+    //let mut cache = types::Cache::new(Path::new("."));
+
+
+    let mut cwd = env::current_dir().expect(FAIL_MSG);
+    cwd.push("test_data");
+    cwd.push("hello");
+    //env::set_current_dir(cwd).expect(FAIL_MSG);
+
     let mut cache = types::Cache::new(Path::new("."));
 
-    let source_file_path = Path::new("src").join("main.rs");
+    //let source_file_path = Path::new("src").join("main.rs");
+    let mut source_file_path = cwd.clone();
+    source_file_path.push("src");
+    source_file_path.push("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = format!("{}", serde_json::to_string(&cwd.to_str().unwrap().to_string())
+                                             .expect("couldn't convert path to JSON"));
+    //let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+    //                                  .expect("couldn't convert path to JSON"));
+
+    //FIXME: if this works, need to go back and do Windows fix
+    let url = Url::from_file_path(&source_file_path).expect("couldn't convert file path to URL");
+
+    println!("url: {:?}", url);
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
+    println!("source_file_path: {:?}", source_file_path);
+    //println!("mk_ls_position: {:?}", cache.mk_ls_position(src(&source_file_path, 22, "world")));
+    println!("text_doc: {:?}", text_doc);
+    println!("root_path: {:?}", root_path);
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
                                                         ("capabilities", "null".to_owned()),
                                                         ("rootPath", root_path)]),
@@ -640,8 +661,8 @@ impl Drop for TestCleanup {
                 .output()
                 .expect("failed to remove directory");
         */
-        let _ = fs::remove_dir_all(Path::new("test_data/hello/target/rls"));
-        let _ = fs::remove_dir_all(Path::new("test_data/hello_no_cfg_test/target/rls"));
+        //let _ = fs::remove_dir_all(Path::new("test_data/hello/target/rls"));
+        //let _ = fs::remove_dir_all(Path::new("test_data/hello_no_cfg_test/target/rls"));
 
     }
 }

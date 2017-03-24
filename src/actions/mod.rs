@@ -385,6 +385,8 @@ impl ActionHandler {
             let ty = analysis.show_type(&span).unwrap_or_else(|_| String::new());
             let docs = analysis.docs(&span).unwrap_or_else(|_| String::new());
             let doc_url = analysis.doc_url(&span).unwrap_or_else(|_| String::new());
+            let symbols = analysis.symbols(&span.file).unwrap_or_else(|_| Vec::new());
+            let search = analysis.search("world").unwrap_or_else(|_| Vec::new());
             t.unpark();
 
             let mut contents = vec![];
