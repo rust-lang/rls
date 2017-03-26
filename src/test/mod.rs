@@ -48,7 +48,7 @@ fn test_abs_path() {
     // Initialise the file cache with an absolute path, this is the path that
     // will end up getting passed to the RLS.
     cwd_copy.push("test_data");
-    cwd_copy.push("hello");
+    cwd_copy.push("abs_path");
     let mut cache = types::Cache::new(&cwd_copy);
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -83,7 +83,7 @@ fn test_goto_def() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hello");
+    init_env("goto_def");
     let mut cache = types::Cache::new(Path::new("."));
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -118,7 +118,7 @@ fn test_hover() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hello");
+    init_env("hover");
     let mut cache = types::Cache::new(Path::new("."));
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -152,7 +152,7 @@ fn test_find_all_refs() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hello");
+    init_env("find_all_refs");
     let mut cache = types::Cache::new(Path::new("."));
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -204,7 +204,7 @@ fn test_find_all_refs_no_cfg_test() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hello_no_cfg_test");
+    init_env("find_all_refs_no_cfg_test");
     let mut cache = types::Cache::new(Path::new("."));
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -286,7 +286,7 @@ fn test_highlight() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hello");
+    init_env("highlight");
     let mut cache = types::Cache::new(Path::new("."));
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -334,7 +334,7 @@ fn test_rename() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hello");
+    init_env("rename");
     let mut cache = types::Cache::new(Path::new("."));
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -384,7 +384,7 @@ fn test_completion() {
     let _ = env_logger::init();
     let _cr = TestCleanup::new();
 
-    init_env("hello");
+    init_env("completion");
     let mut cache = types::Cache::new(Path::new("."));
 
     let source_file_path = Path::new("src").join("main.rs");
