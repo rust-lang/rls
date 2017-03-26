@@ -75,7 +75,7 @@ set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-i686-pc-windows-
 For Mac, you need to set the DYLD_LIBRARY_PATH.  For example:
 
 ```
-export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-darwin/lib
+export DYLD_LIBRARY_PATH=$HOME/.rustup/toolchains/nightly-x86_64-apple-darwin/lib
 ```
 
 #### Linux
@@ -83,10 +83,10 @@ export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-
 For Linux, this path is called LD_LIBRARY_PATH.
 
 ```
-export LD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
+export LD_LIBRARY_PATH=$HOME/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
 ```
 
-### Step 3: Set your RLS_ROOT 
+### Step 3: Set your RLS_ROOT
 
 Next, we'll set the RLS_ROOT environment variable to point to where we built
 the RLS:
@@ -98,7 +98,7 @@ export RLS_ROOT=/Source/rls
 ### Step 4: Download standard library metadata
 
 Finally, we need to get the metadata for the standard library.  This lets
-us get additional docs and types for all of `std`.  The command is currently only 
+us get additional docs and types for all of `std`.  The command is currently only
 supported on the nightly compilers, though we hope to remove this restriction in
 the future.
 
@@ -117,7 +117,7 @@ you only have one step to add IDE support._
 Though the RLS is built to work with many IDEs and editors, we currently use
 VSCode to test the RLS (you can run the RLS manually with the `cargo run` command).
 
-To run with VSCode, you'll need a 
+To run with VSCode, you'll need a
 [recent VSCode version](https://code.visualstudio.com/download) installed.
 
 Next, you'll need to run the VSCode extension (for this step, you'll need a
