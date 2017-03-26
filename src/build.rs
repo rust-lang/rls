@@ -8,7 +8,12 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+extern crate getopts;
+extern crate rustc;
 extern crate rustc_driver;
+extern crate rustc_errors as errors;
+extern crate rustc_resolve;
+extern crate rustc_save_analysis;
 extern crate syntax;
 
 use cargo::core::{PackageId, MultiShell, Workspace};
@@ -16,8 +21,15 @@ use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMo
 use cargo::util::{Config as CargoConfig, ProcessBuilder, ProcessError, homedir};
 use cargo::util::important_paths::find_root_manifest_for_wd;
 
+use data::Analysis;
 use vfs::Vfs;
-use self::rustc_driver::{RustcDefaultCalls, run_compiler, run};
+use self::rustc::session::Session;
+use self::rustc::session::config::{self, Input, ErrorOutputType};
+use self::rustc_driver::{RustcDefaultCalls, run_compiler, run, Compilation, CompilerCalls};
+use self::rustc_driver::driver::CompileController;
+use self::rustc_save_analysis as save;
+use self::rustc_save_analysis::CallbackHandler;
+use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
 use config::Config;
@@ -71,12 +83,12 @@ pub struct BuildQueue {
     config: Mutex<Config>,
 }
 
-#[derive(Debug, Serialize, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum BuildResult {
     // Build was succesful, argument is warnings.
-    Success(Vec<String>),
+    Success(Vec<String>, Option<Analysis>),
     // Build finished with errors, argument is errors and warnings.
-    Failure(Vec<String>),
+    Failure(Vec<String>, Option<Analysis>),
     // Build was coelesced with another build.
     Squashed,
     // There was an error attempting to build.
@@ -245,8 +257,10 @@ impl BuildQueue {
         let build_dir = &self.build_dir.lock().unwrap();
         let build_dir = build_dir.as_ref().unwrap();
 
-        if needs_to_run_cargo && self.cargo(build_dir.clone()) == BuildResult::Err {
-            return BuildResult::Err;
+        if needs_to_run_cargo {
+            if let BuildResult::Err = self.cargo(build_dir.clone()) {
+                return BuildResult::Err;
+            }
         }
 
         let cmd_line_args = self.cmd_line_args.lock().unwrap();
@@ -437,7 +451,7 @@ impl BuildQueue {
         trace!("cargo stderr {}", String::from_utf8(err_clone.lock().unwrap().to_owned()).unwrap());
 
         match handle.join() {
-            Ok(_) => BuildResult::Success(vec![]),
+            Ok(_) => BuildResult::Success(vec![], None),
             Err(_) => BuildResult::Err
         }
     }
@@ -453,11 +467,15 @@ impl BuildQueue {
         let err_buf = buf.clone();
         let args = args.to_owned();
 
+        let analysis = Arc::new(Mutex::new(None));
+
+        let mut controller = RlsRustcCalls::new(analysis.clone());
+
         let exit_code = ::std::panic::catch_unwind(|| {
             run(move || {
                 // Replace stderr so we catch most errors.
                 run_compiler(&args,
-                             &mut RustcDefaultCalls,
+                             &mut controller,
                              Some(Box::new(ReplacedFileLoader::new(changed))),
                              Some(Box::new(BufWriter(buf))))
             })
@@ -471,9 +489,82 @@ impl BuildQueue {
             .into_inner()
             .unwrap());
 
-        match exit_code {
-            Ok(0) => BuildResult::Success(stderr_json_msg),
-            _ => BuildResult::Failure(stderr_json_msg),
+        return match exit_code {
+            Ok(0) => BuildResult::Success(stderr_json_msg, analysis.lock().unwrap().clone()),
+            _ => BuildResult::Failure(stderr_json_msg, analysis.lock().unwrap().clone()),
+        };
+
+        // Our compiler controller. We mostly delegate to the default rustc
+        // controller, but use our own callback for save-analysis.
+        #[derive(Clone)]
+        struct RlsRustcCalls {
+            default_calls: RustcDefaultCalls,
+            analysis: Arc<Mutex<Option<Analysis>>>,
+        }
+
+        impl RlsRustcCalls {
+            fn new(analysis: Arc<Mutex<Option<Analysis>>>) -> RlsRustcCalls {
+                RlsRustcCalls {
+                    default_calls: RustcDefaultCalls,
+                    analysis: analysis,
+                }
+            }
+        }
+
+        impl<'a> CompilerCalls<'a> for RlsRustcCalls {
+            fn early_callback(&mut self,
+                              matches: &getopts::Matches,
+                              sopts: &config::Options,
+                              cfg: &ast::CrateConfig,
+                              descriptions: &errors::registry::Registry,
+                              output: ErrorOutputType)
+                              -> Compilation {
+                self.default_calls.early_callback(matches, sopts, cfg, descriptions, output)
+            }
+
+            fn no_input(&mut self,
+                        matches: &getopts::Matches,
+                        sopts: &config::Options,
+                        cfg: &ast::CrateConfig,
+                        odir: &Option<PathBuf>,
+                        ofile: &Option<PathBuf>,
+                        descriptions: &errors::registry::Registry)
+                        -> Option<(Input, Option<PathBuf>)> {
+                self.default_calls.no_input(matches, sopts, cfg, odir, ofile, descriptions)
+            }
+
+            fn late_callback(&mut self,
+                             matches: &getopts::Matches,
+                             sess: &Session,
+                             input: &Input,
+                             odir: &Option<PathBuf>,
+                             ofile: &Option<PathBuf>)
+                             -> Compilation {
+                self.default_calls.late_callback(matches, sess, input, odir, ofile)
+            }
+
+            fn build_controller(&mut self,
+                                sess: &Session,
+                                matches: &getopts::Matches)
+                                -> CompileController<'a> {
+                let mut result = self.default_calls.build_controller(sess, matches);
+                let analysis = self.analysis.clone();
+
+                result.after_analysis.callback = Box::new(move |state| {
+                    save::process_crate(state.tcx.unwrap(),
+                                        state.expanded_crate.unwrap(),
+                                        state.analysis.unwrap(),
+                                        state.crate_name.unwrap(),
+                                        CallbackHandler { callback: &mut |a| {
+                                            let mut analysis = analysis.lock().unwrap();
+                                            *analysis = Some(unsafe { ::std::mem::transmute(a.clone()) } );
+                                        } });
+                });
+                result.after_analysis.run_callback_on_error = true;
+                result.make_glob_map = rustc_resolve::MakeGlobMap::Yes;
+
+                result
+            }
         }
     }
 }

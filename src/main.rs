@@ -9,6 +9,7 @@
 // except according to those terms.
 
 #![feature(rustc_private)]
+#![feature(vec_remove_item)]
 
 extern crate cargo;
 #[macro_use]
@@ -22,6 +23,7 @@ extern crate racer;
 extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;
 extern crate rls_span as span;
+extern crate rls_data as data;
 extern crate rustc_serialize;
 extern crate rustfmt;
 extern crate serde;

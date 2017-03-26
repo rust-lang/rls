@@ -120,7 +120,7 @@ impl ActionHandler {
         debug!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
         match result {
-            BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
+            BuildResult::Success(x, analysis) | BuildResult::Failure(x, analysis) => {
                 debug!("build - Success");
 
                 // These notifications will include empty sets of errors for files
@@ -129,7 +129,7 @@ impl ActionHandler {
                 let notifications = {
                     let mut results = self.previous_build_results.lock().unwrap();
                     clear_build_results(&mut results);
-                    parse_compiler_messages(x, &mut results);
+                    parse_compiler_messages(&x, &mut results);
                     convert_build_results_to_notifications(&results, project_path)
                 };
 
@@ -141,7 +141,11 @@ impl ActionHandler {
                 }
 
                 trace!("reload analysis: {:?}", project_path);
-                self.analysis.reload(project_path, project_path, false).unwrap();
+                if let Some(analysis) = analysis {
+                    self.analysis.reload_from_analysis(analysis, project_path, project_path, false).unwrap();
+                } else {
+                    self.analysis.reload(project_path, project_path, false).unwrap();
+                }
 
                 out.notify("rustDocument/diagnosticsEnd");
             }
