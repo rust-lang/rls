@@ -1,0 +1,6 @@
+[package]
+name = "find_all_refs_no_cfg_test"
+version = "0.1.0"
+authors = ["Nick Cameron <ncameron@mozilla.com>"]
+
+[dependencies]
