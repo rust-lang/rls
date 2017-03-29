@@ -406,8 +406,8 @@ impl MessageReader for StdioMsgReader {
             return None;
         }
 
-        if res[0] == "Content-length:" {
-            info!("Header is missing 'Content-length'");
+        if res[0].to_lowercase() != "content-length:" {
+            info!("Header is missing 'content-length'");
             return None;
         }
 
