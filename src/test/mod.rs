@@ -548,6 +548,11 @@ impl ls_server::Output for RecordOutput {
 
 // Initialise the environment for a test.
 fn init_env(project_dir: &str) {
+    match env::var("RUST_TEST_THREADS") {
+        Ok(ref var) if var == "1" => (),
+        _ => panic!("Please run tests with `RUST_TEST_THREADS=1 cargo test`"),
+    }; 
+
     let mut cwd = env::current_dir().expect(FAIL_MSG);
     cwd.push("test_data");
     cwd.push(project_dir);
