@@ -141,7 +141,7 @@ impl ActionHandler {
                 }
 
                 trace!("reload analysis: {:?}", project_path);
-                self.analysis.reload(project_path, false).unwrap();
+                self.analysis.reload(project_path, project_path, false).unwrap();
 
                 out.notify("rustDocument/diagnosticsEnd");
             }
