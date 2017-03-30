@@ -18,9 +18,12 @@ use actions::lsp_extensions::{RustDiagnostic, LabelledRange};
 
 use lsp_data::ls_util;
 
+use actions::lsp_extensions::PublishRustDiagnosticsParams;
+use lsp_data::NotificationMessage;
+
 #[derive(Debug, Deserialize)]
 struct CompilerMessageCode {
-    code: String
+    code: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,16 +61,20 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
     }
 
     let message_text = compose_message(&message);
-    let primary = message.spans.iter()
-                                    .filter(|x| x.is_primary)
-                                    .collect::<Vec<&span::compiler::DiagnosticSpan>>()[0].clone();
+    let primary = message.spans
+            .iter()
+            .filter(|x| x.is_primary)
+            .collect::<Vec<&span::compiler::DiagnosticSpan>>()
+                      [0]
+        .clone();
     let primary_span = primary.rls_span().zero_indexed();
     let primary_range = ls_util::rls_to_range(primary_span.range);
 
     // build up the secondary spans
-    let secondary_labels: Vec<LabelledRange> = message.spans.iter()
-                                                            .filter(|x| !x.is_primary)
-                                                            .map(|x| {
+    let secondary_labels: Vec<LabelledRange> = message.spans
+        .iter()
+        .filter(|x| !x.is_primary)
+        .map(|x| {
             let secondary_range = ls_util::rls_to_range(x.rls_span().zero_indexed().range);
 
             LabelledRange {
@@ -75,15 +82,16 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
                 end: secondary_range.end,
                 label: x.label.clone(),
             }
-        }).collect();
+        })
+        .collect();
 
 
     let diagnostic = RustDiagnostic {
         range: LabelledRange {
-                  start: primary_range.start,
-                  end: primary_range.end,
-                  label: primary.label.clone(),
-               },
+            start: primary_range.start,
+            end: primary_range.end,
+            label: primary.label.clone(),
+        },
         secondaryRanges: secondary_labels,
         severity: Some(if message.level == "error" {
             DiagnosticSeverity::Error
@@ -100,7 +108,7 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
 
     Ok(FileDiagnostic {
         file_path: primary_span.file.clone(),
-        diagnostic: diagnostic
+        diagnostic: diagnostic,
     })
 }
 
@@ -123,4 +131,16 @@ fn compose_message(compiler_message: &CompilerMessage) -> String {
         }
     }
     message
+}
+/// Converts compielr notification messages to json
+pub fn notifications_to_json(notifications:&Vec<NotificationMessage<PublishRustDiagnosticsParams>>)
+-> Vec<String> {
+
+    let mut result: Vec<String> = Vec::new();
+
+    for ref notification in notifications {
+        result.push(serde_json::to_string(&notification).unwrap());
+    }
+
+    result
 }

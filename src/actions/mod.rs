@@ -9,15 +9,14 @@
 // except according to those terms.
 
 mod compiler_message_parsing;
-mod lsp_extensions;
+pub mod lsp_extensions;
 
-use analysis::{AnalysisHost};
+use analysis::AnalysisHost;
 use hyper::Url;
 use vfs::{Vfs, Change};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::config::{self, WriteMode};
-use serde_json;
 use span;
 use Span;
 
@@ -47,8 +46,9 @@ pub struct ActionHandler {
 
 impl ActionHandler {
     pub fn new(analysis: Arc<AnalysisHost>,
-           vfs: Arc<Vfs>,
-           build_queue: Arc<BuildQueue>) -> ActionHandler {
+               vfs: Arc<Vfs>,
+               build_queue: Arc<BuildQueue>)
+               -> ActionHandler {
         ActionHandler {
             analysis: analysis,
             vfs: vfs,
@@ -94,33 +94,33 @@ impl ActionHandler {
             }
         }
 
-        fn convert_build_results_to_notifications(build_results: &BuildResults,
-                                                  project_path: &Path)
-            -> Vec<NotificationMessage<PublishRustDiagnosticsParams>>
-        {
-            build_results
-            .iter()
-            .map(|(path, diagnostics)| {
-                let method = "textDocument/publishDiagnostics".to_string();
+        fn convert_build_results_to_notifications
+            (build_results: &BuildResults,
+             project_path: &Path)
+             -> Vec<NotificationMessage<PublishRustDiagnosticsParams>> {
+            build_results.iter()
+                .map(|(path, diagnostics)| {
+                    let method = "textDocument/publishDiagnostics".to_string();
 
-                let params = PublishRustDiagnosticsParams {
-                    uri: Url::from_file_path(project_path.join(path)).unwrap(),
-                    diagnostics: diagnostics.clone(),
-                };
+                    let params = PublishRustDiagnosticsParams {
+                        uri: Url::from_file_path(project_path.join(path)).unwrap(),
+                        diagnostics: diagnostics.clone(),
+                    };
 
-                NotificationMessage::new(method, params)
-            })
-            .collect()
+                    NotificationMessage::new(method, params)
+                })
+                .collect()
         }
 
         // We use `rustDocument` document here since these notifications are
         // custom to the RLS and not part of the LS protocol.
-        out.notify("rustDocument/diagnosticsBegin");
+        self.notify_begin(out);
 
         debug!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
         match result {
-            BuildResult::Success(ref x) | BuildResult::Failure(ref x) => {
+            BuildResult::Success(ref x) |
+            BuildResult::Failure(ref x) => {
                 debug!("build - Success");
 
                 // These notifications will include empty sets of errors for files
@@ -134,26 +134,31 @@ impl ActionHandler {
                 };
 
                 // TODO we don't send an OK notification if there were no errors
-                for notification in notifications {
-                    // FIXME(43) factor out the notification mechanism.
-                    let output = serde_json::to_string(&notification).unwrap();
-                    out.response(output);
-                }
+                let json_notifs = compiler_message_parsing::notifications_to_json(&notifications);
+                out.notify_build_results(&json_notifs);
 
                 trace!("reload analysis: {:?}", project_path);
                 self.analysis.reload(project_path, project_path, false).unwrap();
 
-                out.notify("rustDocument/diagnosticsEnd");
+                self.notify_end(out);
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                out.notify("rustDocument/diagnosticsEnd");
-            },
+                self.notify_end(out);
+            }
             BuildResult::Err => {
                 trace!("build - Error");
-                out.notify("rustDocument/diagnosticsEnd");
-            },
+                self.notify_end(out);
+            }
         }
+    }
+
+    fn notify_begin(&self, out: &Output) {
+        out.notify("rustDocument/diagnosticsBegin");
+    }
+
+    fn notify_end(&self, out: &Output) {
+        out.notify("rustDocument/diagnosticsEnd");
     }
 
     pub fn on_open(&self, open: DidOpenTextDocumentParams, out: &Output) {
@@ -167,20 +172,21 @@ impl ActionHandler {
 
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
         let fname = parse_file_path(&change.text_document.uri).unwrap();
-        let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
-            if let Some(range) = i.range {
+        let changes: Vec<Change> = change.content_changes
+            .iter()
+            .map(move |i| if let Some(range) = i.range {
                 let range = ls_util::range_to_rls(range);
                 Change::ReplaceText {
                     span: Span::from_range(range, fname.clone()),
-                    text: i.text.clone()
+                    text: i.text.clone(),
                 }
             } else {
                 Change::AddFile {
                     file: fname.clone(),
                     text: i.text.clone(),
                 }
-            }
-        }).collect();
+            })
+            .collect();
         self.vfs.on_changes(&changes).unwrap();
 
         trace!("on_change: {:?}", changes);
@@ -214,14 +220,16 @@ impl ActionHandler {
             let symbols = analysis.symbols(&file_name).unwrap_or_else(|_| vec![]);
             t.unpark();
 
-            symbols.into_iter().map(|s| {
-                SymbolInformation {
-                    name: s.name,
-                    kind: source_kind_from_def_kind(s.kind),
-                    location: ls_util::rls_to_location(&s.span),
-                    container_name: None // FIXME: more info could be added here
-                }
-            }).collect()
+            symbols.into_iter()
+                .map(|s| {
+                    SymbolInformation {
+                        name: s.name,
+                        kind: source_kind_from_def_kind(s.kind),
+                        location: ls_util::rls_to_location(&s.span),
+                        container_name: None, // FIXME: more info could be added here
+                    }
+                })
+                .collect()
         });
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
@@ -232,19 +240,20 @@ impl ActionHandler {
 
     pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
-            let file_path = &parse_file_path(&params.text_document.uri).unwrap();
+                let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
-            let cache = racer::FileCache::new(self.vfs.clone());
-            let session = racer::Session::new(&cache);
+                let cache = racer::FileCache::new(self.vfs.clone());
+                let session = racer::Session::new(&cache);
 
-            let location = pos_to_racer_location(params.position);
-            let results = racer::complete_from_file(file_path, location, &session);
+                let location = pos_to_racer_location(params.position);
+                let results = racer::complete_from_file(file_path, location, &session);
 
-            results.map(|comp| CompletionItem::new_simple(
-                comp.matchstr.clone(),
-                comp.contextstr.clone(),
-            )).collect()
-        }).unwrap_or_else(|_| vec![]);
+                results.map(|comp| {
+                        CompletionItem::new_simple(comp.matchstr.clone(), comp.contextstr.clone())
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|_| vec![]);
 
         out.success(id, ResponseData::CompletionItems(result));
     }
@@ -275,7 +284,8 @@ impl ActionHandler {
             });
         }
 
-        out.success(id, ResponseData::WorkspaceEdit(WorkspaceEdit { changes: edits }));
+        out.success(id,
+                    ResponseData::WorkspaceEdit(WorkspaceEdit { changes: edits }));
     }
 
     pub fn highlight(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
@@ -293,10 +303,14 @@ impl ActionHandler {
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
         let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or_else(Vec::new);
-        let refs: Vec<_> = result.iter().map(|span| DocumentHighlight {
-            range: ls_util::rls_to_range(span.range),
-            kind: Some(DocumentHighlightKind::Text),
-        }).collect();
+        let refs: Vec<_> = result.iter()
+            .map(|span| {
+                DocumentHighlight {
+                    range: ls_util::rls_to_range(span.range),
+                    kind: Some(DocumentHighlightKind::Text),
+                }
+            })
+            .collect();
 
         out.success(id, ResponseData::Highlights(refs));
     }
@@ -442,12 +456,13 @@ impl ActionHandler {
                     let range = ls_util::range_from_vfs_file(&self.vfs, path);
                     let text = String::from_utf8(buf).unwrap();
                     let result = [TextEdit {
-                        range: range,
-                        new_text: text,
-                    }];
+                                      range: range,
+                                      new_text: text,
+                                  }];
                     out.success(id, ResponseData::TextEdit(result))
                 } else {
-                    debug!("reformat: format_input failed: has errors, summary = {:?}", summary);
+                    debug!("reformat: format_input failed: has errors, summary = {:?}",
+                           summary);
 
                     out.failure(id, "Reformat failed to complete successfully")
                 }
@@ -493,9 +508,7 @@ impl ActionHandler {
             span::Position::new(pos.row, span::Column::new_zero_indexed(col as u32))
         };
 
-        Span::from_positions(start_pos,
-                             end_pos,
-                             fname.to_owned())
+        Span::from_positions(start_pos, end_pos, fname.to_owned())
     }
 }
 
@@ -508,8 +521,10 @@ fn racer_coord(line: span::Row<span::OneIndexed>,
     }
 }
 
-fn from_racer_coord(coord: racer::Coordinate) -> (span::Row<span::OneIndexed>,span::Column<span::ZeroIndexed>) {
-    (span::Row::new_one_indexed(coord.line as u32), span::Column::new_zero_indexed(coord.column as u32))
+fn from_racer_coord(coord: racer::Coordinate)
+                    -> (span::Row<span::OneIndexed>, span::Column<span::ZeroIndexed>) {
+    (span::Row::new_one_indexed(coord.line as u32),
+     span::Column::new_zero_indexed(coord.column as u32))
 }
 
 fn pos_to_racer_location(pos: Position) -> racer::Location {

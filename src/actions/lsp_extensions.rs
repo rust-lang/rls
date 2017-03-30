@@ -59,4 +59,3 @@ pub struct RustDiagnostic {
     /// The diagnostic's message.
     pub message: String,
 }
-

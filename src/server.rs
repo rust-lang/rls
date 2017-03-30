@@ -23,7 +23,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::path::PathBuf;
 
-
 #[derive(Debug, Serialize)]
 pub struct Ack {}
 
@@ -37,13 +36,13 @@ struct ParseError {
 #[derive(Debug)]
 enum ServerMessage {
     Request(Request),
-    Notification(Notification)
+    Notification(Notification),
 }
 
 #[derive(Debug)]
 struct Request {
     id: usize,
-    method: Method
+    method: Method,
 }
 
 #[derive(Debug)]
@@ -241,7 +240,7 @@ impl LsService {
                 document_range_formatting_provider: Some(true),
                 document_on_type_formatting_provider: None, // TODO: review this, maybe add?
                 rename_provider: Some(true),
-            }
+            },
         };
         self.output.success(id, ResponseData::Init(result));
         let root_path = init.root_path.map(PathBuf::from);
@@ -255,8 +254,8 @@ impl LsService {
             Some(c) => c,
             None => {
                 this.output.parse_error();
-                return ServerStateChange::Break
-            },
+                return ServerStateChange::Break;
+            }
         };
 
         let this = this.clone();
@@ -276,32 +275,25 @@ impl LsService {
             }
             match message {
                 Ok(ServerMessage::Notification(method)) => {
-                    match method {
-                        Notification::Exit => {
-                            trace!("exiting...");
-                            let shut_down = this.shut_down.load(Ordering::SeqCst);
-                            ::std::process::exit(if shut_down { 0 } else { 1 });
-                        }
-                        Notification::CancelRequest(params) => {
-                            trace!("request to cancel {:?}", params.id);
-                        }
-                        Notification::Change(change) => {
-                            trace!("notification(change): {:?}", change);
-                            this.handler.on_change(change, &*this.output);
-                        }
-                        Notification::Open(open) => {
-                            trace!("notification(open): {:?}", open);
-                            this.handler.on_open(open, &*this.output);
-                        }
-                        Notification::Save(save) => {
-                            trace!("notification(save): {:?}", save);
-                            this.handler.on_save(save, &*this.output);
-                        }
+                    LsService::handle_notification(this,method);
+                }
+                Ok(ServerMessage::Request(Request { id, method })) => {
+                   LsService::handle_request(this, id, method);
+                }
+                Err(e) => {
+                    trace!("parsing invalid message: {:?}", e);
+                    if let Some(id) = e.id {
+                        this.output.failure(id, "Unsupported message");
                     }
                 }
-                Ok(ServerMessage::Request(Request{id, method})) => {
-                    match method {
-                        Method::Initialize(init) => {
+            }
+        });
+        ServerStateChange::Continue
+    }
+
+    fn handle_request(this: Arc<Self>, id:usize, method:Method){
+         match method {
+                         Method::Initialize(init) => {
                             trace!("command(init): {:?}", init);
                             this.init(id, init);
                         }
@@ -356,16 +348,32 @@ impl LsService {
                             this.handler.reformat(id, params.text_document, &*this.output);
                         }
                     }
-                }
-                Err(e) => {
-                    trace!("parsing invalid message: {:?}", e);
-                    if let Some(id) = e.id {
-                        this.output.failure(id, "Unsupported message");
+       
+    }
+
+    fn handle_notification(this:Arc<Self>,notficiation:Notification){
+        match notficiation {
+           Notification::Exit => {
+                   trace!("exiting...");
+                   let shut_down = this.shut_down.load(Ordering::SeqCst);
+                            ::std::process::exit(if shut_down { 0 } else { 1 });
+                        }
+                        Notification::CancelRequest(params) => {
+                            trace!("request to cancel {:?}", params.id);
+                        }
+                        Notification::Change(change) => {
+                            trace!("notification(change): {:?}", change);
+                            this.handler.on_change(change, &*this.output);
+                        }
+                        Notification::Open(open) => {
+                            trace!("notification(open): {:?}", open);
+                            this.handler.on_open(open, &*this.output);
+                        }
+                        Notification::Save(save) => {
+                            trace!("notification(save): {:?}", save);
+                            this.handler.on_save(save, &*this.output);
+                        }
                     }
-                },
-            }
-        });
-        ServerStateChange::Continue
     }
 }
 
@@ -441,7 +449,7 @@ pub trait Output {
         #[derive(Serialize)]
         struct ResponseError {
             code: i64,
-            message: String
+            message: String,
         }
 
         #[derive(Serialize)]
@@ -475,10 +483,18 @@ pub trait Output {
     }
 
     fn notify(&self, message: &str) {
-        let output = serde_json::to_string(
-            &NotificationMessage::new(message.to_owned(), ())
-        ).unwrap();
+        let output = serde_json::to_string(&NotificationMessage::new(message.to_owned(), ()))
+            .unwrap();
         self.response(output);
+    }
+
+    fn notify_build_results(&self, notifications: &Vec<String>) {
+
+        for notification in notifications {
+            let output = serde_json::to_string(&notification).unwrap();
+            self.response(output);
+        }
+
     }
 }
 
