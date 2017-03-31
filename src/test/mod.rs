@@ -398,8 +398,11 @@ fn test_completion() {
                                                         ("capabilities", "null".to_owned()),
                                                         ("rootPath", root_path)]),
                         Message::new("textDocument/completion",
-                                     vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "rld")))])];
+                                     vec![("textDocument", text_doc.to_owned()),
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "rld")))]),
+                        Message::new("textDocument/completion",
+                                     vec![("textDocument", text_doc.to_owned()),
+                                          ("position", cache.mk_ls_position(src(&source_file_path, 25, "x)")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -410,7 +413,11 @@ fn test_completion() {
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"label\":\"world\",\"detail\":\"let world = \\\"world\\\";\"}]")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"label\":\"world\",\"kind\":6,\"detail\":\"let world = \\\"world\\\";\"}]")]);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"label\":\"x\",\"kind\":5,\"detail\":\"u64\"}]")]);
 }
 
 #[test]
