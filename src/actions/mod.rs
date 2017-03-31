@@ -240,10 +240,7 @@ impl ActionHandler {
             let location = pos_to_racer_location(params.position);
             let results = racer::complete_from_file(file_path, location, &session);
 
-            results.map(|comp| CompletionItem::new_simple(
-                comp.matchstr.clone(),
-                comp.contextstr.clone(),
-            )).collect()
+            results.map(|comp| completion_item_from_racer_match(comp)).collect()
         }).unwrap_or_else(|_| vec![]);
 
         out.success(id, ResponseData::CompletionItems(result));
