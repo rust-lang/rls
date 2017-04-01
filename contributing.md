@@ -37,7 +37,7 @@ cargo run
 
 Though more commonly, you'll use an IDE plugin to invoke it for you.
 
-Test using `RUST_TEST_THREADS=1 cargo test`.
+Test using `cargo test`.
 
 Testing is unfortunately minimal. There is support for regression tests, but not
 many actual tests exists yet. There is signifcant [work to do](https://github.com/rust-lang-nursery/rls/issues/12)

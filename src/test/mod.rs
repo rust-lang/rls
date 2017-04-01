@@ -498,11 +498,6 @@ impl ls_server::Output for RecordOutput {
 
 // Initialise the environment for a test.
 fn init_env(project_dir: &str) -> (types::Cache, TestCleanup) {
-    match env::var("RUST_TEST_THREADS") {
-        Ok(ref var) if var == "1" => (),
-        _ => panic!("Please run tests with `RUST_TEST_THREADS=1 cargo test`"),
-    };
-
     let _ = env_logger::init();
 
     let path = &Path::new("test_data").join(project_dir);
