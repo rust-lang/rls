@@ -141,10 +141,11 @@ impl ActionHandler {
                 }
 
                 trace!("reload analysis: {:?}", project_path);
+                let cwd = ::std::env::current_dir().unwrap();
                 if let Some(analysis) = analysis {
-                    self.analysis.reload_from_analysis(analysis, project_path, project_path, false).unwrap();
+                    self.analysis.reload_from_analysis(analysis, project_path, &cwd, false).unwrap();
                 } else {
-                    self.analysis.reload(project_path, project_path, false).unwrap();
+                    self.analysis.reload(project_path, &cwd, false).unwrap();
                 }
 
                 out.notify("rustDocument/diagnosticsEnd");
@@ -385,8 +386,6 @@ impl ActionHandler {
             let ty = analysis.show_type(&span).unwrap_or_else(|_| String::new());
             let docs = analysis.docs(&span).unwrap_or_else(|_| String::new());
             let doc_url = analysis.doc_url(&span).unwrap_or_else(|_| String::new());
-            let symbols = analysis.symbols(&span.file).unwrap_or_else(|_| Vec::new());
-            let search = analysis.search("world").unwrap_or_else(|_| Vec::new());
             t.unpark();
 
             let mut contents = vec![];

@@ -19,7 +19,6 @@ extern crate syntax;
 use cargo::core::{PackageId, MultiShell, Workspace};
 use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter};
 use cargo::util::{Config as CargoConfig, ProcessBuilder, ProcessError, homedir};
-use cargo::util::important_paths::find_root_manifest_for_wd;
 
 use data::Analysis;
 use vfs::Vfs;
@@ -438,9 +437,9 @@ impl BuildQueue {
             let config = CargoConfig::new(shell,
                                           env::current_dir().unwrap(),
                                           homedir(&build_dir).unwrap());
-            //env::set_current_dir(cwd).expect(FAIL_MSG);
             let mut manifest_path = build_dir.clone();
             manifest_path.push("Cargo.toml");
+            trace!("manifest_path: {:?}", manifest_path);
             let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
             let mut opts = CompileOptions::default(&config, CompileMode::Check);
             if rls_config.build_lib {
@@ -464,7 +463,7 @@ impl BuildQueue {
 
         let changed = self.vfs.get_cached_files();
 
-        let _pwd = Environment::push(envs);
+        let _restore_env = Environment::push(envs);
         let buf = Arc::new(Mutex::new(vec![]));
         let err_buf = buf.clone();
         let args = args.to_owned();

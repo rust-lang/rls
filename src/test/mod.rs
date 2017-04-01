@@ -13,7 +13,6 @@
 
 mod types;
 
-use std::env;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
@@ -34,57 +33,8 @@ use std::path::{Path, PathBuf};
 const TEST_TIMEOUT_IN_SEC: u64 = 10;
 
 #[test]
-fn test_abs_path() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    // Change directory to 'src', just a directory that is not an ancestor of
-    // the test data.
-    let mut cwd = env::current_dir().unwrap();
-    let mut cwd_copy = cwd.clone();
-    cwd.push("src");
-    env::set_current_dir(cwd).unwrap();
-
-    // Initialise the file cache with an absolute path, this is the path that
-    // will end up getting passed to the RLS.
-    cwd_copy.push("test_data");
-    cwd_copy.push("abs_path");
-    let mut cache = types::Cache::new(&cwd_copy);
-
-    let source_file_path = Path::new("src").join("main.rs");
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                        .expect("couldn't convert path to JSON"));
-    let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "null".to_owned()),
-                                                        ("rootPath", root_path)]),
-                        Message::new("textDocument/definition",
-                                     vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
-    let (server, results) = mock_server(messages);
-    // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
-
-    // Goto def.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":20,\"character\":8}")]);
-}
-
-#[test]
 fn test_goto_def() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    init_env("goto_def");
-    let mut cache = types::Cache::new(Path::new("."));
+    let (mut cache, _tc) = init_env("goto_def");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -115,40 +65,16 @@ fn test_goto_def() {
 
 #[test]
 fn test_hover() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
+    let (mut cache, _tc) = init_env("hover");
 
-    //init_env("hover");
-    //let mut cache = types::Cache::new(Path::new("."));
+    let source_file_path = Path::new("src").join("main.rs");
 
+    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
+                                      .expect("couldn't convert path to JSON"));
 
-    let mut cwd = env::current_dir().expect(FAIL_MSG);
-    cwd.push("test_data");
-    cwd.push("hello");
-    //env::set_current_dir(cwd).expect(FAIL_MSG);
-
-    let mut cache = types::Cache::new(Path::new("."));
-
-    //let source_file_path = Path::new("src").join("main.rs");
-    let mut source_file_path = cwd.clone();
-    source_file_path.push("src");
-    source_file_path.push("main.rs");
-
-    let root_path = format!("{}", serde_json::to_string(&cwd.to_str().unwrap().to_string())
-                                             .expect("couldn't convert path to JSON"));
-    //let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-    //                                  .expect("couldn't convert path to JSON"));
-
-    //FIXME: if this works, need to go back and do Windows fix
-    let url = Url::from_file_path(&source_file_path).expect("couldn't convert file path to URL");
-
-    println!("url: {:?}", url);
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
-    println!("source_file_path: {:?}", source_file_path);
-    //println!("mk_ls_position: {:?}", cache.mk_ls_position(src(&source_file_path, 22, "world")));
-    println!("text_doc: {:?}", text_doc);
-    println!("root_path: {:?}", root_path);
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
                                                         ("capabilities", "null".to_owned()),
                                                         ("rootPath", root_path)]),
@@ -170,11 +96,7 @@ fn test_hover() {
 
 #[test]
 fn test_find_all_refs() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    init_env("find_all_refs");
-    let mut cache = types::Cache::new(Path::new("."));
+    let (mut cache, _tc) = init_env("find_all_refs");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -222,11 +144,7 @@ fn test_find_all_refs() {
 
 #[test]
 fn test_find_all_refs_no_cfg_test() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    init_env("find_all_refs_no_cfg_test");
-    let mut cache = types::Cache::new(Path::new("."));
+    let (mut cache, _tc) = init_env("find_all_refs_no_cfg_test");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -273,11 +191,7 @@ fn test_find_all_refs_no_cfg_test() {
 
 #[test]
 fn test_borrow_error() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    init_env("borrow_error");
-    let cache = types::Cache::new(Path::new("."));
+    let (cache, _tc) = init_env("borrow_error");
 
     let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
                                       .expect("couldn't convert path to JSON"));
@@ -304,11 +218,7 @@ fn test_borrow_error() {
 
 #[test]
 fn test_highlight() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    init_env("highlight");
-    let mut cache = types::Cache::new(Path::new("."));
+    let (mut cache, _tc) = init_env("highlight");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -352,11 +262,7 @@ fn test_highlight() {
 
 #[test]
 fn test_rename() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    init_env("rename");
-    let mut cache = types::Cache::new(Path::new("."));
+    let (mut cache, _tc) = init_env("rename");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -402,11 +308,7 @@ fn test_rename() {
 
 #[test]
 fn test_completion() {
-    let _ = env_logger::init();
-    let _cr = TestCleanup::new();
-
-    init_env("completion");
-    let mut cache = types::Cache::new(Path::new("."));
+    let (mut cache, _tc) = init_env("completion");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -575,16 +477,17 @@ impl ls_server::Output for RecordOutput {
 }
 
 // Initialise the environment for a test.
-fn init_env(project_dir: &str) {
+fn init_env(project_dir: &str) -> (types::Cache, TestCleanup) {
     match env::var("RUST_TEST_THREADS") {
         Ok(ref var) if var == "1" => (),
         _ => panic!("Please run tests with `RUST_TEST_THREADS=1 cargo test`"),
-    }; 
+    };
 
-    let mut cwd = env::current_dir().expect(FAIL_MSG);
-    cwd.push("test_data");
-    cwd.push(project_dir);
-    env::set_current_dir(cwd).expect(FAIL_MSG);
+    let _ = env_logger::init();
+
+    let path = &Path::new("test_data").join(project_dir);
+    let tc = TestCleanup { path: path.to_owned() };
+    (types::Cache::new(path), tc)
 }
 
 #[derive(Clone, Debug)]
@@ -633,36 +536,17 @@ fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     *results = vec![];
 }
 
-const FAIL_MSG: &'static str = "Error initialising environment";
-
 struct TestCleanup {
-    old: PathBuf,
-}
-
-impl TestCleanup {
-    fn new() -> TestCleanup{
-        TestCleanup {
-            old: env::current_dir().expect(FAIL_MSG),
-        }
-    }
+    path: PathBuf
 }
 
 impl Drop for TestCleanup {
     fn drop(&mut self) {
         use std::fs;
-        //use std::process::Command;
 
-        env::set_current_dir(self.old.clone()).expect(FAIL_MSG);
-
-        /*
-        Command::new("sh")
-                .arg("-c")
-                .arg("cargo clean")
-                .output()
-                .expect("failed to remove directory");
-        */
-        //let _ = fs::remove_dir_all(Path::new("test_data/hello/target/rls"));
-        //let _ = fs::remove_dir_all(Path::new("test_data/hello_no_cfg_test/target/rls"));
-
+        let target_path = self.path.join("target");
+        if fs::metadata(&target_path).is_ok() {
+            fs::remove_dir_all(target_path).expect("failed to tidy up");
+        }
     }
 }

@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader};
@@ -36,8 +37,11 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(base_path: &Path) -> Cache {
+        let mut root_path = env::current_dir().expect("Could not find current working directory");
+        root_path.push(base_path);
+
         Cache {
-            base_path: base_path.to_owned(),
+            base_path: root_path,
             files: HashMap::new(),
         }
     }
