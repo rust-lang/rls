@@ -14,7 +14,6 @@
 mod types;
 
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, SystemTime};
 use env_logger;
@@ -374,7 +373,7 @@ fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultLi
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
     let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let reader = Box::new(MockMsgReader { messages: messages, cur: AtomicUsize::new(0) });
+    let reader = Box::new(MockMsgReader::new(messages));
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
     (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
@@ -386,26 +385,38 @@ fn mock_raw_server(messages: Vec<String>) -> (Arc<ls_server::LsService>, LsResul
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
     let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let reader = Box::new(MockRawMsgReader { messages: messages, cur: AtomicUsize::new(0) });
+    let reader = Box::new(MockRawMsgReader::new(messages));
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
     (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
 }
 
-// Despite the use of AtomicUsize and thus being Sync, this struct is not properly
-// thread-safe, the assumption is we will process one message at a time.
-// In particular, we do not expect simultaneus calls to `read_message`.
 struct MockMsgReader {
     messages: Vec<Message>,
-    cur: AtomicUsize,
+    cur: Mutex<usize>,
 }
 
-// Despite the use of AtomicUsize and thus being Sync, this struct is not properly
-// thread-safe, the assumption is we will process one message at a time.
-// In particular, we do not expect simultaneus calls to `read_message`.
+impl MockMsgReader {
+    fn new(messages: Vec<Message>) -> MockMsgReader {
+        MockMsgReader {
+            messages: messages,
+            cur: Mutex::new(0),
+        }
+    }
+}
+
 struct MockRawMsgReader {
     messages: Vec<String>,
-    cur: AtomicUsize,
+    cur: Mutex<usize>,
+}
+
+impl MockRawMsgReader {
+    fn new(messages: Vec<String>) -> MockRawMsgReader {
+        MockRawMsgReader {
+            messages: messages,
+            cur: Mutex::new(0),
+        }
+    }
 }
 
 // TODO should have a structural way of making params, rather than taking Strings
@@ -425,7 +436,11 @@ impl Message {
 
 impl ls_server::MessageReader for MockMsgReader {
     fn read_message(&self) -> Option<String> {
-        let index = self.cur.fetch_add(1, Ordering::SeqCst);
+        // Note that we hold this lock until the end of the function, thus meaning
+        // that we must finish processing one message before processing the next.
+        let mut cur = self.cur.lock().unwrap();
+        let index = *cur;
+        *cur += 1;
 
         if index >= self.messages.len() {
             return None;
@@ -444,7 +459,12 @@ impl ls_server::MessageReader for MockMsgReader {
 
 impl ls_server::MessageReader for MockRawMsgReader {
     fn read_message(&self) -> Option<String> {
-        let index = self.cur.fetch_add(1, Ordering::SeqCst);
+        // Note that we hold this lock until the end of the function, thus meaning
+        // that we must finish processing one message before processing the next.
+        let mut cur = self.cur.lock().unwrap();
+        let index = *cur;
+        *cur += 1;
+
         if index >= self.messages.len() {
             return None;
         }
