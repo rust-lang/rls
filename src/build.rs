@@ -18,7 +18,7 @@ extern crate syntax;
 
 use cargo::core::{PackageId, MultiShell, Workspace};
 use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter};
-use cargo::util::{Config as CargoConfig, ProcessBuilder, ProcessError, homedir};
+use cargo::util::{Config as CargoConfig, ProcessBuilder, ProcessError, homedir, ConfigValue};
 
 use data::Analysis;
 use vfs::Vfs;
@@ -428,19 +428,18 @@ impl BuildQueue {
         // However, if Cargo doesn't run a separate thread, then we'll just wait
         // forever. Therefore, we spawn an extra thread here to be safe.
         let handle = thread::spawn(move || {
-            env::set_var("CARGO_TARGET_DIR", build_dir.join("target").join("rls"));
             env::set_var("RUSTFLAGS",
                          "-Zunstable-options -Zsave-analysis --error-format=json \
                           -Zcontinue-parse-after-error");
+
             let shell = MultiShell::from_write(Box::new(BufWriter(out.clone())),
                                                Box::new(BufWriter(err.clone())));
-            let config = CargoConfig::new(shell,
-                                          env::current_dir().unwrap(),
-                                          homedir(&build_dir).unwrap());
+            let config = make_cargo_config(&build_dir, shell);
             let mut manifest_path = build_dir.clone();
             manifest_path.push("Cargo.toml");
             trace!("manifest_path: {:?}", manifest_path);
             let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
+
             let mut opts = CompileOptions::default(&config, CompileMode::Check);
             if rls_config.build_lib {
                 opts.filter = CompileFilter::new(true, &[], &[], &[], &[]);
@@ -448,12 +447,13 @@ impl BuildQueue {
             compile_with_exec(&ws, &opts, Arc::new(exec)).expect("could not run cargo");
         });
 
-        trace!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
-        trace!("cargo stderr {}", String::from_utf8(err_clone.lock().unwrap().to_owned()).unwrap());
-
         match handle.join() {
             Ok(_) => BuildResult::Success(vec![], None),
-            Err(_) => BuildResult::Err
+            Err(_) => {
+                info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
+                info!("cargo stderr {}", String::from_utf8(err_clone.lock().unwrap().to_owned()).unwrap());
+                BuildResult::Err
+            }
         }
     }
 
@@ -568,6 +568,38 @@ impl BuildQueue {
             }
         }
     }
+}
+
+fn make_cargo_config(build_dir: &Path, shell: MultiShell) -> CargoConfig {
+    let config = CargoConfig::new(shell,
+                                  // This is Cargo's cwd. We are using the actual cwd, but perhaps
+                                  // we should use build_dir or something else?
+                                  env::current_dir().unwrap(),
+                                  homedir(&build_dir).unwrap());
+
+    // Cargo is expecting the config to come from a config file and keeps
+    // track of the path to that file. We'll make one up, it shouldn't be
+    // used for much. Cargo does use it for finding a root path. Since
+    // we pass an absolute path for the build directory, that doesn't
+    // matter too much. However, Cargo still takes the grandparent of this
+    // path, so we need to have at least two path elements.
+    let config_path = build_dir.join("config").join("rls-config.toml");
+
+    let mut config_value_map = config.load_values().unwrap();
+    {
+        let build_value = config_value_map.entry("build".to_owned()).or_insert(ConfigValue::Table(HashMap::new(), config_path.clone()));
+
+        let target_dir = build_dir.join("target").join("rls").to_str().unwrap().to_owned();
+        let td_value = ConfigValue::String(target_dir, config_path);
+        if let &mut ConfigValue::Table(ref mut build_table, _) = build_value {
+            build_table.insert("target-dir".to_owned(), td_value);
+        } else {
+            unreachable!();
+        }
+    }
+
+    config.set_values(config_value_map).unwrap();
+    config
 }
 
 fn parse_arg(args: &[OsString], arg: &str) -> Option<String> {
