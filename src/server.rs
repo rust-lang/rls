@@ -37,13 +37,13 @@ struct ParseError {
 #[derive(Debug)]
 enum ServerMessage {
     Request(Request),
-    Notification(Notification)
+    Notification(Notification),
 }
 
 #[derive(Debug)]
 struct Request {
     id: usize,
-    method: Method
+    method: Method,
 }
 
 #[derive(Debug)]
@@ -241,7 +241,7 @@ impl LsService {
                 document_range_formatting_provider: Some(true),
                 document_on_type_formatting_provider: None, // TODO: review this, maybe add?
                 rename_provider: Some(true),
-            }
+            },
         };
         self.output.success(id, ResponseData::Init(result));
         let root_path = init.root_path.map(PathBuf::from);
@@ -255,8 +255,8 @@ impl LsService {
             Some(c) => c,
             None => {
                 this.output.parse_error();
-                return ServerStateChange::Break
-            },
+                return ServerStateChange::Break;
+            }
         };
 
         let this = this.clone();
@@ -276,96 +276,103 @@ impl LsService {
             }
             match message {
                 Ok(ServerMessage::Notification(method)) => {
-                    match method {
-                        Notification::Exit => {
-                            trace!("exiting...");
-                            let shut_down = this.shut_down.load(Ordering::SeqCst);
-                            ::std::process::exit(if shut_down { 0 } else { 1 });
-                        }
-                        Notification::CancelRequest(params) => {
-                            trace!("request to cancel {:?}", params.id);
-                        }
-                        Notification::Change(change) => {
-                            trace!("notification(change): {:?}", change);
-                            this.handler.on_change(change, &*this.output);
-                        }
-                        Notification::Open(open) => {
-                            trace!("notification(open): {:?}", open);
-                            this.handler.on_open(open, &*this.output);
-                        }
-                        Notification::Save(save) => {
-                            trace!("notification(save): {:?}", save);
-                            this.handler.on_save(save, &*this.output);
-                        }
-                    }
+                    LsService::handle_notification(this, method);
                 }
-                Ok(ServerMessage::Request(Request{id, method})) => {
-                    match method {
-                        Method::Initialize(init) => {
-                            trace!("command(init): {:?}", init);
-                            this.init(id, init);
-                        }
-                        Method::Shutdown => {
-                            trace!("shutting down...");
-                            this.shut_down.store(true, Ordering::SeqCst);
-
-                            let out = &*this.output;
-                            out.success(id, ResponseData::Ack(Ack {}));
-                        }
-                        Method::Hover(params) => {
-                            trace!("command(hover): {:?}", params);
-                            this.handler.hover(id, params, &*this.output);
-                        }
-                        Method::GotoDef(params) => {
-                            trace!("command(goto): {:?}", params);
-                            this.handler.goto_def(id, params, &*this.output);
-                        }
-                        Method::Complete(params) => {
-                            trace!("command(complete): {:?}", params);
-                            this.handler.complete(id, params, &*this.output);
-                        }
-                        Method::CompleteResolve(params) => {
-                            trace!("command(complete): {:?}", params);
-                            this.output.success(id, ResponseData::CompletionItems(vec![params]))
-                        }
-                        Method::Highlight(params) => {
-                            trace!("command(highlight): {:?}", params);
-                            this.handler.highlight(id, params, &*this.output);
-                        }
-                        Method::Symbols(params) => {
-                            trace!("command(goto): {:?}", params);
-                            this.handler.symbols(id, params, &*this.output);
-                        }
-                        Method::FindAllRef(params) => {
-                            trace!("command(find_all_refs): {:?}", params);
-                            this.handler.find_all_refs(id, params, &*this.output);
-                        }
-                        Method::Rename(params) => {
-                            trace!("command(rename): {:?}", params);
-                            this.handler.rename(id, params, &*this.output);
-                        }
-                        Method::Reformat(params) => {
-                            // FIXME take account of options.
-                            trace!("command(reformat): {:?}", params);
-                            this.handler.reformat(id, params.text_document, &*this.output);
-                        }
-                        Method::ReformatRange(params) => {
-                            // FIXME reformats the whole file, not just a range.
-                            // FIXME take account of options.
-                            trace!("command(reformat range): {:?}", params);
-                            this.handler.reformat(id, params.text_document, &*this.output);
-                        }
-                    }
+                Ok(ServerMessage::Request(Request { id, method })) => {
+                    LsService::handle_request(this, id, method);
                 }
                 Err(e) => {
                     trace!("parsing invalid message: {:?}", e);
                     if let Some(id) = e.id {
                         this.output.failure(id, "Unsupported message");
                     }
-                },
+                }
             }
         });
         ServerStateChange::Continue
+    }
+
+    fn handle_request(this: Arc<Self>, id: usize, method: Method) {
+        match method {
+            Method::Initialize(init) => {
+                trace!("command(init): {:?}", init);
+                this.init(id, init);
+            }
+            Method::Shutdown => {
+                trace!("shutting down...");
+                this.shut_down.store(true, Ordering::SeqCst);
+                let out = &*this.output;
+                out.success(id, ResponseData::Ack(Ack {}));
+            }
+            Method::Hover(params) => {
+                trace!("command(hover): {:?}", params);
+                this.handler.hover(id, params, &*this.output);
+            }
+            Method::GotoDef(params) => {
+                trace!("command(goto): {:?}", params);
+                this.handler.goto_def(id, params, &*this.output);
+            }
+            Method::Complete(params) => {
+                trace!("command(complete): {:?}", params);
+                this.handler.complete(id, params, &*this.output);
+            }
+            Method::CompleteResolve(params) => {
+                trace!("command(complete): {:?}", params);
+                this.output.success(id, ResponseData::CompletionItems(vec![params]))
+            }
+            Method::Highlight(params) => {
+                trace!("command(highlight): {:?}", params);
+                this.handler.highlight(id, params, &*this.output);
+            }
+            Method::Symbols(params) => {
+                trace!("command(goto): {:?}", params);
+                this.handler.symbols(id, params, &*this.output);
+            }
+            Method::FindAllRef(params) => {
+                trace!("command(find_all_refs): {:?}", params);
+                this.handler.find_all_refs(id, params, &*this.output);
+            }
+            Method::Rename(params) => {
+                trace!("command(rename): {:?}", params);
+                this.handler.rename(id, params, &*this.output);
+            }
+            Method::Reformat(params) => {
+                // FIXME take account of options.
+                trace!("command(reformat): {:?}", params);
+                this.handler.reformat(id, params.text_document, &*this.output);
+            }
+            Method::ReformatRange(params) => {
+                // FIXME reformats the whole file, not just a range.
+                // FIXME take account of options.
+                trace!("command(reformat range): {:?}", params);
+                this.handler.reformat(id, params.text_document, &*this.output);
+            }
+        }
+    }
+
+    fn handle_notification(this: Arc<Self>, notification: Notification) {
+        match notification {
+            Notification::Exit => {
+                trace!("exiting...");
+                let shut_down = this.shut_down.load(Ordering::SeqCst);
+                ::std::process::exit(if shut_down { 0 } else { 1 });
+            }
+            Notification::CancelRequest(params) => {
+                trace!("request to cancel {:?}", params.id);
+            }
+            Notification::Change(change) => {
+                trace!("notification(change): {:?}", change);
+                this.handler.on_change(change, &*this.output);
+            }
+            Notification::Open(open) => {
+                trace!("notification(open): {:?}", open);
+                this.handler.on_open(open, &*this.output);
+            }
+            Notification::Save(save) => {
+                trace!("notification(save): {:?}", save);
+                this.handler.on_save(save, &*this.output);
+            }
+        }
     }
 }
 
@@ -441,7 +448,7 @@ pub trait Output {
         #[derive(Serialize)]
         struct ResponseError {
             code: i64,
-            message: String
+            message: String,
         }
 
         #[derive(Serialize)]
@@ -475,9 +482,8 @@ pub trait Output {
     }
 
     fn notify(&self, message: &str) {
-        let output = serde_json::to_string(
-            &NotificationMessage::new(message.to_owned(), ())
-        ).unwrap();
+        let output = serde_json::to_string(&NotificationMessage::new(message.to_owned(), ()))
+            .unwrap();
         self.response(output);
     }
 }
