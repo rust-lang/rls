@@ -23,6 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::path::PathBuf;
 
+use config::Config;
 
 #[derive(Debug, Serialize)]
 pub struct Ack {}
@@ -217,6 +218,14 @@ impl LsService {
     }
 
     fn init(&self, id: usize, init: InitializeParams) {
+        let root_path = init.root_path.map(PathBuf::from);
+        let unstable_features = if let Some(ref root_path) = root_path {
+            let config = Config::from_path(&root_path);
+            config.unstable_features
+        } else {
+            false
+        };
+
         let result = InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncKind::Incremental),
@@ -237,14 +246,13 @@ impl LsService {
                 code_action_provider: Some(false),
                 // TODO maybe?
                 code_lens_provider: None,
-                document_formatting_provider: Some(true),
-                document_range_formatting_provider: Some(true),
+                document_formatting_provider: Some(unstable_features),
+                document_range_formatting_provider: Some(unstable_features),
                 document_on_type_formatting_provider: None, // TODO: review this, maybe add?
-                rename_provider: Some(true),
+                rename_provider: Some(unstable_features),
             }
         };
         self.output.success(id, ResponseData::Init(result));
-        let root_path = init.root_path.map(PathBuf::from);
         if let Some(root_path) = root_path {
             self.handler.init(root_path, &*self.output);
         }
