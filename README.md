@@ -166,6 +166,9 @@ Currently we accept the following options:
   run) test code.
 * `unstable_features` (`bool`, defaults to `false`) enables unstable features.
   Currently, this includes renaming and formatting.
+* `sysroot` (`String`, defaults to `""`) if the given string is not empty, use
+   the given path as the sysroot for all rustc invocations instead of trying to
+   detect the sysroot automatically
 
 
 ## Contributing
