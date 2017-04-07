@@ -35,7 +35,14 @@ for [Visual Studio Code](https://code.visualstudio.com/).
 
 Otherwise the RLS will not work very well.
 
-### Step 1: Clone and build the RLS
+### Step 1: Install build dependencies
+
+On Linux, you will need [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/):
+
+- On Ubuntu run: `sudo apt-get install pkg-config`
+- On Fedora run: `sudo dnf install pkgconfig`
+
+### Step 2: Clone and build the RLS
 
 Since the RLS is closely linked to the compiler and is in active development,
 you'll need a recent nightly compiler to build it.
@@ -46,7 +53,7 @@ cd rls
 cargo build --release
 ```
 
-### Step 2: Connect the RLS to your compiler
+### Step 3: Connect the RLS to your compiler
 
 If you're using recent versions of rustup, you will also need to make sure that
 the compiler's dynamic libraries are available for the RLS to load. You can see
@@ -86,7 +93,7 @@ For Linux, this path is called LD_LIBRARY_PATH.
 export LD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
 ```
 
-### Step 3: Set your RLS_ROOT 
+### Step 4: Set your RLS_ROOT 
 
 Next, we'll set the RLS_ROOT environment variable to point to where we built
 the RLS:
@@ -95,7 +102,7 @@ the RLS:
 export RLS_ROOT=/Source/rls
 ```
 
-### Step 4: Download standard library metadata
+### Step 5: Download standard library metadata
 
 Finally, we need to get the metadata for the standard library.  This lets
 us get additional docs and types for all of `std`.  The command is currently only 
