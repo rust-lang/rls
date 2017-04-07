@@ -164,7 +164,8 @@ Currently we accept the following options:
 * `cfg_test` (`bool`, defaults to `true`) checks the project as if you were
   running `cargo test` rather than `cargo build`. I.e., compiles (but does not
   run) test code.
-
+* `unstable_features` (`bool`, defaults to `false`) enables unstable features.
+  Currently, this includes renaming and formatting.
 
 
 ## Contributing
