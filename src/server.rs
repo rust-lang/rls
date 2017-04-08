@@ -259,6 +259,69 @@ impl LsService {
     }
 
     pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
+        // Allows to delegate message handling to a handler with
+        // a default signature or to execute an arbitrary expression
+        macro_rules! action {
+            (args: { $($args: tt),+ }; action: $name: ident) => {
+                this.handler.$name( $($args),+, &*this.output  );
+            };
+            (args: { $($args: tt),* }; $expr: expr) => { $expr };
+            (args: { $($args: tt),* }; ) => {};
+        }
+
+        macro_rules! trace_params {
+            () => { "" };
+            ( $($args: tt),* ) => { $($args),* };
+        }
+
+        macro_rules! handle {
+            (
+                message: $message: expr;
+                methods {
+                    id: $id: ident;
+                    // $method_arg is really a 0-1 repetition
+                    $($method_name: ident$(($method_arg: ident))* => { $($method_action: tt)* };)*
+                }
+                notifications {
+                    $($notif_name: ident$(($notif_arg: ident))* => { $($notif_action: tt)* };)*
+                }
+            )
+            =>
+            {
+                match $message {
+                    Ok(ServerMessage::Request(Request{id, method})) => {
+                        match method {
+                            $(
+                                Method::$method_name$(($method_arg))* => { 
+                                    trace!("Handling {} ({}) (params: {:?}", stringify!($method_name), id, trace_params!($($method_arg)*));
+                                    // Due to macro hygiene, we need to pass to a nested macro destructured
+                                    // id, which will be passed to scope of a possible arbitrary expresion
+                                    let $id = id;
+                                    action!(args: { $id, { $($method_arg)* } }; $($method_action)*);
+                                }
+                            ),*
+                        }
+                    },
+                    Ok(ServerMessage::Notification(notification)) => {
+                        match notification {
+                            $(
+                                Notification::$notif_name$(($notif_arg))* => {
+                                    trace!("Handling {} (params: {:?}", stringify!($notif_name), trace_params!($($notif_arg)*));
+                                    action!(args: { $($notif_arg)* }; $($notif_action)*);
+                                }
+                            ),*
+                        }
+                    },
+                    Err(e) => {
+                        trace!("parsing invalid message: {:?}", e);
+                        if let Some(id) = e.id {
+                            this.output.failure(id, "Unsupported message");
+                        }
+                    },
+                }
+            };
+        }
+
         let c = match this.msg_reader.read_message() {
             Some(c) => c,
             None => {
@@ -269,7 +332,6 @@ impl LsService {
 
         let this = this.clone();
         thread::spawn(move || {
-            // FIXME(45) refactor to generate this match.
             let message = parse_message(&c);
             {
                 let shut_down = this.shut_down.load(Ordering::SeqCst);
@@ -282,96 +344,47 @@ impl LsService {
                     }
                 }
             }
-            match message {
-                Ok(ServerMessage::Notification(method)) => {
-                    match method {
-                        Notification::Exit => {
-                            trace!("exiting...");
-                            let shut_down = this.shut_down.load(Ordering::SeqCst);
-                            ::std::process::exit(if shut_down { 0 } else { 1 });
-                        }
-                        Notification::CancelRequest(params) => {
-                            trace!("request to cancel {:?}", params.id);
-                        }
-                        Notification::Change(change) => {
-                            trace!("notification(change): {:?}", change);
-                            this.handler.on_change(change, &*this.output);
-                        }
-                        Notification::Open(open) => {
-                            trace!("notification(open): {:?}", open);
-                            this.handler.on_open(open, &*this.output);
-                        }
-                        Notification::Save(save) => {
-                            trace!("notification(save): {:?}", save);
-                            this.handler.on_save(save, &*this.output);
-                        }
-                    }
-                }
-                Ok(ServerMessage::Request(Request{id, method})) => {
-                    match method {
-                        Method::Initialize(init) => {
-                            trace!("command(init): {:?}", init);
-                            this.init(id, init);
-                        }
-                        Method::Shutdown => {
-                            trace!("shutting down...");
-                            this.shut_down.store(true, Ordering::SeqCst);
 
-                            let out = &*this.output;
-                            out.success(id, ResponseData::Ack(Ack {}));
-                        }
-                        Method::Hover(params) => {
-                            trace!("command(hover): {:?}", params);
-                            this.handler.hover(id, params, &*this.output);
-                        }
-                        Method::GotoDef(params) => {
-                            trace!("command(goto): {:?}", params);
-                            this.handler.goto_def(id, params, &*this.output);
-                        }
-                        Method::Complete(params) => {
-                            trace!("command(complete): {:?}", params);
-                            this.handler.complete(id, params, &*this.output);
-                        }
-                        Method::CompleteResolve(params) => {
-                            trace!("command(complete): {:?}", params);
-                            this.output.success(id, ResponseData::CompletionItems(vec![params]))
-                        }
-                        Method::Highlight(params) => {
-                            trace!("command(highlight): {:?}", params);
-                            this.handler.highlight(id, params, &*this.output);
-                        }
-                        Method::Symbols(params) => {
-                            trace!("command(goto): {:?}", params);
-                            this.handler.symbols(id, params, &*this.output);
-                        }
-                        Method::FindAllRef(params) => {
-                            trace!("command(find_all_refs): {:?}", params);
-                            this.handler.find_all_refs(id, params, &*this.output);
-                        }
-                        Method::Rename(params) => {
-                            trace!("command(rename): {:?}", params);
-                            this.handler.rename(id, params, &*this.output);
-                        }
-                        Method::Reformat(params) => {
-                            // FIXME take account of options.
-                            trace!("command(reformat): {:?}", params);
-                            this.handler.reformat(id, params.text_document, &*this.output);
-                        }
-                        Method::ReformatRange(params) => {
-                            // FIXME reformats the whole file, not just a range.
-                            // FIXME take account of options.
-                            trace!("command(reformat range): {:?}", params);
-                            this.handler.reformat(id, params.text_document, &*this.output);
-                        }
-                    }
+            handle! {
+                message: message;
+                methods {
+                    id: id;
+                    Shutdown => {{
+                        this.shut_down.store(true, Ordering::SeqCst);
+                        (&*this.output).success(id, ResponseData::Ack(Ack {}));
+                    }};
+                    Initialize(params) => { this.init(id, params) };
+                    Hover(params) => { action: hover };
+                    GotoDef(params) => { action: goto_def };
+                    FindAllRef(params) => { action: find_all_refs };
+                    Complete(params) => { action: complete };
+                    Highlight(params) => { action: highlight };
+                    CompleteResolve(params) => {
+                        this.output.success(id, ResponseData::CompletionItems(vec![params]))
+                    };
+                    Symbols(params) => { action: symbols };
+                    Rename(params) => { action: rename };
+                    Reformat(params) => {
+                        // FIXME take account of options.
+                        this.handler.reformat(id, params.text_document, &*this.output)
+                    };
+                    ReformatRange(params) => {
+                        // FIXME reformats the whole file, not just a range.
+                        // FIXME take account of options.
+                        this.handler.reformat(id, params.text_document, &*this.output)
+                    };
                 }
-                Err(e) => {
-                    trace!("parsing invalid message: {:?}", e);
-                    if let Some(id) = e.id {
-                        this.output.failure(id, "Unsupported message");
-                    }
-                },
-            }
+                notifications {
+                    Exit => {{
+                        let shut_down = this.shut_down.load(Ordering::SeqCst);
+                        ::std::process::exit(if shut_down { 0 } else { 1 });
+                    }};
+                    CancelRequest(params) => {};
+                    Change(change) => { action: on_change };
+                    Open(open) => { action: on_open };
+                    Save(save) => { action: on_save };
+                }
+            };
         });
         ServerStateChange::Continue
     }
