@@ -127,17 +127,13 @@ impl BuildQueue {
 
     pub fn request_build(&self, build_dir: &Path, priority: BuildPriority) -> BuildResult {
         // println!("request_build, {:?} {:?}", build_dir, priority);
+
         // If there is a change in the project directory, then we can forget any
         // pending build and start straight with this new build.
         {
             let mut prev_build_dir = self.build_dir.lock().unwrap();
 
-            let reset = match *prev_build_dir {
-                Some(ref dir) if dir == build_dir => false,
-                _ => true
-            };
-
-            if reset {
+            if prev_build_dir.as_ref().map_or(true, |dir| dir != build_dir) {
                 *prev_build_dir = Some(build_dir.to_owned());
                 self.cancel_pending();
 
