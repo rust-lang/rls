@@ -73,7 +73,7 @@ set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-i686-pc-windows-
 For Mac, you need to set the DYLD_LIBRARY_PATH.  For example:
 
 ```
-export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-darwin/lib
+export DYLD_LIBRARY_PATH=$(rustc --print sysroot)/lib
 ```
 
 #### Linux
@@ -81,7 +81,7 @@ export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-
 For Linux, this path is called LD_LIBRARY_PATH.
 
 ```
-export LD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
+export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
 ```
 
 ### Step 4: Set your RLS_ROOT 
