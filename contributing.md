@@ -84,7 +84,7 @@ For Linux, this path is called LD_LIBRARY_PATH.
 export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
 ```
 
-### Step 4: Set your RLS_ROOT 
+### Step 4: Set your RLS_ROOT
 
 Next, we'll set the RLS_ROOT environment variable to point to where we built
 the RLS:
@@ -96,7 +96,7 @@ export RLS_ROOT=/Source/rls
 ### Step 5: Download standard library metadata
 
 Finally, we need to get the metadata for the standard library.  This lets
-us get additional docs and types for all of `std`.  The command is currently only 
+us get additional docs and types for all of `std`.  The command is currently only
 supported on the nightly compilers, though we hope to remove this restriction in
 the future.
 
@@ -298,5 +298,3 @@ the user experience by showing progress indicators.
 * `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
   is complete (successfully or not, or even skipped) and all post-build analysis
   by the RLS is complete.
-
-
