@@ -16,8 +16,8 @@ use std::path::Path;
 
 macro_rules! impl_enum_decodable {
     ( $e:ident, $( $x:ident ),* ) => {
-        impl ::serde::Deserialize for $e {
-            fn decode<D: ::serde::Deserializer>(d: &mut D) -> Result<Self, D::Error> {
+        impl ::rustc_serialize::Decodable for $e {
+            fn decode<D: ::rustc_serialize::Decoder>(d: &mut D) -> Result<Self, D::Error> {
                 use std::ascii::AsciiExt;
                 let s = try!(d.read_str());
                 $(
