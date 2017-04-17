@@ -102,7 +102,7 @@ macro_rules! create_config {
         // specity all properties of `Config`.
         // We first parse into `ParsedConfig`, then create a default `Config`
         // and overwrite the properties with corresponding values from `ParsedConfig`
-        #[derive(RustcDecodable, Clone)]
+        #[derive(RustcDecodable, Clone, Deserialize)]
         pub struct ParsedConfig {
             $(pub $i: Option<$ty>),+
         }
@@ -120,11 +120,12 @@ macro_rules! create_config {
             }
 
             pub fn from_toml(toml: &str) -> Config {
-                let parsed = toml.parse().expect("Could not parse TOML");
-                let parsed_config:ParsedConfig = match toml::decode(parsed) {
-                    Some(decoded) => decoded,
-                    None => {
-                        debug!("Decoding config file failed. Config:\n{}", toml);
+                let parsed_config: ParsedConfig = match toml::from_str(toml) {
+                    Ok(decoded) => decoded,
+                    Err(e) => {
+                        debug!("Decoding config file failed.");
+                        debug!("Error: {}", e);
+                        debug!("Config:\n{}", toml);
                         let parsed: toml::Value = toml.parse().expect("Could not parse TOML");
                         debug!("\n\nParsed:\n{:?}", parsed);
                         panic!();
