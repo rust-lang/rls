@@ -20,12 +20,91 @@ please get in touch by filing an issue or on IRC.
 
 ## Building
 
+**YOU NEED A VERY RECENT NIGHTLY COMPILER**
+
+Otherwise the RLS will not work very well.  You also don't need to build the `rls` to use it. Instead, you can
+install via `rustup`, which is the currently preferred method.  See the [readme](README.md) for more information.
+
+### Step 1: Install build dependencies
+
+On Linux, you will need [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/):
+
+- On Ubuntu run: `sudo apt-get install pkg-config`
+- On Fedora run: `sudo dnf install pkgconfig`
+
+### Step 2: Clone and build the RLS
+
 Since the RLS is closely linked to the compiler and is in active development,
 you'll need a recent nightly compiler to build it.
 
-Use `cargo build` to build.
+```
+git clone https://github.com/rust-lang-nursery/rls.git
+cd rls
+cargo build --release
+```
 
-See [README.md](README.md) for more setup steps.
+### Step 3: Connect the RLS to your compiler
+
+If you're using recent versions of rustup, you will also need to make sure that
+the compiler's dynamic libraries are available for the RLS to load. You can see
+where they  are using:
+
+```
+rustc --print sysroot
+```
+
+This will show you where the compiler keeps the dynamic libs. In Windows, this
+will be  in the `bin` directory under this path. On other platforms, it will be
+in the `lib` directory.
+
+Next, you'll make the compiler available to the RLS:
+
+#### Windows
+
+On Windows, make sure this path (plus `bin`) is in your PATH.  For example:
+
+```
+set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-i686-pc-windows-gnu\bin
+```
+
+#### Mac
+
+For Mac, you need to set the DYLD_LIBRARY_PATH.  For example:
+
+```
+export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-darwin/lib
+```
+
+#### Linux
+
+For Linux, this path is called LD_LIBRARY_PATH.
+
+```
+export LD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
+```
+
+### Step 4: Set your RLS_ROOT 
+
+Next, we'll set the RLS_ROOT environment variable to point to where we built
+the RLS:
+
+```
+export RLS_ROOT=/Source/rls
+```
+
+### Step 5: Download standard library metadata
+
+Finally, we need to get the metadata for the standard library.  This lets
+us get additional docs and types for all of `std`.  The command is currently only 
+supported on the nightly compilers, though we hope to remove this restriction in
+the future.
+
+```
+rustup component add rust-analysis
+```
+
+If you've never set up Racer before, you may also need follow the [Racer configuration
+steps](https://github.com/phildawes/racer#configuration)
 
 ## Running and testing
 
