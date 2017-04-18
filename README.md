@@ -42,6 +42,7 @@ Switch to the nightly compiler:
 
 ```
 rustup default nightly
+rustup update nightly
 ```
 
 ### Step 3: Install the RLS
