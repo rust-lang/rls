@@ -27,10 +27,11 @@ install via `rustup`, which is the currently preferred method.  See the [readme]
 
 ### Step 1: Install build dependencies
 
-On Linux, you will need [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/):
+On Linux, you will need [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
+and [zlib](http://zlib.net/):
 
-- On Ubuntu run: `sudo apt-get install pkg-config`
-- On Fedora run: `sudo dnf install pkgconfig`
+- On Ubuntu run: `sudo apt-get install pkg-config zlib1g-dev`
+- On Fedora run: `sudo dnf install pkgconfig zlib-devel`
 
 ### Step 2: Clone and build the RLS
 
@@ -72,7 +73,7 @@ set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-i686-pc-windows-
 For Mac, you need to set the DYLD_LIBRARY_PATH.  For example:
 
 ```
-export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-darwin/lib
+export DYLD_LIBRARY_PATH=$(rustc --print sysroot)/lib
 ```
 
 #### Linux
@@ -80,10 +81,10 @@ export DYLD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-apple-
 For Linux, this path is called LD_LIBRARY_PATH.
 
 ```
-export LD_LIBRARY_PATH=/Users/jturner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
+export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
 ```
 
-### Step 4: Set your RLS_ROOT 
+### Step 4: Set your RLS_ROOT
 
 Next, we'll set the RLS_ROOT environment variable to point to where we built
 the RLS:
@@ -95,7 +96,7 @@ export RLS_ROOT=/Source/rls
 ### Step 5: Download standard library metadata
 
 Finally, we need to get the metadata for the standard library.  This lets
-us get additional docs and types for all of `std`.  The command is currently only 
+us get additional docs and types for all of `std`.  The command is currently only
 supported on the nightly compilers, though we hope to remove this restriction in
 the future.
 
@@ -297,5 +298,3 @@ the user experience by showing progress indicators.
 * `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
   is complete (successfully or not, or even skipped) and all post-build analysis
   by the RLS is complete.
-
-
