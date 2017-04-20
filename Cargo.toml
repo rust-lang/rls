@@ -6,7 +6,7 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo" }
 derive-new = "0.3"
-env_logger = "0.3"
+env_logger = "0.4"
 languageserver-types = { git = "https://github.com/gluon-lang/languageserver-types" }
 log = "0.3"
 racer = { git = "https://github.com/phildawes/racer" }
