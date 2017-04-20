@@ -98,13 +98,15 @@ impl ActionHandler {
                                                   project_path: &Path)
             -> Vec<NotificationMessage<PublishRustDiagnosticsParams>>
         {
+            let cwd = ::std::env::current_dir().unwrap();
+
             build_results
             .iter()
             .map(|(path, diagnostics)| {
                 let method = "textDocument/publishDiagnostics".to_string();
 
                 let params = PublishRustDiagnosticsParams {
-                    uri: Url::from_file_path(project_path.join(path)).unwrap(),
+                    uri: Url::from_file_path(cwd.join(path)).unwrap(),
                     diagnostics: diagnostics.clone(),
                 };
 
