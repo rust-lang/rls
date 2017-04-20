@@ -4,7 +4,7 @@ version = "0.1.0"
 dependencies = [
  "cargo 0.19.0 (git+https://github.com/rust-lang/cargo)",
  "derive-new 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "env_logger 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.9.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "languageserver-types 0.7.0 (git+https://github.com/gluon-lang/languageserver-types)",
  "log 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
