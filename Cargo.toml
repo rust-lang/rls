@@ -22,7 +22,3 @@ serde_derive = "0.9"
 toml = "0.3"
 url = "1.1.0"
 url_serde = "0.1.0"
-
-[dependencies.hyper]
-version = "0.9"
-default-features = false

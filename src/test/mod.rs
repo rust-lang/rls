@@ -25,7 +25,7 @@ use vfs;
 
 use self::types::src;
 
-use hyper::Url;
+use url::Url;
 use serde_json;
 use std::path::{Path, PathBuf};
 

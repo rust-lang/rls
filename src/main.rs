@@ -14,7 +14,6 @@ extern crate cargo;
 #[macro_use]
 extern crate derive_new;
 extern crate env_logger;
-extern crate hyper;
 extern crate languageserver_types as ls_types;
 #[macro_use]
 extern crate log;
