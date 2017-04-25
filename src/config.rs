@@ -92,7 +92,7 @@ impl ConfigType for String {
 
 macro_rules! create_config {
     ($($i:ident: $ty:ty, $def:expr, $unstable:expr, $( $dstring:expr ),+ );+ $(;)*) => (
-        #[derive(RustcDecodable, Clone)]
+        #[derive(Clone)]
         pub struct Config {
             $(pub $i: $ty),+
         }
@@ -102,7 +102,7 @@ macro_rules! create_config {
         // specity all properties of `Config`.
         // We first parse into `ParsedConfig`, then create a default `Config`
         // and overwrite the properties with corresponding values from `ParsedConfig`
-        #[derive(RustcDecodable, Clone, Deserialize)]
+        #[derive(Clone, Deserialize)]
         pub struct ParsedConfig {
             $(pub $i: Option<$ty>),+
         }

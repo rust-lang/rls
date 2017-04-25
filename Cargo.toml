@@ -14,7 +14,6 @@ rls-analysis = { git = "https://github.com/nrc/rls-analysis" }
 rls-data = "0.1"
 rls-span = { version = "0.1", features = ["serialize-serde"] }
 rls-vfs = { git = "https://github.com/nrc/rls-vfs", features = ["racer-impls"] }
-rustc-serialize = "0.3"
 rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
 serde = "0.9"
 serde_json = "0.9"

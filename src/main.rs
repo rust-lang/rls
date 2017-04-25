@@ -22,7 +22,6 @@ extern crate rls_analysis as analysis;
 extern crate rls_vfs as vfs;
 extern crate rls_span as span;
 extern crate rls_data as data;
-extern crate rustc_serialize;
 extern crate rustfmt;
 extern crate serde;
 #[macro_use]
