@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::error::Error;
 
 use analysis::raw;
-use hyper::Url;
+use url::Url;
 use serde::Serialize;
 use span;
 use racer;
@@ -45,7 +45,7 @@ pub mod ls_util {
 
     use std::path::Path;
 
-    use hyper::Url;
+    use url::Url;
     use vfs::Vfs;
 
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {

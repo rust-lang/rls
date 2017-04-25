@@ -12,7 +12,7 @@ mod compiler_message_parsing;
 mod lsp_extensions;
 
 use analysis::{AnalysisHost};
-use hyper::Url;
+use url::Url;
 use vfs::{Vfs, Change};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
