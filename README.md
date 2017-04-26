@@ -55,8 +55,8 @@ rustup component add rust-analysis
 rustup component add rust-src
 ```
 
-If you've never set up Racer before, you may also need follow the [Racer configuration
-steps](https://github.com/phildawes/racer#configuration)
+If you've never set up Racer before, you'll need to set up your RUST_SRC_PATH variable. To do so, 
+you can follow the [Racer configuration steps](https://github.com/phildawes/racer#configuration)
 
 ## Running
 
