@@ -38,10 +38,9 @@ rls and its dependencies.
 
 ### Step 2: Switch to nightly
 
-Switch to the nightly compiler:
+Updated the nightly compiler. You don't have to use it as your default compiler, but it needs to be on your system:
 
 ```
-rustup default nightly
 rustup update nightly
 ```
 
