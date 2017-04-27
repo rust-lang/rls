@@ -52,6 +52,10 @@ pub mod ls_util {
         span::Range::from_positions(position_to_rls(r.start), position_to_rls(r.end))
     }
 
+    pub fn range_to_rls_with_len(r: Range, len: u64) -> span::Range<span::ZeroIndexed> {
+        span::Range::from_positions_with_len(position_to_rls(r.start), position_to_rls(r.end), len)
+    }
+
     pub fn position_to_rls(p: Position) -> span::Position<span::ZeroIndexed> {
         span::Position::new(span::Row::new_zero_indexed(p.line as u32),
                             span::Column::new_zero_indexed(p.character as u32))
