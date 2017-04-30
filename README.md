@@ -49,9 +49,9 @@ rustup update nightly
 Once you have rustup installed, run the following commands:
 
 ```
-rustup component add rls
-rustup component add rust-analysis
-rustup component add rust-src
+rustup component add rls --toolchain nightly
+rustup component add rust-analysis --toolchain nightly
+rustup component add rust-src --toolchain nightly
 ```
 
 If you've never set up Racer before, you'll need to set up your RUST_SRC_PATH variable. To do so, 
