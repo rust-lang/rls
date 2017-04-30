@@ -443,7 +443,7 @@ impl BuildQueue {
 
             let mut opts = CompileOptions::default(&config, CompileMode::Check);
             if rls_config.build_lib {
-                opts.filter = CompileFilter::new(true, &[], &[], &[], &[]);
+                opts.filter = CompileFilter::new(true, &[], false, &[], false, &[], false, &[], false);
             }
             compile_with_exec(&ws, &opts, Arc::new(exec)).expect("could not run cargo");
         });
