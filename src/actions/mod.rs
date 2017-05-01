@@ -175,8 +175,12 @@ impl ActionHandler {
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
         let fname = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
+            let len = i.range_length;
             if let Some(range) = i.range {
-                let range = ls_util::range_to_rls(range);
+                let range = match len {
+                    Some(l) => ls_util::range_to_rls_with_len(range, l),
+                    None => ls_util::range_to_rls(range),
+                };
                 Change::ReplaceText {
                     span: Span::from_range(range, fname.clone()),
                     text: i.text.clone()
