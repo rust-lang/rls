@@ -1,17 +1,12 @@
 language: rust
-sudo: true
+dist: trusty
+sudo: false
 cache: cargo
 os:
   - linux
   - osx
 rust:
   - nightly
-before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:kubuntu-ppa/backports -y; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -qq cmake=2.8.12.2-0ubuntu1~ubuntu12.04.1~ppa2; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade cmake; fi
 script:
-  - cargo build --verbose
+  - cargo build --release --verbose
   - cargo test --release --verbose
