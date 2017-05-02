@@ -425,13 +425,20 @@ impl BuildQueue {
         // However, if Cargo doesn't run a separate thread, then we'll just wait
         // forever. Therefore, we spawn an extra thread here to be safe.
         let handle = thread::spawn(move || {
-            let hardcoded = "-Zunstable-options -Zsave-analysis --error-format=json \
-                             -Zcontinue-parse-after-error";
-            if rls_config.sysroot.is_empty() {
-                env::set_var("RUSTFLAGS", hardcoded);
+            let hardcoded_flags = "-Zunstable-options -Zsave-analysis --error-format=json \
+                                   -Zcontinue-parse-after-error";
+            let sys_root_flag = if rls_config.sysroot.is_empty() {
+                String::new()
             } else {
-                env::set_var("RUSTFLAGS", &format!("--sysroot {} {}", rls_config.sysroot, hardcoded));
-            }
+                format!("--sysroot {}", rls_config.sysroot)
+            };
+            let rustflags = format!("{} {} {} {}",
+                                     env::var("RUSTFLAGS").unwrap_or(String::new()),
+                                     rls_config.rustflags,
+                                     hardcoded_flags,
+                                     sys_root_flag);
+            let rustflags = dedup_flags(&rustflags);
+            env::set_var("RUSTFLAGS", &rustflags);
 
             let shell = MultiShell::from_write(Box::new(BufWriter(out.clone())),
                                                Box::new(BufWriter(err.clone())));
@@ -722,5 +729,84 @@ impl FileLoader for ReplacedFileLoader {
             }
         }
         self.real_file_loader.read_file(path)
+    }
+}
+
+/// flag_str is a string of command line args for Rust. This function removes any
+/// duplicate flags.
+fn dedup_flags(flag_str: &str) -> String {
+    // The basic strategy here is that we split flag_str into a set of keys and
+    // values and dedup any duplicate keys, using the last value in flag_str.
+    // This is a bit complicated because of the variety of ways args can be specified.
+
+    let mut flags = HashMap::new();
+    let mut bits = flag_str.split_whitespace().peekable();
+
+    while let Some(bit) = bits.next() {
+        let mut bit = bit.to_owned();
+        // Handle `-Z foo` the same way as `-Zfoo`.
+        if bit.len() == 2 && bits.peek().is_some() && !bits.peek().unwrap().starts_with('-') {
+            let bit_clone = bit.clone();
+            let mut bit_chars = bit_clone.chars();
+            if bit_chars.next().unwrap() == '-' && bit_chars.next().unwrap() != '-' {
+                bit.push_str(bits.next().unwrap());
+            }
+        }
+
+        if bit.starts_with('-') {
+            if bits.peek().is_some() && !bits.peek().unwrap().starts_with('-') {
+                flags.insert(bit, bits.next().unwrap().to_owned());
+            } else {
+                flags.insert(bit, String::new());
+            }
+        } else {
+            // A standalone arg with no flag, no deduplication to do. We merge these
+            // together, which is probably not ideal, but is simple.
+            flags.entry(String::new()).or_insert(String::new()).push_str(&format!(" {}", bit));
+        }
+    }
+
+    // Put the map back together as a string.
+    let mut result = String::new();
+    for (k, v) in &flags {
+        if k.is_empty() {
+            result.push_str(v);
+        } else {
+            result.push(' ');
+            result.push_str(k);
+            if !v.is_empty() {
+                result.push(' ');
+                result.push_str(v);
+            }
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod test {
+    use super::dedup_flags;
+
+    #[test]
+    fn test_dedup_flags() {
+        // These should all be preserved.
+        assert!(dedup_flags("") == "");
+        assert!(dedup_flags("-Zfoo") == " -Zfoo");
+        assert!(dedup_flags("-Z foo") == " -Zfoo");
+        assert!(dedup_flags("-Zfoo bar") == " -Zfoo bar");
+        let result = dedup_flags("-Z foo foo bar");
+        assert!(result.matches("foo").count() == 2);
+        assert!(result.matches("bar").count() == 1);
+
+        // These should dedup.
+        assert!(dedup_flags("-Zfoo -Zfoo") == " -Zfoo");
+        assert!(dedup_flags("-Zfoo -Zfoo -Zfoo") == " -Zfoo");
+        let result = dedup_flags("-Zfoo -Zfoo -Zbar");
+        assert!(result.matches("foo").count() == 1);
+        assert!(result.matches("bar").count() == 1);
+        let result = dedup_flags("-Zfoo -Zbar -Zfoo -Zbar -Zbar");
+        assert!(result.matches("foo").count() == 1);
+        assert!(result.matches("bar").count() == 1);
+        assert!(dedup_flags("-Zfoo -Z foo") == " -Zfoo");
     }
 }
