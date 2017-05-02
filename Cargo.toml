@@ -13,7 +13,7 @@ racer = "2.0.6"
 rls-analysis = "0.1"
 rls-data = "0.1"
 rls-span = { version = "0.1", features = ["serialize-serde"] }
-rls-vfs = { version = "0.1", features = ["racer-impls"] }
+rls-vfs = { version = "0.2", features = ["racer-impls"] }
 rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
 serde = "0.9"
 serde_json = "0.9"
