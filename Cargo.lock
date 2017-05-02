@@ -11,7 +11,7 @@ dependencies = [
  "rls-analysis 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-data 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-span 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-vfs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rls-vfs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustfmt 0.8.3 (git+https://github.com/rust-lang-nursery/rustfmt)",
  "serde 0.9.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 0.9.15 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "rls-vfs"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "racer 2.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1226,7 +1226,7 @@ dependencies = [
 "checksum rls-analysis 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0d536f6f27157033214baad389e4cb5f66453485c18830d58c786a54b0524449"
 "checksum rls-data 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "af1dfff00189fd7b78edb9af131b0de703676c04fa8126aed77fd2c586775a4d"
 "checksum rls-span 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8656f7b850ac85fb204ef94318c641bbb15a32766e12f9a589a23e4c0fbc38db"
-"checksum rls-vfs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "41986501392bf9b41dc2712e0fc2c6c3fddc0d9e5baef5488637ec65fe2ae827"
+"checksum rls-vfs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "840ccded6b43794d0693d53cac50267e3d35f64fde0b8698cb63e4154581e3fd"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 "checksum rustfmt 0.8.3 (git+https://github.com/rust-lang-nursery/rustfmt)" = "<none>"
 "checksum same-file 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "d931a44fdaa43b8637009e7632a02adc4f2b2e0733c08caa4cf00e8da4a117a7"

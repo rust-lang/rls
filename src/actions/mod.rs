@@ -178,6 +178,7 @@ impl ActionHandler {
                 let range = ls_util::range_to_rls(range);
                 Change::ReplaceText {
                     span: Span::from_range(range, fname.clone()),
+                    len: i.range_length,
                     text: i.text.clone()
                 }
             } else {
