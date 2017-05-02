@@ -94,8 +94,7 @@ impl ActionHandler {
             }
         }
 
-        fn convert_build_results_to_notifications(build_results: &BuildResults,
-                                                  project_path: &Path)
+        fn convert_build_results_to_notifications(build_results: &BuildResults)
             -> Vec<NotificationMessage<PublishRustDiagnosticsParams>>
         {
             let cwd = ::std::env::current_dir().unwrap();
@@ -132,7 +131,7 @@ impl ActionHandler {
                     let mut results = self.previous_build_results.lock().unwrap();
                     clear_build_results(&mut results);
                     parse_compiler_messages(&x, &mut results);
-                    convert_build_results_to_notifications(&results, project_path)
+                    convert_build_results_to_notifications(&results)
                 };
 
                 // TODO we don't send an OK notification if there were no errors
