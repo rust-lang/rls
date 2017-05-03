@@ -29,26 +29,26 @@ use config::Config;
 pub struct Ack {}
 
 #[derive(Debug, new)]
-struct ParseError {
-    kind: ErrorKind,
-    message: &'static str,
-    id: Option<usize>,
+pub struct ParseError {
+    pub kind: ErrorKind,
+    pub message: &'static str,
+    pub id: Option<usize>,
 }
 
 #[derive(Debug)]
-enum ServerMessage {
+pub enum ServerMessage {
     Request(Request),
     Notification(Notification)
 }
 
 #[derive(Debug)]
-struct Request {
-    id: usize,
-    method: Method
+pub struct Request {
+    pub id: usize,
+    pub method: Method
 }
 
 #[derive(Debug)]
-enum Notification {
+pub enum Notification {
     Exit,
     CancelRequest(CancelParams),
     Change(DidChangeTextDocumentParams),
@@ -61,6 +61,7 @@ enum Notification {
 macro_rules! serializable_enum {
     ($enum_name:ident, $($variant_name:ident($variant_type:ty)),*) => (
 
+        #[derive(Debug)]
         pub enum $enum_name {
             $(
                 $variant_name($variant_type),
@@ -106,7 +107,7 @@ macro_rules! messages {
         $($other_str: pat => $other_expr: expr;)*
     ) => {
         #[derive(Debug)]
-        enum Method {
+        pub enum Method {
             $($method_name$(($method_arg))*,)*
         }
         fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
@@ -187,8 +188,8 @@ messages! {
 
 pub struct LsService {
     shut_down: AtomicBool,
-    msg_reader: Box<MessageReader + Sync + Send>,
-    output: Box<Output + Sync + Send>,
+    msg_reader: Box<MessageReader + Send + Sync>,
+    output: Box<Output + Send + Sync>,
     handler: ActionHandler,
 }
 
@@ -204,16 +205,17 @@ impl LsService {
                build_queue: Arc<BuildQueue>,
                reader: Box<MessageReader + Send + Sync>,
                output: Box<Output + Send + Sync>)
-               -> Arc<LsService> {
-        Arc::new(LsService {
+               -> LsService {
+        LsService {
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
             output: output,
             handler: ActionHandler::new(analysis, vfs, build_queue),
-        })
+        }
     }
 
-    pub fn run(this: Arc<Self>) {
+    pub fn run(self) {
+        let this = Arc::new(self);
         while LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
@@ -322,8 +324,8 @@ impl LsService {
             };
         }
 
-        let c = match this.msg_reader.read_message() {
-            Some(c) => c,
+        let message = match this.msg_reader.parsed_message() {
+            Some(m) => m,
             None => {
                 this.output.parse_error();
                 return ServerStateChange::Break
@@ -332,7 +334,6 @@ impl LsService {
 
         let this = this.clone();
         thread::spawn(move || {
-            let message = parse_message(&c);
             {
                 let shut_down = this.shut_down.load(Ordering::SeqCst);
                 if shut_down {
@@ -391,7 +392,13 @@ impl LsService {
 }
 
 pub trait MessageReader {
-    fn read_message(&self) -> Option<String>;
+    fn read_message(&self) -> Option<String> {
+        None
+    }
+
+    fn parsed_message(&self) -> Option<Result<ServerMessage, ParseError>> {
+        self.read_message().map(|m| parse_message(&m))
+    }
 }
 
 struct StdioMsgReader;

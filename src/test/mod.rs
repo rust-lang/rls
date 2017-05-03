@@ -357,7 +357,7 @@ fn test_parse_error_on_malformed_input() {
     let reader = Box::new(NoneMsgReader);
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    let server = ls_server::LsService::new(analysis, vfs, build_queue, reader, output);
+    let server = Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output));
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Break);
@@ -376,7 +376,7 @@ fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultLi
     let reader = Box::new(MockMsgReader::new(messages));
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
+    (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
 }
 
 // Initialise and run the internals of an LS protocol RLS server.
@@ -388,7 +388,7 @@ fn mock_raw_server(messages: Vec<String>) -> (Arc<ls_server::LsService>, LsResul
     let reader = Box::new(MockRawMsgReader::new(messages));
     let output = Box::new(RecordOutput::new());
     let results = output.output.clone();
-    (ls_server::LsService::new(analysis, vfs, build_queue, reader, output), results)
+    (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
 }
 
 struct MockMsgReader {

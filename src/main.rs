@@ -33,11 +33,12 @@ extern crate url_serde;
 
 use std::sync::Arc;
 
-mod build;
-mod server;
 mod actions;
-mod lsp_data;
+mod build;
+mod cmd;
 mod config;
+mod lsp_data;
+mod server;
 
 #[cfg(test)]
 mod test;
@@ -50,9 +51,14 @@ type Span = span::Span<span::ZeroIndexed>;
 pub fn main() {
     env_logger::init().unwrap();
 
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
+    let arg_count = ::std::env::args().count();
+    if arg_count > 1 {
+        cmd::run();
+    } else {
+        let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
+        let vfs = Arc::new(vfs::Vfs::new());
+        let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
 
-    server::run_server(analysis, vfs, build_queue);
+        server::run_server(analysis, vfs, build_queue);
+    }
 }

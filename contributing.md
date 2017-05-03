@@ -20,10 +20,9 @@ please get in touch by filing an issue or on IRC.
 
 ## Building
 
-**YOU NEED A VERY RECENT NIGHTLY COMPILER**
-
-Otherwise the RLS will not work very well.  You also don't need to build the `rls` to use it. Instead, you can
-install via `rustup`, which is the currently preferred method.  See the [readme](README.md) for more information.
+Note, you also don't need to build the `rls` to use it. Instead, you can install
+via `rustup`, which is the currently preferred method. See the
+[readme](README.md) for more information.
 
 ### Step 1: Install build dependencies
 
@@ -104,7 +103,7 @@ the future.
 rustup component add rust-analysis
 ```
 
-If you've never set up Racer before, you may also need follow the [Racer configuration
+If you've never set up Racer before, you may also need to follow the [Racer configuration
 steps](https://github.com/phildawes/racer#configuration)
 
 ## Running and testing
@@ -123,6 +122,14 @@ Testing is unfortunately minimal. There is support for regression tests, but not
 many actual tests exists yet. There is signifcant [work to do](https://github.com/rust-lang-nursery/rls/issues/12)
 before we have a comprehensive testing story.
 
+You can run the RLS in command line mode by running with an argument (any
+argument), e.g., `cargo run -- foo`. You need to run it in the root directory of
+the project to be analysed. This should initialise the RLS (which will take some
+time for large projects) and then give you a `>` prompt. Type `help` (or just
+`h`) to see the commands available.
+
+The command line interface is useful for debugging and testing, especially to
+narrow down a bug to either the RLS or a client.
 
 ## Standard library support
 
