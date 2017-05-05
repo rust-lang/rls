@@ -193,6 +193,7 @@ macro_rules! create_config {
 
 create_config! {
     sysroot: String, String::new(), false, "--sysroot";
+    target: String, String::new(), false, "--target";
     rustflags: String, String::new(), false, "flags added to RUSTFLAGS";
     build_lib: bool, false, false, "cargo check --lib";
     cfg_test: bool, true, false, "build cfg(test) code";

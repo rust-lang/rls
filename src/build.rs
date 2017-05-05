@@ -425,18 +425,18 @@ impl BuildQueue {
         // However, if Cargo doesn't run a separate thread, then we'll just wait
         // forever. Therefore, we spawn an extra thread here to be safe.
         let handle = thread::spawn(move || {
-            let hardcoded_flags = "-Zunstable-options -Zsave-analysis --error-format=json \
-                                   -Zcontinue-parse-after-error";
-            let sys_root_flag = if rls_config.sysroot.is_empty() {
-                String::new()
-            } else {
-                format!("--sysroot {}", rls_config.sysroot)
-            };
-            let rustflags = format!("{} {} {} {}",
+            let mut flags = "-Zunstable-options -Zsave-analysis --error-format=json \
+                             -Zcontinue-parse-after-error".to_owned();
+            if !rls_config.sysroot.is_empty() {
+                flags.push_str(&format!(" --sysroot {}", rls_config.sysroot));
+            }
+            if !rls_config.target.is_empty() {
+                flags.push_str(&format!(" --target {}", rls_config.target));
+            }
+            let rustflags = format!("{} {} {}",
                                      env::var("RUSTFLAGS").unwrap_or(String::new()),
                                      rls_config.rustflags,
-                                     hardcoded_flags,
-                                     sys_root_flag);
+                                     flags);
             let rustflags = dedup_flags(&rustflags);
             env::set_var("RUSTFLAGS", &rustflags);
 
