@@ -430,9 +430,6 @@ impl BuildQueue {
             if !rls_config.sysroot.is_empty() {
                 flags.push_str(&format!(" --sysroot {}", rls_config.sysroot));
             }
-            if !rls_config.target.is_empty() {
-                flags.push_str(&format!(" --target {}", rls_config.target));
-            }
             let rustflags = format!("{} {} {}",
                                      env::var("RUSTFLAGS").unwrap_or(String::new()),
                                      rls_config.rustflags,
@@ -451,6 +448,9 @@ impl BuildQueue {
             let mut opts = CompileOptions::default(&config, CompileMode::Check);
             if rls_config.build_lib {
                 opts.filter = CompileFilter::new(true, &[], false, &[], false, &[], false, &[], false);
+            }
+            if !rls_config.target.is_empty() {
+                opts.target = Some(&rls_config.target);
             }
             compile_with_exec(&ws, &opts, Arc::new(exec)).expect("could not run cargo");
         });
