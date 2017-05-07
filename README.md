@@ -78,7 +78,8 @@ code .
 VSCode will open into the `rls_vscode` project.  From here, click the Debug
 button on the left-hand side (a bug with a line through it). Next, click the
 green triangle at the top.  This will launch a new instance of VSCode with the
-`rls_vscode` plugin enabled. vscode setting `"window.openFoldersInNewWindow"` cannot be set to `"on"`. From there, you can open your Rust projects using
+`rls_vscode` plugin enabled. VSCode setting `"window.openFoldersInNewWindow"`
+cannot be set to `"on"`. From there, you can open your Rust projects using
 the RLS.
 
 You'll know it's working when you see this in the status bar at the bottom, with
