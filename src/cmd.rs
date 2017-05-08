@@ -17,7 +17,7 @@ use build::BuildQueue;
 use vfs::Vfs;
 use server::{self, ServerMessage, Request, Notification, Method, LsService, ParseError, ResponseData};
 
-use ls_types::{TextDocumentPositionParams, TextDocumentIdentifier, Position, InitializeParams};
+use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams};
 use serde_json::Value;
 use std::time::Duration;
 use std::io::{stdin, stdout, Write};
@@ -115,9 +115,15 @@ fn exit() -> ServerMessage {
 fn initialize(root_path: String) -> ServerMessage {
     let params = InitializeParams {
         process_id: None,
-        root_path: Some(root_path),
+        root_path: Some(root_path), // FIXME(#299): This property is deprecated. Instead Use `root_uri`.
+        root_uri: None,
         initialization_options: None,
-        capabilities: Value::Null,
+        capabilities: ClientCapabilities {
+            workspace: None,
+            text_document: None,
+            experimental: Value::Null,
+        },
+        trace: TraceOption::Off,
     };
     let request = Request {
         id: next_id(),
