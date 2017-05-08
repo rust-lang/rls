@@ -106,8 +106,9 @@ squiggles to see the text of the error.
 ## Configuration
 
 The RLS can be configured on a per-project basis by adding a file called
-`rls.toml` to the project root (i.e., next to Cargo.toml). Entries in this file
-will affect how the RLS operates and how it builds your project.
+`.rls.toml` or `rls.toml` to the project root (i.e., next to Cargo.toml).
+Entries in this file will affect how the RLS operates and how it builds your
+project.
 
 Currently we accept the following options:
 

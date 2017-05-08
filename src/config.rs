@@ -166,15 +166,23 @@ macro_rules! create_config {
                 )+
             }
 
-            /// Attempt to read a confid from rls.toml in path, failing that use defaults.
+            /// Attempt to read a config from .rls.toml, then rls.toml in path, failing that use
+            /// defaults.
             pub fn from_path(path: &Path) -> Config {
-                let config_path = path.to_owned().join("rls.toml");
-                let config_file = File::open(config_path);
-                let mut toml = String::new();
-                if let Ok(mut f) = config_file {
-                    f.read_to_string(&mut toml).unwrap();
+                const CONFIG_FILE_NAMES: [&str; 2] = [".rls.toml", "rls.toml"];
+
+                for config_file_name in &CONFIG_FILE_NAMES {
+                    let config_path = path.to_owned().join(config_file_name);
+                    let config_file = File::open(config_path);
+
+                    if let Ok(mut f) = config_file {
+                        let mut toml = String::new();
+                        f.read_to_string(&mut toml).unwrap();
+                        return Config::from_toml(&toml);
+                    }
                 }
-                Config::from_toml(&toml)
+
+                Config::default()
             }
         }
 
