@@ -41,6 +41,7 @@ rls and its dependencies.
 Update the nightly compiler. You don't have to use it as your default compiler, but it needs to be on your system:
 
 ```
+rustup self update
 rustup update nightly
 ```
 
