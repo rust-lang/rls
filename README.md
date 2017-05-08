@@ -36,12 +36,17 @@ for [Visual Studio Code](https://code.visualstudio.com/).
 You can install [rustup](http://rustup.rs/) on many platforms. This will help us quickly install the
 rls and its dependencies.
 
+If you already have rustup installed, be sure to run self update to ensure you have the latest rustup:
+
+```
+rustup self update
+```
+
 ### Step 2: Update nightly
 
 Update the nightly compiler. You don't have to use it as your default compiler, but it needs to be on your system:
 
 ```
-rustup self update
 rustup update nightly
 ```
 
