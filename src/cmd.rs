@@ -17,7 +17,7 @@ use build::BuildQueue;
 use vfs::Vfs;
 use server::{self, ServerMessage, Request, Notification, Method, LsService, ParseError, ResponseData};
 
-use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams};
+use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams};
 use std::time::Duration;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
@@ -63,6 +63,13 @@ pub fn run() {
                 let col = bits.next().expect("Expected column number");
                 def(file_name, row, col)
             }
+            "rename" => {
+                let file_name = bits.next().expect("Expected file name");
+                let row = bits.next().expect("Expected line number");
+                let col = bits.next().expect("Expected column number");
+                let new_name = bits.next().expect("Expected new name");
+                rename(file_name, row, col, new_name)
+            }
             "hover" => {
                 let file_name = bits.next().expect("Expected file name");
                 let row = bits.next().expect("Expected line number");
@@ -101,6 +108,21 @@ fn def(file_name: &str, row: &str, col: &str) -> ServerMessage {
     let request = Request {
         id: next_id(),
         method: Method::GotoDef(params),
+    };
+    ServerMessage::Request(request)
+}
+
+// `rename` command
+fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> ServerMessage {
+    let params = RenameParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        position: Position::new(u64::from_str(row).expect("Bad line number"),
+                                u64::from_str(col).expect("Bad column number")),
+        new_name: new_name.to_owned(),
+    };
+    let request = Request {
+        id: next_id(),
+        method: Method::Rename(params),
     };
     ServerMessage::Request(request)
 }
@@ -227,6 +249,10 @@ fn help() {
     println!("    def     file_name line_number column_number");
     println!("            textDocument/definition");
     println!("            used for 'goto def'");
+    println!("");
+    println!("    rename  file_name line_number column_number new_name");
+    println!("            textDocument/rename");
+    println!("            used for 'rename'");
     println!("");
     println!("    hover   file_name line_number column_number");
     println!("            textDocument/hover");
