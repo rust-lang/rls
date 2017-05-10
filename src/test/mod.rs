@@ -43,8 +43,10 @@ fn test_goto_def() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "null".to_owned()),
-                                                        ("rootPath", root_path)]),
+                                                        ("capabilities", "{ \"experimental\": null }".to_owned()),
+                                                        ("rootPath", root_path),
+                                                        ("rootUri", "null".to_owned()),
+                                                        ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
@@ -75,8 +77,10 @@ fn test_hover() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "null".to_owned()),
-                                                        ("rootPath", root_path)]),
+                                                        ("capabilities", "{ \"experimental\": null }".to_owned()),
+                                                        ("rootPath", root_path),
+                                                        ("rootUri", "null".to_owned()),
+                                                        ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/hover",
                                      vec![("textDocument", text_doc),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
@@ -109,9 +113,13 @@ fn test_find_all_refs() {
         "method": "initialize",
         "id": 0,
         "params": {{
-            "processId": "0",
-            "capabilities": null,
-            "rootPath": {}
+            "processId": 0,
+            "capabilities": {{
+                "experimental": null
+            }},
+            "rootPath": {},
+            "rootUri": null,
+            "trace": "off"
         }}
     }}"#, root_path), format!(r#"{{
         "jsonrpc": "2.0",
@@ -157,9 +165,13 @@ fn test_find_all_refs_no_cfg_test() {
         "method": "initialize",
         "id": 0,
         "params": {{
-            "processId": "0",
-            "capabilities": null,
-            "rootPath": {}
+            "processId": 0,
+            "capabilities": {{
+                "experimental": null
+            }},
+            "rootPath": {},
+            "rootUri": null,
+            "trace": "off"
         }}
     }}"#, root_path), format!(r#"{{
         "jsonrpc": "2.0",
@@ -199,9 +211,13 @@ fn test_borrow_error() {
         "method": "initialize",
         "id": 0,
         "params": {{
-            "processId": "0",
-            "capabilities": null,
-            "rootPath": {}
+            "processId": 0,
+            "capabilities": {{
+                "experimental": null
+            }},
+            "rootPath": {},
+            "rootUri": null,
+            "trace": "off"
         }}
     }}"#, root_path)];
 
@@ -231,9 +247,13 @@ fn test_highlight() {
         "method": "initialize",
         "id": 0,
         "params": {{
-            "processId": "0",
-            "capabilities": null,
-            "rootPath": {}
+            "processId": 0,
+            "capabilities": {{
+                "experimental": null
+            }},
+            "rootPath": {},
+            "rootUri": null,
+            "trace": "off"
         }}
     }}"#, root_path), format!(r#"{{
         "jsonrpc": "2.0",
@@ -275,9 +295,13 @@ fn test_rename() {
         "method": "initialize",
         "id": 0,
         "params": {{
-            "processId": "0",
-            "capabilities": null,
-            "rootPath": {}
+            "processId": 0,
+            "capabilities": {{
+                "experimental": null
+            }},
+            "rootPath": {},
+            "rootUri": null,
+            "trace": "off"
         }}
     }}"#, root_path), format!(r#"{{
         "jsonrpc": "2.0",
@@ -317,8 +341,10 @@ fn test_completion() {
     let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
                                                  .expect("couldn't convert path to JSON"));
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "null".to_owned()),
-                                                        ("rootPath", root_path)]),
+                                                        ("capabilities", "{ \"experimental\": null }".to_owned()),
+                                                        ("rootPath", root_path),
+                                                        ("rootUri", "null".to_owned()),
+                                                        ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/completion",
                                      vec![("textDocument", text_doc.to_owned()),
                                           ("position", cache.mk_ls_position(src(&source_file_path, 22, "rld")))]),

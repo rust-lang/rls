@@ -49,7 +49,7 @@ impl Cache {
     pub fn mk_ls_position(&mut self, src: Src) -> String {
         let line = self.get_line(src);
         let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
-        format!("{{\"line\":\"{}\",\"character\":\"{}\"}}", src.line - 1, char_of_byte_index(&line, col))
+        format!("{{\"line\":{},\"character\":{}}}", src.line - 1, char_of_byte_index(&line, col))
     }
 
     pub fn abs_path(&self, file_name: &Path) -> PathBuf {

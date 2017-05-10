@@ -7,17 +7,17 @@ authors = ["Jonathan Turner <jturner@mozilla.com>"]
 cargo = { git = "https://github.com/rust-lang/cargo" }
 derive-new = "0.3"
 env_logger = "0.4"
-languageserver-types = "0.7.0"
+languageserver-types = "0.8.0"
 log = "0.3"
 racer = "2.0.6"
-rls-analysis = "0.1"
-rls-data = "0.1"
-rls-span = { version = "0.1", features = ["serialize-serde"] }
-rls-vfs = { version = "0.2", features = ["racer-impls"] }
+rls-analysis = "0.2.1"
+rls-data = "0.3.1"
+rls-span = { version = "0.4", features = ["serialize-serde"] }
+rls-vfs = { version = "0.3", features = ["racer-impls"] }
 rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt" }
-serde = "0.9"
-serde_json = "0.9"
-serde_derive = "0.9"
-toml = "0.3"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+toml = "0.4"
 url = "1.1.0"
-url_serde = "0.1.0"
+url_serde = "0.2.0"
