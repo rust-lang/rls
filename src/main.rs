@@ -51,8 +51,13 @@ type Span = span::Span<span::ZeroIndexed>;
 pub fn main() {
     env_logger::init().unwrap();
 
-    let arg_count = ::std::env::args().count();
-    if arg_count > 1 {
+    let args: Vec<String> = ::std::env::args().collect();
+    if args[1] == "--version" || args[1] == "-V" {
+        println!("rls {}", version());
+        return;
+    }
+
+    if args.len() > 1 {
         cmd::run();
     } else {
         let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
@@ -61,4 +66,8 @@ pub fn main() {
 
         server::run_server(analysis, vfs, build_queue);
     }
+}
+
+fn version() -> &'static str {
+    concat!(env!("CARGO_PKG_VERSION"), include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
 }

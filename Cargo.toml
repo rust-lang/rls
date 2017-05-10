@@ -3,6 +3,8 @@ name = "rls"
 version = "0.1.0"
 authors = ["Jonathan Turner <jturner@mozilla.com>"]
 
+build = "build.rs"
+
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo" }
 derive-new = "0.3"
