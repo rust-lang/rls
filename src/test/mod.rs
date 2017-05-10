@@ -49,8 +49,10 @@ fn test_goto_def() {
                                                         ("rootUri", "null".to_owned()),
                                                         ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/definition",
-                                     vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 22, "world")))])];
+                                     vec![
+                                        ("textDocument", text_doc),
+                                        ("position", serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 22, "world"))).expect("couldn't convert path to JSON"))
+                                     ])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -83,8 +85,10 @@ fn test_hover() {
                                                         ("rootUri", "null".to_owned()),
                                                         ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/hover",
-                                     vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 22, "world")))])];
+                                     vec![
+                                        ("textDocument", text_doc),
+                                        ("position", serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 22, "world"))).expect("couldn't convert path to JSON"))
+                                     ])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -353,11 +357,15 @@ fn test_completion() {
                                                         ("rootUri", "null".to_owned()),
                                                         ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/completion",
-                                     vec![("textDocument", text_doc.to_owned()),
-                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 22, "rld")))]),
+                                     vec![
+                                        ("textDocument", text_doc.to_owned()),
+                                        ("position",  serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 22, "rld"))).expect("couldn't convert path to JSON"))
+                                    ]),
                         Message::new("textDocument/completion",
-                                     vec![("textDocument", text_doc.to_owned()),
-                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 25, "x)")))])];
+                                     vec![
+                                        ("textDocument", text_doc.to_owned()),
+                                        ("position", serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 25, "x)"))).expect("couldn't convert path to JSON"))
+                                     ])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
