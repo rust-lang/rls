@@ -26,7 +26,13 @@ extern crate rustfmt;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+
+#[cfg(test)]
+#[macro_use]
 extern crate serde_json;
+#[cfg(not(test))]
+extern crate serde_json;
+
 extern crate toml;
 extern crate url;
 extern crate url_serde;
