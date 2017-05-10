@@ -26,6 +26,7 @@ use vfs;
 use self::types::src;
 
 use url::Url;
+use ls_types::TextDocumentIdentifier;
 use serde_json;
 use std::path::{Path, PathBuf};
 
@@ -49,7 +50,7 @@ fn test_goto_def() {
                                                         ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/definition",
                                      vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
+                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 22, "world")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -83,7 +84,7 @@ fn test_hover() {
                                                         ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/hover",
                                      vec![("textDocument", text_doc),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "world")))])];
+                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 22, "world")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -103,36 +104,37 @@ fn test_find_all_refs() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
+    let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
-    let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "initialize",
-        "id": 0,
-        "params": {{
-            "processId": 0,
-            "capabilities": {{
-                "experimental": null
-            }},
-            "rootPath": {},
-            "rootUri": null,
-            "trace": "off"
-        }}
-    }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "textDocument/references",
-        "id": 42,
-        "params": {{
-            "textDocument": {},
-            "position": {},
-            "context": {{
-                "includeDeclaration": true
-            }}
-        }}
-    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 10, "Bar")))];
+    let text_doc = TextDocumentIdentifier::new(url);
+    let messages = vec![
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "id": 0,
+            "params": {
+                "processId": 0,
+                "capabilities": {
+                    "experimental": null
+                },
+                "rootPath": root_path,
+                "rootUri": null,
+                "trace": "off"
+            }
+        }).to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/references",
+            "id": 42,
+            "params": {
+                "textDocument": text_doc,
+                "position": cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+                "context": {
+                    "includeDeclaration": true
+                }
+            }
+        }).to_string()
+    ];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -155,36 +157,37 @@ fn test_find_all_refs_no_cfg_test() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
+    let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
-    let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "initialize",
-        "id": 0,
-        "params": {{
-            "processId": 0,
-            "capabilities": {{
-                "experimental": null
-            }},
-            "rootPath": {},
-            "rootUri": null,
-            "trace": "off"
-        }}
-    }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "textDocument/references",
-        "id": 42,
-        "params": {{
-            "textDocument": {},
-            "position": {},
-            "context": {{
-                "includeDeclaration": true
-            }}
-        }}
-    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 10, "Bar")))];
+    let text_doc = TextDocumentIdentifier::new(url);
+    let messages = vec![
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "id": 0,
+            "params": {
+                "processId": 0,
+                "capabilities": {
+                    "experimental": null
+                },
+                "rootPath": root_path,
+                "rootUri": null,
+                "trace": "off"
+            }
+        }).to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/references",
+            "id": 42,
+            "params": {
+                "textDocument": text_doc,
+                "position": cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+                "context": {
+                    "includeDeclaration": true
+                }
+            }
+        }).to_string()
+    ];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -204,22 +207,23 @@ fn test_find_all_refs_no_cfg_test() {
 fn test_borrow_error() {
     let (cache, _tc) = init_env("borrow_error");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
-    let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "initialize",
-        "id": 0,
-        "params": {{
-            "processId": 0,
-            "capabilities": {{
-                "experimental": null
-            }},
-            "rootPath": {},
-            "rootUri": null,
-            "trace": "off"
-        }}
-    }}"#, root_path)];
+    let root_path = cache.abs_path(Path::new("."));
+    let messages = vec![
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "id": 0,
+            "params": {
+                "processId": 0,
+                "capabilities": {
+                    "experimental": null
+                },
+                "rootPath": root_path,
+                "rootUri": null,
+                "trace": "off"
+            }
+        }).to_string()
+    ];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -237,33 +241,35 @@ fn test_highlight() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
+    let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
-    let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "initialize",
-        "id": 0,
-        "params": {{
-            "processId": 0,
-            "capabilities": {{
-                "experimental": null
-            }},
-            "rootPath": {},
-            "rootUri": null,
-            "trace": "off"
-        }}
-    }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "textDocument/documentHighlight",
-        "id": 42,
-        "params": {{
-            "textDocument": {},
-            "position": {}
-        }}
-    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 22, "world")))];
+    let text_doc = TextDocumentIdentifier::new(url);
+
+    let messages = vec![
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "id": 0,
+            "params": {
+                "processId": 0,
+                "capabilities": {
+                    "experimental": null
+                },
+                "rootPath": root_path,
+                "rootUri": null,
+                "trace": "off"
+            }
+        }).to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/documentHighlight",
+            "id": 42,
+            "params": {
+                "textDocument": text_doc,
+                "position": cache.mk_ls_position(src(&source_file_path, 22, "world"))
+            }
+        }).to_string()
+    ];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -285,34 +291,35 @@ fn test_rename() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
+    let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
-    let messages = vec![format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "initialize",
-        "id": 0,
-        "params": {{
-            "processId": 0,
-            "capabilities": {{
-                "experimental": null
-            }},
-            "rootPath": {},
-            "rootUri": null,
-            "trace": "off"
-        }}
-    }}"#, root_path), format!(r#"{{
-        "jsonrpc": "2.0",
-        "method": "textDocument/rename",
-        "id": 42,
-        "params": {{
-            "textDocument": {},
-            "position": {},
-            "newName": "foo"
-        }}
-    }}"#, text_doc, cache.mk_ls_position(src(&source_file_path, 22, "world")))];
+    let text_doc = TextDocumentIdentifier::new(url);
+    let messages = vec![
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "id": 0,
+            "params": {
+                "processId": 0,
+                "capabilities": {
+                    "experimental": null
+                },
+                "rootPath": root_path,
+                "rootUri": null,
+                "trace": "off"
+            }
+        }).to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/rename",
+            "id": 42,
+            "params": {
+                "textDocument": text_doc,
+                "position": cache.mk_ls_position(src(&source_file_path, 22, "world")),
+                "newName": "foo"
+            }
+        }).to_string()
+    ];
 
     let (server, results) = mock_raw_server(messages);
     // Initialise and build.
@@ -347,10 +354,10 @@ fn test_completion() {
                                                         ("trace", "\"off\"".to_owned())]),
                         Message::new("textDocument/completion",
                                      vec![("textDocument", text_doc.to_owned()),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 22, "rld")))]),
+                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 22, "rld")))]),
                         Message::new("textDocument/completion",
                                      vec![("textDocument", text_doc.to_owned()),
-                                          ("position", cache.mk_ls_position(src(&source_file_path, 25, "x)")))])];
+                                          ("position", cache.mk_ls_position_str(src(&source_file_path, 25, "x)")))])];
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
@@ -476,7 +483,11 @@ impl ls_server::MessageReader for MockMsgReader {
 
         let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
         // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
-        let result = format!("{{\"method\":\"{}\",\"id\":42,\"params\":{{{}}}}}", message.method, params);
+        let result = json!({
+            "method": message.method,
+            "id": 42,
+            "params": serde_json::from_str::<serde_json::Value>(&format!("{{ {} }}", params)).expect("couldn't convert path to JSON"),
+        }).to_string();
         // println!("read_message: `{}`", result);
 
         Some(result)

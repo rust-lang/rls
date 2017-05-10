@@ -14,6 +14,8 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader};
 
+use ls_types;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Src<'a, 'b> {
     pub file_name: &'a Path,
@@ -46,10 +48,16 @@ impl Cache {
         }
     }
 
-    pub fn mk_ls_position(&mut self, src: Src) -> String {
+    pub fn mk_ls_position_str(&mut self, src: Src) -> String {
         let line = self.get_line(src);
         let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
         format!("{{\"line\":{},\"character\":{}}}", src.line - 1, char_of_byte_index(&line, col))
+    }
+
+    pub fn mk_ls_position(&mut self, src: Src) -> ls_types::Position {
+        let line = self.get_line(src);
+        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
+        ls_types::Position::new( (src.line - 1) as u64,  char_of_byte_index(&line, col) as u64)
     }
 
     pub fn abs_path(&self, file_name: &Path) -> PathBuf {
