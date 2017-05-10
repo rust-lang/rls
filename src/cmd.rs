@@ -63,6 +63,12 @@ pub fn run() {
                 let col = bits.next().expect("Expected column number");
                 def(file_name, row, col)
             }
+            "hover" => {
+                let file_name = bits.next().expect("Expected file name");
+                let row = bits.next().expect("Expected line number");
+                let col = bits.next().expect("Expected column number");
+                hover(file_name, row, col)
+            }
             "h" | "help" => {
                 help();
                 continue;
@@ -95,6 +101,19 @@ fn def(file_name: &str, row: &str, col: &str) -> ServerMessage {
     let request = Request {
         id: next_id(),
         method: Method::GotoDef(params),
+    };
+    ServerMessage::Request(request)
+}
+
+fn hover(file_name: &str, row: &str, col: &str) -> ServerMessage {
+    let params = TextDocumentPositionParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        position: Position::new(u64::from_str(row).expect("Bad line number"),
+                                u64::from_str(col).expect("Bad column number")),
+    };
+    let request = Request {
+        id: next_id(),
+        method: Method::Hover(params),
     };
     ServerMessage::Request(request)
 }
@@ -208,4 +227,8 @@ fn help() {
     println!("    def     file_name line_number column_number");
     println!("            textDocument/definition");
     println!("            used for 'goto def'");
+    println!("");
+    println!("    hover   file_name line_number column_number");
+    println!("            textDocument/hover");
+    println!("            used for 'hover'");
 }
