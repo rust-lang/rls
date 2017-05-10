@@ -41,8 +41,7 @@ fn test_goto_def() {
     let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
                                       .expect("couldn't convert path to JSON"));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
+    let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
                                                         ("capabilities", "{ \"experimental\": null }".to_owned()),
                                                         ("rootPath", root_path),
@@ -77,8 +76,7 @@ fn test_hover() {
                                       .expect("couldn't convert path to JSON"));
 
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
+    let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
                                                         ("capabilities", "{ \"experimental\": null }".to_owned()),
                                                         ("rootPath", root_path),
@@ -349,8 +347,7 @@ fn test_completion() {
     let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
                                       .expect("couldn't convert path to JSON"));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = format!("{{\"uri\":{}}}", serde_json::to_string(&url.as_str().to_owned())
-                                                 .expect("couldn't convert path to JSON"));
+    let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
                                                         ("capabilities", "{ \"experimental\": null }".to_owned()),
                                                         ("rootPath", root_path),
