@@ -51,21 +51,19 @@ type Span = span::Span<span::ZeroIndexed>;
 pub fn main() {
     env_logger::init().unwrap();
 
-    let args: Vec<String> = ::std::env::args().collect();
-    if args[1] == "--version" || args[1] == "-V" {
-        println!("rls {}", version());
+    if let Some(first_arg) = ::std::env::args().skip(1).next() {
+        match first_arg.as_str() {
+            "--version" | "-V" => println!("rls {}", version()),
+            _ => cmd::run(),
+        }
         return;
     }
 
-    if args.len() > 1 {
-        cmd::run();
-    } else {
-        let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-        let vfs = Arc::new(vfs::Vfs::new());
-        let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
+    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
+    let vfs = Arc::new(vfs::Vfs::new());
+    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
 
-        server::run_server(analysis, vfs, build_queue);
-    }
+    server::run_server(analysis, vfs, build_queue);
 }
 
 fn version() -> &'static str {
