@@ -491,16 +491,16 @@ impl BuildQueue {
         });
 
         // FIXME(#25) given that we are running the compiler directly, there is no need
-        // to serialise either the error messages or save-analysis - we should pass
-        // them both in memory, without using save-analysis.
+        // to serialise the error messages - we should pass them in memory.
         let stderr_json_msg = convert_message_to_json_strings(Arc::try_unwrap(err_buf)
             .unwrap()
             .into_inner()
             .unwrap());
 
+        let analysis = analysis.lock().unwrap().clone();
         return match exit_code {
-            Ok(0) => BuildResult::Success(stderr_json_msg, analysis.lock().unwrap().clone()),
-            _ => BuildResult::Failure(stderr_json_msg, analysis.lock().unwrap().clone()),
+            Ok(0) => BuildResult::Success(stderr_json_msg, analysis),
+            _ => BuildResult::Failure(stderr_json_msg, analysis),
         };
 
         // Our compiler controller. We mostly delegate to the default rustc
@@ -566,7 +566,10 @@ impl BuildQueue {
                                         state.crate_name.unwrap(),
                                         CallbackHandler { callback: &mut |a| {
                                             let mut analysis = analysis.lock().unwrap();
-                                            *analysis = Some(unsafe { ::std::mem::transmute(a.clone()) } );
+                                            let a = unsafe {
+                                                ::std::mem::transmute(a.clone())
+                                            };
+                                            *analysis = Some(a);
                                         } });
                 });
                 result.after_analysis.run_callback_on_error = true;
