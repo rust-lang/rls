@@ -18,7 +18,6 @@ use vfs::Vfs;
 use server::{self, ServerMessage, Request, Notification, Method, LsService, ParseError, ResponseData};
 
 use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams};
-use serde_json::Value;
 use std::time::Duration;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
@@ -121,7 +120,7 @@ fn initialize(root_path: String) -> ServerMessage {
         capabilities: ClientCapabilities {
             workspace: None,
             text_document: None,
-            experimental: Value::Null,
+            experimental: None,
         },
         trace: TraceOption::Off,
     };

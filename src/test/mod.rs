@@ -78,7 +78,7 @@ fn test_hover() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "{ \"experimental\": null }".to_owned()),
+                                                        ("capabilities", "{}".to_owned()),
                                                         ("rootPath", root_path),
                                                         ("rootUri", "null".to_owned()),
                                                         ("trace", "\"off\"".to_owned())]),
@@ -116,9 +116,7 @@ fn test_find_all_refs() {
             "id": 0,
             "params": {
                 "processId": 0,
-                "capabilities": {
-                    "experimental": null
-                },
+                "capabilities": {},
                 "rootPath": root_path,
                 "rootUri": null,
                 "trace": "off"
@@ -169,9 +167,7 @@ fn test_find_all_refs_no_cfg_test() {
             "id": 0,
             "params": {
                 "processId": 0,
-                "capabilities": {
-                    "experimental": null
-                },
+                "capabilities": {},
                 "rootPath": root_path,
                 "rootUri": null,
                 "trace": "off"
@@ -217,9 +213,7 @@ fn test_borrow_error() {
             "id": 0,
             "params": {
                 "processId": 0,
-                "capabilities": {
-                    "experimental": null
-                },
+                "capabilities": {},
                 "rootPath": root_path,
                 "rootUri": null,
                 "trace": "off"
@@ -254,9 +248,7 @@ fn test_highlight() {
             "id": 0,
             "params": {
                 "processId": 0,
-                "capabilities": {
-                    "experimental": null
-                },
+                "capabilities": {},
                 "rootPath": root_path,
                 "rootUri": null,
                 "trace": "off"
@@ -303,9 +295,7 @@ fn test_rename() {
             "id": 0,
             "params": {
                 "processId": 0,
-                "capabilities": {
-                    "experimental": null
-                },
+                "capabilities": {},
                 "rootPath": root_path,
                 "rootUri": null,
                 "trace": "off"
@@ -349,7 +339,7 @@ fn test_completion() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
     let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "{ \"experimental\": null }".to_owned()),
+                                                        ("capabilities", "{}".to_owned()),
                                                         ("rootPath", root_path),
                                                         ("rootUri", "null".to_owned()),
                                                         ("trace", "\"off\"".to_owned())]),
