@@ -1,7 +1,11 @@
 [package]
 name = "rls"
 version = "0.1.0"
-authors = ["Jonathan Turner <jturner@mozilla.com>"]
+authors = ["Nick Cameron <ncameron@mozilla.com>", "Jonathan Turner <jturner@mozilla.com>", "The RLS developers"]
+description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
+license = "Apache-2.0/MIT"
+repository = "https://github.com/rust-lang-nursery/rls"
+categories = ["development-tools"]
 
 build = "build.rs"
 
