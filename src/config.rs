@@ -14,58 +14,6 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-macro_rules! impl_enum_decodable {
-    ( $e:ident, $( $x:ident ),* ) => {
-        impl ::rustc_serialize::Decodable for $e {
-            fn decode<D: ::rustc_serialize::Decoder>(d: &mut D) -> Result<Self, D::Error> {
-                use std::ascii::AsciiExt;
-                let s = try!(d.read_str());
-                $(
-                    if stringify!($x).eq_ignore_ascii_case(&s) {
-                      return Ok($e::$x);
-                    }
-                )*
-                Err(d.error("Bad variant"))
-            }
-        }
-
-        impl ::std::str::FromStr for $e {
-            type Err = &'static str;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                use std::ascii::AsciiExt;
-                $(
-                    if stringify!($x).eq_ignore_ascii_case(s) {
-                        return Ok($e::$x);
-                    }
-                )*
-                Err("Bad variant")
-            }
-        }
-
-        impl ::config::ConfigType for $e {
-            fn get_variant_names() -> String {
-                let mut variants = Vec::new();
-                $(
-                    variants.push(stringify!($x));
-                )*
-                format!("[{}]", variants.join("|"))
-            }
-        }
-    };
-}
-
-macro_rules! configuration_option_enum {
-    ($e:ident: $( $x:ident ),+ $(,)*) => {
-        #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-        pub enum $e {
-            $( $x ),+
-        }
-
-        impl_enum_decodable!($e, $( $x ),+);
-    }
-}
-
 // This trait and the following impl blocks are there so that we an use
 // UCFS inside the get_docs() function on types for configs.
 pub trait ConfigType {

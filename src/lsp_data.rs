@@ -20,16 +20,6 @@ use racer;
 
 pub use ls_types::*;
 
-macro_rules! impl_file_name {
-    ($ty_name: ty) => {
-        impl $ty_name {
-            pub fn file_name(&self) -> PathBuf {
-                uri_string_to_file_name(&self.uri)
-            }
-        }
-    }
-}
-
 pub fn parse_file_path(uri: &Url) -> Result<PathBuf, Box<Error>> {
     if uri.scheme() != "file" {
         Err("URI scheme is not `file`".into())
