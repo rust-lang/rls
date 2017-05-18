@@ -757,10 +757,16 @@ fn dedup_flags(flag_str: &str) -> String {
         }
 
         if bit.starts_with('-') {
-            if bits.peek().is_some() && !bits.peek().unwrap().starts_with('-') {
-                flags.insert(bit, bits.next().unwrap().to_owned());
+            if bit.contains('=') {
+                let bits: Vec<_> = bit.split('=').collect();
+                assert!(bits.len() == 2);
+                flags.insert(bits[0].to_owned() + "=", bits[1].to_owned());
             } else {
-                flags.insert(bit, String::new());
+                if bits.peek().is_some() && !bits.peek().unwrap().starts_with('-') {
+                    flags.insert(bit, bits.next().unwrap().to_owned());
+                } else {
+                    flags.insert(bit, String::new());
+                }
             }
         } else {
             // A standalone arg with no flag, no deduplication to do. We merge these
@@ -778,7 +784,9 @@ fn dedup_flags(flag_str: &str) -> String {
             result.push(' ');
             result.push_str(k);
             if !v.is_empty() {
-                result.push(' ');
+                if !k.ends_with('=') {
+                    result.push(' ');
+                }
                 result.push_str(v);
             }
         }
@@ -811,5 +819,8 @@ mod test {
         assert!(result.matches("foo").count() == 1);
         assert!(result.matches("bar").count() == 1);
         assert!(dedup_flags("-Zfoo -Z foo") == " -Zfoo");
+
+        assert!(dedup_flags("--error-format=json --error-format=json") == " --error-format=json");
+        assert!(dedup_flags("--error-format=foo --error-format=json") == " --error-format=json");
     }
 }
