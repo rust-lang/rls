@@ -50,10 +50,10 @@ pub struct Request {
 #[derive(Debug)]
 pub enum Notification {
     Exit,
-    CancelRequest(CancelParams),
-    Change(DidChangeTextDocumentParams),
-    Open(DidOpenTextDocumentParams),
-    Save(DidSaveTextDocumentParams),
+    Cancel(CancelParams),
+    DidChangeTextDocument(DidChangeTextDocumentParams),
+    DidOpenTextDocument(DidOpenTextDocumentParams),
+    DidSaveTextDocument(DidSaveTextDocumentParams),
 }
 
 /// Creates an public enum whose variants all contain a single serializable payload
@@ -151,6 +151,82 @@ macro_rules! messages {
                 Err(ParseError::new(ErrorKind::InvalidData, "Method not found", id!()))
             }
         }
+
+        // Helper macro that's used to replace optional enum payload with a given tree,
+        // allows to give an arbitrary identifier to payload (or `_`) instead of a type.
+        #[cfg(test)]
+        macro_rules! expand_into {
+            ($tt: ty => $target: tt) => ($target)
+        }
+
+        #[cfg(test)]
+        macro_rules! expand_into_ref {
+            ($tt: tt => $target: tt) => (ref $target)
+        }
+
+        impl ServerMessage {
+            // Returns an LSP method name (e.g. "textDocument/hover")
+            // corresponding to the server message type.
+            #[cfg(test)]
+            pub fn get_method_name(&self) -> &'static str {
+                match self {
+                    &ServerMessage::Request(ref request) => {
+                        match &request.method {
+                            $(
+                                &Method::$method_name$((expand_into!($method_arg => _)))* => {
+                                    concat_idents!(REQUEST__, $method_name)
+                                }
+                            )*
+                        }
+                    },
+                    &ServerMessage::Notification(ref notification) => {
+                        match notification {
+                            $(
+                                &Notification::$notif_name$((expand_into!($notif_arg => _)))* => {
+                                    concat_idents!(NOTIFICATION__, $notif_name)
+                                }
+                            )*
+                        }
+                    }
+                }
+            }
+
+            // Returns a JSON-RPC string representing given message.
+            // Effectively an inverse of `parse_message` function.
+            #[cfg(test)]
+            pub fn to_message_str(&self) -> String {
+                match self {
+                    &ServerMessage::Request(ref request) => {
+                        match &request.method {
+                            $(
+                                &Method::$method_name$((expand_into_ref!($method_arg => params)))* => {
+                                    json!({
+                                        "jsonrpc": "2.0",
+                                        "id": request.id,
+                                        "method": concat_idents!(REQUEST__, $method_name),
+                                        $("params": expand_into!($method_arg => params))*
+
+                                    }).to_string()
+                                }
+                            )*
+                        }
+                    },
+                    &ServerMessage::Notification(ref notification) => {
+                        match notification {
+                            $(
+                                &Notification::$notif_name$((expand_into_ref!($notif_arg => params)))* => {
+                                    json!({
+                                        "jsonrpc": "2.0",
+                                        "method": concat_idents!(NOTIFICATION__, $notif_name),
+                                        $("params": expand_into!($notif_arg => params))*
+                                    }).to_string()
+                                }
+                            )*
+                        }
+                    }
+                }
+            }
+        }
     };
 }
 
@@ -159,25 +235,25 @@ messages! {
         "shutdown" => Shutdown;
         "initialize" => Initialize(InitializeParams);
         "textDocument/hover" => Hover(TextDocumentPositionParams);
-        "textDocument/definition" => GotoDef(TextDocumentPositionParams);
-        "textDocument/references" => FindAllRef(ReferenceParams);
-        "textDocument/completion" => Complete(TextDocumentPositionParams);
-        "textDocument/documentHighlight" => Highlight(TextDocumentPositionParams);
+        "textDocument/definition" => GotoDefinition(TextDocumentPositionParams);
+        "textDocument/references" => References(ReferenceParams);
+        "textDocument/completion" => Completion(TextDocumentPositionParams);
+        "textDocument/documentHighlight" => DocumentHighlight(TextDocumentPositionParams);
         // currently, we safely ignore this as a pass-through since we fully handle
         // textDocument/completion.  In the future, we may want to use this method as a
         // way to more lazily fill out completion information
-        "completionItem/resolve" => CompleteResolve(CompletionItem);
-        "textDocument/documentSymbol" => Symbols(DocumentSymbolParams);
+        "completionItem/resolve" => ResolveCompletionItem(CompletionItem);
+        "textDocument/documentSymbol" => DocumentSymbols(DocumentSymbolParams);
         "textDocument/rename" => Rename(RenameParams);
-        "textDocument/formatting" => Reformat(DocumentFormattingParams);
-        "textDocument/rangeFormatting" => ReformatRange(DocumentRangeFormattingParams);
+        "textDocument/formatting" => Formatting(DocumentFormattingParams);
+        "textDocument/rangeFormatting" => RangeFormatting(DocumentRangeFormattingParams);
     }
     notifications {
         "exit" => Exit;
-        "textDocument/didChange" => Change(DidChangeTextDocumentParams);
-        "textDocument/didOpen" => Open(DidOpenTextDocumentParams);
-        "textDocument/didSave" => Save(DidSaveTextDocumentParams);
-        "$/cancelRequest" => CancelRequest(CancelParams);
+        "textDocument/didChange" => DidChangeTextDocument(DidChangeTextDocumentParams);
+        "textDocument/didOpen" => DidOpenTextDocument(DidOpenTextDocumentParams);
+        "textDocument/didSave" => DidSaveTextDocument(DidSaveTextDocumentParams);
+        "$/cancelRequest" => Cancel(CancelParams);
     }
     // TODO handle me
     "$/setTraceNotification" => Err(ParseError::new(ErrorKind::InvalidData, "setTraceNotification", None));
@@ -294,7 +370,7 @@ impl LsService {
                     Ok(ServerMessage::Request(Request{id, method})) => {
                         match method {
                             $(
-                                Method::$method_name$(($method_arg))* => { 
+                                Method::$method_name$(($method_arg))* => {
                                     trace!("Handling {} ({}) (params: {:?}", stringify!($method_name), id, trace_params!($($method_arg)*));
                                     // Due to macro hygiene, we need to pass to a nested macro destructured
                                     // id, which will be passed to scope of a possible arbitrary expresion
@@ -356,20 +432,20 @@ impl LsService {
                     }};
                     Initialize(params) => { this.init(id, params) };
                     Hover(params) => { action: hover };
-                    GotoDef(params) => { action: goto_def };
-                    FindAllRef(params) => { action: find_all_refs };
-                    Complete(params) => { action: complete };
-                    Highlight(params) => { action: highlight };
-                    CompleteResolve(params) => {
+                    GotoDefinition(params) => { action: goto_def };
+                    References(params) => { action: find_all_refs };
+                    Completion(params) => { action: complete };
+                    DocumentHighlight(params) => { action: highlight };
+                    ResolveCompletionItem(params) => {
                         this.output.success(id, ResponseData::CompletionItems(vec![params]))
                     };
-                    Symbols(params) => { action: symbols };
+                    DocumentSymbols(params) => { action: symbols };
                     Rename(params) => { action: rename };
-                    Reformat(params) => {
+                    Formatting(params) => {
                         // FIXME take account of options.
                         this.handler.reformat(id, params.text_document, &*this.output)
                     };
-                    ReformatRange(params) => {
+                    RangeFormatting(params) => {
                         // FIXME reformats the whole file, not just a range.
                         // FIXME take account of options.
                         this.handler.reformat(id, params.text_document, &*this.output)
@@ -380,10 +456,10 @@ impl LsService {
                         let shut_down = this.shut_down.load(Ordering::SeqCst);
                         ::std::process::exit(if shut_down { 0 } else { 1 });
                     }};
-                    CancelRequest(params) => {};
-                    Change(change) => { action: on_change };
-                    Open(open) => { action: on_open };
-                    Save(save) => { action: on_save };
+                    Cancel(params) => {};
+                    DidChangeTextDocument(change) => { action: on_change };
+                    DidOpenTextDocument(open) => { action: on_open };
+                    DidSaveTextDocument(save) => { action: on_save };
                 }
             };
         });
@@ -532,4 +608,78 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                                  Box::new(StdioOutput));
     LsService::run(service);
     debug!("Server shutting down");
+}
+
+#[cfg(test)]
+mod test {
+    use url::Url;
+    use server::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn server_message_get_method_name() {
+        let test_url = Url::from_str("http://testurl").expect("Couldn't parse test URI");
+
+        let request_shut = ServerMessage::Request(Request { id: 1, method: Method::Shutdown });
+        assert_eq!(request_shut.get_method_name(), "shutdown");
+
+        let request_init = ServerMessage::simple_test_initialize(1, None);
+        assert_eq!(request_init.get_method_name(), "initialize");
+
+        let request_hover = ServerMessage::Request(Request { id: 1, method: Method::Hover(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: test_url.clone() },
+            position: Position { line: 0, character: 0 },
+        })});
+        assert_eq!(request_hover.get_method_name(), "textDocument/hover");
+
+
+        let request_resolve = ServerMessage::Request(Request {id: 1, method: Method::ResolveCompletionItem(
+            CompletionItem::new_simple("label".to_owned(), "detail".to_owned())
+        )});
+        assert_eq!(request_resolve.get_method_name(), "completionItem/resolve");
+
+        let notif_exit = ServerMessage::Notification(Notification::Exit);
+        assert_eq!(notif_exit.get_method_name(), "exit");
+
+        let notif_change = ServerMessage::Notification(Notification::DidChangeTextDocument(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier { uri: test_url.clone(), version: 1 },
+            content_changes: vec![],
+        }));
+        assert_eq!(notif_change.get_method_name(), "textDocument/didChange");
+
+        let notif_cancel = ServerMessage::Notification(Notification::Cancel(CancelParams {
+            id: NumberOrString::Number(1)
+        }));
+        assert_eq!(notif_cancel.get_method_name(), "$/cancelRequest");
+    }
+
+    #[test]
+    fn server_message_to_str() {
+        let request = ServerMessage::Request(Request { id: 1, method: Method::Shutdown });
+        let request_json: serde_json::Value = serde_json::from_str(&request.to_message_str()).unwrap();
+        let expected_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": request.get_method_name()
+        });
+        assert_eq!(request_json, expected_json);
+
+        println!("{0}", request_json);
+
+        let test_url = Url::from_str("http://testurl").expect("Couldn't parse test URI");
+        let request = ServerMessage::Request(Request { id: 2, method: Method::Hover(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: test_url.clone() },
+            position: Position { line: 0, character: 0 },
+        })});
+        let request_json: serde_json::Value = serde_json::from_str(&request.to_message_str()).unwrap();
+        assert_eq!(request_json.get("jsonrpc").unwrap().as_str().unwrap(), "2.0");
+        assert_eq!(request_json.get("id").unwrap().as_i64().unwrap(), 2);
+        assert_eq!(request_json.get("method").unwrap().as_str().unwrap(), "textDocument/hover");
+        let request_params = request_json.get("params").unwrap();
+        let expected_params = json!({
+            "textDocument": TextDocumentIdentifier::new(test_url.clone()),
+            "position": Position {line: 0, character: 0 }
+        });
+        assert_eq!(request_params, &expected_params);
+    }
 }
