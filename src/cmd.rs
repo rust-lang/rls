@@ -107,7 +107,7 @@ fn def(file_name: &str, row: &str, col: &str) -> ServerMessage {
     };
     let request = Request {
         id: next_id(),
-        method: Method::GotoDef(params),
+        method: Method::GotoDefinition(params),
     };
     ServerMessage::Request(request)
 }

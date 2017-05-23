@@ -9,6 +9,7 @@
 // except according to those terms.
 
 #![feature(rustc_private)]
+#![feature(concat_idents)]
 
 extern crate cargo;
 #[macro_use]

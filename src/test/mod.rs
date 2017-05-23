@@ -20,17 +20,41 @@ use env_logger;
 
 use analysis;
 use build;
-use server as ls_server;
+use server::{self as ls_server, ServerMessage, Request, Method};
 use vfs;
 
 use self::types::src;
 
 use url::Url;
-use ls_types::TextDocumentIdentifier;
+use ls_types::*;
 use serde_json;
 use std::path::{Path, PathBuf};
 
 const TEST_TIMEOUT_IN_SEC: u64 = 10;
+
+impl ServerMessage {
+    pub fn initialize(id: usize, root_path: Option<String>) -> ServerMessage {
+        ServerMessage::Request(Request {
+            id: id,
+            method: Method::Initialize(InitializeParams {
+                process_id: None,
+                root_path: root_path,
+                root_uri: None,
+                initialization_options: None,
+                capabilities: ClientCapabilities {
+                    workspace: None,
+                    text_document: None,
+                    experimental: None,
+                },
+                trace: TraceOption::Off,
+            })
+        })
+    }
+
+    pub fn request(id: usize, method: Method) -> ServerMessage {
+        ServerMessage::Request(Request { id: id, method: method })
+    }
+}
 
 #[test]
 fn test_goto_def() {
@@ -38,32 +62,29 @@ fn test_goto_def() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
+    let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
-    let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "{ \"experimental\": null }".to_owned()),
-                                                        ("rootPath", root_path),
-                                                        ("rootUri", "null".to_owned()),
-                                                        ("trace", "\"off\"".to_owned())]),
-                        Message::new("textDocument/definition",
-                                     vec![
-                                        ("textDocument", text_doc),
-                                        ("position", serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 22, "world"))).expect("couldn't convert path to JSON"))
-                                     ])];
+
+    let messages = vec![
+        ServerMessage::initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(11, Method::GotoDefinition(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url),
+            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+        })),
+    ];
+
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("\"start\":{\"line\":20,\"character\":8}")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#)]);
 }
 
 #[test]
@@ -72,32 +93,28 @@ fn test_hover() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
-
+    let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
-    let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "{}".to_owned()),
-                                                        ("rootPath", root_path),
-                                                        ("rootUri", "null".to_owned()),
-                                                        ("trace", "\"off\"".to_owned())]),
-                        Message::new("textDocument/hover",
-                                     vec![
-                                        ("textDocument", text_doc),
-                                        ("position", serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 22, "world"))).expect("couldn't convert path to JSON"))
-                                     ])];
+
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url),
+            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+        })),
+    ];
+
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"language\":\"rust\",\"value\":\"&str\"}]")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"language":"rust","value":"&str"}]"#)]);
 }
 
 #[test]
@@ -108,35 +125,17 @@ fn test_find_all_refs() {
 
     let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = TextDocumentIdentifier::new(url);
+
     let messages = vec![
-        json!({
-            "jsonrpc": "2.0",
-            "method": "initialize",
-            "id": 0,
-            "params": {
-                "processId": 0,
-                "capabilities": {},
-                "rootPath": root_path,
-                "rootUri": null,
-                "trace": "off"
-            }
-        }).to_string(),
-        json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/references",
-            "id": 42,
-            "params": {
-                "textDocument": text_doc,
-                "position": cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
-                "context": {
-                    "includeDeclaration": true
-                }
-            }
-        }).to_string()
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::References(ReferenceParams {
+            text_document: TextDocumentIdentifier::new(url),
+            position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+            context: ReferenceContext { include_declaration: true }
+        })),
     ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -159,35 +158,17 @@ fn test_find_all_refs_no_cfg_test() {
 
     let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = TextDocumentIdentifier::new(url);
+
     let messages = vec![
-        json!({
-            "jsonrpc": "2.0",
-            "method": "initialize",
-            "id": 0,
-            "params": {
-                "processId": 0,
-                "capabilities": {},
-                "rootPath": root_path,
-                "rootUri": null,
-                "trace": "off"
-            }
-        }).to_string(),
-        json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/references",
-            "id": 42,
-            "params": {
-                "textDocument": text_doc,
-                "position": cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
-                "context": {
-                    "includeDeclaration": true
-                }
-            }
-        }).to_string()
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::References(ReferenceParams {
+            text_document: TextDocumentIdentifier::new(url),
+            position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+            context: ReferenceContext { include_declaration: true }
+        })),
     ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -207,27 +188,16 @@ fn test_borrow_error() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        json!({
-            "jsonrpc": "2.0",
-            "method": "initialize",
-            "id": 0,
-            "params": {
-                "processId": 0,
-                "capabilities": {},
-                "rootPath": root_path,
-                "rootUri": null,
-                "trace": "off"
-            }
-        }).to_string()
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("\"secondaryRanges\":[{\"start\":{\"line\":2,\"character\":17},\"end\":{\"line\":2,\"character\":18},\"label\":\"first mutable borrow occurs here\"}"),
+                                       ExpectedMessage::new(None).expect_contains(r#"secondaryRanges":[{"start":{"line":2,"character":17},"end":{"line":2,"character":18},"label":"first mutable borrow occurs here"}"#),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
@@ -239,33 +209,16 @@ fn test_highlight() {
 
     let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = TextDocumentIdentifier::new(url);
 
     let messages = vec![
-        json!({
-            "jsonrpc": "2.0",
-            "method": "initialize",
-            "id": 0,
-            "params": {
-                "processId": 0,
-                "capabilities": {},
-                "rootPath": root_path,
-                "rootUri": null,
-                "trace": "off"
-            }
-        }).to_string(),
-        json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/documentHighlight",
-            "id": 42,
-            "params": {
-                "textDocument": text_doc,
-                "position": cache.mk_ls_position(src(&source_file_path, 22, "world"))
-            }
-        }).to_string()
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::DocumentHighlight(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url),
+            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+        })),
     ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -289,31 +242,15 @@ fn test_rename() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
-        json!({
-            "jsonrpc": "2.0",
-            "method": "initialize",
-            "id": 0,
-            "params": {
-                "processId": 0,
-                "capabilities": {},
-                "rootPath": root_path,
-                "rootUri": null,
-                "trace": "off"
-            }
-        }).to_string(),
-        json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/rename",
-            "id": 42,
-            "params": {
-                "textDocument": text_doc,
-                "position": cache.mk_ls_position(src(&source_file_path, 22, "world")),
-                "newName": "foo"
-            }
-        }).to_string()
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::Rename(RenameParams {
+            text_document: text_doc,
+            position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
+            new_name: "foo".to_owned()
+        })),
     ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -334,40 +271,37 @@ fn test_completion() {
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = format!("{}", serde_json::to_string(&cache.abs_path(Path::new(".")))
-                                      .expect("couldn't convert path to JSON"));
+    let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = serde_json::to_string(&TextDocumentIdentifier::new(url)).expect("couldn't convert path to JSON");
-    let messages = vec![Message::new("initialize", vec![("processId", "0".to_owned()),
-                                                        ("capabilities", "{}".to_owned()),
-                                                        ("rootPath", root_path),
-                                                        ("rootUri", "null".to_owned()),
-                                                        ("trace", "\"off\"".to_owned())]),
-                        Message::new("textDocument/completion",
-                                     vec![
-                                        ("textDocument", text_doc.to_owned()),
-                                        ("position",  serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 22, "rld"))).expect("couldn't convert path to JSON"))
-                                    ]),
-                        Message::new("textDocument/completion",
-                                     vec![
-                                        ("textDocument", text_doc.to_owned()),
-                                        ("position", serde_json::to_string(&cache.mk_ls_position(src(&source_file_path, 25, "x)"))).expect("couldn't convert path to JSON"))
-                                     ])];
+    let text_doc = TextDocumentIdentifier::new(url);
+
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(11, Method::Completion(TextDocumentPositionParams {
+            text_document: text_doc.clone(),
+            position: cache.mk_ls_position(src(&source_file_path, 22, "rld"))
+        })),
+        ServerMessage::request(22, Method::Completion(TextDocumentPositionParams {
+            text_document: text_doc.clone(),
+            position: cache.mk_ls_position(src(&source_file_path, 25, "x)"))
+        })),
+    ];
+
     let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("capabilities"),
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"label\":\"world\",\"kind\":6,\"detail\":\"let world = \\\"world\\\";\"}]")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"label":"world","kind":6,"detail":"let world = \"world\";"}]"#)]);
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains("[{\"label\":\"x\",\"kind\":5,\"detail\":\"u64\"}]")]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(22)).expect_contains(r#"{"label":"x","kind":5,"detail":"u64"#)]);
 }
 
 #[test]
@@ -396,7 +330,7 @@ fn test_parse_error_on_malformed_input() {
 }
 
 // Initialise and run the internals of an LS protocol RLS server.
-fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultList)
+fn mock_server(messages: Vec<ServerMessage>) -> (Arc<ls_server::LsService>, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
@@ -407,57 +341,16 @@ fn mock_server(messages: Vec<Message>) -> (Arc<ls_server::LsService>, LsResultLi
     (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
 }
 
-// Initialise and run the internals of an LS protocol RLS server.
-fn mock_raw_server(messages: Vec<String>) -> (Arc<ls_server::LsService>, LsResultList)
-{
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let reader = Box::new(MockRawMsgReader::new(messages));
-    let output = Box::new(RecordOutput::new());
-    let results = output.output.clone();
-    (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
-}
-
 struct MockMsgReader {
-    messages: Vec<Message>,
+    messages: Vec<ServerMessage>,
     cur: Mutex<usize>,
 }
 
 impl MockMsgReader {
-    fn new(messages: Vec<Message>) -> MockMsgReader {
+    fn new(messages: Vec<ServerMessage>) -> MockMsgReader {
         MockMsgReader {
             messages: messages,
             cur: Mutex::new(0),
-        }
-    }
-}
-
-struct MockRawMsgReader {
-    messages: Vec<String>,
-    cur: Mutex<usize>,
-}
-
-impl MockRawMsgReader {
-    fn new(messages: Vec<String>) -> MockRawMsgReader {
-        MockRawMsgReader {
-            messages: messages,
-            cur: Mutex::new(0),
-        }
-    }
-}
-
-// TODO should have a structural way of making params, rather than taking Strings
-struct Message {
-    method: &'static str,
-    params: Vec<(&'static str, String)>,
-}
-
-impl Message {
-    fn new(method: &'static str, params: Vec<(&'static str, String)>) -> Message {
-        Message {
-            method: method,
-            params: params,
         }
     }
 }
@@ -476,34 +369,7 @@ impl ls_server::MessageReader for MockMsgReader {
 
         let message = &self.messages[index];
 
-        let params = message.params.iter().map(|&(k, ref v)| format!("\"{}\":{}", k, v)).collect::<Vec<String>>().join(",");
-        // TODO don't hardcode the id, we should use fresh ids and use them to look up responses
-        let result = json!({
-            "method": message.method,
-            "id": 42,
-            "params": serde_json::from_str::<serde_json::Value>(&format!("{{ {} }}", params)).expect("couldn't convert path to JSON"),
-        }).to_string();
-        // println!("read_message: `{}`", result);
-
-        Some(result)
-    }
-}
-
-impl ls_server::MessageReader for MockRawMsgReader {
-    fn read_message(&self) -> Option<String> {
-        // Note that we hold this lock until the end of the function, thus meaning
-        // that we must finish processing one message before processing the next.
-        let mut cur = self.cur.lock().unwrap();
-        let index = *cur;
-        *cur += 1;
-
-        if index >= self.messages.len() {
-            return None;
-        }
-
-        let message = &self.messages[index];
-
-        Some(message.clone())
+        Some(message.to_message_str())
     }
 }
 
