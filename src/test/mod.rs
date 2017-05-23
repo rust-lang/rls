@@ -126,16 +126,16 @@ fn test_find_all_refs() {
     let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
-    let messages : Vec<String> = vec![
+    let messages = vec![
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
         ServerMessage::request(42, Method::References(ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
         })),
-    ].iter().map(ServerMessage::to_message_str).collect();
+    ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -159,16 +159,16 @@ fn test_find_all_refs_no_cfg_test() {
     let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
-    let messages : Vec<String> = vec![
+    let messages = vec![
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
         ServerMessage::request(42, Method::References(ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
         })),
-    ].iter().map(ServerMessage::to_message_str).collect();
+    ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -187,11 +187,11 @@ fn test_borrow_error() {
     let (cache, _tc) = init_env("borrow_error");
 
     let root_path = cache.abs_path(Path::new("."));
-    let messages : Vec<String> = vec![
+    let messages = vec![
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
-    ].iter().map(ServerMessage::to_message_str).collect();
+    ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -210,15 +210,15 @@ fn test_highlight() {
     let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
-    let messages : Vec<String> = vec![
+    let messages = vec![
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
         ServerMessage::request(42, Method::DocumentHighlight(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
         })),
-    ].iter().map(ServerMessage::to_message_str).collect();
+    ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -241,16 +241,16 @@ fn test_rename() {
     let root_path = cache.abs_path(Path::new("."));
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
-    let messages : Vec<String> = vec![
+    let messages = vec![
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
         ServerMessage::request(42, Method::Rename(RenameParams {
             text_document: text_doc,
             position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
             new_name: "foo".to_owned()
         })),
-    ].iter().map(ServerMessage::to_message_str).collect();
+    ];
 
-    let (server, results) = mock_raw_server(messages);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -341,18 +341,6 @@ fn mock_server(messages: Vec<ServerMessage>) -> (Arc<ls_server::LsService>, LsRe
     (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
 }
 
-// Initialise and run the internals of an LS protocol RLS server.
-fn mock_raw_server(messages: Vec<String>) -> (Arc<ls_server::LsService>, LsResultList)
-{
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
-    let reader = Box::new(MockRawMsgReader::new(messages));
-    let output = Box::new(RecordOutput::new());
-    let results = output.output.clone();
-    (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
-}
-
 struct MockMsgReader {
     messages: Vec<ServerMessage>,
     cur: Mutex<usize>,
@@ -361,20 +349,6 @@ struct MockMsgReader {
 impl MockMsgReader {
     fn new(messages: Vec<ServerMessage>) -> MockMsgReader {
         MockMsgReader {
-            messages: messages,
-            cur: Mutex::new(0),
-        }
-    }
-}
-
-struct MockRawMsgReader {
-    messages: Vec<String>,
-    cur: Mutex<usize>,
-}
-
-impl MockRawMsgReader {
-    fn new(messages: Vec<String>) -> MockRawMsgReader {
-        MockRawMsgReader {
             messages: messages,
             cur: Mutex::new(0),
         }
@@ -396,24 +370,6 @@ impl ls_server::MessageReader for MockMsgReader {
         let message = &self.messages[index];
 
         Some(message.to_message_str())
-    }
-}
-
-impl ls_server::MessageReader for MockRawMsgReader {
-    fn read_message(&self) -> Option<String> {
-        // Note that we hold this lock until the end of the function, thus meaning
-        // that we must finish processing one message before processing the next.
-        let mut cur = self.cur.lock().unwrap();
-        let index = *cur;
-        *cur += 1;
-
-        if index >= self.messages.len() {
-            return None;
-        }
-
-        let message = &self.messages[index];
-
-        Some(message.clone())
     }
 }
 
