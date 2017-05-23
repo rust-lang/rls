@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 const TEST_TIMEOUT_IN_SEC: u64 = 10;
 
 impl ServerMessage {
-    pub fn simple_test_initialize(id: usize, root_path: Option<String>) -> ServerMessage {
+    pub fn initialize(id: usize, root_path: Option<String>) -> ServerMessage {
         ServerMessage::Request(Request {
             id: id,
             method: Method::Initialize(InitializeParams {
@@ -50,6 +50,10 @@ impl ServerMessage {
             })
         })
     }
+
+    pub fn request(id: usize, method: Method) -> ServerMessage {
+        ServerMessage::Request(Request { id: id, method: method })
+    }
 }
 
 #[test]
@@ -62,11 +66,11 @@ fn test_goto_def() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::simple_test_initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::Request(Request { id: 11, method: Method::GotoDefinition(TextDocumentPositionParams {
+        ServerMessage::initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(11, Method::GotoDefinition(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })}),
+        })),
     ];
 
     let (server, results) = mock_server(messages);
@@ -93,11 +97,11 @@ fn test_hover() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::simple_test_initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::Request(Request { id: 11, method: Method::Hover(TextDocumentPositionParams {
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })}),
+        })),
     ];
 
     let (server, results) = mock_server(messages);
@@ -123,12 +127,12 @@ fn test_find_all_refs() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages : Vec<String> = vec![
-        ServerMessage::simple_test_initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::Request(Request { id: 42, method: Method::References(ReferenceParams {
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::References(ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
-        })}),
+        })),
     ].iter().map(ServerMessage::to_message_str).collect();
 
     let (server, results) = mock_raw_server(messages);
@@ -156,12 +160,12 @@ fn test_find_all_refs_no_cfg_test() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages : Vec<String> = vec![
-        ServerMessage::simple_test_initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::Request(Request { id: 42, method: Method::References(ReferenceParams {
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::References(ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
-        })}),
+        })),
     ].iter().map(ServerMessage::to_message_str).collect();
 
     let (server, results) = mock_raw_server(messages);
@@ -184,7 +188,7 @@ fn test_borrow_error() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages : Vec<String> = vec![
-        ServerMessage::simple_test_initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ].iter().map(ServerMessage::to_message_str).collect();
 
     let (server, results) = mock_raw_server(messages);
@@ -207,11 +211,11 @@ fn test_highlight() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages : Vec<String> = vec![
-        ServerMessage::simple_test_initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::Request(Request { id: 42, method: Method::DocumentHighlight(TextDocumentPositionParams {
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::DocumentHighlight(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })}),
+        })),
     ].iter().map(ServerMessage::to_message_str).collect();
 
     let (server, results) = mock_raw_server(messages);
@@ -238,12 +242,12 @@ fn test_rename() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages : Vec<String> = vec![
-        ServerMessage::simple_test_initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::Request(Request { id: 42, method: Method::Rename(RenameParams {
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::Rename(RenameParams {
             text_document: text_doc,
             position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
             new_name: "foo".to_owned()
-        })}),
+        })),
     ].iter().map(ServerMessage::to_message_str).collect();
 
     let (server, results) = mock_raw_server(messages);
@@ -272,15 +276,15 @@ fn test_completion() {
     let text_doc = TextDocumentIdentifier::new(url);
 
     let messages = vec![
-        ServerMessage::simple_test_initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::Request(Request { id: 11, method: Method::Completion(TextDocumentPositionParams {
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(11, Method::Completion(TextDocumentPositionParams {
             text_document: text_doc.clone(),
             position: cache.mk_ls_position(src(&source_file_path, 22, "rld"))
-        })}),
-        ServerMessage::Request(Request { id: 22, method: Method::Completion(TextDocumentPositionParams {
+        })),
+        ServerMessage::request(22, Method::Completion(TextDocumentPositionParams {
             text_document: text_doc.clone(),
             position: cache.mk_ls_position(src(&source_file_path, 25, "x)"))
-        })}),
+        })),
     ];
 
     let (server, results) = mock_server(messages);

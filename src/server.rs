@@ -620,22 +620,22 @@ mod test {
     fn server_message_get_method_name() {
         let test_url = Url::from_str("http://testurl").expect("Couldn't parse test URI");
 
-        let request_shut = ServerMessage::Request(Request { id: 1, method: Method::Shutdown });
+        let request_shut = ServerMessage::request(1, Method::Shutdown);
         assert_eq!(request_shut.get_method_name(), "shutdown");
 
-        let request_init = ServerMessage::simple_test_initialize(1, None);
+        let request_init = ServerMessage::initialize(1, None);
         assert_eq!(request_init.get_method_name(), "initialize");
 
-        let request_hover = ServerMessage::Request(Request { id: 1, method: Method::Hover(TextDocumentPositionParams {
+        let request_hover = ServerMessage::request(1, Method::Hover(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier { uri: test_url.clone() },
             position: Position { line: 0, character: 0 },
-        })});
+        }));
         assert_eq!(request_hover.get_method_name(), "textDocument/hover");
 
 
-        let request_resolve = ServerMessage::Request(Request {id: 1, method: Method::ResolveCompletionItem(
+        let request_resolve = ServerMessage::request(1, Method::ResolveCompletionItem(
             CompletionItem::new_simple("label".to_owned(), "detail".to_owned())
-        )});
+        ));
         assert_eq!(request_resolve.get_method_name(), "completionItem/resolve");
 
         let notif_exit = ServerMessage::Notification(Notification::Exit);
@@ -655,7 +655,7 @@ mod test {
 
     #[test]
     fn server_message_to_str() {
-        let request = ServerMessage::Request(Request { id: 1, method: Method::Shutdown });
+        let request = ServerMessage::request(1, Method::Shutdown);
         let request_json: serde_json::Value = serde_json::from_str(&request.to_message_str()).unwrap();
         let expected_json = json!({
             "jsonrpc": "2.0",
@@ -667,10 +667,10 @@ mod test {
         println!("{0}", request_json);
 
         let test_url = Url::from_str("http://testurl").expect("Couldn't parse test URI");
-        let request = ServerMessage::Request(Request { id: 2, method: Method::Hover(TextDocumentPositionParams {
+        let request = ServerMessage::request(2, Method::Hover(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier { uri: test_url.clone() },
             position: Position { line: 0, character: 0 },
-        })});
+        }));
         let request_json: serde_json::Value = serde_json::from_str(&request.to_message_str()).unwrap();
         assert_eq!(request_json.get("jsonrpc").unwrap().as_str().unwrap(), "2.0");
         assert_eq!(request_json.get("id").unwrap().as_i64().unwrap(), 2);
