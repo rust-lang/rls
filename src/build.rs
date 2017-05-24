@@ -47,6 +47,10 @@ use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::time::Duration;
 
+// If true, this forces the compiler to pass all data via the disk instead of
+// in memory. This is slower but can be useful for debugging and making backwards
+// incompatible changes.
+const FORCE_JSON: bool = true;
 
 /// Manages builds.
 ///
@@ -560,17 +564,29 @@ impl BuildQueue {
                 let analysis = self.analysis.clone();
 
                 result.after_analysis.callback = Box::new(move |state| {
-                    save::process_crate(state.tcx.unwrap(),
-                                        state.expanded_crate.unwrap(),
-                                        state.analysis.unwrap(),
-                                        state.crate_name.unwrap(),
-                                        CallbackHandler { callback: &mut |a| {
-                                            let mut analysis = analysis.lock().unwrap();
-                                            let a = unsafe {
-                                                ::std::mem::transmute(a.clone())
-                                            };
-                                            *analysis = Some(a);
-                                        } });
+                    if FORCE_JSON {
+                        save::process_crate(state.tcx.unwrap(),
+                                            state.expanded_crate.unwrap(),
+                                            state.analysis.unwrap(),
+                                            state.crate_name.unwrap(),
+                                            save::DumpHandler::new(save::Format::Json,
+                                                                   state.out_dir,
+                                                                   state.crate_name.unwrap()));
+                    } else {
+                        save::process_crate(state.tcx.unwrap(),
+                                            state.expanded_crate.unwrap(),
+                                            state.analysis.unwrap(),
+                                            state.crate_name.unwrap(),
+                                            CallbackHandler {
+                                                callback: &mut |a| {
+                                                    let mut analysis = analysis.lock().unwrap();
+                                                    let a = unsafe {
+                                                        ::std::mem::transmute(a.clone())
+                                                    };
+                                                    *analysis = Some(a);
+                                                }
+                                            });
+                    }
                 });
                 result.after_analysis.run_callback_on_error = true;
                 result.make_glob_map = rustc_resolve::MakeGlobMap::Yes;

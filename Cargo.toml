@@ -16,8 +16,8 @@ env_logger = "0.4"
 languageserver-types = "0.10.0"
 log = "0.3"
 racer = "2.0.6"
-rls-analysis = "0.3"
-rls-data = "0.3.1"
+rls-analysis = "0.3.2"
+rls-data = "= 0.4.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.3", features = ["racer-impls"] }
 rustfmt = { git = "https://github.com/rust-lang-nursery/rustfmt", branch = "libsyntax" }
