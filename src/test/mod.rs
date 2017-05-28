@@ -265,6 +265,42 @@ fn test_rename() {
                                                                      .expect_contains(r#"{"changes""#),]);
 }
 
+
+#[test]
+fn test_reformat() {
+    let (cache, _tc) = init_env("reformat");
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = TextDocumentIdentifier::new(url);
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::Formatting(DocumentFormattingParams {
+            text_document: text_doc,
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                properties: ::std::collections::HashMap::new(),
+            },
+        })),
+    ];
+
+    let (server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":11,"character":69}}"#)
+                                            .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)]);
+}
+
 #[test]
 fn test_completion() {
     let (mut cache, _tc) = init_env("completion");
