@@ -17,6 +17,7 @@ use url::Url;
 use serde::Serialize;
 use span;
 use racer;
+use vfs::FileContents;
 
 pub use ls_types::*;
 
@@ -80,7 +81,10 @@ pub mod ls_util {
     ///
     /// Panics if `Vfs` cannot load the file.
     pub fn range_from_vfs_file(vfs: &Vfs, fname: &Path) -> Range {
-        let content = vfs.load_file(fname).unwrap();
+        let content = match vfs.load_file(fname).unwrap() {
+            FileContents::Text(t) => t,
+            _ => panic!("unexpected binary file: {:?}", fname),
+        };
         if content.is_empty() {
             Range {start: Position::new(0, 0), end: Position::new(0, 0)}
         } else {

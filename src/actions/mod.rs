@@ -13,7 +13,7 @@ mod lsp_extensions;
 
 use analysis::{AnalysisHost};
 use url::Url;
-use vfs::{Vfs, Change};
+use vfs::{Vfs, Change, FileContents};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::config::{self, WriteMode};
@@ -424,7 +424,12 @@ impl ActionHandler {
 
         let path = &parse_file_path(&doc.uri).unwrap();
         let input = match self.vfs.load_file(path) {
-            Ok(s) => FmtInput::Text(s),
+            Ok(FileContents::Text(s)) => FmtInput::Text(s),
+            Ok(_) => {
+                debug!("Reformat failed, found binary file");
+                out.failure(id, "Reformat failed to complete successfully");
+                return;
+            }
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
                 out.failure(id, "Reformat failed to complete successfully");

@@ -11,7 +11,7 @@ dependencies = [
  "rls-analysis 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-data 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-vfs 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rls-vfs 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustfmt 0.9.0 (git+https://github.com/rust-lang-nursery/rustfmt?branch=libsyntax)",
  "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -614,7 +614,7 @@ dependencies = [
 
 [[package]]
 name = "rls-vfs"
-version = "0.3.0"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "racer 2.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1052,7 +1052,7 @@ dependencies = [
 "checksum rls-analysis 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "8d77d58e8933752142b5b92e3f8ba6d6f1630be6da5627c492268a43f79ffbda"
 "checksum rls-data 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "374a8fad31cc0681a7bfd8a04079dd4afd0e981d34e18a171b1a467445bdf51e"
 "checksum rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5d7c7046dc6a92f2ae02ed302746db4382e75131b9ce20ce967259f6b5867a6a"
-"checksum rls-vfs 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "986eada111517bcb5a7a75205b3f2b70c82e7766653cca61a23f5afce79bdb94"
+"checksum rls-vfs 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "ace07060dd154731b39254864245cbdd33c8f5f64fe1f630a089c72e2468f854"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 "checksum rustfmt 0.9.0 (git+https://github.com/rust-lang-nursery/rustfmt?branch=libsyntax)" = "<none>"
 "checksum semver 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3fdd61b85a0fa777f7fb7c454b9189b2941b110d1385ce84d7f76efdf1606a85"
