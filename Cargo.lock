@@ -629,7 +629,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "rustfmt"
 version = "0.9.0"
-source = "git+https://github.com/rust-lang-nursery/rustfmt?branch=libsyntax#d5d506811015927359f9a6b8e7a1566d5e03d877"
+source = "git+https://github.com/rust-lang-nursery/rustfmt?branch=libsyntax#6c1de7694782d9f710b2f00b1f650f266a99b384"
 dependencies = [
  "diff 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",

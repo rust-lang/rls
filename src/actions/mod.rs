@@ -16,7 +16,7 @@ use url::Url;
 use vfs::{Vfs, Change, FileContents};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
-use rustfmt::config::{self, WriteMode};
+use config::FmtConfig;
 use serde_json;
 use span;
 use Span;
@@ -43,6 +43,7 @@ pub struct ActionHandler {
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
     previous_build_results: Mutex<BuildResults>,
+    fmt_config: Mutex<FmtConfig>,
 }
 
 impl ActionHandler {
@@ -55,6 +56,7 @@ impl ActionHandler {
             build_queue: build_queue,
             current_project: Mutex::new(None),
             previous_build_results: Mutex::new(HashMap::new()),
+            fmt_config: Mutex::new(FmtConfig::default()),
         }
     }
 
@@ -65,7 +67,16 @@ impl ActionHandler {
         }
         {
             let mut current_project = self.current_project.lock().unwrap();
-            *current_project = Some(root_path.clone());
+            if current_project
+                   .as_ref()
+                   .map_or(true, |existing| *existing != root_path) {
+                let new_path = root_path.clone();
+                {
+                    let mut config = self.fmt_config.lock().unwrap();
+                    *config = FmtConfig::from(&new_path);
+                }
+                *current_project = Some(new_path);
+            }
         }
         self.build(&root_path, BuildPriority::Immediate, out);
     }
@@ -436,13 +447,9 @@ impl ActionHandler {
                 return;
             }
         };
-
-        let mut config = config::Config::default();
-        config.set().skip_children(true);
-        config.set().write_mode(WriteMode::Plain);
-
+        let config = self.fmt_config.lock().unwrap();
         let mut buf = Vec::<u8>::new();
-        match format_input(input, &config, Some(&mut buf)) {
+        match format_input(input, config.get_rustfmt_config(), Some(&mut buf)) {
             Ok((summary, ..)) => {
                 // format_input returns Ok even if there are any errors, i.e., parsing errors.
                 if summary.has_no_errors() {

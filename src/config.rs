@@ -13,6 +13,8 @@ use toml;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use rustfmt::config::Config as RustfmtConfig;
+use rustfmt::config::WriteMode;
 
 // This trait and the following impl blocks are there so that we an use
 // UCFS inside the get_docs() function on types for configs.
@@ -46,7 +48,7 @@ macro_rules! create_config {
         }
 
         // Just like the Config struct but with each property wrapped
-        // as Option<T>. This is used to parse a rustfmt.toml that doesn't
+        // as Option<T>. This is used to parse a rls.toml that doesn't
         // specity all properties of `Config`.
         // We first parse into `ParsedConfig`, then create a default `Config`
         // and overwrite the properties with corresponding values from `ParsedConfig`
@@ -154,4 +156,45 @@ create_config! {
     build_lib: bool, false, false, "cargo check --lib";
     cfg_test: bool, true, false, "build cfg(test) code";
     unstable_features: bool, false, false, "enable unstable features";
+}
+
+/// A rustfmt config (typically specified via rustfmt.toml)
+/// The FmtConfig is not an exact translation of the config
+/// rustfmt generates from the user's toml file, since when
+/// using rustfmt with rls certain configuration options are
+/// always used. See `FmtConfig::set_rls_options`
+pub struct FmtConfig(RustfmtConfig);
+
+impl FmtConfig {
+    /// Look for `.rustmt.toml` or `rustfmt.toml` in `path`, falling back
+    /// to the default config if neither exist
+    pub fn from(path: &Path) -> FmtConfig {
+        if let Ok((config, _)) = RustfmtConfig::from_resolved_toml_path(path) {
+            let mut config = FmtConfig(config);
+            config.set_rls_options();
+            return config;
+        }
+        FmtConfig::default()
+    }
+
+    /// Return an immutable borrow of the config, will always
+    /// have any relevant rls specific options set
+    pub fn get_rustfmt_config(&self) -> &RustfmtConfig {
+        &self.0
+    }
+
+    // options that are always used when formatting with rls
+    fn set_rls_options(&mut self) {
+        self.0.set().skip_children(true);
+        self.0.set().write_mode(WriteMode::Plain);
+    }
+}
+
+impl Default for FmtConfig {
+    fn default() -> FmtConfig {
+        let config = RustfmtConfig::default();
+        let mut config = FmtConfig(config);
+        config.set_rls_options();
+        config
+    }
 }
