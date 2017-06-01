@@ -111,19 +111,24 @@ macro_rules! messages {
             $($method_name$(($method_arg))*,)*
         }
         fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
-            let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
+            let ls_command: serde_json::Value = match serde_json::from_str(input) {
+                Ok(inp) => inp,
+                Err(_) => return Err(ParseError::new(ErrorKind::InvalidData, "unable to parse json.", None)) 
+            };
 
             let params = ls_command.get("params");
 
             macro_rules! params_as {
                 ($ty: ty) => ({
-                    let method: $ty =
-                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                    let method: $ty = match serde_json::from_value(params.unwrap().to_owned()) {
+                        Ok(p) => p,
+                        Err(_) =>  return Err(ParseError::new(ErrorKind::InvalidData, "failed to parse params.", None)),
+                    };
                     method
                 });
             }
             macro_rules! id {
-                () => ((ls_command.get("id").map(|id| id.as_u64().unwrap() as usize)));
+                () => ((ls_command.get("id").map(|id| id.as_u64().expect("Required field `id` is missing.") as usize)));
             }
 
             if let Some(v) = ls_command.get("method") {
@@ -131,7 +136,12 @@ macro_rules! messages {
                     match name {
                         $(
                             $method_str => {
-                                let id = ls_command.get("id").unwrap().as_u64().unwrap() as usize;
+                                let id = match ls_command.get("id").map(|id| id.as_u64()).expect("Required field `id` is missing.") {
+                                    Some(id) => id as usize,
+                                    None => {
+                                        return Err(ParseError::new(ErrorKind::InvalidData, "Failed to parse id.", None));
+                                    }
+                                };
                                 Ok(ServerMessage::Request(Request{id: id, method: Method::$method_name$((params_as!($method_arg)))* }))
                             }
                         )*
