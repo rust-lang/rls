@@ -449,7 +449,7 @@ impl ActionHandler {
         };
         let config = self.fmt_config.lock().unwrap();
         let mut buf = Vec::<u8>::new();
-        match format_input(input, &config, Some(&mut buf)) {
+        match format_input(input, config.get_rustfmt_config(), Some(&mut buf)) {
             Ok((summary, ..)) => {
                 // format_input returns Ok even if there are any errors, i.e., parsing errors.
                 if summary.has_no_errors() {

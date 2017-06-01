@@ -13,8 +13,7 @@ use toml;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::ops::Deref;
-use rustfmt;
+use rustfmt::config::Config as RustfmtConfig;
 use rustfmt::config::WriteMode;
 
 // This trait and the following impl blocks are there so that we an use
@@ -160,7 +159,11 @@ create_config! {
 }
 
 /// A rustfmt config (typically specified via rustfmt.toml)
-pub struct FmtConfig(rustfmt::config::Config);
+/// The FmtConfig is not an exact translation of the config
+/// rustfmt generates from the user's toml file, since when
+/// using rustfmt with rls certain configuration options are
+/// always used. See `FmtConfig::set_rls_options`
+pub struct FmtConfig(RustfmtConfig);
 
 impl FmtConfig {
     /// Look for `.rustmt.toml` or `rustfmt.toml` in `path`, falling back
@@ -173,7 +176,7 @@ impl FmtConfig {
             if let Ok(mut f) = config_file {
                 let mut toml = String::new();
                 f.read_to_string(&mut toml).unwrap();
-                if let Ok(config) = rustfmt::config::Config::from_toml(&toml) {
+                if let Ok(config) = RustfmtConfig::from_toml(&toml) {
                     let mut config = FmtConfig(config);
                     config.set_rls_options();
                     return config;
@@ -181,6 +184,12 @@ impl FmtConfig {
             }
         }
         FmtConfig::default()
+    }
+
+    /// Return an immutable borrow of the config, will always
+    /// have any relevant rls specific options set
+    pub fn get_rustfmt_config(&self) -> &RustfmtConfig {
+        &self.0
     }
 
     // options that are always used when formatting with rls
@@ -192,16 +201,9 @@ impl FmtConfig {
 
 impl Default for FmtConfig {
     fn default() -> FmtConfig {
-        let config = rustfmt::config::Config::default();
+        let config = RustfmtConfig::default();
         let mut config = FmtConfig(config);
         config.set_rls_options();
         config
-    }
-}
-
-impl Deref for FmtConfig {
-    type Target = rustfmt::config::Config;
-    fn deref(&self) -> &rustfmt::config::Config {
-        &self.0
     }
 }
