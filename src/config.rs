@@ -169,19 +169,10 @@ impl FmtConfig {
     /// Look for `.rustmt.toml` or `rustfmt.toml` in `path`, falling back
     /// to the default config if neither exist
     pub fn from(path: &Path) -> FmtConfig {
-        const FMT_CONFIG_NAMES: [&str; 2] = [".rustfmt.toml", "rustfmt.toml"];
-        for fmt_config_name in &FMT_CONFIG_NAMES {
-            let config_path = path.to_owned().join(fmt_config_name);
-            let config_file = File::open(config_path);
-            if let Ok(mut f) = config_file {
-                let mut toml = String::new();
-                f.read_to_string(&mut toml).unwrap();
-                if let Ok(config) = RustfmtConfig::from_toml(&toml) {
-                    let mut config = FmtConfig(config);
-                    config.set_rls_options();
-                    return config;
-                }
-            }
+        if let Ok((config, _)) = RustfmtConfig::from_resolved_toml_path(path) {
+            let mut config = FmtConfig(config);
+            config.set_rls_options();
+            return config;
         }
         FmtConfig::default()
     }
