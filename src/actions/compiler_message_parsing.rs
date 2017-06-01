@@ -17,6 +17,8 @@ use span;
 use actions::lsp_extensions::{RustDiagnostic, LabelledRange};
 
 use lsp_data::ls_util;
+use lsp_data::NotificationMessage;
+use actions::lsp_extensions::PublishRustDiagnosticsParams;
 
 #[derive(Debug, Deserialize)]
 struct CompilerMessageCode {
@@ -103,6 +105,19 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
         diagnostic: diagnostic
     })
 }
+
+/// Converts compielr notification messages to json
+ pub fn notifications_to_json(notifications:&Vec<NotificationMessage<PublishRustDiagnosticsParams>>)
+ -> Vec<String> {
+ 
+     let mut result: Vec<String> = Vec::new();
+ 
+     for ref notification in notifications {
+         result.push(serde_json::to_string(&notification).unwrap());
+     }
+ 
+     result
+ }
 
 /// Builds a more sophisticated error message
 fn compose_message(compiler_message: &CompilerMessage) -> String {
