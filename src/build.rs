@@ -357,6 +357,9 @@ impl BuildQueue {
                                 cmd_dep_info.arg(a);
                             }
                         }
+                        // Compilation may depend on env vars which Cargo sets during compile-time
+                        cmd_dep_info.envs(cmd.get_envs().iter().filter_map(|(k, v)| v.as_ref().map(|v| (k, v))));
+
                         if let Some(cwd) = cmd.get_cwd() {
                             cmd_dep_info.current_dir(cwd);
                         }

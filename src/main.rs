@@ -10,6 +10,7 @@
 
 #![feature(rustc_private)]
 #![feature(concat_idents)]
+#![feature(command_envs)]
 
 extern crate cargo;
 #[macro_use]
