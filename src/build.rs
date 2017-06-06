@@ -18,7 +18,8 @@ extern crate syntax;
 
 use cargo::core::{PackageId, MultiShell, Workspace};
 use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter};
-use cargo::util::{Config as CargoConfig, ProcessBuilder, ProcessError, homedir, ConfigValue};
+use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, ConfigValue};
+use cargo::util::{CargoResult};
 
 use data::Analysis;
 use vfs::Vfs;
@@ -299,7 +300,7 @@ impl BuildQueue {
                                          .clone());
             }
 
-            fn exec(&self, cmd: ProcessBuilder, id: &PackageId) -> Result<(), ProcessError> {
+            fn exec(&self, cmd: ProcessBuilder, id: &PackageId) -> CargoResult<()> {
                 // Delete any stale data. We try and remove any json files with
                 // the same crate name as Cargo would emit. This includes files
                 // with the same crate name but different hashes, e.g., those
