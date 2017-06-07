@@ -433,8 +433,8 @@ impl ActionHandler {
         };
 
         let mut config = config::Config::default();
-        config.skip_children = true;
-        config.write_mode = WriteMode::Plain;
+        config.set().skip_children(true);
+        config.set().write_mode(WriteMode::Plain);
 
         let mut buf = Vec::<u8>::new();
         match format_input(input, &config, Some(&mut buf)) {
