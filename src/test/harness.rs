@@ -8,20 +8,22 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::HashMap;
+use std::env;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
-use env_logger;
 
 use analysis;
 use build;
+use env_logger;
+use ls_types;
+use serde_json;
 use server::{self as ls_server, ServerMessage};
 use vfs;
-
-use super::types;
-
-use serde_json;
-use std::path::{Path, PathBuf};
 
 const TEST_TIMEOUT_IN_SEC: u64 = 10;
 
@@ -137,12 +139,12 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
 }
 
 // Initialise the environment for a test.
-pub fn init_env(project_dir: &str) -> (types::Cache, TestCleanup) {
+pub fn init_env(project_dir: &str) -> (Cache, TestCleanup) {
     let _ = env_logger::init();
 
     let path = &Path::new("test_data").join(project_dir);
     let tc = TestCleanup { path: path.to_owned() };
-    (types::Cache::new(path), tc)
+    (Cache::new(path), tc)
 }
 
 pub struct TestCleanup {
@@ -158,4 +160,81 @@ impl Drop for TestCleanup {
             fs::remove_dir_all(target_path).expect("failed to tidy up");
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Src<'a, 'b> {
+    pub file_name: &'a Path,
+    // 1 indexed
+    pub line: usize,
+    pub name: &'b str,
+}
+
+pub fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, 'b> {
+    Src {
+        file_name: file_name,
+        line: line,
+        name: name,
+    }
+}
+
+pub struct Cache {
+    base_path: PathBuf,
+    files: HashMap<PathBuf, Vec<String>>,
+}
+
+impl Cache {
+    fn new(base_path: &Path) -> Cache {
+        let mut root_path = env::current_dir().expect("Could not find current working directory");
+        root_path.push(base_path);
+
+        Cache {
+            base_path: root_path,
+            files: HashMap::new(),
+        }
+    }
+
+    pub fn mk_ls_position(&mut self, src: Src) -> ls_types::Position {
+        let line = self.get_line(src);
+        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
+        ls_types::Position::new( (src.line - 1) as u64,  char_of_byte_index(&line, col) as u64)
+    }
+
+    pub fn abs_path(&self, file_name: &Path) -> PathBuf {
+        let result = self.base_path.join(file_name).canonicalize().expect("Couldn't canonicalise path");
+        let result = if cfg!(windows) {
+            // FIXME: If the \\?\ prefix is not stripped from the canonical path, the HTTP server tests fail. Why?
+            let result_string = result.to_str().expect("Path contains non-utf8 characters.");
+            PathBuf::from(&result_string[r"\\?\".len()..])
+        } else {
+            result
+        };
+        result
+    }
+
+    fn get_line(&mut self, src: Src) -> String {
+        let base_path = &self.base_path;
+        let lines = self.files.entry(src.file_name.to_owned()).or_insert_with(|| {
+            let file_name = &base_path.join(src.file_name);
+            let file = File::open(file_name).expect(&format!("Couldn't find file: {:?}", file_name));
+            let lines = BufReader::new(file).lines();
+            lines.collect::<Result<Vec<_>, _>>().unwrap()
+        });
+
+        if src.line - 1 >= lines.len() {
+            panic!("Line {} not in file, found {} lines", src.line, lines.len());
+        }
+
+        lines[src.line - 1].to_owned()
+    }
+}
+
+fn char_of_byte_index(s: &str, byte: usize) -> usize {
+    for (c, (b, _)) in s.char_indices().enumerate() {
+        if b == byte {
+            return c;
+        }
+    }
+
+    panic!("Couldn't find byte {} in {:?}", byte, s);
 }

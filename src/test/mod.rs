@@ -12,7 +12,6 @@
 // testing infrastructure *not* the RLS.
 
 mod harness;
-mod types;
 
 use std::sync::Arc;
 use env_logger;
@@ -22,8 +21,7 @@ use build;
 use server::{self as ls_server, ServerMessage, Request, Method};
 use vfs;
 
-use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, RecordOutput};
-use self::types::src;
+use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, RecordOutput, src};
 
 use url::Url;
 use ls_types::*;
