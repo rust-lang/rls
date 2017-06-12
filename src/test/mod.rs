@@ -297,6 +297,46 @@ fn test_reformat() {
 }
 
 #[test]
+fn test_reformat_with_range() {
+    let (cache, _tc) = init_env("reformat");
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = TextDocumentIdentifier::new(url);
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(42, Method::RangeFormatting(DocumentRangeFormattingParams {
+            text_document: text_doc,
+            range: Range {
+                start: Position { line: 11, character: 0 },
+                end: Position { line: 12, character: 0 },
+            },
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                properties: ::std::collections::HashMap::new(),
+            },
+        })),
+    ];
+
+    let (server, results) = mock_server(messages);
+    
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":11,"character":0},"end":{"line":12,"character":69}}"#)
+                                            .expect_contains(r#"newText":"pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)]);
+}
+
+#[test]
 fn test_completion() {
     let (mut cache, _tc) = init_env("completion");
 
