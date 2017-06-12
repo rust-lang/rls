@@ -434,12 +434,16 @@ impl ActionHandler {
         }
     }
 
-    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output, opts: &FormattingOptions) {
-        trace!("Reformat: {} {:?} {} {}", id, doc, opts.tab_size, opts.insert_spaces);
+    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, out: &Output, opts: &FormattingOptions) {
+        trace!("Reformat: {} {:?}", id, doc);
 
         let path = &parse_file_path(&doc.uri).unwrap();
+        let range = match selection {
+            Some(r) => r,
+            None => ls_util::range_from_vfs_file(&self.vfs, path),
+        };
         let input = match self.vfs.load_file(path) {
-            Ok(FileContents::Text(s)) => FmtInput::Text(s),
+            Ok(FileContents::Text(_)) => FmtInput::File(path.clone()),
             Ok(_) => {
                 debug!("Reformat failed, found binary file");
                 out.failure(id, "Reformat failed to complete successfully");
@@ -451,14 +455,19 @@ impl ActionHandler {
                 return;
             }
         };
-        let config = self.fmt_config.lock().unwrap();
-        let mut config = config.get_rustfmt_config().clone();
+
+        let mut config = self.fmt_config.lock().unwrap().get_rustfmt_config().clone();
         if !config.was_set().hard_tabs() {
             config.set().hard_tabs(!opts.insert_spaces);
         }
         if !config.was_set().tab_spaces() {
             config.set().tab_spaces(opts.tab_size as usize);
         }
+        let file_lines = format!(r#"[{{
+            "file": "{}",
+            "range": [{}, {}]
+        }}]"#, path.to_str().unwrap(), range.start.line + 1, range.end.line + 1);
+        config.set().file_lines(file_lines.parse().unwrap());
 
         let mut buf = Vec::<u8>::new();
         match format_input(input, &config, Some(&mut buf)) {
@@ -467,8 +476,12 @@ impl ActionHandler {
                 if summary.has_no_errors() {
                     // Note that we don't need to update the VFS, the client
                     // echos back the change to us.
-                    let range = ls_util::range_from_vfs_file(&self.vfs, path);
                     let text = String::from_utf8(buf).unwrap();
+
+                    // If Rustfmt returns range of text that changed,
+                    // we will be able to pass only range of changed text to the client.
+                    let range = ls_util::range_from_vfs_file(&self.vfs, path);
+
                     let result = [TextEdit {
                         range: range,
                         new_text: text,

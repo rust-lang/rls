@@ -442,11 +442,10 @@ impl LsService {
                     DocumentSymbols(params) => { action: symbols };
                     Rename(params) => { action: rename };
                     Formatting(params) => {
-                        this.handler.reformat(id, params.text_document, &*this.output, &params.options)
+                        this.handler.reformat(id, params.text_document, None, &*this.output, &params.options)
                     };
                     RangeFormatting(params) => {
-                        // FIXME reformats the whole file, not just a range.
-                        this.handler.reformat(id, params.text_document, &*this.output, &params.options)
+                        this.handler.reformat(id, params.text_document, Some(params.range), &*this.output, &params.options)
                     };
                 }
                 notifications {
