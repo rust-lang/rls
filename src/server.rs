@@ -36,6 +36,11 @@ pub fn server_failure(id: jsonrpc::Id, error: jsonrpc::Error) -> jsonrpc::Failur
 #[allow(non_upper_case_globals)]
 pub const REQUEST__Deglob: &'static str = "rustWorkspace/deglob";
 
+#[cfg(test)]
+#[allow(non_upper_case_globals)]
+pub const REQUEST__FindImpls: &'static str = "rustDocument/implementations";
+
+
 #[derive(Debug, Serialize)]
 pub struct Ack;
 

@@ -581,3 +581,62 @@ fn test_parse_error_on_malformed_input() {
 
     assert!(failure.error.code == jsonrpc_core::ErrorCode::ParseError);
 }
+
+#[test]
+fn test_find_impls() {
+    let (mut cache, _tc) = init_env("find_impls");
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(cache.abs_path(&source_file_path))
+        .expect("couldn't convert file path to URL");
+
+    let messages = vec![
+        ServerMessage::initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::request(1, Method::FindImpls(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url.clone()),
+            position: cache.mk_ls_position(src(&source_file_path, 13, "Bar"))
+        })),
+        ServerMessage::request(2, Method::FindImpls(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url.clone()),
+            position: cache.mk_ls_position(src(&source_file_path, 16, "Super"))
+        })),
+        ServerMessage::request(3, Method::FindImpls(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url),
+            position: cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
+        })),
+    ];
+
+    let (mut server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(),
+                    &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                      ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                      ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
+    expect_messages(results.clone(), &[
+        ExpectedMessage::new(Some(1))
+            .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
+            .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
+    ]);
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[
+        ExpectedMessage::new(Some(2))
+            .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
+            .expect_contains(r#""range":{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#)
+    ]);
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[
+        // TODO assert that only one position is returned
+        ExpectedMessage::new(Some(3))
+            .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
+    ]);
+}
