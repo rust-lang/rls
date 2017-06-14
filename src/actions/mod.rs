@@ -438,12 +438,8 @@ impl ActionHandler {
         trace!("Reformat: {} {:?}", id, doc);
 
         let path = &parse_file_path(&doc.uri).unwrap();
-        let range = match selection {
-            Some(r) => r,
-            None => ls_util::range_from_vfs_file(&self.vfs, path),
-        };
         let input = match self.vfs.load_file(path) {
-            Ok(FileContents::Text(_)) => FmtInput::File(path.clone()),
+            Ok(FileContents::Text(s)) => FmtInput::Text(s),
             Ok(_) => {
                 debug!("Reformat failed, found binary file");
                 out.failure(id, "Reformat failed to complete successfully");
@@ -456,6 +452,12 @@ impl ActionHandler {
             }
         };
 
+        let range_whole_file = ls_util::range_from_vfs_file(&self.vfs, path);
+        let range = match selection {
+            Some(r) => r,
+            None => range_whole_file,
+        };
+        let range_rls = ls_util::range_to_rls(range).one_indexed();
         let mut config = self.fmt_config.lock().unwrap().get_rustfmt_config().clone();
         if !config.was_set().hard_tabs() {
             config.set().hard_tabs(!opts.insert_spaces);
@@ -464,9 +466,9 @@ impl ActionHandler {
             config.set().tab_spaces(opts.tab_size as usize);
         }
         let file_lines = format!(r#"[{{
-            "file": "{}",
+            "file": "stdin",
             "range": [{}, {}]
-        }}]"#, path.to_str().unwrap(), range.start.line + 1, range.end.line + 1);
+        }}]"#, range_rls.row_start.0, range_rls.row_end.0);
         config.set().file_lines(file_lines.parse().unwrap());
 
         let mut buf = Vec::<u8>::new();
@@ -480,10 +482,8 @@ impl ActionHandler {
 
                     // If Rustfmt returns range of text that changed,
                     // we will be able to pass only range of changed text to the client.
-                    let range = ls_util::range_from_vfs_file(&self.vfs, path);
-
                     let result = [TextEdit {
-                        range: range,
+                        range: range_whole_file,
                         new_text: text,
                     }];
                     out.success(id, ResponseData::TextEdit(result))
