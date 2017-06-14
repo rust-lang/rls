@@ -48,6 +48,7 @@ mod cmd;
 mod config;
 mod lsp_data;
 mod server;
+mod custom_types;
 
 #[cfg(test)]
 mod test;

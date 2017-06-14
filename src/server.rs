@@ -15,6 +15,7 @@ use serde_json;
 use build::*;
 use lsp_data::*;
 use actions::ActionHandler;
+use custom_types::Borrows;
 
 use std::fmt;
 use std::io::{self, Read, Write, ErrorKind};
@@ -93,6 +94,7 @@ serializable_enum!(ResponseData,
     Locations(Vec<Location>),
     Highlights(Vec<DocumentHighlight>),
     HoverSuccess(Hover),
+    BorrowInfo(Borrows),
     Commands(Vec<Command>),
     Ack(Ack)
 );
@@ -244,6 +246,7 @@ messages! {
         "textDocument/references" => References(ReferenceParams);
         "textDocument/completion" => Completion(TextDocumentPositionParams);
         "textDocument/documentHighlight" => DocumentHighlight(TextDocumentPositionParams);
+        "rustDocument/borrowInfo" => BorrowInfo(TextDocumentPositionParams);
         // currently, we safely ignore this as a pass-through since we fully handle
         // textDocument/completion.  In the future, we may want to use this method as a
         // way to more lazily fill out completion information
@@ -442,6 +445,7 @@ impl<O: Output> LsService<O> {
                 References(params) => { action: find_all_refs };
                 Completion(params) => { action: complete };
                 DocumentHighlight(params) => { action: highlight };
+                BorrowInfo(params) => { action: borrow_info };
                 ResolveCompletionItem(params) => {
                     this.output.success(id, ResponseData::CompletionItems(vec![params]))
                 };
