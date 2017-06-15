@@ -453,11 +453,6 @@ impl ActionHandler {
         };
 
         let range_whole_file = ls_util::range_from_vfs_file(&self.vfs, path);
-        let range = match selection {
-            Some(r) => r,
-            None => range_whole_file,
-        };
-        let range_rls = ls_util::range_to_rls(range).one_indexed();
         let mut config = self.fmt_config.lock().unwrap().get_rustfmt_config().clone();
         if !config.was_set().hard_tabs() {
             config.set().hard_tabs(!opts.insert_spaces);
@@ -465,11 +460,15 @@ impl ActionHandler {
         if !config.was_set().tab_spaces() {
             config.set().tab_spaces(opts.tab_size as usize);
         }
-        let file_lines = format!(r#"[{{
-            "file": "stdin",
-            "range": [{}, {}]
-        }}]"#, range_rls.row_start.0, range_rls.row_end.0);
-        config.set().file_lines(file_lines.parse().unwrap());
+
+        if let Some(r) = selection {
+            let range = ls_util::range_to_rls(r).one_indexed();
+            let file_lines = format!(r#"[{{
+                "file": "stdin",
+                "range": [{}, {}]
+            }}]"#, range.row_start.0, range.row_end.0);
+            config.set().file_lines(file_lines.parse().unwrap());
+        };
 
         let mut buf = Vec::<u8>::new();
         match format_input(input, &config, Some(&mut buf)) {
