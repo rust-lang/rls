@@ -430,8 +430,8 @@ impl ActionHandler {
         }
     }
 
-    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output) {
-        trace!("Reformat: {} {:?}", id, doc);
+    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output, opts: &FormattingOptions) {
+        trace!("Reformat: {} {:?} {} {}", id, doc, opts.tab_size, opts.insert_spaces);
 
         let path = &parse_file_path(&doc.uri).unwrap();
         let input = match self.vfs.load_file(path) {
@@ -448,8 +448,16 @@ impl ActionHandler {
             }
         };
         let config = self.fmt_config.lock().unwrap();
+        let mut config = config.get_rustfmt_config().clone();
+        if !config.was_set().hard_tabs() {
+            config.set().hard_tabs(!opts.insert_spaces);
+        }
+        if !config.was_set().tab_spaces() {
+            config.set().tab_spaces(opts.tab_size as usize);
+        }
+
         let mut buf = Vec::<u8>::new();
-        match format_input(input, config.get_rustfmt_config(), Some(&mut buf)) {
+        match format_input(input, &config, Some(&mut buf)) {
             Ok((summary, ..)) => {
                 // format_input returns Ok even if there are any errors, i.e., parsing errors.
                 if summary.has_no_errors() {
