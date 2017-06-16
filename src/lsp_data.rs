@@ -81,6 +81,8 @@ pub mod ls_util {
     ///
     /// Panics if `Vfs` cannot load the file.
     pub fn range_from_vfs_file(vfs: &Vfs, fname: &Path) -> Range {
+        // FIXME load_file clones the entire file text, this could be much more
+        // efficient by adding a `with_file` fn to the VFS.
         let content = match vfs.load_file(fname).unwrap() {
             FileContents::Text(t) => t,
             _ => panic!("unexpected binary file: {:?}", fname),
@@ -88,11 +90,17 @@ pub mod ls_util {
         if content.is_empty() {
             Range {start: Position::new(0, 0), end: Position::new(0, 0)}
         } else {
+            let mut line_count = content.lines().count() as u64 - 1;
+            let col = if content.ends_with('\n') {
+                line_count += 1;
+                0
+            } else {
+                content.lines().last().expect("String is not empty.").chars().count() as u64
+            };
             // range is zero-based and the end position is exclusive
             Range {
                 start: Position::new(0, 0),
-                end: Position::new(content.lines().count() as u64 - 1,
-                        content.lines().last().expect("String is not empty.").chars().count() as u64)
+                end: Position::new(line_count, col),
             }
         }
     }

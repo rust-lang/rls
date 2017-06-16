@@ -461,7 +461,7 @@ impl ActionHandler {
             Ok((summary, ..)) => {
                 // format_input returns Ok even if there are any errors, i.e., parsing errors.
                 if summary.has_no_errors() {
-                    // Note that we don't need to keep the VFS up to date, the client
+                    // Note that we don't need to update the VFS, the client
                     // echos back the change to us.
                     let range = ls_util::range_from_vfs_file(&self.vfs, path);
                     let text = String::from_utf8(buf).unwrap();
