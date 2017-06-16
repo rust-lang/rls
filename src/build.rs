@@ -16,7 +16,7 @@ extern crate rustc_resolve;
 extern crate rustc_save_analysis;
 extern crate syntax;
 
-use cargo::core::{PackageId, MultiShell, Workspace};
+use cargo::core::{PackageId, Shell, Workspace, Verbosity};
 use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter};
 use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, ConfigValue};
 use cargo::util::{CargoResult};
@@ -420,9 +420,7 @@ impl BuildQueue {
                                     rls_config.clone());
 
         let out = Arc::new(Mutex::new(vec![]));
-        let err = Arc::new(Mutex::new(vec![]));
         let out_clone = out.clone();
-        let err_clone = err.clone();
 
         // Cargo may or may not spawn threads to run the various builds, since
         // we may be in separate threads we need to block and wait our thread.
@@ -441,8 +439,8 @@ impl BuildQueue {
             let rustflags = dedup_flags(&rustflags);
             env::set_var("RUSTFLAGS", &rustflags);
 
-            let shell = MultiShell::from_write(Box::new(BufWriter(out.clone())),
-                                               Box::new(BufWriter(err.clone())));
+            let mut shell = Shell::from_write(Box::new(BufWriter(out.clone())));
+            shell.set_verbosity(Verbosity::Quiet);
             let config = make_cargo_config(&build_dir, shell);
             let mut manifest_path = build_dir.clone();
             manifest_path.push("Cargo.toml");
@@ -463,7 +461,6 @@ impl BuildQueue {
             Ok(_) => BuildResult::Success(vec![], None),
             Err(_) => {
                 info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
-                info!("cargo stderr {}", String::from_utf8(err_clone.lock().unwrap().to_owned()).unwrap());
                 BuildResult::Err
             }
         }
@@ -600,7 +597,7 @@ impl BuildQueue {
     }
 }
 
-fn make_cargo_config(build_dir: &Path, shell: MultiShell) -> CargoConfig {
+fn make_cargo_config(build_dir: &Path, shell: Shell) -> CargoConfig {
     let config = CargoConfig::new(shell,
                                   // This is Cargo's cwd. We are using the actual cwd, but perhaps
                                   // we should use build_dir or something else?
