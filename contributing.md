@@ -105,7 +105,16 @@ You can run the rls by hand with:
 cargo run
 ```
 
-Though more commonly, you'll use an IDE plugin to invoke it for you.
+Though more commonly, you'll use an IDE plugin to invoke it for you
+(see [README.md](README.md) for details).
+
+We recommend using https://github.com/jonathandturner/rls_vscode in VSCode. If
+you are debugging you should set `HIDE_WINDOW_OUTPUT` to `false`, this will send
+logging and other messages to the extensions panel in VSCode. Anything the RLS
+writes to stderr is redirected to VSCode. Do not write to stdout, that will
+cause LSP errors (this means you cannot `println`). You can enable logging using
+[RUST_LOG](https://doc.rust-lang.org/log/env_logger/). For adding your own,
+temporary logging you may find the `eprintln` macro useful.
 
 Test using `cargo test`.
 
