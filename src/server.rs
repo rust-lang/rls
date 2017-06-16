@@ -324,7 +324,7 @@ impl LsService {
                 code_action_provider: Some(false),
                 // TODO maybe?
                 code_lens_provider: None,
-                document_formatting_provider: Some(unstable_features),
+                document_formatting_provider: Some(true),
                 document_range_formatting_provider: Some(unstable_features),
                 document_on_type_formatting_provider: None, // TODO: review this, maybe add?
                 rename_provider: Some(unstable_features),
