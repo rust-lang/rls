@@ -369,22 +369,23 @@ impl BuildQueue {
                     }
                     if self.config.sysroot.is_empty() {
                         args.push("--sysroot".to_owned());
-                        let home = option_env!("RUSTUP_HOME").or(option_env!("MULTIRUST_HOME"));
-                        let toolchain = option_env!("RUSTUP_TOOLCHAIN").or(option_env!("MULTIRUST_TOOLCHAIN"));
-                        let sys_root = if let (Some(home), Some(toolchain)) = (home, toolchain) {
+                        let home = env::var("RUSTUP_HOME").or(env::var("MULTIRUST_HOME"));
+                        let toolchain = env::var("RUSTUP_TOOLCHAIN").or(env::var("MULTIRUST_TOOLCHAIN"));
+                        let sys_root = if let (Ok(home), Ok(toolchain)) = (home, toolchain) {
                             format!("{}/toolchains/{}", home, toolchain)
                         } else {
-                            option_env!("SYSROOT")
+                            env::var("SYSROOT")
                                 .map(|s| s.to_owned())
-                                .or_else(|| Command::new("rustc")
-                                    .arg("--print")
-                                    .arg("sysroot")
-                                    .output()
                                     .ok()
-                                    .and_then(|out| String::from_utf8(out.stdout).ok())
-                                    .map(|s| s.trim().to_owned()))
-                                .expect("need to specify SYSROOT env var, \
-                                        or use rustup or multirust")
+                                    .or_else(|| Command::new("rustc")
+                                        .arg("--print")
+                                        .arg("sysroot")
+                                        .output()
+                                        .ok()
+                                        .and_then(|out| String::from_utf8(out.stdout).ok())
+                                        .map(|s| s.trim().to_owned()))
+                                    .expect("need to specify SYSROOT env var, \
+                                            or use rustup or multirust")
                         };
                         args.push(sys_root.to_owned());
                     }
