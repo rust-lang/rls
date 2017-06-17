@@ -10,7 +10,7 @@ categories = ["development-tools"]
 build = "build.rs"
 
 [dependencies]
-cargo = { git = "https://github.com/nrc/cargo", branch="shell" }
+cargo = { git = "https://github.com/rust-lang/cargo" }
 derive-new = "0.3"
 env_logger = "0.4"
 languageserver-types = "0.10.0"
