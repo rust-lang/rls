@@ -34,7 +34,7 @@ use self::syntax::codemap::{FileLoader, RealFileLoader};
 
 use config::Config;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::env;
 use std::ffi::OsString;
 use std::fs::{read_dir, remove_file};
@@ -759,7 +759,8 @@ fn dedup_flags(flag_str: &str) -> String {
     // values and dedup any duplicate keys, using the last value in flag_str.
     // This is a bit complicated because of the variety of ways args can be specified.
 
-    let mut flags = HashMap::new();
+    // Retain flags order to prevent complete project rebuild due to RUSTFLAGS fingerprint change
+    let mut flags = BTreeMap::new();
     let mut bits = flag_str.split_whitespace().peekable();
 
     while let Some(bit) = bits.next() {
