@@ -347,13 +347,7 @@ impl BuildQueue {
                         // this info at all, or start our build here rather than on another thread
                         // so the dep-info is ready by the time we return from this callback.
                         let mut cmd_dep_info = Command::new("rustc");
-                        for a in &args {
-                            if a.starts_with("--emit") {
-                                cmd_dep_info.arg("--emit=dep-info");
-                            } else {
-                                cmd_dep_info.arg(a);
-                            }
-                        }
+                        cmd_dep_info.args(&args);
                         // Compilation may depend on env vars which Cargo sets during compile-time
                         cmd_dep_info.envs(cmd.get_envs().iter().filter_map(|(k, v)| v.as_ref().map(|v| (k, v))));
 
