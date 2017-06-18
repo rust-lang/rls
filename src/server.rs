@@ -15,7 +15,7 @@ use serde_json;
 use build::*;
 use lsp_data::*;
 use actions::ActionHandler;
-use custom_types::Borrows;
+use custom_types::BorrowData;
 
 use std::fmt;
 use std::io::{self, Read, Write, ErrorKind};
@@ -94,7 +94,7 @@ serializable_enum!(ResponseData,
     Locations(Vec<Location>),
     Highlights(Vec<DocumentHighlight>),
     HoverSuccess(Hover),
-    BorrowInfo(Borrows),
+    BorrowInfo(BorrowData),
     Commands(Vec<Command>),
     Ack(Ack)
 );

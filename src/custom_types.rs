@@ -4,16 +4,16 @@ use std::convert::From;
 use analysis;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Borrows {
-    pub assignments: Vec<Assignment>,
+pub struct BorrowData {
+    pub scopes: Vec<Scope>,
     pub loans: Vec<Loan>,
     pub moves: Vec<Move>,
 }
 
-impl From<analysis::Borrows> for Borrows {
-    fn from(borrows: analysis::Borrows) -> Borrows {
-        Borrows {
-            assignments: borrows.assignments.into_iter().map(|a| a.into()).collect(),
+impl From<analysis::BorrowData> for BorrowData {
+    fn from(borrows: analysis::BorrowData) -> BorrowData {
+        BorrowData {
+            scopes: borrows.scopes.into_iter().map(|a| a.into()).collect(),
             moves: borrows.moves.into_iter().map(|m| m.into()).collect(),
             loans: borrows.loans.into_iter().map(|l| l.into()).collect(),
         }
@@ -64,14 +64,14 @@ impl From<analysis::Move> for Move {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Assignment {
+pub struct Scope {
     pub range: Range,
 }
 
-impl From<analysis::Assignment> for Assignment {
-    fn from(assignment: analysis::Assignment) -> Assignment {
-        Assignment {
-            range: rls_to_range(assignment.span.range),
+impl From<analysis::Scope> for Scope {
+    fn from(scope: analysis::Scope) -> Scope {
+        Scope {
+            range: rls_to_range(scope.span.range),
         }
     }
 }
