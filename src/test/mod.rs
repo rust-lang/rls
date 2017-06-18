@@ -309,8 +309,8 @@ fn test_reformat_with_range() {
         ServerMessage::request(42, Method::RangeFormatting(DocumentRangeFormattingParams {
             text_document: text_doc,
             range: Range {
-                start: Position { line: 11, character: 0 },
-                end: Position { line: 12, character: 0 },
+                start: Position { line: 12, character: 0 },
+                end: Position { line: 13, character: 0 },
             },
             options: FormattingOptions {
                 tab_size: 4,
@@ -331,8 +331,8 @@ fn test_reformat_with_range() {
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":14,"character":5}}"#)
-                                            .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\nlet world2 = \"world\"; println!(\"Hello, {}!\", world2);\n}"#)]);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
+                                            .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\nlet world3 = \"world\"; println!(\"Hello, {}!\", world3);\n}\n"#)]);
 }
 
 #[test]
