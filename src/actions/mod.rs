@@ -17,6 +17,7 @@ use url::Url;
 use vfs::{Vfs, Change, FileContents};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
+use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
 use config::FmtConfig;
 use serde_json;
 use span;
@@ -462,12 +463,12 @@ impl ActionHandler {
         }
 
         if let Some(r) = selection {
-            let range = ls_util::range_to_rls(r).one_indexed();
-            let file_lines = format!(r#"[{{
-                "file": "stdin",
-                "range": [{}, {}]
-            }}]"#, range.row_start.0, range.row_end.0);
-            config.set().file_lines(file_lines.parse().unwrap());
+            let range_of_rls = ls_util::range_to_rls(r).one_indexed();
+            let range = RustfmtRange::new(range_of_rls.row_start.0 as usize, range_of_rls.row_end.0 as usize);
+            let mut ranges = HashMap::new();
+            ranges.insert("stdin".to_owned(), vec![range]);
+            let file_lines = FileLines::from_ranges(ranges);
+            config.set().file_lines(file_lines);
         };
 
         let mut buf = Vec::<u8>::new();
