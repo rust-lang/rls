@@ -435,7 +435,7 @@ impl ActionHandler {
     }
 
     pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, out: &Output, opts: &FormattingOptions) {
-        trace!("Reformat: {} {:?}", id, doc);
+        trace!("Reformat: {} {:?} {:?} {} {}", id, doc, selection, opts.tab_size, opts.insert_spaces);
 
         let path = &parse_file_path(&doc.uri).unwrap();
         let input = match self.vfs.load_file(path) {
