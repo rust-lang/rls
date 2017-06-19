@@ -11,6 +11,7 @@
 #![feature(rustc_private)]
 #![feature(concat_idents)]
 #![feature(command_envs)]
+#![feature(thread_id)]
 
 extern crate cargo;
 #[macro_use]

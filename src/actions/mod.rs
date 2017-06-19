@@ -9,6 +9,7 @@
 // except according to those terms.
 
 mod compiler_message_parsing;
+mod change_queue;
 mod lsp_extensions;
 
 use analysis::{AnalysisHost};
@@ -22,6 +23,7 @@ use span;
 use Span;
 
 use build::*;
+use self::change_queue::ChangeQueue;
 use lsp_data::*;
 use server::{ResponseData, Output};
 
@@ -40,6 +42,7 @@ type BuildResults = HashMap<PathBuf, Vec<RustDiagnostic>>;
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
+    change_queue: ChangeQueue,
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
     previous_build_results: Mutex<BuildResults>,
@@ -51,9 +54,10 @@ impl ActionHandler {
            vfs: Arc<Vfs>,
            build_queue: Arc<BuildQueue>) -> ActionHandler {
         ActionHandler {
-            analysis: analysis,
-            vfs: vfs,
-            build_queue: build_queue,
+            analysis,
+            vfs: vfs.clone(),
+            change_queue: ChangeQueue::new(vfs),
+            build_queue,
             current_project: Mutex::new(None),
             previous_build_results: Mutex::new(HashMap::new()),
             fmt_config: Mutex::new(FmtConfig::default()),
@@ -183,7 +187,9 @@ impl ActionHandler {
     }
 
     pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
+        trace!("on_change: {:?}, thread: {}", change, unsafe { ::std::mem::transmute::<_, u64>(thread::current().id()) });
         let fname = parse_file_path(&change.text_document.uri).unwrap();
+        let fname2 = fname.clone();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
             if let Some(range) = i.range {
                 let range = ls_util::range_to_rls(range);
@@ -199,9 +205,7 @@ impl ActionHandler {
                 }
             }
         }).collect();
-        self.vfs.on_changes(&changes).unwrap();
-
-        trace!("on_change: {:?}", changes);
+        self.change_queue.on_changes(&fname2, change.text_document.version, &changes).unwrap();
 
         self.build_current_project(BuildPriority::Normal, out);
     }
