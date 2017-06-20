@@ -336,8 +336,8 @@ impl BuildQueue {
                     }
 
                     trace!("intercepted rustc, args: {:?}", args);
+                    let rustc_exe = env::var("RUSTC").unwrap_or("rustc".to_owned());
 
-                    // FIXME here and below should check $RUSTC before using rustc.
                     {
                         // Cargo is going to expect to get dep-info for this crate, so we shell out
                         // to rustc to get that. This is not really ideal, because we are going to
@@ -346,7 +346,7 @@ impl BuildQueue {
                         // FIXME Don't do this. Instead either persuade Cargo that it doesn't need
                         // this info at all, or start our build here rather than on another thread
                         // so the dep-info is ready by the time we return from this callback.
-                        let mut cmd_dep_info = Command::new("rustc");
+                        let mut cmd_dep_info = Command::new(&rustc_exe);
                         for a in &args {
                             if a.starts_with("--emit") {
                                 cmd_dep_info.arg("--emit=dep-info");
@@ -363,7 +363,7 @@ impl BuildQueue {
                         cmd_dep_info.status().expect("Couldn't execute rustc");
                     }
 
-                    args.insert(0, "rustc".to_owned());
+                    args.insert(0, rustc_exe.clone());
                     if self.config.cfg_test {
                         args.push("--test".to_owned());
                     }
@@ -377,7 +377,7 @@ impl BuildQueue {
                             env::var("SYSROOT")
                                 .map(|s| s.to_owned())
                                     .ok()
-                                    .or_else(|| Command::new("rustc")
+                                    .or_else(|| Command::new(&rustc_exe)
                                         .arg("--print")
                                         .arg("sysroot")
                                         .output()
@@ -394,12 +394,12 @@ impl BuildQueue {
                     trace!("envs: {:?}", envs);
 
                     {
-                        let mut queue_args = self.cmd_line_args.lock().unwrap();
-                        *queue_args = args.clone();
+                        let mut cmd_line_args = self.cmd_line_args.lock().unwrap();
+                        *cmd_line_args = args.clone();
                     }
                     {
-                        let mut queue_envs = self.cmd_line_envs.lock().unwrap();
-                        *queue_envs = envs.clone();
+                        let mut cmd_line_envs = self.cmd_line_envs.lock().unwrap();
+                        *cmd_line_envs = envs.clone();
                     }
 
                     Ok(())
