@@ -177,7 +177,7 @@ mod test {
                 *expected = index + 1;
                 Ok(())
             } else {
-                panic!();
+                unreachable!();
             }
         }
 
@@ -203,15 +203,20 @@ mod test {
         let mut threads = vec![];
         let foo = Path::new("foo");
         let bar = Path::new("bar");
+
+        // Get the first changes in early. Otherwise a later change can land before
+        // the first one which throws the testing off.
+        queue.on_changes(foo, 2, &[Change::AddFile { file: foo.to_owned(), text: 0.to_string() }]).unwrap();
+        queue.on_changes(bar, 2, &[Change::AddFile { file: bar.to_owned(), text: 0.to_string() }]).unwrap();
         for i in 3..100 {
             let queue_ = queue.clone();
             threads.push(thread::spawn(move || {
-                queue_.on_changes(foo, i, &[Change::AddFile { file: foo.to_owned(), text: (i-3).to_string() }]).unwrap();
+                queue_.on_changes(foo, i, &[Change::AddFile { file: foo.to_owned(), text: (i-2).to_string() }]).unwrap();
             }));
 
             let queue_ = queue.clone();
             threads.push(thread::spawn(move || {
-                queue_.on_changes(bar, i, &[Change::AddFile { file: bar.to_owned(), text: (i-3).to_string() }]).unwrap();
+                queue_.on_changes(bar, i, &[Change::AddFile { file: bar.to_owned(), text: (i-2).to_string() }]).unwrap();
             }));
         }
 
