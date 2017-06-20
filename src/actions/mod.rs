@@ -17,6 +17,7 @@ use url::Url;
 use vfs::{Vfs, Change, FileContents};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
+use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
 use config::FmtConfig;
 use serde_json;
 use span;
@@ -434,8 +435,8 @@ impl ActionHandler {
         }
     }
 
-    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, out: &Output, opts: &FormattingOptions) {
-        trace!("Reformat: {} {:?} {} {}", id, doc, opts.tab_size, opts.insert_spaces);
+    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, out: &Output, opts: &FormattingOptions) {
+        trace!("Reformat: {} {:?} {:?} {} {}", id, doc, selection, opts.tab_size, opts.insert_spaces);
 
         let path = &parse_file_path(&doc.uri).unwrap();
         let input = match self.vfs.load_file(path) {
@@ -451,14 +452,24 @@ impl ActionHandler {
                 return;
             }
         };
-        let config = self.fmt_config.lock().unwrap();
-        let mut config = config.get_rustfmt_config().clone();
+
+        let range_whole_file = ls_util::range_from_vfs_file(&self.vfs, path);
+        let mut config = self.fmt_config.lock().unwrap().get_rustfmt_config().clone();
         if !config.was_set().hard_tabs() {
             config.set().hard_tabs(!opts.insert_spaces);
         }
         if !config.was_set().tab_spaces() {
             config.set().tab_spaces(opts.tab_size as usize);
         }
+
+        if let Some(r) = selection {
+            let range_of_rls = ls_util::range_to_rls(r).one_indexed();
+            let range = RustfmtRange::new(range_of_rls.row_start.0 as usize, range_of_rls.row_end.0 as usize);
+            let mut ranges = HashMap::new();
+            ranges.insert("stdin".to_owned(), vec![range]);
+            let file_lines = FileLines::from_ranges(ranges);
+            config.set().file_lines(file_lines);
+        };
 
         let mut buf = Vec::<u8>::new();
         match format_input(input, &config, Some(&mut buf)) {
@@ -467,10 +478,12 @@ impl ActionHandler {
                 if summary.has_no_errors() {
                     // Note that we don't need to update the VFS, the client
                     // echos back the change to us.
-                    let range = ls_util::range_from_vfs_file(&self.vfs, path);
                     let text = String::from_utf8(buf).unwrap();
+
+                    // If Rustfmt returns range of text that changed,
+                    // we will be able to pass only range of changed text to the client.
                     let result = [TextEdit {
-                        range: range,
+                        range: range_whole_file,
                         new_text: text,
                     }];
                     out.success(id, ResponseData::TextEdit(result))
