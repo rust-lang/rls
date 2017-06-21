@@ -75,7 +75,7 @@ Next, you'll need to run the VSCode extension (for this step, you'll need a
 recent [node](https://nodejs.org/en/) installed:
 
 ```
-git clone https://github.com/jonathandturner/rls_vscode.git
+git clone https://github.com/rust-lang-nursery/rls_vscode
 cd rls_vscode
 npm install
 code .
