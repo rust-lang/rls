@@ -10,7 +10,7 @@
 
 mod compiler_message_parsing;
 mod change_queue;
-mod lsp_extensions;
+pub mod lsp_extensions;
 
 use analysis::{AnalysisHost};
 use url::Url;
@@ -26,7 +26,7 @@ use Span;
 use build::*;
 use self::change_queue::ChangeQueue;
 use lsp_data::*;
-use server::{ResponseData, Output};
+use server::{ResponseData, Output, Ack};
 
 use std::collections::HashMap;
 use std::panic;
@@ -433,6 +433,67 @@ impl ActionHandler {
                 out.failure(id, "Hover failed to complete successfully");
             }
         }
+    }
+
+    pub fn deglob(&self, id: usize, location: Location, out: &Output) {
+        let t = thread::current();
+        let span = ls_util::location_to_rls(location.clone()).unwrap();
+        trace!("deglob {:?}", span);
+
+        // Start by checking that the user has selected a glob import.
+        if span.range.start() == span.range.end() {
+            out.failure(id, "Empty selection");
+            return;
+        }
+        match self.vfs.load_span(span.clone()) {
+            Ok(s) => {
+                if s != "*" {
+                    out.failure(id, "Not a glob");
+                    return;
+                }
+            }
+            Err(e) => {
+                debug!("Deglob failed: {:?}", e);
+                out.failure(id, "Couldn't open file");
+                return;
+            }
+        }
+
+        // Save-analysis exports the deglobbed version of a glob import as its type string.
+        let analysis = self.analysis.clone();
+        let rustw_handle = thread::spawn(move || {
+            let ty = analysis.show_type(&span);
+            t.unpark();
+
+            ty
+        });
+
+        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+
+        let result = rustw_handle.join();
+        let mut deglob_str = match result {
+            Ok(Ok(s)) => s,
+            _ => {
+                out.failure(id, "Couldn't get info from analysis");
+                return;
+            }
+        };
+
+        // Handle multiple imports.
+        if deglob_str.contains(',') {
+            deglob_str = format!("{{{}}}", deglob_str);
+        }
+
+        // Send a workspace edit to make the actual change.
+        // FIXME should handle the response
+        let output = serde_json::to_string(
+            &RequestMessage::new("workspace/applyEdit".to_owned(),
+                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(location, deglob_str) })
+        ).unwrap();
+        out.response(output);
+
+        // Nothing to actually send in the response.
+        out.success(id, ResponseData::Ack(Ack));
     }
 
     pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, out: &Output, opts: &FormattingOptions) {

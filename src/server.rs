@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use config::Config;
 
 #[derive(Debug, Serialize)]
-pub struct Ack {}
+pub struct Ack;
 
 #[derive(Debug, new)]
 pub struct ParseError {
@@ -111,14 +111,15 @@ macro_rules! messages {
             $($method_name$(($method_arg))*,)*
         }
         fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
-            let ls_command: serde_json::Value = serde_json::from_str(input).unwrap();
+            trace!("parse_message `{}`", input);
+            let ls_command: serde_json::Value = serde_json::from_str(input).expect("Can't make value");
 
             let params = ls_command.get("params");
 
             macro_rules! params_as {
                 ($ty: ty) => ({
                     let method: $ty =
-                        serde_json::from_value(params.unwrap().to_owned()).unwrap();
+                        serde_json::from_value(params.expect("no params").to_owned()).expect("Can't extract params");
                     method
                 });
             }
@@ -131,8 +132,7 @@ macro_rules! messages {
                     match name {
                         $(
                             $method_str => {
-                                let id = ls_command.get("id").unwrap().as_u64().unwrap() as usize;
-                                Ok(ServerMessage::Request(Request{id: id, method: Method::$method_name$((params_as!($method_arg)))* }))
+                                Ok(ServerMessage::Request(Request{id: id!().unwrap(), method: Method::$method_name$((params_as!($method_arg)))* }))
                             }
                         )*
                         $(
@@ -247,6 +247,7 @@ messages! {
         "textDocument/rename" => Rename(RenameParams);
         "textDocument/formatting" => Formatting(DocumentFormattingParams);
         "textDocument/rangeFormatting" => RangeFormatting(DocumentRangeFormattingParams);
+        "rustWorkspace/deglob" => Deglob(Location);
     }
     notifications {
         "exit" => Exit;
@@ -312,22 +313,20 @@ impl LsService {
                     resolve_provider: Some(true),
                     trigger_characters: vec![".".to_string(), ":".to_string()],
                 }),
-                // TODO
-                signature_help_provider: Some(SignatureHelpOptions {
-                    trigger_characters: Some(vec![]),
-                }),
                 definition_provider: Some(true),
                 references_provider: Some(true),
                 document_highlight_provider: Some(true),
                 document_symbol_provider: Some(true),
                 workspace_symbol_provider: Some(true),
                 code_action_provider: Some(false),
-                // TODO maybe?
-                code_lens_provider: None,
                 document_formatting_provider: Some(true),
                 document_range_formatting_provider: Some(unstable_features),
-                document_on_type_formatting_provider: None, // TODO: review this, maybe add?
                 rename_provider: Some(unstable_features),
+
+                execute_command_provider: None,
+                code_lens_provider: None,
+                document_on_type_formatting_provider: None,
+                signature_help_provider: None,
             }
         };
         self.output.success(id, ResponseData::Init(result));
@@ -428,7 +427,7 @@ impl LsService {
                     id: id;
                     Shutdown => {{
                         this.shut_down.store(true, Ordering::SeqCst);
-                        (&*this.output).success(id, ResponseData::Ack(Ack {}));
+                        (&*this.output).success(id, ResponseData::Ack(Ack));
                     }};
                     Initialize(params) => { this.init(id, params) };
                     Hover(params) => { action: hover };
@@ -447,6 +446,7 @@ impl LsService {
                     RangeFormatting(params) => {
                         this.handler.reformat(id, params.text_document, Some(params.range), &*this.output, &params.options)
                     };
+                    Deglob(params) => { action: deglob };
                 }
                 notifications {
                     Exit => {{

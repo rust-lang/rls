@@ -8,6 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::error::Error;
@@ -29,6 +30,18 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, Box<Error>> {
     }
 }
 
+pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
+    let mut edit = WorkspaceEdit {
+        changes: HashMap::new(),
+    };
+
+    edit.changes.insert(location.uri, vec![TextEdit {
+        range: location.range,
+        new_text,
+    }]);
+
+    edit
+}
 
 pub mod ls_util {
     use super::*;
@@ -46,6 +59,10 @@ pub mod ls_util {
     pub fn position_to_rls(p: Position) -> span::Position<span::ZeroIndexed> {
         span::Position::new(span::Row::new_zero_indexed(p.line as u32),
                             span::Column::new_zero_indexed(p.character as u32))
+    }
+
+    pub fn location_to_rls(l: Location) -> Result<span::Span<span::ZeroIndexed>, Box<Error>> {
+        parse_file_path(&l.uri).map(|path| Span::from_range(range_to_rls(l.range), path))
     }
 
     // An RLS span has the same info as an LSP Location
@@ -174,6 +191,27 @@ impl <T> NotificationMessage<T> where T: Debug + Serialize {
     pub fn new(method: String, params: T) -> Self {
         NotificationMessage {
             jsonrpc: "2.0",
+            method: method,
+            params: params
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct RequestMessage<T>
+    where T: Debug + Serialize
+{
+    jsonrpc: &'static str,
+    pub id: String,
+    pub method: String,
+    pub params: T,
+}
+
+impl <T> RequestMessage<T> where T: Debug + Serialize {
+    pub fn new(method: String, params: T) -> Self {
+        RequestMessage {
+            jsonrpc: "2.0",
+            id: "FIXME".to_owned(),
             method: method,
             params: params
         }
