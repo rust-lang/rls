@@ -186,6 +186,7 @@ fn next_id() -> usize {
 }
 
 // Custom reader and output for the RLS server.
+#[derive(Clone)]
 struct PrintlnOutput;
 
 impl server::Output for PrintlnOutput {
@@ -230,7 +231,7 @@ fn init() -> Sender<ServerMessage> {
                                  vfs,
                                  build_queue,
                                  Box::new(ChannelMsgReader::new(receiver)),
-                                 Box::new(PrintlnOutput));
+                                 PrintlnOutput);
     thread::spawn(move || LsService::run(service));
 
     sender.send(initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned())).expect("Error sending init");

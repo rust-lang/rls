@@ -73,6 +73,7 @@ impl ls_server::MessageReader for MockMsgReader {
 
 type LsResultList = Arc<Mutex<Vec<String>>>;
 
+#[derive(Clone)]
 pub struct RecordOutput {
     pub output: LsResultList,
 }

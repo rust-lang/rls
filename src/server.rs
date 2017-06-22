@@ -268,10 +268,10 @@ messages! {
     _ => Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", None));
 }
 
-pub struct LsService {
+pub struct LsService<O: Output> {
     shut_down: AtomicBool,
     msg_reader: Box<MessageReader + Send + Sync>,
-    output: Box<Output + Send + Sync>,
+    output: O,
     handler: ActionHandler,
 }
 
@@ -281,13 +281,13 @@ pub enum ServerStateChange {
     Break,
 }
 
-impl LsService {
+impl<O: Output> LsService<O> {
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
                build_queue: Arc<BuildQueue>,
                reader: Box<MessageReader + Send + Sync>,
-               output: Box<Output + Send + Sync>)
-               -> LsService {
+               output: O)
+               -> LsService<O> {
         LsService {
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
@@ -338,7 +338,7 @@ impl LsService {
         };
         self.output.success(id, ResponseData::Init(result));
         if let Some(root_path) = root_path {
-            self.handler.init(root_path, &*self.output);
+            self.handler.init(root_path, self.output.clone());
         }
     }
 
@@ -347,7 +347,7 @@ impl LsService {
         // a default signature or to execute an arbitrary expression
         macro_rules! action {
             (args: { $($args: tt),+ }; action: $name: ident) => {
-                this.handler.$name( $($args),+, &*this.output  );
+                this.handler.$name( $($args),+, this.output.clone()  );
             };
             (args: { $($args: tt),* }; $expr: expr) => { $expr };
             (args: { $($args: tt),* }; ) => {};
@@ -434,7 +434,7 @@ impl LsService {
                     id: id;
                     Shutdown => {{
                         this.shut_down.store(true, Ordering::SeqCst);
-                        (&*this.output).success(id, ResponseData::Ack(Ack));
+                        this.output.success(id, ResponseData::Ack(Ack));
                     }};
                     Initialize(params) => { this.init(id, params) };
                     Hover(params) => { action: hover };
@@ -448,10 +448,10 @@ impl LsService {
                     DocumentSymbols(params) => { action: symbols };
                     Rename(params) => { action: rename };
                     Formatting(params) => {
-                        this.handler.reformat(id, params.text_document, None, &*this.output, &params.options)
+                        this.handler.reformat(id, params.text_document, None, this.output.clone(), &params.options)
                     };
                     RangeFormatting(params) => {
-                        this.handler.reformat(id, params.text_document, Some(params.range), &*this.output, &params.options)
+                        this.handler.reformat(id, params.text_document, Some(params.range), this.output.clone(), &params.options)
                     };
                     Deglob(params) => { action: deglob };
                     ExecuteCommand(params) => { action: execute_command };
@@ -537,7 +537,7 @@ impl MessageReader for StdioMsgReader {
     }
 }
 
-pub trait Output {
+pub trait Output: Sync + Send + Clone + 'static {
     fn response(&self, output: String);
 
     fn parse_error(&self) {
@@ -592,6 +592,7 @@ pub trait Output {
     }
 }
 
+#[derive(Clone)]
 struct StdioOutput;
 
 impl Output for StdioOutput {
@@ -611,7 +612,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<B
                                  vfs,
                                  build_queue,
                                  Box::new(StdioMsgReader),
-                                 Box::new(StdioOutput));
+                                 StdioOutput);
     LsService::run(service);
     debug!("Server shutting down");
 }

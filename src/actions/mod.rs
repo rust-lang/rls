@@ -44,7 +44,7 @@ pub struct ActionHandler {
     change_queue: ChangeQueue,
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
-    previous_build_results: Mutex<BuildResults>,
+    previous_build_results: Arc<Mutex<BuildResults>>,
     fmt_config: Mutex<FmtConfig>,
 }
 
@@ -58,12 +58,12 @@ impl ActionHandler {
             change_queue: ChangeQueue::new(vfs),
             build_queue,
             current_project: Mutex::new(None),
-            previous_build_results: Mutex::new(HashMap::new()),
+            previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             fmt_config: Mutex::new(FmtConfig::default()),
         }
     }
 
-    pub fn init(&self, root_path: PathBuf, out: &Output) {
+    pub fn init<O: Output>(&self, root_path: PathBuf, out: O) {
         {
             let mut results = self.previous_build_results.lock().unwrap();
             results.clear();
@@ -84,7 +84,7 @@ impl ActionHandler {
         self.build(&root_path, BuildPriority::Immediate, out);
     }
 
-    pub fn build(&self, project_path: &Path, priority: BuildPriority, out: &Output) {
+    pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
         fn clear_build_results(results: &mut BuildResults) {
             // We must not clear the hashmap, just the values in each list.
             // This allows us to save allocated before memory.
@@ -128,54 +128,61 @@ impl ActionHandler {
                 .collect()
         }
 
-        // We use `rustDocument` document here since these notifications are
-        // custom to the RLS and not part of the LS protocol.
-        out.notify("rustDocument/diagnosticsBegin");
+        let build_queue = self.build_queue.clone();
+        let analysis = self.analysis.clone();
+        let previous_build_results = self.previous_build_results.clone();
+        let project_path = project_path.to_owned();
+        let out = out.clone();
+        thread::spawn(move || {
+            // We use `rustDocument` document here since these notifications are
+            // custom to the RLS and not part of the LS protocol.
+            out.notify("rustDocument/diagnosticsBegin");
 
-        debug!("build {:?}", project_path);
-        let result = self.build_queue.request_build(project_path, priority);
-        match result {
-            BuildResult::Success(messages, analysis) | BuildResult::Failure(messages, analysis) => {
-                debug!("build - Success");
+            debug!("build {:?}", project_path);
+            let result = build_queue.request_build(&project_path, priority);
+            match result {
+                BuildResult::Success(messages, new_analysis) | BuildResult::Failure(messages, new_analysis) => {
+                    debug!("build - Success");
 
-                // These notifications will include empty sets of errors for files
-                // which had errors, but now don't. This instructs the IDE to clear
-                // errors for those files.
-                let notifications = {
-                    let mut results = self.previous_build_results.lock().unwrap();
-                    clear_build_results(&mut results);
-                    parse_compiler_messages(&messages, &mut results);
-                    convert_build_results_to_notifications(&results)
-                };
+                    // These notifications will include empty sets of errors for files
+                    // which had errors, but now don't. This instructs the IDE to clear
+                    // errors for those files.
+                    let notifications = {
+                        let mut results = previous_build_results.lock().unwrap();
+                        clear_build_results(&mut results);
+                        parse_compiler_messages(&messages, &mut results);
+                        convert_build_results_to_notifications(&results)
+                    };
 
-                for notification in notifications {
-                    // FIXME(43) factor out the notification mechanism.
-                    let output = serde_json::to_string(&notification).unwrap();
-                    out.response(output);
+                    for notification in notifications {
+                        // FIXME(43) factor out the notification mechanism.
+                        let output = serde_json::to_string(&notification).unwrap();
+                        out.response(output);
+                    }
+
+                    debug!("reload analysis: {:?}", project_path);
+                    let cwd = ::std::env::current_dir().unwrap();
+                    if let Some(new_analysis) = new_analysis {
+                        analysis.reload_from_analysis(new_analysis, &project_path, &cwd, false).unwrap();
+                    } else {
+                        analysis.reload(&project_path, &cwd, false).unwrap();
+                    }
+
+                    out.notify("rustDocument/diagnosticsEnd");
                 }
-
-                debug!("reload analysis: {:?}", project_path);
-                let cwd = ::std::env::current_dir().unwrap();
-                if let Some(analysis) = analysis {
-                    self.analysis.reload_from_analysis(analysis, project_path, &cwd, false).unwrap();
-                } else {
-                    self.analysis.reload(project_path, &cwd, false).unwrap();
-                }
-
-                out.notify("rustDocument/diagnosticsEnd");
+                BuildResult::Squashed => {
+                    debug!("build - Squashed");
+                    out.notify("rustDocument/diagnosticsEnd");
+                },
+                BuildResult::Err => {
+                    debug!("build - Error");
+                    out.notify("rustDocument/diagnosticsEnd");
+                },
             }
-            BuildResult::Squashed => {
-                debug!("build - Squashed");
-                out.notify("rustDocument/diagnosticsEnd");
-            },
-            BuildResult::Err => {
-                debug!("build - Error");
-                out.notify("rustDocument/diagnosticsEnd");
-            },
-        }
+        });
     }
 
-    pub fn on_open(&self, open: DidOpenTextDocumentParams, out: &Output) {
+    pub fn on_open<O: Output>(&self, open: DidOpenTextDocumentParams, out: O) {
         let fname = parse_file_path(&open.text_document.uri).unwrap();
         self.vfs.set_file(fname.as_path(), &open.text_document.text);
 
@@ -184,7 +191,7 @@ impl ActionHandler {
         self.build_current_project(BuildPriority::Normal, out);
     }
 
-    pub fn on_change(&self, change: DidChangeTextDocumentParams, out: &Output) {
+    pub fn on_change<O: Output>(&self, change: DidChangeTextDocumentParams, out: O) {
         trace!("on_change: {:?}, thread: {}", change, unsafe { ::std::mem::transmute::<_, u64>(thread::current().id()) });
         let fname = parse_file_path(&change.text_document.uri).unwrap();
         let fname2 = fname.clone();
@@ -208,13 +215,13 @@ impl ActionHandler {
         self.build_current_project(BuildPriority::Normal, out);
     }
 
-    pub fn on_save(&self, save: DidSaveTextDocumentParams, out: &Output) {
+    pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, out: O) {
         let fname = parse_file_path(&save.text_document.uri).unwrap();
         self.vfs.file_saved(&fname).unwrap();
         self.build_current_project(BuildPriority::Immediate, out);
     }
 
-    fn build_current_project(&self, priority: BuildPriority, out: &Output) {
+    fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
             current_project.clone()
@@ -225,7 +232,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn symbols(&self, id: usize, doc: DocumentSymbolParams, out: &Output) {
+    pub fn symbols<O: Output>(&self, id: usize, doc: DocumentSymbolParams, out: O) {
         let t = thread::current();
         let analysis = self.analysis.clone();
 
@@ -250,7 +257,7 @@ impl ActionHandler {
         out.success(id, ResponseData::SymbolInfo(result));
     }
 
-    pub fn complete(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn complete<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
@@ -266,7 +273,7 @@ impl ActionHandler {
         out.success(id, ResponseData::CompletionItems(result));
     }
 
-    pub fn rename(&self, id: usize, params: RenameParams, out: &Output) {
+    pub fn rename<O: Output>(&self, id: usize, params: RenameParams, out: O) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
@@ -295,7 +302,7 @@ impl ActionHandler {
         out.success(id, ResponseData::WorkspaceEdit(WorkspaceEdit { changes: edits }));
     }
 
-    pub fn highlight(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn highlight<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
@@ -318,7 +325,7 @@ impl ActionHandler {
         out.success(id, ResponseData::Highlights(refs));
     }
 
-    pub fn find_all_refs(&self, id: usize, params: ReferenceParams, out: &Output) {
+    pub fn find_all_refs<O: Output>(&self, id: usize, params: ReferenceParams, out: O) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
         let analysis = self.analysis.clone();
@@ -338,7 +345,7 @@ impl ActionHandler {
         out.success(id, ResponseData::Locations(refs));
     }
 
-    pub fn goto_def(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn goto_def<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         // Save-analysis thread.
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
@@ -390,7 +397,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn hover(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn hover<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
 
@@ -432,7 +439,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn execute_command(&self, id: usize, params: ExecuteCommandParams, out: &Output) {
+    pub fn execute_command<O: Output>(&self, id: usize, params: ExecuteCommandParams, out: O) {
         match &*params.command {
             "rls.applySuggestion" => {
                 let location = serde_json::from_value(params.arguments[0].clone()).expect("Bad argument");
@@ -446,7 +453,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn apply_suggestion(&self, id: usize, location: Location, new_text: String, out: &Output) {
+    pub fn apply_suggestion<O: Output>(&self, id: usize, location: Location, new_text: String, out: O) {
         trace!("apply_suggestion {:?} {}", location, new_text);
         // FIXME should handle the response
         let output = serde_json::to_string(
@@ -457,7 +464,7 @@ impl ActionHandler {
         out.success(id, ResponseData::Ack(Ack));
     }
 
-    pub fn code_action(&self, id: usize, params: CodeActionParams, out: &Output) {
+    pub fn code_action<O: Output>(&self, id: usize, params: CodeActionParams, out: O) {
         trace!("code_action {:?}", params);
 
         let path = parse_file_path(&params.text_document.uri).expect("bad url");
@@ -490,7 +497,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn deglob(&self, id: usize, location: Location, out: &Output) {
+    pub fn deglob<O: Output>(&self, id: usize, location: Location, out: O) {
         let t = thread::current();
         let span = ls_util::location_to_rls(location.clone()).unwrap();
         trace!("deglob {:?}", span);
@@ -551,7 +558,7 @@ impl ActionHandler {
         out.success(id, ResponseData::Ack(Ack));
     }
 
-    pub fn reformat(&self, id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, out: &Output, opts: &FormattingOptions) {
+    pub fn reformat<O: Output>(&self, id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, out: O, opts: &FormattingOptions) {
         trace!("Reformat: {} {:?} {:?} {} {}", id, doc, selection, opts.tab_size, opts.insert_spaces);
 
         let path = &parse_file_path(&doc.uri).unwrap();
