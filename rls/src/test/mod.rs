@@ -395,19 +395,12 @@ fn test_completion() {
 
 #[test]
 fn test_bin_lib_project() {
-    let (mut cache, _tc) = init_env("bin_lib");
-
-    let source_file_path = Path::new("src").join("main.rs");
+    let (cache, _tc) = init_env("bin_lib");
 
     let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 5, "LibStruct"))
-        })),
     ];
 
     let (server, results) = mock_server(messages);
@@ -417,27 +410,16 @@ fn test_bin_lib_project() {
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
-
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"language":"rust","value":"LibStruct {  }"}]"#)]);
 }
 
 #[test]
 fn test_bin_lib_project_no_cfg_test() {
-    let (mut cache, _tc) = init_env("bin_lib_no_cfg_test");
-
-    let source_file_path = Path::new("src").join("main.rs");
+    let (cache, _tc) = init_env("bin_lib_no_cfg_test");
 
     let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 4, "LibStruct"))
-        })),
     ];
 
     let (server, results) = mock_server(messages);
@@ -448,10 +430,6 @@ fn test_bin_lib_project_no_cfg_test() {
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains(r#"[{"range":{"start":{"line":4,"character":24},"end":{"line":4,"character":40},"label":"not found in `bin_lib`"},"secondaryRanges":[],"severity":1,"code":"E0422","source":"rustc","message":"cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`\nnot found in `bin_lib`"}]"#),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
-
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"language":"rust","value":"LibStruct {  }"}]"#)]);
 }
 
 #[test]
