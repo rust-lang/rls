@@ -112,7 +112,10 @@ project.
 Currently we accept the following options:
 
 * `build_lib` (`bool`, defaults to `false`) checks the project as if you passed
-  the `--lib` argument to cargo.
+  the `--lib` argument to cargo. Mutually exclusive with, and preferred over
+  `build_bin`.
+* `build_bin` (`String`, defaults to `""`) checks the project as if you passed
+  `-- bin <build_bin>` argument to cargo. Mutually exclusive with `build_lib`.
 * `cfg_test` (`bool`, defaults to `true`) checks the project as if you were
   running `cargo test` rather than `cargo build`. I.e., compiles (but does not
   run) test code.
