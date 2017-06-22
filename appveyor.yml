@@ -1,6 +1,5 @@
 environment:
   global:
-    RUST_TEST_THREADS: 1
     PROJECT_NAME: rls
   matrix:
     # Nightly channel
@@ -26,6 +25,8 @@ install:
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
   - set PATH=%PATH%;C:\Users\appveyor\.multirust\toolchains\nightly-x86_64-pc-windows-msvc\lib\rustlib\%TARGET%\lib
   - if NOT "%TARGET%" == "x86_64-pc-windows-msvc" rustup target add %TARGET%
+  # Set custom target in rls.toml config file
+  - if NOT "%TARGET%" == "x86_64-pc-windows-msvc" echo target = "%TARGET%" > rls.toml
   - rustc -Vv
   - cargo -V
 
@@ -33,7 +34,6 @@ install:
 build: false
 
 test_script:
-  - set RUST_TEST_THREADS=1
   - cargo test --release --target %TARGET% --verbose
 
 cache:
