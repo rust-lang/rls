@@ -65,6 +65,10 @@ impl<S: ChangeSink> ChangeQueue_<S> {
     pub fn on_changes(&self, file_name: &Path, version: u64, changes: &[Change]) -> Result<(), vfs::Error> {
         trace!("on_changes: {} {:?}", version, changes);
 
+        if changes.is_empty() {
+            return Ok(());
+        }
+
         // It is important to hold the lock on self.queues for the whole time
         // from checking the current version until we are done making the change.
         // However, we must drop the lock if our thread suspends so that other

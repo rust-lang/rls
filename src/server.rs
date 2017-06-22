@@ -124,16 +124,18 @@ macro_rules! messages {
                     method
                 });
             }
-            macro_rules! id {
-                () => ((ls_command.get("id").map(|id| id.as_u64().unwrap() as usize)));
-            }
+
+            let id = ls_command.get("id").and_then(|id| id.as_u64()).map(|id| id as usize);
 
             if let Some(v) = ls_command.get("method") {
                 if let Some(name) = v.as_str() {
                     match name {
                         $(
                             $method_str => {
-                                Ok(ServerMessage::Request(Request{id: id!().unwrap(), method: Method::$method_name$((params_as!($method_arg)))* }))
+                                match id {
+                                    Some(id) => Ok(ServerMessage::Request(Request{id, method: Method::$method_name$((params_as!($method_arg)))* })),
+                                    None => Err(ParseError::new(ErrorKind::InvalidData, "id is not an integer", None)),
+                                }
                             }
                         )*
                         $(
@@ -146,10 +148,10 @@ macro_rules! messages {
                         )*
                     }
                 } else {
-                    Err(ParseError::new(ErrorKind::InvalidData, "Method is not a string", id!()))
+                    Err(ParseError::new(ErrorKind::InvalidData, "Method is not a string", id))
                 }
             } else {
-                Err(ParseError::new(ErrorKind::InvalidData, "Method not found", id!()))
+                Err(ParseError::new(ErrorKind::InvalidData, "Method not found", id))
             }
         }
 
@@ -263,7 +265,7 @@ messages! {
     "$/setTraceNotification" => Err(ParseError::new(ErrorKind::InvalidData, "setTraceNotification", None));
     // TODO handle me
     "workspace/didChangeConfiguration" => Err(ParseError::new(ErrorKind::InvalidData, "didChangeConfiguration", None));
-    _ => Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", id!()));
+    _ => Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", None));
 }
 
 pub struct LsService {
