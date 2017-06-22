@@ -9,7 +9,6 @@
 // except according to those terms.
 
 mod compiler_message_parsing;
-mod change_queue;
 
 use analysis::{AnalysisHost};
 use url::Url;
@@ -23,7 +22,6 @@ use span;
 use Span;
 
 use build::*;
-use self::change_queue::ChangeQueue;
 use lsp_data::*;
 use server::{ResponseData, Output, Ack};
 
@@ -41,7 +39,6 @@ type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
-    change_queue: ChangeQueue,
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
     previous_build_results: Arc<Mutex<BuildResults>>,
@@ -55,7 +52,6 @@ impl ActionHandler {
         ActionHandler {
             analysis,
             vfs: vfs.clone(),
-            change_queue: ChangeQueue::new(vfs),
             build_queue,
             current_project: Mutex::new(None),
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
@@ -194,7 +190,6 @@ impl ActionHandler {
     pub fn on_change<O: Output>(&self, change: DidChangeTextDocumentParams, out: O) {
         trace!("on_change: {:?}, thread: {}", change, unsafe { ::std::mem::transmute::<_, u64>(thread::current().id()) });
         let fname = parse_file_path(&change.text_document.uri).unwrap();
-        let fname2 = fname.clone();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
             if let Some(range) = i.range {
                 let range = ls_util::range_to_rls(range);
@@ -210,7 +205,7 @@ impl ActionHandler {
                 }
             }
         }).collect();
-        self.change_queue.on_changes(&fname2, change.text_document.version, &changes).unwrap();
+        self.vfs.on_changes(&changes).expect("error committing to VFS");
 
         self.build_current_project(BuildPriority::Normal, out);
     }
