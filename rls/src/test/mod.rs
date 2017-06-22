@@ -336,6 +336,25 @@ fn test_reformat_with_range() {
 }
 
 #[test]
+fn test_multiple_binaries() {
+    let (cache, _tc) = init_env("multiple_bins");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+    ];
+
+    let (server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("unused variable: `bin_name2`"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
 fn test_completion() {
     let (mut cache, _tc) = init_env("completion");
 
