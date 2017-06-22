@@ -10,7 +10,6 @@
 
 mod compiler_message_parsing;
 mod change_queue;
-pub mod lsp_extensions;
 
 use analysis::{AnalysisHost};
 use url::Url;
@@ -35,10 +34,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use self::lsp_extensions::{PublishRustDiagnosticsParams, RustDiagnostic};
 use self::compiler_message_parsing::{FileDiagnostic, ParseError};
 
-type BuildResults = HashMap<PathBuf, Vec<RustDiagnostic>>;
+type BuildResults = HashMap<PathBuf, Vec<Diagnostic>>;
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
@@ -111,23 +109,23 @@ impl ActionHandler {
         }
 
         fn convert_build_results_to_notifications(build_results: &BuildResults)
-            -> Vec<NotificationMessage<PublishRustDiagnosticsParams>>
+            -> Vec<NotificationMessage<PublishDiagnosticsParams>>
         {
             let cwd = ::std::env::current_dir().unwrap();
 
             build_results
-            .iter()
-            .map(|(path, diagnostics)| {
-                let method = "textDocument/publishDiagnostics".to_string();
+                .iter()
+                .map(|(path, diagnostics)| {
+                    let method = "textDocument/publishDiagnostics".to_string();
 
-                let params = PublishRustDiagnosticsParams {
-                    uri: Url::from_file_path(cwd.join(path)).unwrap(),
-                    diagnostics: diagnostics.clone(),
-                };
+                    let params = PublishDiagnosticsParams {
+                        uri: Url::from_file_path(cwd.join(path)).unwrap(),
+                        diagnostics: diagnostics.clone(),
+                    };
 
-                NotificationMessage::new(method, params)
-            })
-            .collect()
+                    NotificationMessage::new(method, params)
+                })
+                .collect()
         }
 
         // We use `rustDocument` document here since these notifications are
@@ -137,7 +135,7 @@ impl ActionHandler {
         debug!("build {:?}", project_path);
         let result = self.build_queue.request_build(project_path, priority);
         match result {
-            BuildResult::Success(x, analysis) | BuildResult::Failure(x, analysis) => {
+            BuildResult::Success(messages, analysis) | BuildResult::Failure(messages, analysis) => {
                 debug!("build - Success");
 
                 // These notifications will include empty sets of errors for files
@@ -146,18 +144,17 @@ impl ActionHandler {
                 let notifications = {
                     let mut results = self.previous_build_results.lock().unwrap();
                     clear_build_results(&mut results);
-                    parse_compiler_messages(&x, &mut results);
+                    parse_compiler_messages(&messages, &mut results);
                     convert_build_results_to_notifications(&results)
                 };
 
-                // TODO we don't send an OK notification if there were no errors
                 for notification in notifications {
                     // FIXME(43) factor out the notification mechanism.
                     let output = serde_json::to_string(&notification).unwrap();
                     out.response(output);
                 }
 
-                trace!("reload analysis: {:?}", project_path);
+                debug!("reload analysis: {:?}", project_path);
                 let cwd = ::std::env::current_dir().unwrap();
                 if let Some(analysis) = analysis {
                     self.analysis.reload_from_analysis(analysis, project_path, &cwd, false).unwrap();
@@ -168,11 +165,11 @@ impl ActionHandler {
                 out.notify("rustDocument/diagnosticsEnd");
             }
             BuildResult::Squashed => {
-                trace!("build - Squashed");
+                debug!("build - Squashed");
                 out.notify("rustDocument/diagnosticsEnd");
             },
             BuildResult::Err => {
-                trace!("build - Error");
+                debug!("build - Error");
                 out.notify("rustDocument/diagnosticsEnd");
             },
         }

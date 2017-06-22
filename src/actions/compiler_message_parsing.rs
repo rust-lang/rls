@@ -10,11 +10,9 @@
 
 use std::path::PathBuf;
 
-use ls_types::{DiagnosticSeverity, NumberOrString};
+use ls_types::{Diagnostic, Range, DiagnosticSeverity, NumberOrString};
 use serde_json;
 use span::compiler::DiagnosticSpan;
-use span;
-use actions::lsp_extensions::{RustDiagnostic, LabelledRange};
 
 use lsp_data::ls_util;
 
@@ -35,7 +33,7 @@ struct CompilerMessage {
 #[derive(Debug)]
 pub struct FileDiagnostic {
     pub file_path: PathBuf,
-    pub diagnostic: RustDiagnostic,
+    pub diagnostic: Diagnostic,
 }
 
 #[derive(Debug)]
@@ -57,34 +55,20 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
         return Err(ParseError::NoSpans);
     }
 
-    let message_text = compose_message(&message);
-    let primary = message.spans.iter()
-                                    .filter(|x| x.is_primary)
-                                    .collect::<Vec<&span::compiler::DiagnosticSpan>>()[0].clone();
+    let primary = message.spans
+        .iter()
+        .filter(|x| x.is_primary)
+        .next()
+        .unwrap()
+        .clone();
     let primary_span = primary.rls_span().zero_indexed();
     let primary_range = ls_util::rls_to_range(primary_span.range);
 
-    // build up the secondary spans
-    let secondary_labels: Vec<LabelledRange> = message.spans.iter()
-                                                            .filter(|x| !x.is_primary)
-                                                            .map(|x| {
-            let secondary_range = ls_util::rls_to_range(x.rls_span().zero_indexed().range);
-
-            LabelledRange {
-                start: secondary_range.start,
-                end: secondary_range.end,
-                label: x.label.clone(),
-            }
-        }).collect();
-
-
-    let diagnostic = RustDiagnostic {
-        range: LabelledRange {
-                  start: primary_range.start,
-                  end: primary_range.end,
-                  label: primary.label.clone(),
-               },
-        secondaryRanges: secondary_labels,
+    let diagnostic = Diagnostic {
+        range: Range {
+            start: primary_range.start,
+            end: primary_range.end,
+        },
         severity: Some(if message.level == "error" {
             DiagnosticSeverity::Error
         } else {
@@ -95,32 +79,21 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
             None => String::new(),
         })),
         source: Some("rustc".into()),
-        message: message_text,
+        message: message.message,
     };
+
+
+// c in error.children
+//     s in c.spans
+//         if s.suggested_replacement
+//             suggestions.push({
+//                 suggested_replacement: s.suggested_replacement,
+//                 span: s.[..],
+//                 label: c.message
+//             })
 
     Ok(FileDiagnostic {
         file_path: primary_span.file.clone(),
         diagnostic: diagnostic
     })
-}
-
-/// Builds a more sophisticated error message
-fn compose_message(compiler_message: &CompilerMessage) -> String {
-    let mut message = compiler_message.message.clone();
-    for sp in &compiler_message.spans {
-        if !sp.is_primary {
-            continue;
-        }
-        if let Some(ref label) = sp.label {
-            message.push_str("\n");
-            message.push_str(label);
-        }
-    }
-    if !compiler_message.children.is_empty() {
-        message.push_str("\n");
-        for child in &compiler_message.children {
-            message.push_str(&format!("\n{}: {}", child.level, child.message));
-        }
-    }
-    message
 }
