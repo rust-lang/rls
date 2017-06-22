@@ -48,8 +48,6 @@ pub mod ls_util {
     use Span;
 
     use std::path::Path;
-
-    use url::Url;
     use vfs::Vfs;
 
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {

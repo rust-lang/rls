@@ -92,6 +92,7 @@ serializable_enum!(ResponseData,
     Locations(Vec<Location>),
     Highlights(Vec<DocumentHighlight>),
     HoverSuccess(Hover),
+    Commands(Vec<Command>),
     Ack(Ack)
 );
 
@@ -248,6 +249,8 @@ messages! {
         "textDocument/rename" => Rename(RenameParams);
         "textDocument/formatting" => Formatting(DocumentFormattingParams);
         "textDocument/rangeFormatting" => RangeFormatting(DocumentRangeFormattingParams);
+        "textDocument/codeAction" => CodeAction(CodeActionParams);
+        "workspace/executeCommand" => ExecuteCommand(ExecuteCommandParams);
         "rustWorkspace/deglob" => Deglob(Location);
     }
     notifications {
@@ -319,12 +322,14 @@ impl LsService {
                 document_highlight_provider: Some(true),
                 document_symbol_provider: Some(true),
                 workspace_symbol_provider: Some(true),
-                code_action_provider: Some(false),
+                code_action_provider: Some(true),
                 document_formatting_provider: Some(true),
                 document_range_formatting_provider: Some(unstable_features),
                 rename_provider: Some(unstable_features),
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands: vec!["rls.applySuggestion".to_owned()],
+                }),
 
-                execute_command_provider: None,
                 code_lens_provider: None,
                 document_on_type_formatting_provider: None,
                 signature_help_provider: None,
@@ -448,6 +453,8 @@ impl LsService {
                         this.handler.reformat(id, params.text_document, Some(params.range), &*this.output, &params.options)
                     };
                     Deglob(params) => { action: deglob };
+                    ExecuteCommand(params) => { action: execute_command };
+                    CodeAction(params) => { action: code_action };
                 }
                 notifications {
                     Exit => {{

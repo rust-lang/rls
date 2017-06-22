@@ -34,9 +34,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use self::compiler_message_parsing::{FileDiagnostic, ParseError};
+use self::compiler_message_parsing::{FileDiagnostic, ParseError, Suggestion};
 
-type BuildResults = HashMap<PathBuf, Vec<Diagnostic>>;
+type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
@@ -96,8 +96,8 @@ impl ActionHandler {
         fn parse_compiler_messages(messages: &[String], results: &mut BuildResults) {
             for msg in messages {
                 match compiler_message_parsing::parse(msg) {
-                    Ok(FileDiagnostic { file_path, diagnostic }) => {
-                        results.entry(file_path).or_insert_with(Vec::new).push(diagnostic);
+                    Ok(FileDiagnostic { file_path, diagnostic, suggestions }) => {
+                        results.entry(file_path).or_insert_with(Vec::new).push((diagnostic, suggestions));
                     }
                     Err(ParseError::JsonError(e)) => {
                         debug!("build error {:?}", e);
@@ -120,7 +120,7 @@ impl ActionHandler {
 
                     let params = PublishDiagnosticsParams {
                         uri: Url::from_file_path(cwd.join(path)).unwrap(),
-                        diagnostics: diagnostics.clone(),
+                        diagnostics: diagnostics.iter().map(|&(ref d, _)| d.clone()).collect(),
                     };
 
                     NotificationMessage::new(method, params)
@@ -428,6 +428,64 @@ impl ActionHandler {
             }
             Err(_) => {
                 out.failure(id, "Hover failed to complete successfully");
+            }
+        }
+    }
+
+    pub fn execute_command(&self, id: usize, params: ExecuteCommandParams, out: &Output) {
+        match &*params.command {
+            "rls.applySuggestion" => {
+                let location = serde_json::from_value(params.arguments[0].clone()).expect("Bad argument");
+                let new_text = serde_json::from_value(params.arguments[1].clone()).expect("Bad argument");
+                self.apply_suggestion(id, location, new_text, out)
+            }
+            c => {
+                debug!("Unknown command: {}", c);
+                out.failure(id, "Unknown command");
+            }
+        }
+    }
+
+    pub fn apply_suggestion(&self, id: usize, location: Location, new_text: String, out: &Output) {
+        trace!("apply_suggestion {:?} {}", location, new_text);
+        // FIXME should handle the response
+        let output = serde_json::to_string(
+            &RequestMessage::new("workspace/applyEdit".to_owned(),
+                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(location, new_text) })
+        ).unwrap();
+        out.response(output);
+        out.success(id, ResponseData::Ack(Ack));
+    }
+
+    pub fn code_action(&self, id: usize, params: CodeActionParams, out: &Output) {
+        trace!("code_action {:?}", params);
+
+        let path = parse_file_path(&params.text_document.uri).expect("bad url");
+
+        match self.previous_build_results.lock().unwrap().get(&path) {
+            Some(ref diagnostics) => {
+                let suggestions = diagnostics.iter().filter(|&&(ref d, _)| d.range == params.range).flat_map(|&(_, ref ss)| ss.iter());
+                let mut cmds = vec![];
+                for s in suggestions {
+                    let span = Location {
+                        uri: params.text_document.uri.clone(),
+                        range: s.range,
+                    };
+                    let span = serde_json::to_value(&span).unwrap();
+                    let new_text = serde_json::to_value(&s.new_text).unwrap();
+                    let cmd = Command {
+                        title: s.label.clone(),
+                        command: "rls.applySuggestion".to_owned(),
+                        arguments: Some(vec![span, new_text]),
+                    };
+                    cmds.push(cmd);
+                }
+
+                out.success(id, ResponseData::Commands(cmds));
+            }
+            None => {
+                out.success(id, ResponseData::Commands(vec![]));
+                return;
             }
         }
     }

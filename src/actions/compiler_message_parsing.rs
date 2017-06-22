@@ -34,6 +34,14 @@ struct CompilerMessage {
 pub struct FileDiagnostic {
     pub file_path: PathBuf,
     pub diagnostic: Diagnostic,
+    pub suggestions: Vec<Suggestion>,
+}
+
+#[derive(Debug)]
+pub struct Suggestion {
+    pub range: Range,
+    pub new_text: String,
+    pub label: String,
 }
 
 #[derive(Debug)]
@@ -63,6 +71,24 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
         .clone();
     let primary_span = primary.rls_span().zero_indexed();
     let primary_range = ls_util::rls_to_range(primary_span.range);
+    let file_path = primary_span.file.clone();
+
+    let mut suggestions = vec![];
+    for c in message.children {
+        for sp in c.spans {
+            let span = sp.rls_span().zero_indexed();
+            if span.file == file_path {
+                if let Some(s) = sp.suggested_replacement {
+                    let suggestion = Suggestion {
+                        new_text: s.clone(),
+                        range: ls_util::rls_to_range(span.range),
+                        label: format!("{}: `{}`", c.message, s),
+                    };
+                    suggestions.push(suggestion);
+                }
+            }
+        }
+    }
 
     let diagnostic = Diagnostic {
         range: Range {
@@ -82,18 +108,9 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
         message: message.message,
     };
 
-
-// c in error.children
-//     s in c.spans
-//         if s.suggested_replacement
-//             suggestions.push({
-//                 suggested_replacement: s.suggested_replacement,
-//                 span: s.[..],
-//                 label: c.message
-//             })
-
     Ok(FileDiagnostic {
-        file_path: primary_span.file.clone(),
-        diagnostic: diagnostic
+        file_path: file_path,
+        diagnostic: diagnostic,
+        suggestions: suggestions,
     })
 }
