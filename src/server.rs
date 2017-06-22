@@ -15,6 +15,7 @@ use serde_json;
 use build::*;
 use lsp_data::*;
 use actions::ActionHandler;
+use actions::lsp_extensions::*;
 
 use std::fmt;
 use std::io::{self, Read, Write, ErrorKind};

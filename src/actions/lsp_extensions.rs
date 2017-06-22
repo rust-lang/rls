@@ -12,6 +12,9 @@ use url_serde;
 use lsp_data::*;
 use url::Url;
 
+#[allow(non_upper_case_globals)]
+pub const REQUEST__Deglob: &'static str = "rustWorkspace/deglob";
+
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct PublishRustDiagnosticsParams {
     /// The URI for which diagnostic information is reported.
