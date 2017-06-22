@@ -20,7 +20,6 @@ use std::fmt;
 use std::io::{self, Read, Write, ErrorKind};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
 use std::path::PathBuf;
 
 use config::Config;
@@ -414,61 +413,58 @@ impl<O: Output> LsService<O> {
             },
         };
 
-        let this = this.clone();
-        thread::spawn(move || {
-            {
-                let shut_down = this.shut_down.load(Ordering::SeqCst);
-                if shut_down {
-                    if let Ok(ServerMessage::Notification(Notification::Exit)) = message {
-                    } else {
-                        // We're shutdown, ignore any messages other than 'exit'. This is not actually
-                        // in the spec, I'm not sure we should do this, but it kinda makes sense.
-                        return;
-                    }
+        {
+            let shut_down = this.shut_down.load(Ordering::SeqCst);
+            if shut_down {
+                if let Ok(ServerMessage::Notification(Notification::Exit)) = message {
+                } else {
+                    // We're shutdown, ignore any messages other than 'exit'. This is not actually
+                    // in the spec, I'm not sure we should do this, but it kinda makes sense.
+                    return ServerStateChange::Continue;
                 }
             }
+        }
 
-            handle! {
-                message: message;
-                methods {
-                    id: id;
-                    Shutdown => {{
-                        this.shut_down.store(true, Ordering::SeqCst);
-                        this.output.success(id, ResponseData::Ack(Ack));
-                    }};
-                    Initialize(params) => { this.init(id, params) };
-                    Hover(params) => { action: hover };
-                    GotoDefinition(params) => { action: goto_def };
-                    References(params) => { action: find_all_refs };
-                    Completion(params) => { action: complete };
-                    DocumentHighlight(params) => { action: highlight };
-                    ResolveCompletionItem(params) => {
-                        this.output.success(id, ResponseData::CompletionItems(vec![params]))
-                    };
-                    DocumentSymbols(params) => { action: symbols };
-                    Rename(params) => { action: rename };
-                    Formatting(params) => {
-                        this.handler.reformat(id, params.text_document, None, this.output.clone(), &params.options)
-                    };
-                    RangeFormatting(params) => {
-                        this.handler.reformat(id, params.text_document, Some(params.range), this.output.clone(), &params.options)
-                    };
-                    Deglob(params) => { action: deglob };
-                    ExecuteCommand(params) => { action: execute_command };
-                    CodeAction(params) => { action: code_action };
-                }
-                notifications {
-                    Exit => {{
-                        let shut_down = this.shut_down.load(Ordering::SeqCst);
-                        ::std::process::exit(if shut_down { 0 } else { 1 });
-                    }};
-                    Cancel(params) => {};
-                    DidChangeTextDocument(change) => { action: on_change };
-                    DidOpenTextDocument(open) => { action: on_open };
-                    DidSaveTextDocument(save) => { action: on_save };
-                }
-            };
-        });
+        handle! {
+            message: message;
+            methods {
+                id: id;
+                Shutdown => {{
+                    this.shut_down.store(true, Ordering::SeqCst);
+                    this.output.success(id, ResponseData::Ack(Ack));
+                }};
+                Initialize(params) => { this.init(id, params) };
+                Hover(params) => { action: hover };
+                GotoDefinition(params) => { action: goto_def };
+                References(params) => { action: find_all_refs };
+                Completion(params) => { action: complete };
+                DocumentHighlight(params) => { action: highlight };
+                ResolveCompletionItem(params) => {
+                    this.output.success(id, ResponseData::CompletionItems(vec![params]))
+                };
+                DocumentSymbols(params) => { action: symbols };
+                Rename(params) => { action: rename };
+                Formatting(params) => {
+                    this.handler.reformat(id, params.text_document, None, this.output.clone(), &params.options)
+                };
+                RangeFormatting(params) => {
+                    this.handler.reformat(id, params.text_document, Some(params.range), this.output.clone(), &params.options)
+                };
+                Deglob(params) => { action: deglob };
+                ExecuteCommand(params) => { action: execute_command };
+                CodeAction(params) => { action: code_action };
+            }
+            notifications {
+                Exit => {{
+                    let shut_down = this.shut_down.load(Ordering::SeqCst);
+                    ::std::process::exit(if shut_down { 0 } else { 1 });
+                }};
+                Cancel(params) => {};
+                DidChangeTextDocument(change) => { action: on_change };
+                DidOpenTextDocument(open) => { action: on_open };
+                DidSaveTextDocument(save) => { action: on_save };
+            }
+        };
         ServerStateChange::Continue
     }
 }
