@@ -192,7 +192,7 @@ fn test_borrow_error() {
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains(r#"secondaryRanges":[{"start":{"line":2,"character":17},"end":{"line":2,"character":18},"label":"first mutable borrow occurs here"}"#),
+                                       ExpectedMessage::new(None).expect_contains(r#""message":"cannot borrow `x` as mutable more than once at a time""#),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
@@ -387,7 +387,7 @@ fn test_parse_error_on_malformed_input() {
     let vfs = Arc::new(vfs::Vfs::new());
     let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
     let reader = Box::new(NoneMsgReader);
-    let output = Box::new(RecordOutput::new());
+    let output = RecordOutput::new();
     let results = output.output.clone();
     let server = Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output));
 

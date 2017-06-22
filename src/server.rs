@@ -24,6 +24,9 @@ use std::path::PathBuf;
 
 use config::Config;
 
+#[allow(non_upper_case_globals)]
+pub const REQUEST__Deglob: &'static str = "rustWorkspace/deglob";
+
 #[derive(Debug, Serialize)]
 pub struct Ack;
 

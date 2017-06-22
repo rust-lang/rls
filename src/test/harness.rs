@@ -28,13 +28,13 @@ use vfs;
 const TEST_TIMEOUT_IN_SEC: u64 = 10;
 
 // Initialise and run the internals of an LS protocol RLS server.
-pub fn mock_server(messages: Vec<ServerMessage>) -> (Arc<ls_server::LsService>, LsResultList)
+pub fn mock_server(messages: Vec<ServerMessage>) -> (Arc<ls_server::LsService<RecordOutput>>, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
     let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
     let reader = Box::new(MockMsgReader::new(messages));
-    let output = Box::new(RecordOutput::new());
+    let output = RecordOutput::new();
     let results = output.output.clone();
     (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
 }
