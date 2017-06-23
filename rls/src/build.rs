@@ -458,7 +458,13 @@ impl BuildQueue {
                 } else {
                     let mut bins = targets.iter().filter(|x| x.is_bin()); 
                     let bin = bins.find(|x| x.name() == rls_config.build_bin);
-                    match bin { None => vec![], Some(bin) => vec![bin.name().to_owned()]}
+                    match bin {
+                        Some(bin) => vec![bin.name().to_owned()],
+                        None => {
+                            debug!("cargo - couldn't find binary `{}` (specified in rls toml file)", rls_config.build_bin);
+                            vec![]
+                        }
+                    }
                 }
             };
 
