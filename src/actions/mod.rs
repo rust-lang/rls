@@ -182,7 +182,7 @@ impl ActionHandler {
         });
     }
 
-    pub fn on_open<O: Output>(&self, open: DidOpenTextDocumentParams, out: O) {
+    pub fn on_open<O: Output>(&self, open: DidOpenTextDocumentParams, _out: O) {
         let fname = parse_file_path(&open.text_document.uri).unwrap();
         self.vfs.set_file(fname.as_path(), &open.text_document.text);
 
@@ -212,7 +212,7 @@ impl ActionHandler {
         self.build_current_project(BuildPriority::Normal, out);
     }
 
-    pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, out: O) {
+    pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, _out: O) {
         let fname = parse_file_path(&save.text_document.uri).unwrap();
         self.vfs.file_saved(&fname).unwrap();
     }

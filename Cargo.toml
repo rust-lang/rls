@@ -16,8 +16,8 @@ env_logger = "0.4"
 languageserver-types = "0.11.0"
 log = "0.3"
 racer = "2.0.6"
-rls-analysis = "0.3.2"
-rls-data = "= 0.4.1"
+rls-analysis = "0.4.1"
+rls-data = "= 0.7"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4", features = ["racer-impls"] }
 rustfmt-nightly = "0.1"
