@@ -259,7 +259,8 @@ impl BuildQueue {
         }
 
         let compile_cx = self.compilation_cx.lock().unwrap();
-        let (args, envs) = (&(*compile_cx).args, &(*compile_cx).envs);
+        let args = &(*compile_cx).args;
+        let envs = &(*compile_cx).envs;
         assert!(!args.is_empty());
         self.rustc(args, envs, build_dir)
     }
