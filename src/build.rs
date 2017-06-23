@@ -127,7 +127,7 @@ impl BuildQueue {
     }
 
     pub fn request_build(&self, build_dir: &Path, priority: BuildPriority) -> BuildResult {
-        // println!("request_build, {:?} {:?}", build_dir, priority);
+        trace!("request_build, {:?} {:?}", build_dir, priority);
 
         // If there is a change in the project directory, then we can forget any
         // pending build and start straight with this new build.
@@ -228,6 +228,7 @@ impl BuildQueue {
 
     // Build the project.
     fn build(&self) -> BuildResult {
+        trace!("running build");
         // When we change build directory (presumably because the IDE is
         // changing project), we must do a cargo build of the whole project.
         // Otherwise we just use rustc directly.

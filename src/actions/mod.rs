@@ -133,11 +133,13 @@ impl ActionHandler {
             // We use `rustDocument` document here since these notifications are
             // custom to the RLS and not part of the LS protocol.
             out.notify("rustDocument/diagnosticsBegin");
+            // let start_time = ::std::time::Instant::now();
 
             debug!("build {:?}", project_path);
             let result = build_queue.request_build(&project_path, priority);
             match result {
                 BuildResult::Success(messages, new_analysis) | BuildResult::Failure(messages, new_analysis) => {
+                    // eprintln!("built {:?}", start_time.elapsed());
                     debug!("build - Success");
 
                     // These notifications will include empty sets of errors for files
@@ -158,11 +160,13 @@ impl ActionHandler {
 
                     debug!("reload analysis: {:?}", project_path);
                     let cwd = ::std::env::current_dir().unwrap();
+                    // eprintln!("start analysis {:?}", start_time.elapsed());
                     if let Some(new_analysis) = new_analysis {
                         analysis.reload_from_analysis(new_analysis, &project_path, &cwd, false).unwrap();
                     } else {
                         analysis.reload(&project_path, &cwd, false).unwrap();
                     }
+                    // eprintln!("finished analysis {:?}", start_time.elapsed());
 
                     out.notify("rustDocument/diagnosticsEnd");
                 }
@@ -183,8 +187,6 @@ impl ActionHandler {
         self.vfs.set_file(fname.as_path(), &open.text_document.text);
 
         trace!("on_open: {:?}", fname);
-
-        self.build_current_project(BuildPriority::Normal, out);
     }
 
     pub fn on_change<O: Output>(&self, change: DidChangeTextDocumentParams, out: O) {
@@ -213,7 +215,6 @@ impl ActionHandler {
     pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, out: O) {
         let fname = parse_file_path(&save.text_document.uri).unwrap();
         self.vfs.file_saved(&fname).unwrap();
-        self.build_current_project(BuildPriority::Immediate, out);
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
