@@ -20,7 +20,7 @@ please get in touch by filing an issue or on IRC.
 
 ## Building
 
-Note, you also don't need to build the `rls` to use it. Instead, you can install
+Note, you don't need to build the `rls` to use it. Instead, you can install
 via `rustup`, which is the currently preferred method. See the
 [readme](README.md) for more information.
 
@@ -42,6 +42,10 @@ git clone https://github.com/rust-lang-nursery/rls.git
 cd rls
 cargo build --release
 ```
+
+After cloning or updating, if you have missing or out of date crates, you might
+need to update the submodules, try `git submodule update --init`.
+
 
 ### Step 3: Connect the RLS to your compiler
 
@@ -108,7 +112,7 @@ cargo run
 Though more commonly, you'll use an IDE plugin to invoke it for you
 (see [README.md](README.md) for details).
 
-We recommend using https://github.com/jonathandturner/rls_vscode in VSCode. If
+We recommend using https://github.com/rust-lang-nursery/rls-vscode in VSCode. If
 you are debugging you should set `HIDE_WINDOW_OUTPUT` to `false`, this will send
 logging and other messages to the extensions panel in VSCode. Anything the RLS
 writes to stderr is redirected to VSCode. Do not write to stdout, that will
@@ -243,8 +247,8 @@ The RLS tracks changes to files, and keeps the changed file in memory (i.e., the
 RLS does not need the IDE to save a file before providing data). These changed
 files are tracked by the 'Virtual File System' (which is a bit of a grandiose
 name for a pretty simple file cache at the moment, but I expect this area to
-grow significantly in the future). The VFS is in a [separate
-crate](https://github.com/nrc/rls-vfs).
+grow significantly in the future). The VFS is in a its own crate in the `vfs`
+directory.
 
 We want to start building before the user needs information (it would be too
 slow to start a build when data is requested). However, we don't want to start a
@@ -275,7 +279,7 @@ reference and store this data in HashMaps and use it to look up data for the
 IDE.
 
 Reading, processing, and storing the analysis data is handled by the
-[rls-analysis crate](https://github.com/nrc/rls-analysis).
+rls-analysis crate (in the `analysis` directory).
 
 ### Communicating with IDEs
 
@@ -296,12 +300,12 @@ the RLS.
 
 ### Extensions to the Language Server Protocol
 
-The RLS uses some custom extensions to the Language Server Protocol. Currently
-these are all sent from the RLS to an LSP client and are only used to improve
-the user experience by showing progress indicators.
+The RLS uses some custom extensions to the Language Server Protocol.
 
-* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent before a
-  build starts and before any diagnostics from a build are sent.
-* `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
-  is complete (successfully or not, or even skipped) and all post-build analysis
-  by the RLS is complete.
+* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent from the RLS
+  to a client before a build starts and before any diagnostics from a build are sent.
+* `rustDocument/diagnosticsEnd`: notification, no arguments. Sent from the RLS
+  to a client when a build is complete (successfully or not, or even skipped)
+  and all post-build analysis by the RLS is complete.
+* `rustWorkspace/deglob`: message sent from the client to the RLS to initiate a
+  deglob refactoring.

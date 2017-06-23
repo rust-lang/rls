@@ -25,8 +25,8 @@ better experience for larger and larger crates.
 
 The RLS is designed to be frontend-independent. We hope it will be widely
 adopted by different editors and IDEs. To seed development, we provide a
-[reference implementation of an RLS frontend](https://github.com/jonathandturner/rls_vscode)
-for [Visual Studio Code](https://code.visualstudio.com/).
+[reference implementation of an RLS frontend](https://github.com/rust-lang-nursery/rls-vscode)
+(and included in this repo as a submodule) for [Visual Studio Code](https://code.visualstudio.com/).
 
 
 ## Setup
@@ -75,13 +75,12 @@ Next, you'll need to run the VSCode extension (for this step, you'll need a
 recent [node](https://nodejs.org/en/) installed:
 
 ```
-git clone https://github.com/rust-lang-nursery/rls_vscode
-cd rls_vscode
+cd vscode
 npm install
 code .
 ```
 
-VSCode will open into the `rls_vscode` project.  From here, click the Debug
+VSCode will open into the `vscode` project.  From here, click the Debug
 button on the left-hand side (a bug with a line through it). Next, click the
 green triangle at the top.  This will launch a new instance of VSCode with the
 `rls_vscode` plugin enabled. VSCode setting `"window.openFoldersInNewWindow"`

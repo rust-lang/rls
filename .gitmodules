@@ -1,0 +1,18 @@
+[submodule "rls-vfs"]
+	path = vfs
+	url = git@github.com:nrc/rls-vfs.git
+[submodule "vscode"]
+	path = vscode
+	url = git@github.com:rust-lang-nursery/rls-vscode.git
+[submodule "span"]
+	path = span
+	url = git@github.com:nrc/rls-span.git
+[submodule "data"]
+	path = data
+	url = git@github.com:nrc/rls-data.git
+[submodule "analysis"]
+	path = analysis
+	url = git@github.com:nrc/rls-analysis.git
+[submodule "languageserver-types"]
+	path = languageserver-types
+	url = git@github.com:gluon-lang/languageserver-types.git
