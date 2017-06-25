@@ -39,7 +39,7 @@ you'll need a recent nightly compiler to build it.
 
 ```
 git clone https://github.com/rust-lang-nursery/rls.git
-cd rls
+cd rls/rls
 cargo build --release
 ```
 
@@ -108,6 +108,8 @@ You can run the rls by hand with:
 ```
 cargo run
 ```
+
+For running or testing, you must be in the `rls` subdirectory.
 
 Though more commonly, you'll use an IDE plugin to invoke it for you
 (see [README.md](README.md) for details).
