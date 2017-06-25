@@ -447,11 +447,32 @@ impl BuildQueue {
             let mut manifest_path = build_dir.clone();
             manifest_path.push("Cargo.toml");
             trace!("manifest_path: {:?}", manifest_path);
+            // TODO: Add support for virtual manifests and multiple packages 
             let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
+            let current_package = ws.current().unwrap(); 
+            let targets = current_package.targets(); 
+
+            let bins = {
+                if rls_config.build_bin.is_empty() { 
+                    vec![]
+                } else {
+                    let mut bins = targets.iter().filter(|x| x.is_bin()); 
+                    let bin = bins.find(|x| x.name() == rls_config.build_bin);
+                    match bin {
+                        Some(bin) => vec![bin.name().to_owned()],
+                        None => {
+                            debug!("cargo - couldn't find binary `{}` (specified in rls toml file)", rls_config.build_bin);
+                            vec![]
+                        }
+                    }
+                }
+            };
 
             let mut opts = CompileOptions::default(&config, CompileMode::Check);
             if rls_config.build_lib {
-                opts.filter = CompileFilter::new(true, &[], false, &[], false, &[], false, &[], false);
+                opts.filter = CompileFilter::new(true, &[], false, &[], false, &[], false, &[], false); 
+            } else if !bins.is_empty() {
+                opts.filter = CompileFilter::new(false, &bins, false, &[], false, &[], false, &[], false);
             }
             if !rls_config.target.is_empty() {
                 opts.target = Some(&rls_config.target);

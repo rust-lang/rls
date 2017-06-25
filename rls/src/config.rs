@@ -154,6 +154,7 @@ create_config! {
     target: String, String::new(), false, "--target";
     rustflags: String, String::new(), false, "flags added to RUSTFLAGS";
     build_lib: bool, false, false, "cargo check --lib";
+    build_bin: String, String::new(), false, "cargo check --bin <name>";
     cfg_test: bool, true, false, "build cfg(test) code";
     unstable_features: bool, false, false, "enable unstable features";
 }
