@@ -148,37 +148,24 @@ impl BuildQueue {
 
         self.cancel_pending();
 
-        match priority {
-            BuildPriority::Immediate => {
-                // There is a build running, wait for it to finish, then run.
-                if self.running.load(Ordering::SeqCst) {
-                    let (tx, rx) = channel();
-                    self.pending.lock().unwrap().push(tx);
-                    // Blocks.
-                    // println!("blocked on build");
-                    let signal = rx.recv().unwrap_or(Signal::Build);
-                    if signal == Signal::Skip {
-                        return BuildResult::Squashed;
-                    }
-                }
-            }
-            BuildPriority::Normal => {
-                let (tx, rx) = channel();
-                self.pending.lock().unwrap().push(tx);
-                thread::sleep(Duration::from_millis(WAIT_TO_BUILD));
+        let (tx, rx) = channel();
+        self.pending.lock().unwrap().push(tx);
+        if priority == BuildPriority::Normal {
+            thread::sleep(Duration::from_millis(WAIT_TO_BUILD));
+        }
 
-                if self.running.load(Ordering::SeqCst) {
-                    // Blocks
-                    // println!("blocked until wake up");
-                    let signal = rx.recv().unwrap_or(Signal::Build);
-                    if signal == Signal::Skip {
-                        return BuildResult::Squashed;
-                    }
-                } else if rx.try_recv().unwrap_or(Signal::Build) == Signal::Skip {
-                    // Doesn't block.
-                    return BuildResult::Squashed;
-                }
+        if self.running.load(Ordering::SeqCst) {
+            // Blocks
+            // println!("blocked on build");
+            let signal = rx.recv().unwrap_or(Signal::Build);
+            if signal == Signal::Skip {
+                return BuildResult::Squashed;
             }
+        // Quickly check our channel to see if anyone has told us to skip. This
+        // is only likely to have happened if we slept, and some other build ran
+        // while we slept.
+        } else if rx.try_recv().unwrap_or(Signal::Build) == Signal::Skip {
+            return BuildResult::Squashed;
         }
 
         // If another build has started already, we don't need to build
