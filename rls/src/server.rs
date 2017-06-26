@@ -379,7 +379,7 @@ impl<O: Output> LsService<O> {
                         match method {
                             $(
                                 Method::$method_name$(($method_arg))* => {
-                                    trace!("Handling {} ({}) (params: {:?}", stringify!($method_name), id, trace_params!($($method_arg)*));
+                                    trace!("Handling {} ({}) (params: {:?})", stringify!($method_name), id, trace_params!($($method_arg)*));
                                     // Due to macro hygiene, we need to pass to a nested macro destructured
                                     // id, which will be passed to scope of a possible arbitrary expresion
                                     let $id = id;
@@ -392,7 +392,7 @@ impl<O: Output> LsService<O> {
                         match notification {
                             $(
                                 Notification::$notif_name$(($notif_arg))* => {
-                                    trace!("Handling {} (params: {:?}", stringify!($notif_name), trace_params!($($notif_arg)*));
+                                    trace!("Handling {} (params: {:?})", stringify!($notif_name), trace_params!($($notif_arg)*));
                                     action!(args: { $($notif_arg)* }; $($notif_action)*);
                                 }
                             ),*

@@ -394,6 +394,45 @@ fn test_completion() {
 }
 
 #[test]
+fn test_bin_lib_project() {
+    let (cache, _tc) = init_env("bin_lib");
+
+    let root_path = cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+    ];
+
+    let (server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
+fn test_bin_lib_project_no_cfg_test() {
+    let (cache, _tc) = init_env("bin_lib_no_cfg_test");
+
+    let root_path = cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+    ];
+
+    let (server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains(r#"[{"range":{"start":{"line":4,"character":24},"end":{"line":4,"character":40},"label":"not found in `bin_lib`"},"secondaryRanges":[],"severity":1,"code":"E0422","source":"rustc","message":"cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`\nnot found in `bin_lib`"}]"#),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
 fn test_parse_error_on_malformed_input() {
     let _ = env_logger::init();
     struct NoneMsgReader;

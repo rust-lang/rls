@@ -71,8 +71,9 @@ use std::time::Duration;
 /// it was squashed.
 pub struct BuildQueue {
     build_dir: Mutex<Option<PathBuf>>,
-    cmd_line_args: Arc<Mutex<Vec<String>>>,
-    cmd_line_envs: Arc<Mutex<HashMap<String, Option<OsString>>>>,
+    // Arguments and environment with which we call rustc.
+    // This can be further expanded for multi-crate target configuration.
+    compilation_cx: Arc<Mutex<CompilationContext>>,
     // True if a build is running.
     // Note I have been conservative with Ordering when accessing this atomic,
     // we might be able to do better.
@@ -113,12 +114,26 @@ enum Signal {
     Skip,
 }
 
+#[derive(Debug)]
+struct CompilationContext {
+    args: Vec<String>,
+    envs: HashMap<String, Option<OsString>>,
+}
+
+impl CompilationContext {
+    fn new() -> CompilationContext {
+        CompilationContext {
+            args: vec![],
+            envs: HashMap::new(),
+        }
+    }
+}
+
 impl BuildQueue {
     pub fn new(vfs: Arc<Vfs>) -> BuildQueue {
         BuildQueue {
             build_dir: Mutex::new(None),
-            cmd_line_args: Arc::new(Mutex::new(vec![])),
-            cmd_line_envs: Arc::new(Mutex::new(HashMap::new())),
+            compilation_cx: Arc::new(Mutex::new(CompilationContext::new())),
             running: AtomicBool::new(false),
             pending: Mutex::new(vec![]),
             vfs: vfs,
@@ -141,8 +156,8 @@ impl BuildQueue {
                 let mut config = self.config.lock().unwrap();
                 *config = Config::from_path(build_dir);
 
-                let mut cmd_line_args = self.cmd_line_args.lock().unwrap();
-                *cmd_line_args = vec![];
+                let mut compilation_cx = self.compilation_cx.lock().unwrap();
+                (*compilation_cx).args = vec![];
             }
         }
 
@@ -232,10 +247,7 @@ impl BuildQueue {
         // do this so we can load changed code from the VFS, rather than from
         // disk). We get the data we need by building with `-Zsave-analysis`.
 
-        let needs_to_run_cargo = {
-            let cmd_line_args = self.cmd_line_args.lock().unwrap();
-            cmd_line_args.is_empty()
-        };
+        let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
 
         let build_dir = &self.build_dir.lock().unwrap();
         let build_dir = build_dir.as_ref().unwrap();
@@ -246,28 +258,26 @@ impl BuildQueue {
             }
         }
 
-        let cmd_line_args = self.cmd_line_args.lock().unwrap();
-        assert!(!cmd_line_args.is_empty());
-        let cmd_line_envs = self.cmd_line_envs.lock().unwrap();
-        self.rustc(&*cmd_line_args, &*cmd_line_envs, build_dir)
+        let compile_cx = self.compilation_cx.lock().unwrap();
+        let args = &(*compile_cx).args;
+        let envs = &(*compile_cx).envs;
+        assert!(!args.is_empty());
+        self.rustc(args, envs, build_dir)
     }
 
     // Runs an in-process instance of Cargo.
     fn cargo(&self, build_dir: PathBuf) -> BuildResult {
         struct RlsExecutor {
-            cmd_line_args: Arc<Mutex<Vec<String>>>,
-            cmd_line_envs: Arc<Mutex<HashMap<String, Option<OsString>>>>,
+            compilation_cx: Arc<Mutex<CompilationContext>>,
             cur_package_id: Mutex<Option<PackageId>>,
             config: Config,
         }
 
         impl RlsExecutor {
-            fn new(cmd_line_args: Arc<Mutex<Vec<String>>>,
-                   cmd_line_envs: Arc<Mutex<HashMap<String, Option<OsString>>>>,
+            fn new(compilation_cx: Arc<Mutex<CompilationContext>>,
                    config: Config) -> RlsExecutor {
                 RlsExecutor {
-                    cmd_line_args: cmd_line_args,
-                    cmd_line_envs: cmd_line_envs,
+                    compilation_cx: compilation_cx,
                     cur_package_id: Mutex::new(None),
                     config: config,
                 }
@@ -309,92 +319,83 @@ impl BuildQueue {
                     let cur_package_id = self.cur_package_id.lock().unwrap();
                     id == cur_package_id.as_ref().expect("Executor has not been initialised")
                 };
-                if is_primary_crate {
-                    let mut args: Vec<_> =
-                        cmd.get_args().iter().map(|a| a.clone().into_string().unwrap()).collect();
 
-                    // We end up taking this code path for build scripts, we don't
-                    // want to do that, so we check here if the crate is actually
-                    // being linked (c.f., emit=metadata) and if just call the
-                    // usual rustc. This is clearly a bit fragile (if the emit
-                    // string changes, we get screwed).
-                    if args.contains(&"--emit=dep-info,link".to_owned()) {
-                        trace!("rustc not intercepted (link)");
-                        return cmd.exec();
-                    }
+                // We only want to intercept rustc call targeting current crate to cache
+                // args/envs generated by cargo so we can run only rustc later ourselves
+                // Currently we don't cache nor modify build script args
+                let is_build_script = crate_name == "build_script_build";
+                if !is_primary_crate || is_build_script {
+                    let build_script_notice = if is_build_script {" (build script)"} else {""};
+                    trace!("rustc not intercepted - {}{}", id.name(), build_script_notice);
 
-                    trace!("intercepted rustc, args: {:?}", args);
-                    let rustc_exe = env::var("RUSTC").unwrap_or("rustc".to_owned());
-
-                    {
-                        // Cargo is going to expect to get dep-info for this crate, so we shell out
-                        // to rustc to get that. This is not really ideal, because we are going to
-                        // compute this info anyway when we run rustc ourselves, but we don't do
-                        // that before we return to Cargo.
-                        // FIXME Don't do this. Instead either persuade Cargo that it doesn't need
-                        // this info at all, or start our build here rather than on another thread
-                        // so the dep-info is ready by the time we return from this callback.
-                        let mut cmd_dep_info = Command::new(&rustc_exe);
-                        for a in &args {
-                            if a.starts_with("--emit") {
-                                cmd_dep_info.arg("--emit=dep-info");
-                            } else {
-                                cmd_dep_info.arg(a);
-                            }
-                        }
-                        // Compilation may depend on env vars which Cargo sets during compile-time
-                        cmd_dep_info.envs(cmd.get_envs().iter().filter_map(|(k, v)| v.as_ref().map(|v| (k, v))));
-
-                        if let Some(cwd) = cmd.get_cwd() {
-                            cmd_dep_info.current_dir(cwd);
-                        }
-                        cmd_dep_info.status().expect("Couldn't execute rustc");
-                    }
-
-                    args.insert(0, rustc_exe.clone());
-                    if self.config.cfg_test {
-                        args.push("--test".to_owned());
-                    }
-                    if self.config.sysroot.is_empty() {
-                        args.push("--sysroot".to_owned());
-                        let home = env::var("RUSTUP_HOME").or(env::var("MULTIRUST_HOME"));
-                        let toolchain = env::var("RUSTUP_TOOLCHAIN").or(env::var("MULTIRUST_TOOLCHAIN"));
-                        let sys_root = if let (Ok(home), Ok(toolchain)) = (home, toolchain) {
-                            format!("{}/toolchains/{}", home, toolchain)
-                        } else {
-                            env::var("SYSROOT")
-                                .map(|s| s.to_owned())
-                                    .ok()
-                                    .or_else(|| Command::new(&rustc_exe)
-                                        .arg("--print")
-                                        .arg("sysroot")
-                                        .output()
-                                        .ok()
-                                        .and_then(|out| String::from_utf8(out.stdout).ok())
-                                        .map(|s| s.trim().to_owned()))
-                                    .expect("need to specify SYSROOT env var, \
-                                            or use rustup or multirust")
-                        };
-                        args.push(sys_root.to_owned());
-                    }
-
-                    let envs = cmd.get_envs();
-                    trace!("envs: {:?}", envs);
-
-                    {
-                        let mut cmd_line_args = self.cmd_line_args.lock().unwrap();
-                        *cmd_line_args = args.clone();
-                    }
-                    {
-                        let mut cmd_line_envs = self.cmd_line_envs.lock().unwrap();
-                        *cmd_line_envs = envs.clone();
-                    }
-
-                    Ok(())
-                } else {
-                    trace!("rustc not intercepted");
-                    cmd.exec()
+                    return cmd.exec();
                 }
+
+                trace!("rustc intercepted - args: {:?} envs: {:?}", cmd.get_args(), cmd.get_envs());
+
+                // Apply our compilation configuration
+                let crate_type = parse_arg(args, "--crate-type");
+                // Becase we only try to emulate `cargo test` using `cargo check`, so for now
+                // assume crate_type arg (i.e. in `cargo test` it isn't specified for --test targets)
+                // and build test harness only for final crate type
+                let crate_type = crate_type.expect("no crate-type in rustc command line");
+                let is_final_crate_type = crate_type == "bin" || (crate_type == "lib" && self.config.build_lib);
+
+                let mut args: Vec<_> =
+                    cmd.get_args().iter().map(|a| a.clone().into_string().unwrap()).collect();
+
+                if self.config.cfg_test {
+                    // FIXME(#351) allow passing --test to lib crate-type when building a dependency
+                    if is_final_crate_type {
+                        args.push("--test".to_owned());
+                    } else {
+                        args.push("--cfg".to_owned());
+                        args.push("test".to_owned());
+                    }
+                }
+                if self.config.sysroot.is_empty() {
+                    let sysroot = current_sysroot()
+                                    .expect("need to specify SYSROOT env var or use rustup or multirust");
+                    args.push("--sysroot".to_owned());
+                    args.push(sysroot);
+                }
+
+                // We can't omit compilation here, because Cargo is going to expect to get
+                // dep-info for this crate, so we shell out to rustc to get that.
+                // This is not really ideal, because we are going to
+                // compute this info anyway when we run rustc ourselves, but we don't do
+                // that before we return to Cargo.
+                // FIXME Don't do this. Start our build here rather than on another thread
+                // so the dep-info is ready by the time we return from this callback.
+                // Since ProcessBuilder doesn't allow to modify args, we need to create
+                // our own command here from scratch here.
+                let old_cmd = &cmd;
+                let rustc_exe = env::var("RUSTC").unwrap_or("rustc".to_owned());
+                let mut cmd = Command::new(&rustc_exe);
+                for a in &args {
+                    // Emitting only dep-info is possible only for final crate type, as
+                    // as others may emit required metadata for dependent crate types
+                    if a.starts_with("--emit") && is_final_crate_type {
+                        cmd.arg("--emit=dep-info");
+                    } else {
+                        cmd.arg(a);
+                    }
+                }
+                cmd.envs(old_cmd.get_envs().iter().filter_map(|(k, v)| v.as_ref().map(|v| (k, v))));
+                if let Some(cwd) = old_cmd.get_cwd() {
+                    cmd.current_dir(cwd);
+                }
+
+                cmd.status().expect("Couldn't execute rustc");
+
+                // Finally store the modified cargo-generated args/envs for future rustc calls
+                args.insert(0, rustc_exe);
+                *self.compilation_cx.lock().unwrap() = CompilationContext {
+                    args: args,
+                    envs: old_cmd.get_envs().clone()
+                };
+
+                Ok(())
             }
         }
 
@@ -404,9 +405,7 @@ impl BuildQueue {
         };
 
         trace!("cargo - `{:?}`", build_dir);
-        let exec = RlsExecutor::new(self.cmd_line_args.clone(),
-                                    self.cmd_line_envs.clone(),
-                                    rls_config.clone());
+        let exec = RlsExecutor::new(self.compilation_cx.clone(), rls_config.clone());
 
         let out = Arc::new(Mutex::new(vec![]));
         let out_clone = out.clone();
@@ -646,6 +645,26 @@ fn parse_arg(args: &[OsString], arg: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn current_sysroot() -> Option<String> {
+    let home = env::var("RUSTUP_HOME").or(env::var("MULTIRUST_HOME"));
+    let toolchain = env::var("RUSTUP_TOOLCHAIN").or(env::var("MULTIRUST_TOOLCHAIN"));
+    if let (Ok(home), Ok(toolchain)) = (home, toolchain) {
+        Some(format!("{}/toolchains/{}", home, toolchain))
+    } else {
+        let rustc_exe = env::var("RUSTC").unwrap_or("rustc".to_owned());
+        env::var("SYSROOT")
+            .map(|s| s.to_owned())
+                .ok()
+                .or_else(|| Command::new(rustc_exe)
+                    .arg("--print")
+                    .arg("sysroot")
+                    .output()
+                    .ok()
+                    .and_then(|out| String::from_utf8(out.stdout).ok())
+                    .map(|s| s.trim().to_owned()))
+    }
 }
 
 // A threadsafe buffer for writing.
