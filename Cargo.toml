@@ -1,13 +1,29 @@
-[workspace]
-members = [
-    "rls",
-    "vfs",
-    "analysis",
-    "data",
-    "span",
-    "languageserver-types",
-]
+[package]
+name = "rls"
+version = "0.1.0"
+authors = ["Nick Cameron <ncameron@mozilla.com>", "Jonathan Turner <jturner@mozilla.com>", "The RLS developers"]
+description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
+license = "Apache-2.0/MIT"
+repository = "https://github.com/rust-lang-nursery/rls"
+categories = ["development-tools"]
 
-[replace]
-"rls-data:0.7.0" = { path = "data" }
-"rls-span:0.4.0" = { path = "span" }
+build = "build.rs"
+
+[dependencies]
+cargo = { git = "https://github.com/rust-lang/cargo" }
+derive-new = "0.3"
+env_logger = "0.4"
+languageserver-types = "0.11"
+log = "0.3"
+racer = "2.0.6"
+rls-analysis = "0.4"
+rls-data = "0.7"
+rls-span = { version = "0.4" , features = ["serialize-serde"] }
+rls-vfs = { version = "0.4", features = ["racer-impls"] }
+rustfmt-nightly = "0.1"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+toml = "0.4"
+url = "1.1.0"
+url_serde = "0.2.0"

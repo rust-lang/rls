@@ -75,15 +75,16 @@ Next, you'll need to run the VSCode extension (for this step, you'll need a
 recent [node](https://nodejs.org/en/) installed:
 
 ```
-cd vscode
+git clone https://github.com/rust-lang-nursery/rls-vscode
+cd rls-vscode
 npm install
 code .
 ```
 
-VSCode will open into the `vscode` project.  From here, click the Debug
+VSCode will open into the `rls-vscode` project.  From here, click the Debug
 button on the left-hand side (a bug with a line through it). Next, click the
 green triangle at the top.  This will launch a new instance of VSCode with the
-`rls_vscode` plugin enabled. VSCode setting `"window.openFoldersInNewWindow"`
+`rls-vscode` plugin enabled. VSCode setting `"window.openFoldersInNewWindow"`
 cannot be set to `"on"`. From there, you can open your Rust projects using
 the RLS.
 

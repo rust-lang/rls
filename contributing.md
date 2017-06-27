@@ -39,12 +39,9 @@ you'll need a recent nightly compiler to build it.
 
 ```
 git clone https://github.com/rust-lang-nursery/rls.git
-cd rls/rls
+cd rls
 cargo build --release
 ```
-
-After cloning or updating, if you have missing or out of date crates, you might
-need to update the submodules, try `git submodule update --init`.
 
 
 ### Step 3: Connect the RLS to your compiler
@@ -108,8 +105,6 @@ You can run the rls by hand with:
 ```
 cargo run
 ```
-
-For running or testing, you must be in the `rls` subdirectory.
 
 Though more commonly, you'll use an IDE plugin to invoke it for you
 (see [README.md](README.md) for details).
@@ -249,8 +244,8 @@ The RLS tracks changes to files, and keeps the changed file in memory (i.e., the
 RLS does not need the IDE to save a file before providing data). These changed
 files are tracked by the 'Virtual File System' (which is a bit of a grandiose
 name for a pretty simple file cache at the moment, but I expect this area to
-grow significantly in the future). The VFS is in a its own crate in the `vfs`
-directory.
+grow significantly in the future). The VFS is in a [separate
+-crate](https://github.com/nrc/rls-vfs).
 
 We want to start building before the user needs information (it would be too
 slow to start a build when data is requested). However, we don't want to start a
@@ -281,7 +276,7 @@ reference and store this data in HashMaps and use it to look up data for the
 IDE.
 
 Reading, processing, and storing the analysis data is handled by the
-rls-analysis crate (in the `analysis` directory).
+[rls-analysis crate](https://github.com/nrc/rls-analysis)
 
 ### Communicating with IDEs
 
