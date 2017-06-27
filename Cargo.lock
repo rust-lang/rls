@@ -8,8 +8,8 @@ dependencies = [
  "languageserver-types 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "racer 2.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-analysis 0.4.0",
- "rls-data 0.6.0",
+ "rls-analysis 0.5.0",
+ "rls-data 0.8.0",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-vfs 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustfmt-nightly 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -647,18 +647,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rls-analysis"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "derive-new 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-data 0.6.0",
+ "rls-data 0.8.0",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rls-data"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
