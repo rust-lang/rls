@@ -1,0 +1,14 @@
+[package]
+name = "multiple_bins"
+version = "0.1.0"
+authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
+
+[[bin]]
+name = "bin1"
+path = "src/main.rs"
+
+[[bin]]
+name = "bin2"
+path = "src/main2.rs"
+
+[dependencies]
