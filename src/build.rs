@@ -28,6 +28,7 @@ use self::rustc::session::config::{self, Input, ErrorOutputType};
 use self::rustc_driver::{RustcDefaultCalls, run_compiler, run, Compilation, CompilerCalls};
 use self::rustc_driver::driver::CompileController;
 use self::rustc_save_analysis as save;
+use self::rustc_save_analysis::CallbackHandler;
 use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
@@ -566,7 +567,7 @@ impl BuildQueue {
                                 matches: &getopts::Matches)
                                 -> CompileController<'a> {
                 let mut result = self.default_calls.build_controller(sess, matches);
-                // let analysis = self.analysis.clone();
+                let analysis = self.analysis.clone();
 
                 result.after_analysis.callback = Box::new(move |state| {
                     let borrow_analysis = state.borrow_analysis_map.take().unwrap();

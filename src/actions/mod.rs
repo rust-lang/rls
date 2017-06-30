@@ -435,7 +435,7 @@ impl ActionHandler {
         }
     }
 
-    pub fn borrow_info(&self, id: usize, params: TextDocumentPositionParams, out: &Output) {
+    pub fn borrow_info<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
 
