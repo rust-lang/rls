@@ -279,6 +279,6 @@ fn help() {
     println!("            used for 'hover'");
     println!("");
     println!("    borrows file_name line_number column_number");
-    println!("            textDocument/borrowInfo");
+    println!("            rustDocument/borrowInfo");
     println!("            used for 'borrow info'");
 }
