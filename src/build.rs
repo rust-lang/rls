@@ -105,9 +105,6 @@ pub enum BuildPriority {
     Normal,
 }
 
-// Minimum time to wait before starting a `BuildPriority::Normal` build.
-const WAIT_TO_BUILD: u64 = 500;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Signal {
     Build,
@@ -166,7 +163,12 @@ impl BuildQueue {
         let (tx, rx) = channel();
         self.pending.lock().unwrap().push(tx);
         if priority == BuildPriority::Normal {
-            thread::sleep(Duration::from_millis(WAIT_TO_BUILD));
+            let wait_to_build = { // Release lock before we sleep
+                let config = self.config.lock().unwrap();
+                config.wait_to_build
+            };
+            
+            thread::sleep(Duration::from_millis(wait_to_build as u64));
         }
 
         if self.running.load(Ordering::SeqCst) {

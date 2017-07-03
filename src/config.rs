@@ -157,6 +157,7 @@ create_config! {
     build_bin: String, String::new(), false, "cargo check --bin <name>";
     cfg_test: bool, true, false, "build cfg(test) code";
     unstable_features: bool, false, false, "enable unstable features";
+    wait_to_build: usize, 500, false, "time between receiving a change notification and starting build";
 }
 
 /// A rustfmt config (typically specified via rustfmt.toml)
