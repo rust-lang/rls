@@ -127,8 +127,21 @@ macro_rules! messages {
                 });
             }
 
-            let id = ls_command.get("id").and_then(|id| id.as_u64()).map(|id| id as usize);
-
+            let id: Option<usize> = match ls_command.get("id") {
+                Some(v) => {
+                    if v.is_u64() {
+                        Some(v.as_u64().unwrap() as usize)
+                    } else if v.is_string() {
+                        match usize::from_str_radix(v.as_str().unwrap(), 10) {
+                            Ok(v) => Some(v),
+                            Err(_) => None
+                        }
+                    } else {
+                        None
+                    }
+                },
+                None => None
+            };
             if let Some(v) = ls_command.get("method") {
                 if let Some(name) = v.as_str() {
                     match name {
@@ -136,7 +149,7 @@ macro_rules! messages {
                             $method_str => {
                                 match id {
                                     Some(id) => Ok(ServerMessage::Request(Request{id, method: Method::$method_name$((params_as!($method_arg)))* })),
-                                    None => Err(ParseError::new(ErrorKind::InvalidData, "id is not an integer", None)),
+                                    None => Err(ParseError::new(ErrorKind::InvalidData, "Id is not a number or numeric string", None)),
                                 }
                             }
                         )*
