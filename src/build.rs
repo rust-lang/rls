@@ -168,7 +168,7 @@ impl BuildQueue {
                 config.wait_to_build
             };
             
-            thread::sleep(Duration::from_millis(wait_to_build as u64));
+            thread::sleep(Duration::from_millis(wait_to_build));
         }
 
         if self.running.load(Ordering::SeqCst) {
