@@ -164,6 +164,7 @@ create_config! {
     cfg_test: bool, true, false, "build cfg(test) code";
     unstable_features: bool, false, false, "enable unstable features";
     wait_to_build: u64, 500, false, "time in milliseconds between receiving a change notification and starting build";
+    show_warnings: bool, true, false, "show warnings";
 }
 
 /// A rustfmt config (typically specified via rustfmt.toml)

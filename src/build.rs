@@ -81,7 +81,7 @@ pub struct BuildQueue {
     // A vec of channels to pending build threads.
     pending: Mutex<Vec<Sender<Signal>>>,
     vfs: Arc<Vfs>,
-    config: Mutex<Config>,
+    pub config: Mutex<Config>,
 }
 
 #[derive(Debug)]
@@ -606,6 +606,8 @@ impl BuildQueue {
             }
         }
     }
+
+    
 }
 
 fn make_cargo_config(build_dir: &Path, shell: Shell) -> CargoConfig {
