@@ -26,7 +26,7 @@ better experience for larger and larger crates.
 The RLS is designed to be frontend-independent. We hope it will be widely
 adopted by different editors and IDEs. To seed development, we provide a
 [reference implementation of an RLS frontend](https://github.com/rust-lang-nursery/rls-vscode)
-(and included in this repo as a submodule) for [Visual Studio Code](https://code.visualstudio.com/).
+for [Visual Studio Code](https://code.visualstudio.com/).
 
 
 ## Setup
@@ -123,8 +123,12 @@ Currently we accept the following options:
 * `unstable_features` (`bool`, defaults to `false`) enables unstable features.
   Currently, this includes renaming and formatting.
 * `sysroot` (`String`, defaults to `""`) if the given string is not empty, use
-   the given path as the sysroot for all rustc invocations instead of trying to
-   detect the sysroot automatically
+  the given path as the sysroot for all rustc invocations instead of trying to
+  detect the sysroot automatically
+* `target` (`String`, defaults to `""`) if the given string is not empty, use
+  the given target triple for all rustc invocations
+* `wait_to_build` (`u64`, defaults to `500`) time in milliseconds between
+  receiving a change notification and starting build
 
 
 ## Contributing
