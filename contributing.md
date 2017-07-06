@@ -32,6 +32,8 @@ and [zlib](http://zlib.net/):
 - On Ubuntu run: `sudo apt-get install pkg-config zlib1g-dev`
 - On Fedora run: `sudo dnf install pkgconfig zlib-devel`
 
+On Windows, you will need to have [cmake](https://cmake.org/) installed.
+
 ### Step 2: Clone and build the RLS
 
 Since the RLS is closely linked to the compiler and is in active development,
