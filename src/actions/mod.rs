@@ -117,9 +117,15 @@ impl ActionHandler {
                     let params = PublishDiagnosticsParams {
                         uri: Url::from_file_path(cwd.join(path)).unwrap(),
                         diagnostics: diagnostics.iter()
-                                                .map(|&(ref d, _)| d.clone())
-                                                .filter(|d| show_warnings || d.severity != Some(DiagnosticSeverity::Warning))
-                                                .collect(),
+                            .filter_map(|&(ref d, _)| {
+                                let d = d.clone();
+                                if show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
+                                    Some(d)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
                     };
 
                     NotificationMessage::new(method, params)
