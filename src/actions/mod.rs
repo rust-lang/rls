@@ -16,7 +16,7 @@ use vfs::{Vfs, Change, FileContents};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
-use config::FmtConfig;
+use config::{Config, FmtConfig};
 use serde_json;
 use span;
 use Span;
@@ -42,19 +42,22 @@ pub struct ActionHandler {
     build_queue: Arc<BuildQueue>,
     current_project: Mutex<Option<PathBuf>>,
     previous_build_results: Arc<Mutex<BuildResults>>,
+    config: Arc<Mutex<Config>>,
     fmt_config: Mutex<FmtConfig>,
 }
 
 impl ActionHandler {
     pub fn new(analysis: Arc<AnalysisHost>,
-           vfs: Arc<Vfs>,
-           build_queue: Arc<BuildQueue>) -> ActionHandler {
+               vfs: Arc<Vfs>) -> ActionHandler {
+        let config = Arc::new(Mutex::new(Config::default()));
+        let build_queue = Arc::new(BuildQueue::new(vfs.clone(), config.clone()));
         ActionHandler {
             analysis,
             vfs: vfs.clone(),
             build_queue,
             current_project: Mutex::new(None),
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
+            config,
             fmt_config: Mutex::new(FmtConfig::default()),
         }
     }
@@ -77,10 +80,10 @@ impl ActionHandler {
                 *current_project = Some(new_path);
             }
         }
-        self.build(&root_path, BuildPriority::Immediate, out);
+        self.build(&root_path, BuildPriority::Immediate, true, out);
     }
 
-    pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
+    pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, force_clean: bool, out: O) {
         fn clear_build_results(results: &mut BuildResults) {
             // We must not clear the hashmap, just the values in each list.
             // This allows us to save allocated before memory.
@@ -138,6 +141,12 @@ impl ActionHandler {
         let previous_build_results = self.previous_build_results.clone();
         let project_path = project_path.to_owned();
         let out = out.clone();
+        let show_warnings = {
+            let config = self.config.lock().unwrap();
+            config.show_warnings
+        };
+
+
         thread::spawn(move || {
             // We use `rustDocument` document here since these notifications are
             // custom to the RLS and not part of the LS protocol.
@@ -145,7 +154,7 @@ impl ActionHandler {
             // let start_time = ::std::time::Instant::now();
 
             debug!("build {:?}", project_path);
-            let result = build_queue.request_build(&project_path, priority);
+            let result = build_queue.request_build(&project_path, priority, force_clean);
             match result {
                 BuildResult::Success(messages, new_analysis) | BuildResult::Failure(messages, new_analysis) => {
                     // eprintln!("built {:?}", start_time.elapsed());
@@ -155,11 +164,6 @@ impl ActionHandler {
                     // which had errors, but now don't. This instructs the IDE to clear
                     // errors for those files.
                     let notifications = {
-                        let show_warnings = {
-                            let config = build_queue.config.lock().unwrap();
-                            config.show_warnings
-                        };
-
                         let mut results = previous_build_results.lock().unwrap();
                         clear_build_results(&mut results);
                         parse_compiler_messages(&messages, &mut results);
@@ -223,7 +227,7 @@ impl ActionHandler {
         }).collect();
         self.vfs.on_changes(&changes).expect("error committing to VFS");
 
-        self.build_current_project(BuildPriority::Normal, out);
+        self.build_current_project(BuildPriority::Normal, false, out);
     }
 
     pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, _out: O) {
@@ -231,13 +235,13 @@ impl ActionHandler {
         self.vfs.file_saved(&fname).unwrap();
     }
 
-    fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
+    fn build_current_project<O: Output>(&self, priority: BuildPriority, force_clean: bool, out: O) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
             current_project.clone()
         };
         match current_project {
-            Some(ref current_project) => self.build(current_project, priority, out),
+            Some(ref current_project) => self.build(current_project, priority, force_clean, out),
             None => debug!("build_current_project - no project path"),
         }
     }
@@ -619,18 +623,59 @@ impl ActionHandler {
                         range: range_whole_file,
                         new_text: text,
                     }];
-                    out.success(id, ResponseData::TextEdit(result))
+                    out.success(id, ResponseData::TextEdit(result));
                 } else {
                     debug!("reformat: format_input failed: has errors, summary = {:?}", summary);
 
-                    out.failure(id, "Reformat failed to complete successfully")
+                    out.failure(id, "Reformat failed to complete successfully");
                 }
             }
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
-                out.failure(id, "Reformat failed to complete successfully")
+                out.failure(id, "Reformat failed to complete successfully");
             }
         }
+    }
+
+    pub fn on_change_config<O: Output>(&self, params: DidChangeConfigurationParams, out: O) {
+        trace!("config change: {:?}", params.settings);
+        if let Some(config) = params.settings.get("rust") {
+            if let Ok(new_config) = serde_json::from_value(config.clone()): Result<Config, _> {
+                let unstable_features = new_config.unstable_features;
+
+                {
+                    let mut config = self.config.lock().unwrap();
+                    *config = new_config;
+                }
+                // We do a clean build so that if we've changed any relevant options
+                // for Cargo, we'll notice them. But if nothing relevant changes
+                // then we don't do unnecessary building (i.e., we don't delete
+                // artifacts on disk).
+                self.build_current_project(BuildPriority::Immediate, true, out.clone());
+
+                const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
+                const RENAME_ID: &'static str = "rls-rename";
+                // FIXME should handle the response
+                if unstable_features {
+                    let output = serde_json::to_string(
+                        &RequestMessage::new(NOTIFICATION__RegisterCapability.to_owned(),
+                                             RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null },
+                                                                                      Registration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned(), register_options: serde_json::Value::Null }] })
+                    ).unwrap();
+                    out.response(output);
+                } else {
+                    let output = serde_json::to_string(
+                        &RequestMessage::new(NOTIFICATION__UnregisterCapability.to_owned(),
+                                             UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() },
+                                                                                           Unregistration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned() }] })
+                    ).unwrap();
+                    out.response(output);
+                }
+
+                return;
+            }
+        }
+        debug!("Received unactionable config: {:?}", params.settings);
     }
 
     fn convert_pos_to_span(&self, doc: &TextDocumentIdentifier, pos: Position) -> Span {

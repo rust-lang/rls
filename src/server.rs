@@ -12,7 +12,6 @@ use analysis::AnalysisHost;
 use vfs::Vfs;
 use serde_json;
 
-use build::*;
 use lsp_data::*;
 use actions::ActionHandler;
 
@@ -22,8 +21,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::path::PathBuf;
 
-use config::Config;
-
+#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const REQUEST__Deglob: &'static str = "rustWorkspace/deglob";
 
@@ -56,6 +54,7 @@ pub enum Notification {
     DidChangeTextDocument(DidChangeTextDocumentParams),
     DidOpenTextDocument(DidOpenTextDocumentParams),
     DidSaveTextDocument(DidSaveTextDocumentParams),
+    WorkspaceChangeConfiguration(DidChangeConfigurationParams),
 }
 
 /// Creates an public enum whose variants all contain a single serializable payload
@@ -275,11 +274,10 @@ messages! {
         "textDocument/didOpen" => DidOpenTextDocument(DidOpenTextDocumentParams);
         "textDocument/didSave" => DidSaveTextDocument(DidSaveTextDocumentParams);
         "$/cancelRequest" => Cancel(CancelParams);
+        "workspace/didChangeConfiguration" => WorkspaceChangeConfiguration(DidChangeConfigurationParams);
     }
     // TODO handle me
     "$/setTraceNotification" => Err(ParseError::new(ErrorKind::InvalidData, "setTraceNotification", None));
-    // TODO handle me
-    "workspace/didChangeConfiguration" => Err(ParseError::new(ErrorKind::InvalidData, "didChangeConfiguration", None));
     _ => Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", None));
 }
 
@@ -299,7 +297,6 @@ pub enum ServerStateChange {
 impl<O: Output> LsService<O> {
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
-               build_queue: Arc<BuildQueue>,
                reader: Box<MessageReader + Send + Sync>,
                output: O)
                -> LsService<O> {
@@ -307,7 +304,7 @@ impl<O: Output> LsService<O> {
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
             output: output,
-            handler: ActionHandler::new(analysis, vfs, build_queue),
+            handler: ActionHandler::new(analysis, vfs),
         }
     }
 
@@ -316,14 +313,9 @@ impl<O: Output> LsService<O> {
         while LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
     }
 
-    fn init(&self, id: usize, init: InitializeParams) {
-        let root_path = init.root_path.map(PathBuf::from);
-        let unstable_features = if let Some(ref root_path) = root_path {
-            let config = Config::from_path(&root_path);
-            config.unstable_features
-        } else {
-            false
-        };
+    fn init(&self, id: usize, params: InitializeParams) {
+        // TODO we should check that the client has the capabilities we require.
+        let root_path = params.root_path.map(PathBuf::from);
 
         let result = InitializeResult {
             capabilities: ServerCapabilities {
@@ -340,11 +332,14 @@ impl<O: Output> LsService<O> {
                 workspace_symbol_provider: Some(true),
                 code_action_provider: Some(true),
                 document_formatting_provider: Some(true),
-                document_range_formatting_provider: Some(unstable_features),
-                rename_provider: Some(unstable_features),
                 execute_command_provider: Some(ExecuteCommandOptions {
                     commands: vec!["rls.applySuggestion".to_owned()],
                 }),
+                // These are supported if the `unstable_features` option is set.
+                // We'll update these capabilities dynamically when we get config
+                // info from the client.
+                document_range_formatting_provider: Some(false),
+                rename_provider: Some(false),
 
                 code_lens_provider: None,
                 document_on_type_formatting_provider: None,
@@ -479,6 +474,7 @@ impl<O: Output> LsService<O> {
                 DidChangeTextDocument(change) => { action: on_change };
                 DidOpenTextDocument(open) => { action: on_open };
                 DidSaveTextDocument(save) => { action: on_save };
+                WorkspaceChangeConfiguration(params) => { action: on_change_config };
             }
         };
         ServerStateChange::Continue
@@ -611,18 +607,17 @@ impl Output for StdioOutput {
     fn response(&self, output: String) {
         let o = format!("Content-Length: {}\r\n\r\n{}", output.len(), output);
 
-        debug!("response: {:?}", o);
+        trace!("response: {:?}", o);
 
         print!("{}", o);
         io::stdout().flush().unwrap();
     }
 }
 
-pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>, build_queue: Arc<BuildQueue>) {
+pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
     debug!("Language Server Starting up");
     let service = LsService::new(analysis,
                                  vfs,
-                                 build_queue,
                                  Box::new(StdioMsgReader),
                                  StdioOutput);
     LsService::run(service);
@@ -683,7 +678,7 @@ mod test {
         });
         assert_eq!(request_json, expected_json);
 
-        println!("{0}", request_json);
+        //println!("{0}", request_json);
 
         let test_url = Url::from_str("http://testurl").expect("Couldn't parse test URI");
         let request = ServerMessage::request(2, Method::Hover(TextDocumentPositionParams {

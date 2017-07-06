@@ -10,6 +10,7 @@
 
 #![feature(rustc_private)]
 #![feature(concat_idents)]
+#![feature(type_ascription)]
 
 extern crate cargo;
 #[macro_use]
@@ -68,9 +69,8 @@ pub fn main() {
 
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
 
-    server::run_server(analysis, vfs, build_queue);
+    server::run_server(analysis, vfs);
 }
 
 fn version() -> &'static str {

@@ -13,7 +13,6 @@
 // the RLS as usual and prints the JSON result back on the command line.
 
 use analysis::{AnalysisHost, Target};
-use build::BuildQueue;
 use vfs::Vfs;
 use server::{self, ServerMessage, Request, Notification, Method, LsService, ParseError, ResponseData};
 
@@ -224,12 +223,10 @@ impl server::MessageReader for ChannelMsgReader {
 fn init() -> Sender<ServerMessage> {
     let analysis = Arc::new(AnalysisHost::new(Target::Debug));
     let vfs = Arc::new(Vfs::new());
-    let build_queue = Arc::new(BuildQueue::new(vfs.clone()));
     let (sender, receiver) = channel();
 
     let service = LsService::new(analysis,
                                  vfs,
-                                 build_queue,
                                  Box::new(ChannelMsgReader::new(receiver)),
                                  PrintlnOutput);
     thread::spawn(move || LsService::run(service));

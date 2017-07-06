@@ -17,7 +17,6 @@ use std::sync::Arc;
 use env_logger;
 
 use analysis;
-use build;
 use server::{self as ls_server, ServerMessage, Request, Method};
 use vfs;
 
@@ -443,11 +442,10 @@ fn test_parse_error_on_malformed_input() {
 
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
     let reader = Box::new(NoneMsgReader);
     let output = RecordOutput::new();
     let results = output.output.clone();
-    let server = Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output));
+    let server = Arc::new(ls_server::LsService::new(analysis, vfs, reader, output));
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Break);

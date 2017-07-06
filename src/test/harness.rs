@@ -18,7 +18,6 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 use analysis;
-use build;
 use env_logger;
 use ls_types;
 use serde_json;
@@ -32,11 +31,10 @@ pub fn mock_server(messages: Vec<ServerMessage>) -> (Arc<ls_server::LsService<Re
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
-    let build_queue = Arc::new(build::BuildQueue::new(vfs.clone()));
     let reader = Box::new(MockMsgReader::new(messages));
     let output = RecordOutput::new();
     let results = output.output.clone();
-    (Arc::new(ls_server::LsService::new(analysis, vfs, build_queue, reader, output)), results)
+    (Arc::new(ls_server::LsService::new(analysis, vfs, reader, output)), results)
 }
 
 struct MockMsgReader {
