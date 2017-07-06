@@ -190,7 +190,7 @@ impl ActionHandler {
     }
 
     pub fn on_change<O: Output>(&self, change: DidChangeTextDocumentParams, out: O) {
-        trace!("on_change: {:?}, thread: {}", change, unsafe { ::std::mem::transmute::<_, u64>(thread::current().id()) });
+        trace!("on_change: {:?}, thread: {:?}", change, thread::current().id());
         let fname = parse_file_path(&change.text_document.uri).unwrap();
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
             if let Some(range) = i.range {
