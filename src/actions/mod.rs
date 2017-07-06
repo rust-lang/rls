@@ -104,7 +104,7 @@ impl ActionHandler {
             }
         }
 
-        fn convert_build_results_to_notifications(build_results: &BuildResults)
+        fn convert_build_results_to_notifications(build_results: &BuildResults, show_warnings: bool)
             -> Vec<NotificationMessage<PublishDiagnosticsParams>>
         {
             let cwd = ::std::env::current_dir().unwrap();
@@ -116,7 +116,10 @@ impl ActionHandler {
 
                     let params = PublishDiagnosticsParams {
                         uri: Url::from_file_path(cwd.join(path)).unwrap(),
-                        diagnostics: diagnostics.iter().map(|&(ref d, _)| d.clone()).collect(),
+                        diagnostics: diagnostics.iter()
+                                                .map(|&(ref d, _)| d.clone())
+                                                .filter(|d| show_warnings || d.severity != Some(DiagnosticSeverity::Warning))
+                                                .collect(),
                     };
 
                     NotificationMessage::new(method, params)
@@ -146,10 +149,15 @@ impl ActionHandler {
                     // which had errors, but now don't. This instructs the IDE to clear
                     // errors for those files.
                     let notifications = {
+                        let show_warnings = {
+                            let config = build_queue.config.lock().unwrap();
+                            config.show_warnings
+                        };
+
                         let mut results = previous_build_results.lock().unwrap();
                         clear_build_results(&mut results);
                         parse_compiler_messages(&messages, &mut results);
-                        convert_build_results_to_notifications(&results)
+                        convert_build_results_to_notifications(&results, show_warnings)
                     };
 
                     for notification in notifications {
