@@ -471,7 +471,8 @@ impl ActionHandler {
         trace!("apply_suggestion {:?} {}", location, new_text);
         // FIXME should handle the response
         let output = serde_json::to_string(
-            &RequestMessage::new("workspace/applyEdit".to_owned(),
+            &RequestMessage::new(out.provide_id(),
+                                 "workspace/applyEdit".to_owned(),
                                  ApplyWorkspaceEditParams { edit: make_workspace_edit(location, new_text) })
         ).unwrap();
         out.response(output);
@@ -563,7 +564,8 @@ impl ActionHandler {
         // Send a workspace edit to make the actual change.
         // FIXME should handle the response
         let output = serde_json::to_string(
-            &RequestMessage::new("workspace/applyEdit".to_owned(),
+            &RequestMessage::new(out.provide_id(),
+                                 "workspace/applyEdit".to_owned(),
                                  ApplyWorkspaceEditParams { edit: make_workspace_edit(location, deglob_str) })
         ).unwrap();
         out.response(output);
@@ -658,14 +660,16 @@ impl ActionHandler {
                 // FIXME should handle the response
                 if unstable_features {
                     let output = serde_json::to_string(
-                        &RequestMessage::new(NOTIFICATION__RegisterCapability.to_owned(),
+                        &RequestMessage::new(out.provide_id(),
+                                             NOTIFICATION__RegisterCapability.to_owned(),
                                              RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null },
                                                                                       Registration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned(), register_options: serde_json::Value::Null }] })
                     ).unwrap();
                     out.response(output);
                 } else {
                     let output = serde_json::to_string(
-                        &RequestMessage::new(NOTIFICATION__UnregisterCapability.to_owned(),
+                        &RequestMessage::new(out.provide_id(),
+                                             NOTIFICATION__UnregisterCapability.to_owned(),
                                              UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() },
                                                                                            Unregistration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned() }] })
                     ).unwrap();

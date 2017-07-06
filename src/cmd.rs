@@ -193,6 +193,10 @@ impl server::Output for PrintlnOutput {
         println!("{}", output);
     }
 
+    fn provide_id(&self) -> u64 {
+        0
+    }
+
     fn success(&self, id: usize, data: ResponseData) {
         println!("{}: {:#?}", id, data);
     }

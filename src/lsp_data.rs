@@ -200,16 +200,16 @@ pub struct RequestMessage<T>
     where T: Debug + Serialize
 {
     jsonrpc: &'static str,
-    pub id: String,
+    pub id: u64,
     pub method: String,
     pub params: T,
 }
 
 impl <T> RequestMessage<T> where T: Debug + Serialize {
-    pub fn new(method: String, params: T) -> Self {
+    pub fn new(id: u64, method: String, params: T) -> Self {
         RequestMessage {
             jsonrpc: "2.0",
-            id: "FIXME".to_owned(),
+            id,
             method: method,
             params: params
         }

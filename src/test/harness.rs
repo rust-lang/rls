@@ -89,6 +89,10 @@ impl ls_server::Output for RecordOutput {
         let mut records = self.output.lock().unwrap();
         records.push(output);
     }
+
+    fn provide_id(&self) -> u64 {
+        0
+    }
 }
 
 #[derive(Clone, Debug)]

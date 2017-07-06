@@ -18,7 +18,7 @@ use actions::ActionHandler;
 use std::fmt;
 use std::io::{self, Read, Write, ErrorKind};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering, AtomicU64};
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -547,6 +547,7 @@ impl MessageReader for StdioMsgReader {
 
 pub trait Output: Sync + Send + Clone + 'static {
     fn response(&self, output: String);
+    fn provide_id(&self) -> u64;
 
     fn parse_error(&self) {
         self.response(r#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
@@ -601,7 +602,17 @@ pub trait Output: Sync + Send + Clone + 'static {
 }
 
 #[derive(Clone)]
-struct StdioOutput;
+struct StdioOutput {
+    next_id: Arc<AtomicU64>,
+}
+
+impl StdioOutput {
+    pub fn new() -> StdioOutput {
+        StdioOutput {
+            next_id: Arc::new(AtomicU64::new(1)),
+        }
+    }
+}
 
 impl Output for StdioOutput {
     fn response(&self, output: String) {
@@ -612,6 +623,10 @@ impl Output for StdioOutput {
         print!("{}", o);
         io::stdout().flush().unwrap();
     }
+
+    fn provide_id(&self) -> u64 {
+        self.next_id.fetch_add(1, Ordering::SeqCst)
+    }
 }
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
@@ -619,7 +634,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
     let service = LsService::new(analysis,
                                  vfs,
                                  Box::new(StdioMsgReader),
-                                 StdioOutput);
+                                 StdioOutput::new());
     LsService::run(service);
     debug!("Server shutting down");
 }
