@@ -299,7 +299,7 @@ impl BuildQueue {
                 if interupt {
                     and_then(BuildResult::Squashed);
                     continue;
-                }                
+                }
             }
 
             // Run the build.
@@ -375,10 +375,16 @@ impl Internals {
 
         // Don't hold this lock when we run Cargo.
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
-        if needs_to_run_cargo {
-            if let BuildResult::Err = self.cargo() {
-                return BuildResult::Err;
-            }
+        let workspace_mode = self.config.lock().unwrap().workspace_mode; 
+ 
+        if workspace_mode || needs_to_run_cargo { 
+            let result = self.cargo(); 
+ 
+            match result { 
+                BuildResult::Err => return BuildResult::Err, 
+                _ if workspace_mode => return result, 
+                _ => {}, 
+            }; 
         }
 
         let compile_cx = self.compilation_cx.lock().unwrap();

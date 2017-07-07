@@ -199,7 +199,7 @@ impl Drop for Environment {
     }
 }
 
-fn convert_message_to_json_strings(input: Vec<u8>) -> Vec<String> {
+pub fn convert_message_to_json_strings(input: Vec<u8>) -> Vec<String> {
     let mut output = vec![];
 
     // FIXME: this is *so gross*  Trying to work around cargo not supporting json messages
