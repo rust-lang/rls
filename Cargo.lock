@@ -12,7 +12,7 @@ dependencies = [
  "rls-data 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-vfs 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustfmt-nightly 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustfmt-nightly 0.1.8 (git+https://github.com/rust-lang-nursery/rustfmt?branch=rustfmt-42492)",
  "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -697,8 +697,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rustfmt-nightly"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.1.8"
+source = "git+https://github.com/rust-lang-nursery/rustfmt?branch=rustfmt-42492#7333dfc95b4af5c7283ba03f33c50f108d2be3f5"
 dependencies = [
  "diff 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1153,7 +1153,7 @@ dependencies = [
 "checksum rls-vfs 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "1f19246a0fda45f2fb6eb34addef2a692c044cbf1c90ec7695583450fb5f23e7"
 "checksum rustc-demangle 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "3058a43ada2c2d0b92b3ae38007a2d0fa5e9db971be260e0171408a4ff471c95"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
-"checksum rustfmt-nightly 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "31ac6fe40a9844ee2de3d51d0be2bbcdb361bad6f3667a02db8c4e2330afbbb5"
+"checksum rustfmt-nightly 0.1.8 (git+https://github.com/rust-lang-nursery/rustfmt?branch=rustfmt-42492)" = "<none>"
 "checksum scoped-tls 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f417c22df063e9450888a7561788e9bd46d3bb3c1466435b4eccb903807f147d"
 "checksum semver 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3fdd61b85a0fa777f7fb7c454b9189b2941b110d1385ce84d7f76efdf1606a85"
 "checksum semver-parser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
