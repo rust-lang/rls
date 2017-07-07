@@ -20,7 +20,7 @@ rls-analysis = "0.4"
 rls-data = "0.7"
 rls-span = { version = "0.4" , features = ["serialize-serde"] }
 rls-vfs = { version = "0.4", features = ["racer-impls"] }
-rustfmt-nightly = "0.1"
+rustfmt-nightly = { git = "https://github.com/rust-lang-nursery/rustfmt", branch = "rustfmt-42492" }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
