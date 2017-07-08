@@ -15,8 +15,6 @@
 #![feature(fnbox)]
 
 extern crate cargo;
-#[macro_use]
-extern crate derive_new;
 extern crate env_logger;
 extern crate languageserver_types as ls_types;
 #[macro_use]
@@ -40,6 +38,7 @@ extern crate serde_json;
 extern crate toml;
 extern crate url;
 extern crate url_serde;
+extern crate jsonrpc_core;
 
 use std::sync::Arc;
 

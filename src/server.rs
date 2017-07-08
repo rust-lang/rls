@@ -17,10 +17,20 @@ use actions::ActionHandler;
 use config::Config;
 
 use std::fmt;
-use std::io::{self, Read, Write, ErrorKind};
+use std::io::{self, Read, Write};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering, AtomicU32};
 use std::path::PathBuf;
+
+use jsonrpc_core::{self as jsonrpc, Id, response, version};
+
+pub fn server_failure(id: jsonrpc::Id, error: jsonrpc::Error) -> jsonrpc::Failure {
+    jsonrpc::Failure {
+        jsonrpc: Some(version::Version::V2),
+        id,
+        error,
+    }
+}
 
 #[cfg(test)]
 #[allow(non_upper_case_globals)]
@@ -28,13 +38,6 @@ pub const REQUEST__Deglob: &'static str = "rustWorkspace/deglob";
 
 #[derive(Debug, Serialize)]
 pub struct Ack;
-
-#[derive(Debug, new)]
-pub struct ParseError {
-    pub kind: ErrorKind,
-    pub message: &'static str,
-    pub id: Option<usize>,
-}
 
 #[derive(Debug)]
 pub enum ServerMessage {
@@ -113,43 +116,56 @@ macro_rules! messages {
         pub enum Method {
             $($method_name$(($method_arg))*,)*
         }
-        fn parse_message(input: &str) -> Result<ServerMessage, ParseError>  {
+
+        // Notifications can't return a response, hence why Err is an Option
+        fn parse_message(input: &str) -> Result<ServerMessage, Option<jsonrpc::Failure>>  {
             trace!("parse_message `{}`", input);
-            let ls_command: serde_json::Value = serde_json::from_str(input).expect("Can't make value");
+            let ls_command: serde_json::Value = match serde_json::from_str(input) {
+                Ok(value) => value,
+                Err(_) => return Err(Some(server_failure(Id::Null, jsonrpc::Error::parse_error()))),
+            };
+
+            // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
+            let id = ls_command.get("id").map(|id| serde_json::from_value(id.to_owned()).unwrap());
+            // TODO: We only support numeric responses, ideally we should switch from using parsed usize
+            // to using jsonrpc_core::Id
+            let parsed_numeric_id = match &id {
+                &Some(Id::Num(n)) => Some(n as usize),
+                &Some(Id::Str(ref s)) => usize::from_str_radix(s, 10).ok(),
+                _ => None,
+            };
 
             let params = ls_command.get("params");
 
             macro_rules! params_as {
                 ($ty: ty) => ({
-                    let method: $ty =
-                        serde_json::from_value(params.expect("no params").to_owned()).expect("Can't extract params");
+                    let params = match params {
+                        Some(value) => value,
+                        None => return Err(Some(server_failure(id.unwrap_or(Id::Null), jsonrpc::Error::invalid_request()))),
+                    };
+
+                    let method: $ty = match serde_json::from_value(params.to_owned()) {
+                        Ok(value) => value,
+                        Err(_) => return Err(Some(server_failure(id.unwrap_or(Id::Null),
+                            jsonrpc::Error::invalid_params(format!("Expected {}", stringify!($ty)))))),
+                    };
                     method
                 });
             }
 
-            let id: Option<usize> = match ls_command.get("id") {
-                Some(v) => {
-                    if v.is_u64() {
-                        Some(v.as_u64().unwrap() as usize)
-                    } else if v.is_string() {
-                        match usize::from_str_radix(v.as_str().unwrap(), 10) {
-                            Ok(v) => Some(v),
-                            Err(_) => None
-                        }
-                    } else {
-                        None
-                    }
-                },
-                None => None
-            };
             if let Some(v) = ls_command.get("method") {
                 if let Some(name) = v.as_str() {
                     match name {
                         $(
                             $method_str => {
-                                match id {
+                                match parsed_numeric_id {
                                     Some(id) => Ok(ServerMessage::Request(Request{id, method: Method::$method_name$((params_as!($method_arg)))* })),
-                                    None => Err(ParseError::new(ErrorKind::InvalidData, "Id is not a number or numeric string", None)),
+                                    None => match id {
+                                        None => Err(Some(server_failure(Id::Null, jsonrpc::Error::invalid_request()))),
+                                        // FIXME: This behaviour is custom and non conformant to the protocol
+                                        Some(id) => Err(Some(server_failure(id,
+                                            jsonrpc::Error::invalid_params("Id is not a number or numeric string")))),
+                                    }
                                 }
                             }
                         )*
@@ -159,14 +175,18 @@ macro_rules! messages {
                             }
                         )*
                         $(
-                            $other_str => $other_expr,
+                            // If $other_expr is Err, then we need to pass id of actual message we're handling
+                            $other_str => { ($other_expr).map_err(|err| id.map(|id| server_failure(id, err))) }
                         )*
                     }
                 } else {
-                    Err(ParseError::new(ErrorKind::InvalidData, "Method is not a string", id))
+                    // Message has a "method" field, so it can be a Notification/Request - if it doesn't have id then we
+                    // assume it's a Notification for which we can't return a response, so return Err(None)
+                    Err(id.map(|id| server_failure(id, jsonrpc::Error::invalid_request())))
                 }
             } else {
-                Err(ParseError::new(ErrorKind::InvalidData, "Method not found", id))
+                // FIXME: Handle possible client responses to server->client requests (which don't have "method" field)
+                Err(Some(server_failure(id.unwrap_or(Id::Null), jsonrpc::Error::invalid_request())))
             }
         }
 
@@ -277,9 +297,7 @@ messages! {
         "$/cancelRequest" => Cancel(CancelParams);
         "workspace/didChangeConfiguration" => WorkspaceChangeConfiguration(DidChangeConfigurationParams);
     }
-    // TODO handle me
-    "$/setTraceNotification" => Err(ParseError::new(ErrorKind::InvalidData, "setTraceNotification", None));
-    _ => Err(ParseError::new(ErrorKind::InvalidData, "Unknown command", None));
+    _ => Err(jsonrpc::Error::method_not_found()); // TODO: Handle more possible messages
 }
 
 pub struct LsService<O: Output> {
@@ -410,8 +428,8 @@ impl<O: Output> LsService<O> {
                     },
                     Err(e) => {
                         trace!("parsing invalid message: {:?}", e);
-                        if let Some(id) = e.id {
-                            this.output.failure(id, "Unsupported message");
+                        if let Some(failure) = e {
+                            this.output.failure(failure.id, failure.error);
                         }
                     },
                 }
@@ -421,7 +439,7 @@ impl<O: Output> LsService<O> {
         let message = match this.msg_reader.parsed_message() {
             Some(m) => m,
             None => {
-                this.output.parse_error();
+                this.output.failure(Id::Null, jsonrpc::Error::parse_error());
                 return ServerStateChange::Break
             },
         };
@@ -488,7 +506,7 @@ pub trait MessageReader {
         None
     }
 
-    fn parsed_message(&self) -> Option<Result<ServerMessage, ParseError>> {
+    fn parsed_message(&self) -> Option<Result<ServerMessage, Option<jsonrpc::Failure>>> {
         self.read_message().map(|m| parse_message(&m))
     }
 }
@@ -551,37 +569,23 @@ pub trait Output: Sync + Send + Clone + 'static {
     fn response(&self, output: String);
     fn provide_id(&self) -> u32;
 
-    fn parse_error(&self) {
-        self.response(r#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
+    fn failure(&self, id: jsonrpc::Id, error: jsonrpc::Error) {
+        let response = response::Failure {
+            jsonrpc: Some(version::Version::V2),
+            id: id,
+            error: error
+        };
+
+        self.response(serde_json::to_string(&response).unwrap());
     }
 
-    fn failure(&self, id: usize, message: &str) {
-        // For now this is a catch-all for any error back to the consumer of the RLS
-        const METHOD_NOT_FOUND: i64 = -32601;
-
-        #[derive(Serialize)]
-        struct ResponseError {
-            code: i64,
-            message: String
-        }
-
-        #[derive(Serialize)]
-        struct ResponseFailure {
-            jsonrpc: &'static str,
-            id: usize,
-            error: ResponseError,
-        }
-
-        let rf = ResponseFailure {
-            jsonrpc: "2.0",
-            id: id,
-            error: ResponseError {
-                code: METHOD_NOT_FOUND,
-                message: message.to_owned(),
-            },
+    fn failure_message<M: Into<String>>(&self, id: usize, code: jsonrpc::ErrorCode, msg: M) {
+        let error = jsonrpc::Error {
+            code: code,
+            message: msg.into(),
+            data: None
         };
-        let output = serde_json::to_string(&rf).unwrap();
-        self.response(output);
+        self.failure(Id::Num(id as u64), error);
     }
 
     fn success(&self, id: usize, data: ResponseData) {
