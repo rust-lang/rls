@@ -18,7 +18,7 @@ use actions::ActionHandler;
 use std::fmt;
 use std::io::{self, Read, Write, ErrorKind};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering, AtomicU64};
+use std::sync::atomic::{AtomicBool, Ordering, AtomicU32};
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -547,7 +547,7 @@ impl MessageReader for StdioMsgReader {
 
 pub trait Output: Sync + Send + Clone + 'static {
     fn response(&self, output: String);
-    fn provide_id(&self) -> u64;
+    fn provide_id(&self) -> u32;
 
     fn parse_error(&self) {
         self.response(r#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}"#.to_owned());
@@ -603,13 +603,13 @@ pub trait Output: Sync + Send + Clone + 'static {
 
 #[derive(Clone)]
 struct StdioOutput {
-    next_id: Arc<AtomicU64>,
+    next_id: Arc<AtomicU32>,
 }
 
 impl StdioOutput {
     pub fn new() -> StdioOutput {
         StdioOutput {
-            next_id: Arc::new(AtomicU64::new(1)),
+            next_id: Arc::new(AtomicU32::new(1)),
         }
     }
 }
@@ -624,7 +624,7 @@ impl Output for StdioOutput {
         io::stdout().flush().unwrap();
     }
 
-    fn provide_id(&self) -> u64 {
+    fn provide_id(&self) -> u32 {
         self.next_id.fetch_add(1, Ordering::SeqCst)
     }
 }

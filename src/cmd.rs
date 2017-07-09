@@ -193,7 +193,7 @@ impl server::Output for PrintlnOutput {
         println!("{}", output);
     }
 
-    fn provide_id(&self) -> u64 {
+    fn provide_id(&self) -> u32 {
         0
     }
 

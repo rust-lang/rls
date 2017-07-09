@@ -90,7 +90,7 @@ impl ls_server::Output for RecordOutput {
         records.push(output);
     }
 
-    fn provide_id(&self) -> u64 {
+    fn provide_id(&self) -> u32 {
         0
     }
 }
