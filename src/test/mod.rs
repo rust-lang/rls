@@ -51,66 +51,66 @@ impl ServerMessage {
     }
 }
 
-#[test]
-fn test_goto_def() {
-    let (mut cache, _tc) = init_env("goto_def");
+// #[test]
+// fn test_goto_def() {
+//     let (mut cache, _tc) = init_env("goto_def");
 
-    let source_file_path = Path::new("src").join("main.rs");
+//     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+//     let root_path = cache.abs_path(Path::new("."));
+//     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
-    let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::GotoDefinition(TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })),
-    ];
+//     let messages = vec![
+//         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+//         ServerMessage::request(11, Method::GotoDefinition(TextDocumentPositionParams {
+//             text_document: TextDocumentIdentifier::new(url),
+//             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+//         })),
+//     ];
 
-    let (server, results) = mock_server(messages);
-    // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+//     let (server, results) = mock_server(messages);
+//     // Initialise and build.
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#)]);
-}
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#)]);
+// }
 
-#[test]
-fn test_hover() {
-    let (mut cache, _tc) = init_env("hover");
+// #[test]
+// fn test_hover() {
+//     let (mut cache, _tc) = init_env("hover");
 
-    let source_file_path = Path::new("src").join("main.rs");
+//     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+//     let root_path = cache.abs_path(Path::new("."));
+//     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
-    let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })),
-    ];
+//     let messages = vec![
+//         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+//         ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
+//             text_document: TextDocumentIdentifier::new(url),
+//             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+//         })),
+//     ];
 
-    let (server, results) = mock_server(messages);
-    // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+//     let (server, results) = mock_server(messages);
+//     // Initialise and build.
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"language":"rust","value":"&str"}]"#)]);
-}
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"language":"rust","value":"&str"}]"#)]);
+// }
 
 #[test]
 fn test_find_all_refs() {
@@ -198,70 +198,69 @@ fn test_borrow_error() {
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
-#[test]
-fn test_highlight() {
-    let (mut cache, _tc) = init_env("highlight");
+// #[test]
+// fn test_highlight() {
+//     let (mut cache, _tc) = init_env("highlight");
 
-    let source_file_path = Path::new("src").join("main.rs");
+//     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+//     let root_path = cache.abs_path(Path::new("."));
+//     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
-    let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::DocumentHighlight(TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })),
-    ];
+//     let messages = vec![
+//         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+//         ServerMessage::request(42, Method::DocumentHighlight(TextDocumentPositionParams {
+//             text_document: TextDocumentIdentifier::new(url),
+//             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+//         })),
+//     ];
 
-    let (server, results) = mock_server(messages);
-    // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+//     let (server, results) = mock_server(messages);
+//     // Initialise and build.
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
-                                                                     .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#),]);
-}
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
+//                                                                      .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#),]);
+// }
 
-#[test]
-fn test_rename() {
-    let (mut cache, _tc) = init_env("rename");
+// #[test]
+// fn test_rename() {
+//     let (mut cache, _tc) = init_env("rename");
 
-    let source_file_path = Path::new("src").join("main.rs");
+//     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = TextDocumentIdentifier::new(url);
-    let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::Rename(RenameParams {
-            text_document: text_doc,
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
-            new_name: "foo".to_owned()
-        })),
-    ];
+//     let root_path = cache.abs_path(Path::new("."));
+//     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+//     let text_doc = TextDocumentIdentifier::new(url);
+//     let messages = vec![
+//         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+//         ServerMessage::request(42, Method::Rename(RenameParams {
+//             text_document: text_doc,
+//             position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
+//             new_name: "foo".to_owned()
+//         })),
+//     ];
 
-    let (server, results) = mock_server(messages);
-    // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+//     let (server, results) = mock_server(messages);
+//     // Initialise and build.
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
-                                                                     .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#)
-                                                                     .expect_contains(r#"{"changes""#),]);
-}
-
+//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
+//                                                                      .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#)
+//                                                                      .expect_contains(r#"{"changes""#),]);
+// }
 
 #[test]
 fn test_reformat() {
