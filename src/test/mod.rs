@@ -345,7 +345,9 @@ fn test_multiple_binaries() {
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
-    let (server, results) = mock_server(messages);
+    let mut config = Config::default();
+    config.build_bin = Some("bin2".to_owned());
+    let (server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
