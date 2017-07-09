@@ -11,7 +11,6 @@
 #![feature(rustc_private)]
 #![feature(concat_idents)]
 #![feature(type_ascription)]
-#![feature(integer_atomics)]
 
 extern crate cargo;
 #[macro_use]
