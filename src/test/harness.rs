@@ -98,8 +98,10 @@ impl ls_server::Output for RecordOutput {
         // Ignore server -> client requests
         let value: serde_json::Value = serde_json::from_str(&output).unwrap();
         if let Some(id) = value.get("id") {
-            if id.as_u64().unwrap() as u32 == 0xDEADBEEF {
-                return;
+            if let Some(id) = id.as_u64() {
+                if id as u32 == 0xDEADBEEF {
+                    return;
+                }
             }
         }
 

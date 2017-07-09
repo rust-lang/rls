@@ -451,7 +451,8 @@ fn test_parse_error_on_malformed_input() {
     let results = output.output.clone();
     let server = Arc::new(ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(Config::default())), reader, output));
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    let result = ls_server::LsService::handle_message(server.clone());
+    assert_eq!(result,
                ls_server::ServerStateChange::Break);
 
     let error = results.lock().unwrap()
