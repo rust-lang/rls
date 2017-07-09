@@ -14,10 +14,11 @@ use serde_json;
 
 use lsp_data::*;
 use actions::ActionHandler;
+use config::Config;
 
 use std::fmt;
 use std::io::{self, Read, Write, ErrorKind};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering, AtomicU32};
 use std::path::PathBuf;
 
@@ -297,6 +298,7 @@ pub enum ServerStateChange {
 impl<O: Output> LsService<O> {
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
+               config: Arc<Mutex<Config>>,
                reader: Box<MessageReader + Send + Sync>,
                output: O)
                -> LsService<O> {
@@ -304,7 +306,7 @@ impl<O: Output> LsService<O> {
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
             output: output,
-            handler: ActionHandler::new(analysis, vfs),
+            handler: ActionHandler::new(analysis, vfs, config),
         }
     }
 
@@ -633,6 +635,7 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
     debug!("Language Server Starting up");
     let service = LsService::new(analysis,
                                  vfs,
+                                 Arc::new(Mutex::new(Config::default())),
                                  Box::new(StdioMsgReader),
                                  StdioOutput::new());
     LsService::run(service);

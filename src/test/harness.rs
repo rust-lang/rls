@@ -18,6 +18,7 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 use analysis;
+use config::Config;
 use env_logger;
 use ls_types;
 use serde_json;
@@ -29,13 +30,21 @@ const TEST_TIMEOUT_IN_SEC: u64 = 10;
 // Initialise and run the internals of an LS protocol RLS server.
 pub fn mock_server(messages: Vec<ServerMessage>) -> (Arc<ls_server::LsService<RecordOutput>>, LsResultList)
 {
+    let config = Config::default();
+    mock_server_with_config(messages, config)
+}
+
+pub fn mock_server_with_config(messages: Vec<ServerMessage>, mut config: Config) -> (Arc<ls_server::LsService<RecordOutput>>, LsResultList)
+{
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
     let reader = Box::new(MockMsgReader::new(messages));
     let output = RecordOutput::new();
     let results = output.output.clone();
-    (Arc::new(ls_server::LsService::new(analysis, vfs, reader, output)), results)
+    config.unstable_features = true;
+    (Arc::new(ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(config)), reader, output)), results)
 }
+
 
 struct MockMsgReader {
     messages: Vec<ServerMessage>,
@@ -86,12 +95,20 @@ impl RecordOutput {
 
 impl ls_server::Output for RecordOutput {
     fn response(&self, output: String) {
+        // Ignore server -> client requests
+        let value: serde_json::Value = serde_json::from_str(&output).unwrap();
+        if let Some(id) = value.get("id") {
+            if id.as_u64().unwrap() as u32 == 0xDEADBEEF {
+                return;
+            }
+        }
+
         let mut records = self.output.lock().unwrap();
         records.push(output);
     }
 
     fn provide_id(&self) -> u32 {
-        0
+        0xDEADBEEF
     }
 }
 
@@ -118,7 +135,10 @@ impl ExpectedMessage {
 pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     let start_clock = SystemTime::now();
     let mut results_count = results.lock().unwrap().len();
-    while (results_count != expected.len()) && (start_clock.elapsed().unwrap().as_secs() < TEST_TIMEOUT_IN_SEC) {
+    while results_count != expected.len() {
+        if start_clock.elapsed().unwrap().as_secs() >= TEST_TIMEOUT_IN_SEC {
+            panic!("Hit timeout");
+        }
         thread::sleep(Duration::from_millis(100));
         results_count = results.lock().unwrap().len();
     }

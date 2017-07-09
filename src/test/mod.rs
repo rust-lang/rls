@@ -13,14 +13,15 @@
 
 mod harness;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use env_logger;
 
 use analysis;
+use config::Config;
 use server::{self as ls_server, ServerMessage, Request, Method};
 use vfs;
 
-use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, RecordOutput, src};
+use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, mock_server_with_config, RecordOutput, src};
 
 use url::Url;
 use ls_types::*;
@@ -60,7 +61,7 @@ fn test_goto_def() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
         ServerMessage::request(11, Method::GotoDefinition(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
@@ -162,7 +163,9 @@ fn test_find_all_refs_no_cfg_test() {
         })),
     ];
 
-    let (server, results) = mock_server(messages);
+    let mut config = Config::default();
+    config.cfg_test = false;
+    let (server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -173,7 +176,7 @@ fn test_find_all_refs_no_cfg_test() {
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#)
-                                                                     .expect_contains(r#"{"start":{"line":23,"character":15},"end":{"line":23,"character":18}}"#)]);
+                                                                     .expect_contains(r#"{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#)]);
 }
 
 #[test]
@@ -421,7 +424,9 @@ fn test_bin_lib_project_no_cfg_test() {
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
     ];
 
-    let (server, results) = mock_server(messages);
+    let mut config = Config::default();
+    config.cfg_test = false;
+    let (server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -445,7 +450,7 @@ fn test_parse_error_on_malformed_input() {
     let reader = Box::new(NoneMsgReader);
     let output = RecordOutput::new();
     let results = output.output.clone();
-    let server = Arc::new(ls_server::LsService::new(analysis, vfs, reader, output));
+    let server = Arc::new(ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(Config::default())), reader, output));
 
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Break);

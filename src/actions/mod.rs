@@ -48,8 +48,8 @@ pub struct ActionHandler {
 
 impl ActionHandler {
     pub fn new(analysis: Arc<AnalysisHost>,
-               vfs: Arc<Vfs>) -> ActionHandler {
-        let config = Arc::new(Mutex::new(Config::default()));
+               vfs: Arc<Vfs>,
+               config: Arc<Mutex<Config>>) -> ActionHandler {
         let build_queue = Arc::new(BuildQueue::new(vfs.clone(), config.clone()));
         ActionHandler {
             analysis,
