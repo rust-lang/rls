@@ -574,6 +574,7 @@ impl BuildQueue {
                 let analysis = self.analysis.clone();
 
                 result.after_analysis.callback = Box::new(move |state| {
+                    let borrow_analysis = state.borrow_analysis_map.take().unwrap();
                     // There are two ways to move the data from rustc to the RLS, either
                     // directly or by serialising and deserialising. We only want to do 
                     // the latter when there are compatibility issues between crates.
@@ -582,6 +583,7 @@ impl BuildQueue {
                     // save::process_crate(state.tcx.unwrap(),
                     //                     state.expanded_crate.unwrap(),
                     //                     state.analysis.unwrap(),
+                    //                     borrow_analysis,
                     //                     state.crate_name.unwrap(),
                     //                     save::DumpHandler::new(save::Format::Json,
                     //                                            state.out_dir,
@@ -590,6 +592,7 @@ impl BuildQueue {
                     save::process_crate(state.tcx.unwrap(),
                                         state.expanded_crate.unwrap(),
                                         state.analysis.unwrap(),
+                                        borrow_analysis,
                                         state.crate_name.unwrap(),
                                         CallbackHandler {
                                             callback: &mut |a| {

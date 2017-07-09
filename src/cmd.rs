@@ -75,6 +75,12 @@ pub fn run() {
                 let col = bits.next().expect("Expected column number");
                 hover(file_name, row, col)
             }
+            "borrows" => {
+                let file_name = bits.next().expect("Expected file name");
+                let row = bits.next().expect("Expected line number");
+                let col = bits.next().expect("Expected column number");
+                borrow_info(file_name, row, col)
+            }
             "h" | "help" => {
                 help();
                 continue;
@@ -122,6 +128,19 @@ fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> ServerMessag
     let request = Request {
         id: next_id(),
         method: Method::Rename(params),
+    };
+    ServerMessage::Request(request)
+}
+
+fn borrow_info(file_name: &str, row: &str, col: &str) -> ServerMessage {
+    let params = TextDocumentPositionParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        position: Position::new(u64::from_str(row).expect("Bad line number"),
+                                u64::from_str(col).expect("Bad column number")),
+    };
+    let request = Request {
+        id: next_id(),
+        method: Method::BorrowInfo(params),
     };
     ServerMessage::Request(request)
 }
@@ -259,4 +278,8 @@ fn help() {
     println!("    hover   file_name line_number column_number");
     println!("            textDocument/hover");
     println!("            used for 'hover'");
+    println!("");
+    println!("    borrows file_name line_number column_number");
+    println!("            rustDocument/borrowInfo");
+    println!("            used for 'borrow info'");
 }
