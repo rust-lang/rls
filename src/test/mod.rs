@@ -433,7 +433,7 @@ fn test_bin_lib_project_no_cfg_test() {
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`"),
+                                       ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib_no_cfg_test`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
