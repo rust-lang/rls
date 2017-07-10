@@ -26,11 +26,11 @@ via `rustup`, which is the currently preferred method. See the
 
 ### Step 1: Install build dependencies
 
-On Linux, you will need [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
+On Linux, you will need [cmake](https://cmake.org/), [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
 and [zlib](http://zlib.net/):
 
-- On Ubuntu run: `sudo apt-get install pkg-config zlib1g-dev`
-- On Fedora run: `sudo dnf install pkgconfig zlib-devel`
+- On Ubuntu run: `sudo apt-get install cmake pkg-config zlib1g-dev`
+- On Fedora run: `sudo dnf install cmake pkgconfig zlib-devel`
 
 On Windows, you will need to have [cmake](https://cmake.org/) installed.
 
