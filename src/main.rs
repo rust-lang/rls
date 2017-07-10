@@ -12,6 +12,7 @@
 #![feature(concat_idents)]
 #![feature(type_ascription)]
 #![feature(integer_atomics)]
+#![feature(fnbox)]
 
 extern crate cargo;
 #[macro_use]
