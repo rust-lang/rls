@@ -17,7 +17,7 @@ extern crate rustc_save_analysis;
 extern crate syntax;
 
 use cargo::core::{PackageId, Shell, Workspace, Verbosity};
-use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter};
+use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter, Unit};
 use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, ConfigValue};
 use cargo::util::{CargoResult};
 
@@ -39,14 +39,11 @@ use std::env;
 use std::ffi::OsString;
 use std::fs::{read_dir, remove_file};
 use std::io::{self, Write};
-use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 
 /// Manages builds.
@@ -54,34 +51,45 @@ use std::time::Duration;
 /// The IDE will request builds quickly (possibly on every keystroke), there is
 /// no point running every one. We also avoid running more than one build at once.
 /// We cannot cancel builds. It might be worth running builds in parallel or
-/// cancelling a started build.
+/// canceling a started build.
 ///
-/// `BuildPriority::Immediate` builds are started straightaway. Normal builds are
+/// High priority builds are started 'straightaway' (builds cannot be interrupted). Normal builds are
 /// started after a timeout. A new build request cancels any pending build requests.
 ///
 /// From the client's point of view, a build request is not guaranteed to cause
 /// a build. However, a build is guaranteed to happen and that build will begin
 /// after the build request is received (no guarantee on how long after), and
-/// that build is guaranteed to have finished before the build reqest returns.
+/// that build is guaranteed to have finished before the build request returns.
 ///
 /// There is no way for the client to specify that an individual request will
 /// result in a build. However, you can tell from the result - if a build
 /// was run, the build result will contain any errors or warnings and an indication
 /// of success or failure. If the build was not run, the result indicates that
 /// it was squashed.
+//
+// See comment on `request_build` for implementation notes.
 pub struct BuildQueue {
+    // The build directory.
+    // This lock should only be held transiently.
     build_dir: Mutex<Option<PathBuf>>,
     // Arguments and environment with which we call rustc.
     // This can be further expanded for multi-crate target configuration.
+    // This lock should only be held transiently.
     compilation_cx: Arc<Mutex<CompilationContext>>,
-    // True if a build is running.
-    // Note I have been conservative with Ordering when accessing this atomic,
-    // we might be able to do better.
-    running: AtomicBool,
-    // A vec of channels to pending build threads.
-    pending: Mutex<Vec<Sender<Signal>>>,
     vfs: Arc<Vfs>,
+    // This lock should only be held transiently.
     config: Arc<Mutex<Config>>,
+
+    // The start times of the most recent builds to finish.
+    // (high, low) priority.
+    // Also serves as the primary lock for the build queue - the job currently
+    // building must hold this lock.
+    prev_start_times: Mutex<(Instant, Instant)>,
+    // The time at which the last queued request arrived (None if there are no
+    // queued requests).
+    // (high, low) priority.
+    // This lock should only be held transiently.
+    queued_start_times: Mutex<(Option<Instant>, Option<Instant>)>,
 }
 
 #[derive(Debug)]
@@ -99,16 +107,12 @@ pub enum BuildResult {
 /// Priority for a build request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildPriority {
-    /// Run this build as soon as possible (e.g., on save or explicit build request).
-    Immediate,
+    /// Run this build as soon as possible (e.g., on save or explicit build request) (not currently used).
+    // Immediate,
+    /// Immediate, plus re-run Cargo.
+    Cargo,
     /// A regular build request (e.g., on a minor edit).
     Normal,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Signal {
-    Build,
-    Skip,
 }
 
 #[derive(Debug)]
@@ -130,105 +134,146 @@ impl BuildQueue {
     pub fn new(vfs: Arc<Vfs>, config: Arc<Mutex<Config>>) -> BuildQueue {
         BuildQueue {
             build_dir: Mutex::new(None),
+            prev_start_times: Mutex::new((Instant::now(), Instant::now())),
             compilation_cx: Arc::new(Mutex::new(CompilationContext::new())),
-            running: AtomicBool::new(false),
-            pending: Mutex::new(vec![]),
             vfs,
             config,
+            queued_start_times: Mutex::new((None, None)),
         }
     }
 
-    pub fn request_build(&self, build_dir: &Path, priority: BuildPriority, force_clean: bool) -> BuildResult {
-        trace!("request_build, {:?} {:?}", build_dir, priority);
+    // Requests a build (see comments on BuildQueue for what that means).
+    //
+    // The basic idea is that the build queue controls all builds. It has a single
+    // Mutex on prev_start_times. A thread must aquire that lock before it starts
+    // to build and holds it until it is done. Builds cannot be interrupted. This
+    // means only a single build can happen at a time.
+    //
+    // Before they start building, low priority requests must wait for `config.wait_to_build`
+    // milliseconds. High priority threads do not wait.
+    //
+    // Now for the complicated bits. Not all builds are equal - they might have
+    // different arguments, build directory, etc. Lets call all such things the
+    // context for the build. We don't try and compare contexts but rely on some
+    // invariants:
+    // * context can only change if the build priority is `Cargo` or the build_dir
+    //   changes (in the latter case we upgrade the priority to `Cargo`).
+    // * If the context changes, all previous build requests can be ignored (even
+    //   if they change the context themselves).
+    // * If there are multiple requests with the same context, we can skip all
+    //   but the most recent.
+    // * A pending request is obsolete (and may be discarded) if a more recent
+    //   request has happened.
+    //
+    // A request only ever squashes itself. It will only do this once it has the
+    // lock to build. Once this happens, the request thread checks if it is now
+    // obsolete, and if there are more recent or higher priority requests waiting.
+    // To make these checks we compare timestamps. We have the timestamp for the
+    // current request and the most recently completed request, so checking
+    // obsolete-ness is straightforward.
+    //
+    // Before we wait for the lock, the requesting thread registers that it is waiting
+    // by recording its request time in `queued_start_times`. When a thread aquires
+    // the lock, it checks if a more worthy thread is queued and if so it squashes
+    // itself.
+    //
+    // After building, we must carefully set the appropriate timestamps.
+    pub fn request_build(&self, new_build_dir: &Path, mut priority: BuildPriority) -> BuildResult {
+        let start_time = Instant::now();
+        trace!("request_build, {:?} {:?}", new_build_dir, priority);
 
-        // If there is a change in the project directory (or we've been requested to start from scratch),
-        // then we can forget any pending build and start straight with this new build.
-        {
-            let mut prev_build_dir = self.build_dir.lock().unwrap();
-
-            if force_clean || prev_build_dir.as_ref().map_or(true, |dir| dir != build_dir) {
-                *prev_build_dir = Some(build_dir.to_owned());
-                self.cancel_pending();
-
-                let mut compilation_cx = self.compilation_cx.lock().unwrap();
-                (*compilation_cx).args = vec![];
+        let build_dir = {
+            let mut build_dir = self.build_dir.lock().unwrap();
+            // If the build dir changes, upgrade the request to high priority.
+            if build_dir.as_ref().map_or(true, |dir| dir != new_build_dir) {
+                priority = BuildPriority::Cargo;
+                *build_dir = Some(new_build_dir.to_owned());
             }
-        }
+            // Keep a copy of the build directory in case the field is stomped by another thread.
+            build_dir.as_ref().unwrap().clone()
+        };
 
-        self.cancel_pending();
-
-        let (tx, rx) = channel();
-        self.pending.lock().unwrap().push(tx);
+        // Record our request time.
         if priority == BuildPriority::Normal {
+            // Normal priority threads sleep before starting up.
+            // Note that we sleep *before* setting a pending time, so a previous
+            // build can start running while we sleep.
             let wait_to_build = { // Release lock before we sleep
                 let config = self.config.lock().unwrap();
                 config.wait_to_build
             };
-            
             thread::sleep(Duration::from_millis(wait_to_build));
-        }
 
-        if self.running.load(Ordering::SeqCst) {
-            // Blocks
-            // println!("blocked on build");
-            let signal = rx.recv().unwrap_or(Signal::Build);
-            if signal == Signal::Skip {
-                return BuildResult::Squashed;
+            let &mut (_, ref mut low) = &mut *self.queued_start_times.lock().unwrap();
+            if low.is_none() || low.unwrap() < start_time {
+                *low = Some(start_time);
             }
-        // Quickly check our channel to see if anyone has told us to skip. This
-        // is only likely to have happened if we slept, and some other build ran
-        // while we slept.
-        } else if rx.try_recv().unwrap_or(Signal::Build) == Signal::Skip {
-            return BuildResult::Squashed;
-        }
-
-        // If another build has started already, we don't need to build
-        // ourselves (it must have arrived after this request; so we don't add
-        // to the pending list). But we do need to wait for that build to
-        // finish.
-        if self.running.swap(true, Ordering::SeqCst) {
-            let mut wait = 100;
-            while self.running.load(Ordering::SeqCst) && wait < 50000 {
-                // println!("loop of death");
-                thread::sleep(Duration::from_millis(wait));
-                wait *= 2;
+        } else {
+            let &mut (ref mut high, _) = &mut *self.queued_start_times.lock().unwrap();
+            if high.is_none() || high.unwrap() < start_time {
+                *high = Some(start_time);
             }
-            return BuildResult::Squashed;
         }
 
-        let result = self.build();
-        self.running.store(false, Ordering::SeqCst);
+        // Blocks while another thread is building.
+        let &mut (ref mut prev_high_start_time, ref mut prev_low_start_time) = &mut *self.prev_start_times.lock().unwrap();
 
-        // If there is a pending build, run it now.
-        let mut pending = self.pending.lock().unwrap();
-        let pending = mem::replace(&mut *pending, vec![]);
-        if !pending.is_empty() {
-            // Kick off one build, then skip the rest.
-            let mut pending = pending.iter();
-            while let Some(next) = pending.next() {
-                if next.send(Signal::Build).is_ok() {
-                    break;
+        // Squash ourselves if there is a higher priority or more recent build waiting.
+        {
+            let &mut (ref mut high, ref mut low) = &mut *self.queued_start_times.lock().unwrap();
+            if high.is_some() {
+                if priority == BuildPriority::Normal || high.unwrap() > start_time {
+                    return BuildResult::Squashed;
                 }
             }
-            for t in pending {
-                let _ = t.send(Signal::Skip);
+            if low.is_some() {
+                if priority == BuildPriority::Normal && low.unwrap() > start_time {
+                    return BuildResult::Squashed;
+                }
+            }
+        }
+
+        // If there is a change in the project directory (or we've been requested to start from scratch),
+        // then we can forget any pending build and start straight with this new build.
+        if priority != BuildPriority::Normal {
+            if start_time < *prev_high_start_time {
+                // Build request is obsolete.
+                return BuildResult::Squashed;
+            }
+
+            let mut compilation_cx = self.compilation_cx.lock().unwrap();
+            // Killing these args indicates we'll do a full Cargo build.
+            (*compilation_cx).args = vec![];
+            (*compilation_cx).envs = HashMap::new();
+        } else if start_time < *prev_low_start_time || start_time < *prev_high_start_time {
+            // Build request is obsolete.
+            return BuildResult::Squashed;
+        }
+
+        let result = self.build(&build_dir);
+
+        if priority == BuildPriority::Normal {
+            *prev_low_start_time = start_time;
+            let &mut (_, ref mut low) = &mut *self.queued_start_times.lock().unwrap();
+            if low.is_some() && low.unwrap() <= start_time {
+                *low = None;
+            }
+        } else {
+            *prev_high_start_time = start_time;
+            let &mut (ref mut high, ref mut low) = &mut *self.queued_start_times.lock().unwrap();
+            if high.is_some() && high.unwrap() <= start_time {
+                *high = None;
+            }
+            if low.is_some() && low.unwrap() <= start_time {
+                *low = None;
             }
         }
 
         result
     }
 
-    // Cancels all pending builds without running any of them.
-    fn cancel_pending(&self) {
-        let mut pending = self.pending.lock().unwrap();
-        let pending = mem::replace(&mut *pending, vec![]);
-        for t in pending {
-            let _ = t.send(Signal::Skip);
-        }
-    }
-
     // Build the project.
-    fn build(&self) -> BuildResult {
+    fn build(&self, build_dir: &Path) -> BuildResult {
         trace!("running build");
         // When we change build directory (presumably because the IDE is
         // changing project), we must do a cargo build of the whole project.
@@ -247,12 +292,8 @@ impl BuildQueue {
         // disk). We get the data we need by building with `-Zsave-analysis`.
 
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
-
-        let build_dir = &self.build_dir.lock().unwrap();
-        let build_dir = build_dir.as_ref().unwrap();
-
         if needs_to_run_cargo {
-            if let BuildResult::Err = self.cargo(build_dir.clone()) {
+            if let BuildResult::Err = self.cargo(build_dir.to_owned()) {
                 return BuildResult::Err;
             }
         }
@@ -281,6 +322,11 @@ impl BuildQueue {
                     config,
                 }
             }
+
+            fn is_primary_crate(&self, id: &PackageId) -> bool {
+                let cur_package_id = self.cur_package_id.lock().unwrap();
+                id == cur_package_id.as_ref().expect("Executor has not been initialised")
+            }
         }
 
         impl Executor for RlsExecutor {
@@ -293,7 +339,19 @@ impl BuildQueue {
                                          .clone());
             }
 
+            fn force_rebuild(&self, unit: &Unit) -> bool {
+                // We only do a cargo build if we want to force rebuild the last
+                // crate (e.g., because some args changed). Therefore we should
+                // always force rebuild the primary crate.
+                let id = unit.pkg.package_id();
+                // FIXME build scripts - this will force rebuild build scripts as
+                // well as the primary crate. But this is not too bad - it means
+                // we will rarely rebuild more than we have to.
+                self.is_primary_crate(id)
+            }
+
             fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId) -> CargoResult<()> {
+                trace!("exec");
                 // Delete any stale data. We try and remove any json files with
                 // the same crate name as Cargo would emit. This includes files
                 // with the same crate name but different hashes, e.g., those
@@ -314,16 +372,11 @@ impl BuildQueue {
                     }
                 }
 
-                let is_primary_crate = {
-                    let cur_package_id = self.cur_package_id.lock().unwrap();
-                    id == cur_package_id.as_ref().expect("Executor has not been initialised")
-                };
-
                 // We only want to intercept rustc call targeting current crate to cache
                 // args/envs generated by cargo so we can run only rustc later ourselves
                 // Currently we don't cache nor modify build script args
                 let is_build_script = crate_name == "build_script_build";
-                if !is_primary_crate || is_build_script {
+                if !self.is_primary_crate(id) || is_build_script {
                     let build_script_notice = if is_build_script {" (build script)"} else {""};
                     trace!("rustc not intercepted - {}{}", id.name(), build_script_notice);
 
@@ -388,7 +441,7 @@ impl BuildQueue {
 
                 cmd.status().expect("Couldn't execute rustc");
 
-                // Finally store the modified cargo-generated args/envs for future rustc calls
+                // Finally, store the modified cargo-generated args/envs for future rustc calls
                 args.insert(0, rustc_exe);
                 *self.compilation_cx.lock().unwrap() = CompilationContext {
                     args: args,

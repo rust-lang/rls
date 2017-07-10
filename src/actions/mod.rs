@@ -80,10 +80,10 @@ impl ActionHandler {
                 *current_project = Some(new_path);
             }
         }
-        self.build(&root_path, BuildPriority::Immediate, true, out);
+        self.build(&root_path, BuildPriority::Cargo, out);
     }
 
-    pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, force_clean: bool, out: O) {
+    pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
         fn clear_build_results(results: &mut BuildResults) {
             // We must not clear the hashmap, just the values in each list.
             // This allows us to save allocated before memory.
@@ -154,7 +154,7 @@ impl ActionHandler {
             // let start_time = ::std::time::Instant::now();
 
             debug!("build {:?}", project_path);
-            let result = build_queue.request_build(&project_path, priority, force_clean);
+            let result = build_queue.request_build(&project_path, priority);
             match result {
                 BuildResult::Success(messages, new_analysis) | BuildResult::Failure(messages, new_analysis) => {
                     // eprintln!("built {:?}", start_time.elapsed());
@@ -227,7 +227,7 @@ impl ActionHandler {
         }).collect();
         self.vfs.on_changes(&changes).expect("error committing to VFS");
 
-        self.build_current_project(BuildPriority::Normal, false, out);
+        self.build_current_project(BuildPriority::Normal, out);
     }
 
     pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, _out: O) {
@@ -235,13 +235,13 @@ impl ActionHandler {
         self.vfs.file_saved(&fname).unwrap();
     }
 
-    fn build_current_project<O: Output>(&self, priority: BuildPriority, force_clean: bool, out: O) {
+    fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
             current_project.clone()
         };
         match current_project {
-            Some(ref current_project) => self.build(current_project, priority, force_clean, out),
+            Some(ref current_project) => self.build(current_project, priority, out),
             None => debug!("build_current_project - no project path"),
         }
     }
@@ -653,7 +653,7 @@ impl ActionHandler {
                 // for Cargo, we'll notice them. But if nothing relevant changes
                 // then we don't do unnecessary building (i.e., we don't delete
                 // artifacts on disk).
-                self.build_current_project(BuildPriority::Immediate, true, out.clone());
+                self.build_current_project(BuildPriority::Cargo, out.clone());
 
                 const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
                 const RENAME_ID: &'static str = "rls-rename";
