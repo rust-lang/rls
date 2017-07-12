@@ -402,6 +402,10 @@ impl ActionHandler {
                         trace!("goto_def: {:?}", r);
                         out.success(id, ResponseData::Locations(vec![r]));
                     }
+                    Ok(None) => {
+                        trace!("goto_def: None");
+                        out.success(id, ResponseData::Locations(vec![]));
+                    }
                     _ => {
                         debug!("Error in Racer");
                         out.failure(id, "GotoDef failed to complete successfully");
