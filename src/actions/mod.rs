@@ -39,7 +39,7 @@ type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
-    build_queue: Arc<BuildQueue>,
+    build_queue: BuildQueue,
     current_project: Mutex<Option<PathBuf>>,
     previous_build_results: Arc<Mutex<BuildResults>>,
     config: Arc<Mutex<Config>>,
@@ -50,7 +50,7 @@ impl ActionHandler {
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
                config: Arc<Mutex<Config>>) -> ActionHandler {
-        let build_queue = Arc::new(BuildQueue::new(vfs.clone(), config.clone()));
+        let build_queue = BuildQueue::new(vfs.clone(), config.clone());
         ActionHandler {
             analysis,
             vfs: vfs.clone(),
@@ -80,10 +80,10 @@ impl ActionHandler {
                 *current_project = Some(new_path);
             }
         }
-        self.build(&root_path, BuildPriority::Immediate, true, out);
+        self.build(&root_path, BuildPriority::Cargo, out);
     }
 
-    pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, force_clean: bool, out: O) {
+    pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
         fn clear_build_results(results: &mut BuildResults) {
             // We must not clear the hashmap, just the values in each list.
             // This allows us to save allocated before memory.
@@ -136,64 +136,57 @@ impl ActionHandler {
                 .collect()
         }
 
-        let build_queue = self.build_queue.clone();
         let analysis = self.analysis.clone();
         let previous_build_results = self.previous_build_results.clone();
-        let project_path = project_path.to_owned();
+        let project_path_clone = project_path.to_owned();
         let out = out.clone();
         let show_warnings = {
             let config = self.config.lock().unwrap();
             config.show_warnings
         };
 
-
-        thread::spawn(move || {
-            // We use `rustDocument` document here since these notifications are
-            // custom to the RLS and not part of the LS protocol.
-            out.notify("rustDocument/diagnosticsBegin");
-            // let start_time = ::std::time::Instant::now();
-
-            debug!("build {:?}", project_path);
-            let result = build_queue.request_build(&project_path, priority, force_clean);
+        // We use `rustDocument` document here since these notifications are
+        // custom to the RLS and not part of the LS protocol.
+        out.notify("rustDocument/diagnosticsBegin");
+        self.build_queue.request_build(project_path, priority, move |result| {
             match result {
                 BuildResult::Success(messages, new_analysis) | BuildResult::Failure(messages, new_analysis) => {
-                    // eprintln!("built {:?}", start_time.elapsed());
-                    debug!("build - Success");
+                    thread::spawn(move || {
+                        trace!("build - Success");
 
-                    // These notifications will include empty sets of errors for files
-                    // which had errors, but now don't. This instructs the IDE to clear
-                    // errors for those files.
-                    let notifications = {
-                        let mut results = previous_build_results.lock().unwrap();
-                        clear_build_results(&mut results);
-                        parse_compiler_messages(&messages, &mut results);
-                        convert_build_results_to_notifications(&results, show_warnings)
-                    };
+                        // These notifications will include empty sets of errors for files
+                        // which had errors, but now don't. This instructs the IDE to clear
+                        // errors for those files.
+                        let notifications = {
+                            let mut results = previous_build_results.lock().unwrap();
+                            clear_build_results(&mut results);
+                            parse_compiler_messages(&messages, &mut results);
+                            convert_build_results_to_notifications(&results, show_warnings)
+                        };
 
-                    for notification in notifications {
-                        // FIXME(43) factor out the notification mechanism.
-                        let output = serde_json::to_string(&notification).unwrap();
-                        out.response(output);
-                    }
+                        for notification in notifications {
+                            // FIXME(43) factor out the notification mechanism.
+                            let output = serde_json::to_string(&notification).unwrap();
+                            out.response(output);
+                        }
 
-                    debug!("reload analysis: {:?}", project_path);
-                    let cwd = ::std::env::current_dir().unwrap();
-                    // eprintln!("start analysis {:?}", start_time.elapsed());
-                    if let Some(new_analysis) = new_analysis {
-                        analysis.reload_from_analysis(new_analysis, &project_path, &cwd, false).unwrap();
-                    } else {
-                        analysis.reload(&project_path, &cwd, false).unwrap();
-                    }
-                    // eprintln!("finished analysis {:?}", start_time.elapsed());
+                        debug!("reload analysis: {:?}", project_path_clone);
+                        let cwd = ::std::env::current_dir().unwrap();
+                        if let Some(new_analysis) = new_analysis {
+                            analysis.reload_from_analysis(new_analysis, &project_path_clone, &cwd, false).unwrap();
+                        } else {
+                            analysis.reload(&project_path_clone, &cwd, false).unwrap();
+                        }
 
-                    out.notify("rustDocument/diagnosticsEnd");
+                        out.notify("rustDocument/diagnosticsEnd");
+                    });
                 }
                 BuildResult::Squashed => {
-                    debug!("build - Squashed");
+                    trace!("build - Squashed");
                     out.notify("rustDocument/diagnosticsEnd");
                 },
                 BuildResult::Err => {
-                    debug!("build - Error");
+                    trace!("build - Error");
                     out.notify("rustDocument/diagnosticsEnd");
                 },
             }
@@ -227,7 +220,7 @@ impl ActionHandler {
         }).collect();
         self.vfs.on_changes(&changes).expect("error committing to VFS");
 
-        self.build_current_project(BuildPriority::Normal, false, out);
+        self.build_current_project(BuildPriority::Normal, out);
     }
 
     pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, _out: O) {
@@ -235,13 +228,13 @@ impl ActionHandler {
         self.vfs.file_saved(&fname).unwrap();
     }
 
-    fn build_current_project<O: Output>(&self, priority: BuildPriority, force_clean: bool, out: O) {
+    fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
         let current_project = {
             let current_project = self.current_project.lock().unwrap();
             current_project.clone()
         };
         match current_project {
-            Some(ref current_project) => self.build(current_project, priority, force_clean, out),
+            Some(ref current_project) => self.build(current_project, priority, out),
             None => debug!("build_current_project - no project path"),
         }
     }
@@ -657,7 +650,7 @@ impl ActionHandler {
                 // for Cargo, we'll notice them. But if nothing relevant changes
                 // then we don't do unnecessary building (i.e., we don't delete
                 // artifacts on disk).
-                self.build_current_project(BuildPriority::Immediate, true, out.clone());
+                self.build_current_project(BuildPriority::Cargo, out.clone());
 
                 const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
                 const RENAME_ID: &'static str = "rls-rename";
