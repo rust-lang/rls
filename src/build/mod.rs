@@ -386,7 +386,7 @@ impl Internals {
         assert!(!args.is_empty());
         let envs = &compile_cx.envs;
         let build_dir = compile_cx.build_dir.as_ref().unwrap();
-        self.rustc(args, envs, build_dir)
+        rustc::rustc(&self.vfs, args, envs, build_dir)
     }
 }
 

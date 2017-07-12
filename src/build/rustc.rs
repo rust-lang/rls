@@ -25,8 +25,9 @@ use self::rustc_save_analysis::CallbackHandler;
 use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
-use build::{Internals, BufWriter, BuildResult};
+use build::{BufWriter, BuildResult};
 use data::Analysis;
+use vfs::Vfs;
 
 use std::collections::HashMap;
 use std::env;
@@ -35,135 +36,133 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-impl Internals {
-    // Runs a single instance of rustc. Runs in-process.
-    pub fn rustc(&self, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path) -> BuildResult {
-        trace!("rustc - args: `{:?}`, envs: {:?}, build dir: {:?}", args, envs, build_dir);
+// Runs a single instance of rustc. Runs in-process.
+pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path) -> BuildResult {
+    trace!("rustc - args: `{:?}`, envs: {:?}, build dir: {:?}", args, envs, build_dir);
 
-        let changed = self.vfs.get_cached_files();
+    let changed = vfs.get_cached_files();
 
-        let _restore_env = Environment::push(envs);
-        let buf = Arc::new(Mutex::new(vec![]));
-        let err_buf = buf.clone();
-        let args = args.to_owned();
+    let _restore_env = Environment::push(envs);
+    let buf = Arc::new(Mutex::new(vec![]));
+    let err_buf = buf.clone();
+    let args = args.to_owned();
 
-        let analysis = Arc::new(Mutex::new(None));
+    let analysis = Arc::new(Mutex::new(None));
 
-        let mut controller = RlsRustcCalls::new(analysis.clone());
+    let mut controller = RlsRustcCalls::new(analysis.clone());
 
-        let exit_code = ::std::panic::catch_unwind(|| {
-            run(move || {
-                // Replace stderr so we catch most errors.
-                run_compiler(&args,
-                             &mut controller,
-                             Some(Box::new(ReplacedFileLoader::new(changed))),
-                             Some(Box::new(BufWriter(buf))))
-            })
-        });
+    let exit_code = ::std::panic::catch_unwind(|| {
+        run(move || {
+            // Replace stderr so we catch most errors.
+            run_compiler(&args,
+                         &mut controller,
+                         Some(Box::new(ReplacedFileLoader::new(changed))),
+                         Some(Box::new(BufWriter(buf))))
+        })
+    });
 
-        // FIXME(#25) given that we are running the compiler directly, there is no need
-        // to serialise the error messages - we should pass them in memory.
-        let stderr_json_msg = convert_message_to_json_strings(Arc::try_unwrap(err_buf)
-            .unwrap()
-            .into_inner()
-            .unwrap());
+    // FIXME(#25) given that we are running the compiler directly, there is no need
+    // to serialise the error messages - we should pass them in memory.
+    let stderr_json_msg = convert_message_to_json_strings(Arc::try_unwrap(err_buf)
+        .unwrap()
+        .into_inner()
+        .unwrap());
 
-        let analysis = analysis.lock().unwrap().clone();
-        return match exit_code {
-            Ok(0) => BuildResult::Success(stderr_json_msg, analysis),
-            _ => BuildResult::Failure(stderr_json_msg, analysis),
-        };
+    let analysis = analysis.lock().unwrap().clone();
+    match exit_code {
+        Ok(0) => BuildResult::Success(stderr_json_msg, analysis),
+        _ => BuildResult::Failure(stderr_json_msg, analysis),
+    }
+}
 
-        // Our compiler controller. We mostly delegate to the default rustc
-        // controller, but use our own callback for save-analysis.
-        #[derive(Clone)]
-        struct RlsRustcCalls {
+// Our compiler controller. We mostly delegate to the default rustc
+// controller, but use our own callback for save-analysis.
+#[derive(Clone)]
+struct RlsRustcCalls {
+    default_calls: RustcDefaultCalls,
+    analysis: Arc<Mutex<Option<Analysis>>>,
+}
+
+impl RlsRustcCalls {
+    fn new(analysis: Arc<Mutex<Option<Analysis>>>) -> RlsRustcCalls {
+        RlsRustcCalls {
             default_calls: RustcDefaultCalls,
-            analysis: Arc<Mutex<Option<Analysis>>>,
+            analysis: analysis,
         }
+    }
+}
 
-        impl RlsRustcCalls {
-            fn new(analysis: Arc<Mutex<Option<Analysis>>>) -> RlsRustcCalls {
-                RlsRustcCalls {
-                    default_calls: RustcDefaultCalls,
-                    analysis: analysis,
-                }
-            }
-        }
+impl<'a> CompilerCalls<'a> for RlsRustcCalls {
+    fn early_callback(&mut self,
+                      matches: &getopts::Matches,
+                      sopts: &config::Options,
+                      cfg: &ast::CrateConfig,
+                      descriptions: &errors::registry::Registry,
+                      output: ErrorOutputType)
+                      -> Compilation {
+        self.default_calls.early_callback(matches, sopts, cfg, descriptions, output)
+    }
 
-        impl<'a> CompilerCalls<'a> for RlsRustcCalls {
-            fn early_callback(&mut self,
-                              matches: &getopts::Matches,
-                              sopts: &config::Options,
-                              cfg: &ast::CrateConfig,
-                              descriptions: &errors::registry::Registry,
-                              output: ErrorOutputType)
-                              -> Compilation {
-                self.default_calls.early_callback(matches, sopts, cfg, descriptions, output)
-            }
+    fn no_input(&mut self,
+                matches: &getopts::Matches,
+                sopts: &config::Options,
+                cfg: &ast::CrateConfig,
+                odir: &Option<PathBuf>,
+                ofile: &Option<PathBuf>,
+                descriptions: &errors::registry::Registry)
+                -> Option<(Input, Option<PathBuf>)> {
+        self.default_calls.no_input(matches, sopts, cfg, odir, ofile, descriptions)
+    }
 
-            fn no_input(&mut self,
-                        matches: &getopts::Matches,
-                        sopts: &config::Options,
-                        cfg: &ast::CrateConfig,
-                        odir: &Option<PathBuf>,
-                        ofile: &Option<PathBuf>,
-                        descriptions: &errors::registry::Registry)
-                        -> Option<(Input, Option<PathBuf>)> {
-                self.default_calls.no_input(matches, sopts, cfg, odir, ofile, descriptions)
-            }
+    fn late_callback(&mut self,
+                     matches: &getopts::Matches,
+                     sess: &Session,
+                     input: &Input,
+                     odir: &Option<PathBuf>,
+                     ofile: &Option<PathBuf>)
+                     -> Compilation {
+        self.default_calls.late_callback(matches, sess, input, odir, ofile)
+    }
 
-            fn late_callback(&mut self,
-                             matches: &getopts::Matches,
-                             sess: &Session,
-                             input: &Input,
-                             odir: &Option<PathBuf>,
-                             ofile: &Option<PathBuf>)
-                             -> Compilation {
-                self.default_calls.late_callback(matches, sess, input, odir, ofile)
-            }
+    fn build_controller(&mut self,
+                        sess: &Session,
+                        matches: &getopts::Matches)
+                        -> CompileController<'a> {
+        let mut result = self.default_calls.build_controller(sess, matches);
+        let analysis = self.analysis.clone();
 
-            fn build_controller(&mut self,
-                                sess: &Session,
-                                matches: &getopts::Matches)
-                                -> CompileController<'a> {
-                let mut result = self.default_calls.build_controller(sess, matches);
-                let analysis = self.analysis.clone();
+        result.after_analysis.callback = Box::new(move |state| {
+            // There are two ways to move the data from rustc to the RLS, either
+            // directly or by serialising and deserialising. We only want to do 
+            // the latter when there are compatibility issues between crates.
 
-                result.after_analysis.callback = Box::new(move |state| {
-                    // There are two ways to move the data from rustc to the RLS, either
-                    // directly or by serialising and deserialising. We only want to do 
-                    // the latter when there are compatibility issues between crates.
+            // This version passes via JSON, it is more easily backwards compatible.
+            // save::process_crate(state.tcx.unwrap(),
+            //                     state.expanded_crate.unwrap(),
+            //                     state.analysis.unwrap(),
+            //                     state.crate_name.unwrap(),
+            //                     save::DumpHandler::new(save::Format::Json,
+            //                                            state.out_dir,
+            //                                            state.crate_name.unwrap()));
+            // This version passes directly, it is more efficient.
+            save::process_crate(state.tcx.unwrap(),
+                                state.expanded_crate.unwrap(),
+                                state.analysis.unwrap(),
+                                state.crate_name.unwrap(),
+                                CallbackHandler {
+                                    callback: &mut |a| {
+                                        let mut analysis = analysis.lock().unwrap();
+                                        let a = unsafe {
+                                            ::std::mem::transmute(a.clone())
+                                        };
+                                        *analysis = Some(a);
+                                    }
+                                });
+        });
+        result.after_analysis.run_callback_on_error = true;
+        result.make_glob_map = rustc_resolve::MakeGlobMap::Yes;
 
-                    // This version passes via JSON, it is more easily backwards compatible.
-                    // save::process_crate(state.tcx.unwrap(),
-                    //                     state.expanded_crate.unwrap(),
-                    //                     state.analysis.unwrap(),
-                    //                     state.crate_name.unwrap(),
-                    //                     save::DumpHandler::new(save::Format::Json,
-                    //                                            state.out_dir,
-                    //                                            state.crate_name.unwrap()));
-                    // This version passes directly, it is more efficient.
-                    save::process_crate(state.tcx.unwrap(),
-                                        state.expanded_crate.unwrap(),
-                                        state.analysis.unwrap(),
-                                        state.crate_name.unwrap(),
-                                        CallbackHandler {
-                                            callback: &mut |a| {
-                                                let mut analysis = analysis.lock().unwrap();
-                                                let a = unsafe {
-                                                    ::std::mem::transmute(a.clone())
-                                                };
-                                                *analysis = Some(a);
-                                            }
-                                        });
-                });
-                result.after_analysis.run_callback_on_error = true;
-                result.make_glob_map = rustc_resolve::MakeGlobMap::Yes;
-
-                result
-            }
-        }
+        result
     }
 }
 
