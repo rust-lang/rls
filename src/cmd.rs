@@ -14,8 +14,9 @@
 
 use analysis::{AnalysisHost, Target};
 use config::Config;
-use server::{self, ServerMessage, Request, Notification, Method, LsService, ParseError, ResponseData};
+use server::{self, ServerMessage, Request, Notification, Method, LsService, ResponseData};
 use vfs::Vfs;
+use jsonrpc_core;
 
 use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams};
 use std::time::Duration;
@@ -54,7 +55,7 @@ pub fn run() {
             Some(a) => a,
             None => continue,
         };
-        
+
         // Switch on the action and build an appropriate message.
         let msg = match action {
             "def" => {
@@ -216,7 +217,7 @@ impl ChannelMsgReader {
 }
 
 impl server::MessageReader for ChannelMsgReader {
-    fn parsed_message(&self) -> Option<Result<ServerMessage, ParseError>> {
+    fn parsed_message(&self) -> Option<Result<ServerMessage, Option<jsonrpc_core::Failure>>> {
         let channel = self.channel.lock().unwrap();
         let msg = channel.recv().expect("Error reading from channel");
         Some(Ok(msg))

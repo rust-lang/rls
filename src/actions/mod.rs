@@ -24,6 +24,7 @@ use Span;
 use build::*;
 use lsp_data::*;
 use server::{ResponseData, Output, Ack};
+use jsonrpc_core::types::ErrorCode;
 
 use std::collections::HashMap;
 use std::panic;
@@ -401,7 +402,7 @@ impl ActionHandler {
                     }
                     _ => {
                         debug!("Error in Racer");
-                        out.failure(id, "GotoDef failed to complete successfully");
+                        out.failure_message(id, ErrorCode::InternalError, "GotoDef failed to complete successfully");
                     }
                 }
             }
@@ -445,7 +446,7 @@ impl ActionHandler {
                 out.success(id, ResponseData::HoverSuccess(r));
             }
             Err(_) => {
-                out.failure(id, "Hover failed to complete successfully");
+                out.failure_message(id, ErrorCode::InternalError, "Hover failed to complete successfully");
             }
         }
     }
@@ -459,7 +460,7 @@ impl ActionHandler {
             }
             c => {
                 debug!("Unknown command: {}", c);
-                out.failure(id, "Unknown command");
+                out.failure_message(id, ErrorCode::MethodNotFound, "Unknown command");
             }
         }
     }
@@ -516,21 +517,20 @@ impl ActionHandler {
 
         // Start by checking that the user has selected a glob import.
         if span.range.start() == span.range.end() {
-            out.failure(id, "Empty selection");
+            out.failure_message(id, ErrorCode::InvalidParams, "Empty selection");
             return;
         }
         match self.vfs.load_span(span.clone()) {
-            Ok(s) => {
-                if s != "*" {
-                    out.failure(id, "Not a glob");
-                    return;
-                }
+            Ok(ref s) if s != "*" => {
+                out.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
+                return;
             }
             Err(e) => {
                 debug!("Deglob failed: {:?}", e);
-                out.failure(id, "Couldn't open file");
+                out.failure_message(id, ErrorCode::InternalError, "Couldn't open file");
                 return;
             }
+            _ => {}
         }
 
         // Save-analysis exports the deglobbed version of a glob import as its type string.
@@ -548,7 +548,7 @@ impl ActionHandler {
         let mut deglob_str = match result {
             Ok(Ok(s)) => s,
             _ => {
-                out.failure(id, "Couldn't get info from analysis");
+                out.failure_message(id, ErrorCode::InternalError, "Couldn't get info from analysis");
                 return;
             }
         };
@@ -579,12 +579,12 @@ impl ActionHandler {
             Ok(FileContents::Text(s)) => FmtInput::Text(s),
             Ok(_) => {
                 debug!("Reformat failed, found binary file");
-                out.failure(id, "Reformat failed to complete successfully");
+                out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
                 return;
             }
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
-                out.failure(id, "Reformat failed to complete successfully");
+                out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
                 return;
             }
         };
@@ -626,12 +626,12 @@ impl ActionHandler {
                 } else {
                     debug!("reformat: format_input failed: has errors, summary = {:?}", summary);
 
-                    out.failure(id, "Reformat failed to complete successfully");
+                    out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
                 }
             }
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
-                out.failure(id, "Reformat failed to complete successfully");
+                out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
             }
         }
     }

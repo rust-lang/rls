@@ -15,10 +15,12 @@ mod harness;
 
 use std::sync::{Arc, Mutex};
 use env_logger;
+use serde_json;
 
 use analysis;
 use config::Config;
 use server::{self as ls_server, ServerMessage, Request, Method};
+use jsonrpc_core;
 use vfs;
 
 use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, mock_server_with_config, RecordOutput, src};
@@ -459,5 +461,9 @@ fn test_parse_error_on_malformed_input() {
 
     let error = results.lock().unwrap()
         .pop().expect("no error response");
-    assert!(error.contains(r#""code": -32700"#))
+
+    let failure: jsonrpc_core::Failure = serde_json::from_str(&error)
+        .expect("Couldn't parse json failure response");
+
+    assert!(failure.error.code == jsonrpc_core::ErrorCode::ParseError);
 }
