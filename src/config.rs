@@ -26,6 +26,8 @@ pub struct Config {
     pub unstable_features: bool,
     pub wait_to_build: u64,
     pub show_warnings: bool,
+    pub workspace_mode: bool,
+    pub analyze_package: Option<String>,
 }
 
 impl Config {
@@ -40,6 +42,8 @@ impl Config {
             unstable_features: false,
             wait_to_build: DEFAULT_WAIT_TO_BUILD,
             show_warnings: true,
+            workspace_mode: false,
+            analyze_package: None,
         }
     }
 }

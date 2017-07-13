@@ -440,6 +440,30 @@ fn test_bin_lib_project_no_cfg_test() {
 }
 
 #[test]
+fn test_simple_workspace() {
+    let (cache, _tc) = init_env("simple_workspace");
+
+    let root_path = cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+    ];
+
+    let mut config = Config::default();
+    config.workspace_mode = true;
+    let (server, results) = mock_server_with_config(messages, config);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       // TODO: it'd be convenient to test if compilation encountered an internal error
+                                       // or at least to check stderr's contents. We shouldn't check for presence of a warning here
+                                       ExpectedMessage::new(None).expect_contains("unused variable: `a`"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
 fn test_parse_error_on_malformed_input() {
     let _ = env_logger::init();
     struct NoneMsgReader;

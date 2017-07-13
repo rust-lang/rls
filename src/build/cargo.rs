@@ -9,14 +9,14 @@
 // except according to those terms.
 
 use cargo::core::{PackageId, Shell, Workspace, Verbosity};
-use cargo::ops::{compile_with_exec, Executor, Context, CompileOptions, CompileMode, CompileFilter, Unit};
-use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, ConfigValue};
-use cargo::util::{CargoResult};
+use cargo::ops::{compile_with_exec, Executor, Context, Packages, CompileOptions, CompileMode, CompileFilter, Unit};
+use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_paths, ConfigValue, CargoResult};
 
 use build::{Internals, BufWriter, BuildResult, CompilationContext};
 use config::Config;
+use super::rustc::convert_message_to_json_strings;
 
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::env;
 use std::ffi::OsString;
 use std::fs::{read_dir, remove_file};
@@ -25,11 +25,13 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-
 impl Internals {
     // Runs an in-process instance of Cargo.
     pub fn cargo(&self) -> BuildResult {
-        let exec = RlsExecutor::new(self.compilation_cx.clone(), self.config.clone());
+        let workspace_mode = self.config.lock().unwrap().workspace_mode;
+        let compiler_messages = Arc::new(Mutex::new(vec![]));
+
+        let exec = RlsExecutor::new(self.compilation_cx.clone(), self.config.clone(), compiler_messages.clone());
 
         let out = Arc::new(Mutex::new(vec![]));
         let out_clone = out.clone();
@@ -46,6 +48,10 @@ impl Internals {
         let handle = thread::spawn(move || run_cargo(exec, rls_config, build_dir, out));
 
         match handle.join() {
+            Ok(_) if workspace_mode => {
+                let diagnostics = Arc::try_unwrap(compiler_messages).unwrap().into_inner().unwrap();
+                BuildResult::Success(diagnostics, None)
+            },
             Ok(_) => BuildResult::Success(vec![], None),
             Err(_) => {
                 info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
@@ -56,98 +62,132 @@ impl Internals {
 }
 
 fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathBuf, out: Arc<Mutex<Vec<u8>>>) {
-    let mut flags = "-Zunstable-options -Zsave-analysis --error-format=json \
-                     -Zcontinue-parse-after-error".to_owned();
+    // Note that this may not be equal build_dir when inside a workspace member
+    let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)
+        .expect(&format!("Couldn't find a root manifest for cwd: {:?}", &build_dir));
+    trace!("root manifest_path: {:?}", &manifest_path);
 
     let mut shell = Shell::from_write(Box::new(BufWriter(out.clone())));
     shell.set_verbosity(Verbosity::Quiet);
-    let mut manifest_path = build_dir;
-    let config = make_cargo_config(&manifest_path, shell);
-    manifest_path.push("Cargo.toml");
-    trace!("manifest_path: {:?}", manifest_path);
-    // TODO: Add support for virtual manifests and multiple packages 
+
+    // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
+    let manifest_dir = manifest_path.parent().unwrap();
+    let config = make_cargo_config(manifest_dir, shell);
+
     let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
-    let current_package = ws.current().unwrap(); 
-    let targets = current_package.targets();
-    let bins;
-    let target_string;
 
-    let opts = {
+    // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
+    // it on every relevant configuration change
+    let (opts, rustflags) = {
+        // We mustn't lock configuration for the whole build process
         let rls_config = rls_config.lock().unwrap();
-        if let Some(ref sysroot) = rls_config.sysroot {
-            flags.push_str(&format!(" --sysroot {}", sysroot));
-        }
-        let rustflags = format!("{} {} {}",
-                                 env::var("RUSTFLAGS").unwrap_or(String::new()),
-                                 rls_config.rustflags.as_ref().unwrap_or(&String::new()),
-                                 flags);
-        let rustflags = dedup_flags(&rustflags);
-        env::set_var("RUSTFLAGS", &rustflags);
 
-        bins = {
-            if let Some(ref build_bin) = rls_config.build_bin { 
-                let mut bins = targets.iter().filter(|x| x.is_bin()); 
-                let bin = bins.find(|x| x.name() == build_bin);
-                match bin {
-                    Some(bin) => vec![bin.name().to_owned()],
-                    None => {
-                        debug!("cargo - couldn't find binary `{}` (specified in rls toml file)", build_bin);
-                        vec![]
-                    }
+        let opts = CargoOptions::new(&rls_config);
+        trace!("Cargo compilation options:\n{:?}", opts);
+        let rustflags = prepare_cargo_rustflags(&rls_config);
+
+        // Warn about invalid specified bin target or package depending on current mode
+        // TODO: Return client notifications along with diagnostics to inform the user
+        if !rls_config.workspace_mode {
+            let cur_pkg_targets = ws.current().unwrap().targets();
+
+            if let Some(ref build_bin) = rls_config.build_bin {
+                let mut bins = cur_pkg_targets.iter().filter(|x| x.is_bin());
+                if let None = bins.find(|x| x.name() == build_bin) {
+                    warn!("cargo - couldn't find binary `{}` specified in `build_bin` configuration", build_bin);
                 }
-            } else {
-                vec![]
             }
-        };
+        } else {
+            for package in &opts.package {
+                if let None =  ws.members().find(|x| x.name() == package) {
+                    warn!("cargo - couldn't find member package `{}` specified in `analyze_package` configuration", package);
+                }
+            }
+        }
 
-        let mut opts = CompileOptions::default(&config, CompileMode::Check);
-        if rls_config.build_lib {
-            opts.filter = CompileFilter::new(true, &[], false, &[], false, &[], false, &[], false); 
-        } else if !bins.is_empty() {
-            opts.filter = CompileFilter::new(false, &bins, false, &[], false, &[], false, &[], false);
-        }
-        if let Some(ref target) = rls_config.target {
-            target_string = target.clone();
-            opts.target = Some(&target_string);
-        }
-        opts
+        (opts, rustflags)
     };
-    compile_with_exec(&ws, &opts, Arc::new(exec)).expect("could not run cargo");
+
+    let spec = Packages::from_flags(opts.all, &opts.exclude, &opts.package)
+        .expect("Couldn't create Packages for Cargo");
+
+    let compile_opts = CompileOptions {
+        target: opts.target.as_ref().map(|t| &t[..]),
+        spec: spec,
+        filter: CompileFilter::new(opts.lib,
+                                &opts.bin, opts.bins,
+                                // TODO: Support more crate target types
+                                &[], false, &[], false, &[], false),
+        .. CompileOptions::default(&config, CompileMode::Check)
+    };
+
+    env::set_var("RUSTFLAGS", rustflags);
+    compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
 }
 
 struct RlsExecutor {
     compilation_cx: Arc<Mutex<CompilationContext>>,
     cur_package_id: Mutex<Option<PackageId>>,
     config: Arc<Mutex<Config>>,
+    workspace_mode: bool,
+    /// Packages which are directly a member of the workspace, for which
+    /// analysis and diagnostics will be provided
+    member_packages: Mutex<HashSet<PackageId>>,
+    /// JSON compiler messages emitted for each primary compiled crate
+    compiler_messages: Arc<Mutex<Vec<String>>>,
 }
 
 impl RlsExecutor {
     fn new(compilation_cx: Arc<Mutex<CompilationContext>>,
-           config: Arc<Mutex<Config>>) -> RlsExecutor {
+           config: Arc<Mutex<Config>>,
+           compiler_messages: Arc<Mutex<Vec<String>>>)
+    -> RlsExecutor {
+        let workspace_mode = config.lock().unwrap().workspace_mode;
         RlsExecutor {
-            compilation_cx: compilation_cx,
+            compilation_cx,
             cur_package_id: Mutex::new(None),
             config,
+            workspace_mode,
+            member_packages: Mutex::new(HashSet::new()),
+            compiler_messages,
         }
     }
 
     fn is_primary_crate(&self, id: &PackageId) -> bool {
-        let cur_package_id = self.cur_package_id.lock().unwrap();
-        id == cur_package_id.as_ref().expect("Executor has not been initialised")
+        if self.workspace_mode {
+            self.member_packages.lock().unwrap().contains(id)
+        } else {
+            let cur_package_id = self.cur_package_id.lock().unwrap();
+            id == cur_package_id.as_ref().expect("Executor has not been initialised")
+        }
     }
 }
 
 impl Executor for RlsExecutor {
     fn init(&self, cx: &Context) {
-        let mut cur_package_id = self.cur_package_id.lock().unwrap();
-        *cur_package_id = Some(cx.ws
-                                 .current_opt()
-                                 .expect("No current package in Cargo")
-                                 .package_id()
-                                 .clone());
+        if self.workspace_mode {
+            *self.member_packages.lock().unwrap() = cx.ws
+                                                      .members()
+                                                      .map(|x| x.package_id().clone())
+                                                      .collect();
+        } else {
+            let mut cur_package_id = self.cur_package_id.lock().unwrap();
+            *cur_package_id = Some(cx.ws
+                                     .current_opt()
+                                     .expect("No current package in Cargo")
+                                     .package_id()
+                                     .clone());
+        };
     }
 
     fn force_rebuild(&self, unit: &Unit) -> bool {
+        // TODO: Currently workspace_mode doesn't use rustc, so it doesn't
+        // need args. When we start using rustc, we might consider doing
+        // force_rebuild to retrieve args for given package if they're stale/missing
+        if self.workspace_mode {
+            return false;
+        }
+
         // We only do a cargo build if we want to force rebuild the last
         // crate (e.g., because some args changed). Therefore we should
         // always force rebuild the primary crate.
@@ -235,7 +275,7 @@ impl Executor for RlsExecutor {
             for a in &args {
                 // Emitting only dep-info is possible only for final crate type, as
                 // as others may emit required metadata for dependent crate types
-                if a.starts_with("--emit") && is_final_crate_type {
+                if a.starts_with("--emit") && is_final_crate_type && !self.workspace_mode {
                     cmd.arg("--emit=dep-info");
                 } else {
                     cmd.arg(a);
@@ -247,7 +287,13 @@ impl Executor for RlsExecutor {
             }
         }
 
-        cmd.status().expect("Couldn't execute rustc");
+        if self.workspace_mode {
+            let output = cmd.output().expect("Couldn't execute rustc");
+            let mut stderr_json_msg = convert_message_to_json_strings(output.stderr);
+            self.compiler_messages.lock().unwrap().append(&mut stderr_json_msg);
+        } else {
+            cmd.status().expect("Couldn't execute rustc");
+        }
 
         // Finally, store the modified cargo-generated args/envs for future rustc calls
         args.insert(0, rustc_exe);
@@ -259,10 +305,88 @@ impl Executor for RlsExecutor {
     }
 }
 
+#[derive(Debug)]
+struct CargoOptions {
+    package: Vec<String>,
+    target: Option<String>,
+    lib: bool,
+    bin: Vec<String>,
+    bins: bool,
+    all: bool,
+    exclude: Vec<String>,
+}
+
+impl CargoOptions {
+    fn default() -> CargoOptions {
+        CargoOptions {
+            package: vec![],
+            target: None,
+            lib: false,
+            bin: vec![],
+            bins: false,
+            all: false,
+            exclude: vec![],
+        }
+    }
+
+    fn new(config: &Config) -> CargoOptions {
+        if config.workspace_mode {
+            let (package, all) = match config.analyze_package {
+                Some(ref pkg_name) => (vec![pkg_name.clone()], false),
+                None => (vec![], true),
+            };
+
+            CargoOptions {
+                package,
+                all,
+                target: config.target.clone(),
+                .. CargoOptions::default()
+            }
+        } else {
+            // In single-crate mode we currently support only one crate target,
+            // and if lib is set, then we ignore bin target config
+            let (lib, bin) = match config.build_lib {
+                true => (true, vec![]),
+                false => {
+                    let bin = match config.build_bin {
+                        Some(ref bin) => vec![bin.clone()],
+                        None => vec![],
+                    };
+                    (false, bin)
+                },
+            };
+
+            CargoOptions {
+                lib,
+                bin,
+                target: config.target.clone(),
+                .. CargoOptions::default()
+            }
+        }
+    }
+}
+
+fn prepare_cargo_rustflags(config: &Config) -> String {
+    let mut flags = "-Zunstable-options -Zsave-analysis --error-format=json \
+                        -Zcontinue-parse-after-error".to_owned();
+
+    if let Some(ref sysroot) = config.sysroot {
+        flags.push_str(&format!(" --sysroot {}", sysroot));
+    }
+
+    flags = format!("{} {} {}",
+                            env::var("RUSTFLAGS").unwrap_or(String::new()),
+                            config.rustflags.as_ref().unwrap_or(&String::new()),
+                            flags);
+
+    dedup_flags(&flags)
+}
+
 fn make_cargo_config(build_dir: &Path, shell: Shell) -> CargoConfig {
     let config = CargoConfig::new(shell,
-                                  // This is Cargo's cwd. We are using the actual cwd, but perhaps
-                                  // we should use build_dir or something else?
+                                  // This is Cargo's cwd. We're using the actual cwd,
+                                  // because Cargo will generate relative paths based
+                                  // on this to source files it wants to compile
                                   env::current_dir().unwrap(),
                                   homedir(&build_dir).unwrap());
 
