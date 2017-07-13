@@ -12,7 +12,7 @@ use cargo::core::{PackageId, Shell, Workspace, Verbosity};
 use cargo::ops::{compile_with_exec, Executor, Context, Packages, CompileOptions, CompileMode, CompileFilter, Unit};
 use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_paths, ConfigValue, CargoResult};
 
-use build::{Internals, BufWriter, BuildResult, CompilationContext};
+use build::{Internals, BufWriter, BuildResult, CompilationContext, Environment};
 use config::Config;
 use super::rustc::convert_message_to_json_strings;
 
@@ -121,7 +121,16 @@ fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathB
         .. CompileOptions::default(&config, CompileMode::Check)
     };
 
-    env::set_var("RUSTFLAGS", rustflags);
+    // Create a custom environment for running cargo, the environment is reset afterwards automatically
+    let mut env: HashMap<String, Option<OsString>> = HashMap::new();
+    env.insert("RUSTFLAGS".to_owned(), Some(rustflags.into()));
+
+    if rls_config.lock().unwrap().clear_env_rust_log {
+        env.insert("RUST_LOG".to_owned(), None);
+    }
+
+    let _restore_env = Environment::push(&env);
+
     compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
 }
 

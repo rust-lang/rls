@@ -28,6 +28,8 @@ pub struct Config {
     pub show_warnings: bool,
     pub workspace_mode: bool,
     pub analyze_package: Option<String>,
+    /// Clear the RUST_LOG env variable before calling rustc/cargo? Default: true
+    pub clear_env_rust_log: bool,
 }
 
 impl Config {
@@ -44,6 +46,7 @@ impl Config {
             show_warnings: true,
             workspace_mode: false,
             analyze_package: None,
+            clear_env_rust_log: true,
         }
     }
 }

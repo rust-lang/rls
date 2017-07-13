@@ -25,24 +25,29 @@ use self::rustc_save_analysis::CallbackHandler;
 use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
-use build::{BufWriter, BuildResult};
+use config::Config;
+use build::{BufWriter, BuildResult, Environment};
 use data::Analysis;
 use vfs::Vfs;
 
 use std::collections::HashMap;
-use std::env;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 // Runs a single instance of rustc. Runs in-process.
-pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path) -> BuildResult {
+pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path, rls_config: Arc<Mutex<Config>>) -> BuildResult {
     trace!("rustc - args: `{:?}`, envs: {:?}, build dir: {:?}", args, envs, build_dir);
 
     let changed = vfs.get_cached_files();
 
-    let _restore_env = Environment::push(envs);
+    let mut local_envs = envs.clone();
+
+    if rls_config.lock().unwrap().clear_env_rust_log {
+        local_envs.insert(String::from("RUST_LOG"), None);
+    }
+    let _restore_env = Environment::push(&local_envs);
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();
     let args = args.to_owned();
@@ -163,39 +168,6 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         result.make_glob_map = rustc_resolve::MakeGlobMap::Yes;
 
         result
-    }
-}
-
-// An RAII helper to set and reset the current working directory and env vars.
-struct Environment {
-    old_vars: HashMap<String, Option<OsString>>,
-}
-
-impl Environment {
-    fn push(envs: &HashMap<String, Option<OsString>>) -> Environment {
-        let mut result = Environment {
-            old_vars: HashMap::new(),
-        };
-
-        for (k, v) in envs {
-            result.old_vars.insert(k.to_owned(), env::var_os(k));
-            match *v {
-                Some(ref v) => env::set_var(k, v),
-                None => env::remove_var(k),
-            }
-        }
-        result
-    }
-}
-
-impl Drop for Environment {
-    fn drop(&mut self) {
-        for (k, v) in &self.old_vars {
-            match *v {
-                Some(ref v) => env::set_var(k, v),
-                None => env::remove_var(k),
-            }
-        }
     }
 }
 
