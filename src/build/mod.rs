@@ -378,7 +378,7 @@ impl Internals {
         let workspace_mode = self.config.lock().unwrap().workspace_mode; 
  
         if workspace_mode || needs_to_run_cargo { 
-            let result = self.cargo(); 
+            let result = cargo::cargo(self);
  
             match result { 
                 BuildResult::Err => return BuildResult::Err, 

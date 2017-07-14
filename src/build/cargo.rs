@@ -25,38 +25,35 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-impl Internals {
-    // Runs an in-process instance of Cargo.
-    pub fn cargo(&self) -> BuildResult {
-        let workspace_mode = self.config.lock().unwrap().workspace_mode;
-        let compiler_messages = Arc::new(Mutex::new(vec![]));
+// Runs an in-process instance of Cargo.
+pub(super) fn cargo(internals: &Internals) -> BuildResult {
+    let workspace_mode = internals.config.lock().unwrap().workspace_mode;
+    let compiler_messages = Arc::new(Mutex::new(vec![]));
+    let exec = RlsExecutor::new(internals.compilation_cx.clone(), internals.config.clone(), compiler_messages.clone());
 
-        let exec = RlsExecutor::new(self.compilation_cx.clone(), self.config.clone(), compiler_messages.clone());
+    let out = Arc::new(Mutex::new(vec![]));
+    let out_clone = out.clone();
+    let rls_config = internals.config.clone();
+    let build_dir = {
+        let compilation_cx = internals.compilation_cx.lock().unwrap();
+        compilation_cx.build_dir.as_ref().unwrap().clone()
+    };
 
-        let out = Arc::new(Mutex::new(vec![]));
-        let out_clone = out.clone();
-        let rls_config = self.config.clone();
-        let build_dir = {
-            let compilation_cx = self.compilation_cx.lock().unwrap();
-            compilation_cx.build_dir.as_ref().unwrap().clone()
-        };
+    // Cargo may or may not spawn threads to run the various builds, since
+    // we may be in separate threads we need to block and wait our thread.
+    // However, if Cargo doesn't run a separate thread, then we'll just wait
+    // forever. Therefore, we spawn an extra thread here to be safe.
+    let handle = thread::spawn(move || run_cargo(exec, rls_config, build_dir, out));
 
-        // Cargo may or may not spawn threads to run the various builds, since
-        // we may be in separate threads we need to block and wait our thread.
-        // However, if Cargo doesn't run a separate thread, then we'll just wait
-        // forever. Therefore, we spawn an extra thread here to be safe.
-        let handle = thread::spawn(move || run_cargo(exec, rls_config, build_dir, out));
-
-        match handle.join() {
-            Ok(_) if workspace_mode => {
-                let diagnostics = Arc::try_unwrap(compiler_messages).unwrap().into_inner().unwrap();
-                BuildResult::Success(diagnostics, None)
-            },
-            Ok(_) => BuildResult::Success(vec![], None),
-            Err(_) => {
-                info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
-                BuildResult::Err
-            }
+    match handle.join() {
+        Ok(_) if workspace_mode => {
+            let diagnostics = Arc::try_unwrap(compiler_messages).unwrap().into_inner().unwrap();
+            BuildResult::Success(diagnostics, None)
+        },
+        Ok(_) => BuildResult::Success(vec![], None),
+        Err(_) => {
+            info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
+            BuildResult::Err
         }
     }
 }
