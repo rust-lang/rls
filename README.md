@@ -42,6 +42,8 @@ If you already have rustup installed, be sure to run self update to ensure you h
 rustup self update
 ```
 
+If you're going to use the VSCode extension, you can skip steps 2 and 3.
+
 ### Step 2: Update nightly
 
 Update the nightly compiler. You don't have to use it as your default compiler, but it needs to be on your system:
