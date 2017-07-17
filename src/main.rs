@@ -82,5 +82,9 @@ fn version() -> &'static str {
     concat!(env!("CARGO_PKG_VERSION"), "-nightly", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
 }
 fn help() -> &'static str {
-    " --version or -V to print the version and commit info\n --help or -h for this message\n No flags to start diagnostic mode\n"
+    r#" 
+    --version or -V to print the version and commit info
+    --help or -h for this message
+    Other input starts the RLS as a language server 
+    "#
 }
