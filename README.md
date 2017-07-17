@@ -131,6 +131,12 @@ Currently we accept the following options:
   the given target triple for all rustc invocations
 * `wait_to_build` (`u64`, defaults to `500`) time in milliseconds between
   receiving a change notification and starting build
+* `workspace_mode` (`bool`, defaults to `false`) Experimental mode. When
+  turned on, RLS will try to scan current workspace and analyze every package
+  in it.
+* `analyze_package` (`String`, defaults to `""`) When `workspace_mode` is
+  enabled, analysis will be only provided for the specified package (runs as
+  if `-p <analyze_package>` was passed).
 
 ## Troubleshooting
 
