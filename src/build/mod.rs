@@ -14,6 +14,7 @@ use config::Config;
 
 use std::boxed::FnBox;
 use std::collections::HashMap;
+use std::env;
 use std::ffi::OsString;
 use std::io::{self, Write};
 use std::mem;
@@ -392,7 +393,7 @@ impl Internals {
         assert!(!args.is_empty());
         let envs = &compile_cx.envs;
         let build_dir = compile_cx.build_dir.as_ref().unwrap();
-        rustc::rustc(&self.vfs, args, envs, build_dir)
+        rustc::rustc(&self.vfs, args, envs, build_dir, self.config.clone())
     }
 }
 
@@ -408,3 +409,35 @@ impl Write for BufWriter {
     }
 }
 
+// An RAII helper to set and reset the current working directory and env vars.
+struct Environment {
+    old_vars: HashMap<String, Option<OsString>>,
+}
+
+impl Environment {
+    fn push(envs: &HashMap<String, Option<OsString>>) -> Environment {
+        let mut result = Environment {
+            old_vars: HashMap::new(),
+        };
+
+        for (k, v) in envs {
+            result.old_vars.insert(k.to_owned(), env::var_os(k));
+            match *v {
+                Some(ref v) => env::set_var(k, v),
+                None => env::remove_var(k),
+            }
+        }
+        result
+    }
+}
+
+impl Drop for Environment {
+    fn drop(&mut self) {
+        for (k, v) in &self.old_vars {
+            match *v {
+                Some(ref v) => env::set_var(k, v),
+                None => env::remove_var(k),
+            }
+        }
+    }
+}
