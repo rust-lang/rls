@@ -175,6 +175,15 @@ pub fn completion_item_from_racer_match(m : racer::Match) -> CompletionItem {
 
 /* -----------------  JSON-RPC protocol types ----------------- */
 
+/// Supported initilization options that can be passed in the `initialize`
+/// request, under `initialization_options` key. These are specific to the RLS.
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct InitializationOptions {
+    /// Should the build not be triggered immediately after receiving `initialize`
+    #[serde(rename="omitInitBuild")]
+    pub omit_init_build: Option<bool>,
+}
+
 /// An event-like (no response needed) notification message.
 #[derive(Debug, Serialize)]
 pub struct NotificationMessage<T>
