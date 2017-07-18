@@ -41,7 +41,7 @@ pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: BuildQueue,
-    current_project: Mutex<Option<PathBuf>>,
+    current_project: Option<PathBuf>,
     previous_build_results: Arc<Mutex<BuildResults>>,
     config: Arc<Mutex<Config>>,
     fmt_config: Mutex<FmtConfig>,
@@ -56,30 +56,27 @@ impl ActionHandler {
             analysis,
             vfs: vfs.clone(),
             build_queue,
-            current_project: Mutex::new(None),
+            current_project: None,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             config,
             fmt_config: Mutex::new(FmtConfig::default()),
         }
     }
 
-    pub fn init<O: Output>(&self, root_path: PathBuf, out: O) {
+    pub fn init<O: Output>(&mut self, root_path: PathBuf, out: O) {
         {
             let mut results = self.previous_build_results.lock().unwrap();
             results.clear();
         }
-        {
-            let mut current_project = self.current_project.lock().unwrap();
-            if current_project
-                   .as_ref()
-                   .map_or(true, |existing| *existing != root_path) {
-                let new_path = root_path.clone();
-                {
-                    let mut config = self.fmt_config.lock().unwrap();
-                    *config = FmtConfig::from(&new_path);
-                }
-                *current_project = Some(new_path);
+        if self.current_project
+               .as_ref()
+               .map_or(true, |existing| *existing != root_path) {
+            let new_path = root_path.clone();
+            {
+                let mut config = self.fmt_config.lock().unwrap();
+                *config = FmtConfig::from(&new_path);
             }
+            self.current_project = Some(new_path);
         }
         self.build(&root_path, BuildPriority::Cargo, out);
     }
@@ -90,7 +87,7 @@ impl ActionHandler {
         const WATCH_ID: &'static str = "rls-watch";
         // TODO we should watch for workspace Cargo.tomls too
         // TODO we should change the watch if the path changes (does this ever actually happen?).
-        let project_path = match *self.current_project.lock().unwrap() {
+        let project_path = match self.current_project {
             Some(ref p) => p.to_str().unwrap().to_owned(),
             None => {
                 debug!("initialized: no current_project");
@@ -260,11 +257,7 @@ impl ActionHandler {
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
-        let current_project = {
-            let current_project = self.current_project.lock().unwrap();
-            current_project.clone()
-        };
-        match current_project {
+        match self.current_project {
             Some(ref current_project) => self.build(current_project, priority, out),
             None => debug!("build_current_project - no project path"),
         }

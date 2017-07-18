@@ -332,12 +332,11 @@ impl<O: Output> LsService<O> {
         }
     }
 
-    pub fn run(self) {
-        let this = Arc::new(self);
-        while LsService::handle_message(this.clone()) == ServerStateChange::Continue {}
+    pub fn run(mut self) {
+        while self.handle_message() == ServerStateChange::Continue {}
     }
 
-    fn init(&self, id: usize, params: InitializeParams) {
+    fn init(&mut self, id: usize, params: InitializeParams) {
         // TODO we should check that the client has the capabilities we require.
         let root_path = params.root_path.map(PathBuf::from);
 
@@ -376,12 +375,12 @@ impl<O: Output> LsService<O> {
         }
     }
 
-    pub fn handle_message(this: Arc<Self>) -> ServerStateChange {
+    pub fn handle_message(&mut self) -> ServerStateChange {
         // Allows to delegate message handling to a handler with
         // a default signature or to execute an arbitrary expression
         macro_rules! action {
             (args: { $($args: tt),+ }; action: $name: ident) => {
-                this.handler.$name( $($args),+, this.output.clone()  );
+                self.handler.$name( $($args),+, self.output.clone()  );
             };
             (args: { $($args: tt),* }; $expr: expr) => { $expr };
             (args: { $($args: tt),* }; ) => {};
@@ -433,23 +432,23 @@ impl<O: Output> LsService<O> {
                     Err(e) => {
                         trace!("parsing invalid message: {:?}", e);
                         if let Some(failure) = e {
-                            this.output.failure(failure.id, failure.error);
+                            self.output.failure(failure.id, failure.error);
                         }
                     },
                 }
             };
         }
 
-        let message = match this.msg_reader.parsed_message() {
+        let message = match self.msg_reader.parsed_message() {
             Some(m) => m,
             None => {
-                this.output.failure(Id::Null, jsonrpc::Error::parse_error());
+                self.output.failure(Id::Null, jsonrpc::Error::parse_error());
                 return ServerStateChange::Break
             },
         };
 
         {
-            let shut_down = this.shut_down.load(Ordering::SeqCst);
+            let shut_down = self.shut_down.load(Ordering::SeqCst);
             if shut_down {
                 if let Ok(ServerMessage::Notification(Notification::Exit)) = message {
                 } else {
@@ -465,34 +464,34 @@ impl<O: Output> LsService<O> {
             methods {
                 id: id;
                 Shutdown => {{
-                    this.shut_down.store(true, Ordering::SeqCst);
-                    this.output.success(id, ResponseData::Ack(Ack));
+                    self.shut_down.store(true, Ordering::SeqCst);
+                    self.output.success(id, ResponseData::Ack(Ack));
                 }};
-                Initialize(params) => { this.init(id, params) };
+                Initialize(params) => { self.init(id, params) };
                 Hover(params) => { action: hover };
                 GotoDefinition(params) => { action: goto_def };
                 References(params) => { action: find_all_refs };
                 Completion(params) => { action: complete };
                 DocumentHighlight(params) => { action: highlight };
                 ResolveCompletionItem(params) => {
-                    this.output.success(id, ResponseData::CompletionItems(vec![params]))
+                    self.output.success(id, ResponseData::CompletionItems(vec![params]))
                 };
                 DocumentSymbols(params) => { action: symbols };
                 Rename(params) => { action: rename };
                 Formatting(params) => {
-                    this.handler.reformat(id, params.text_document, None, this.output.clone(), &params.options)
+                    self.handler.reformat(id, params.text_document, None, self.output.clone(), &params.options)
                 };
                 RangeFormatting(params) => {
-                    this.handler.reformat(id, params.text_document, Some(params.range), this.output.clone(), &params.options)
+                    self.handler.reformat(id, params.text_document, Some(params.range), self.output.clone(), &params.options)
                 };
                 Deglob(params) => { action: deglob };
                 ExecuteCommand(params) => { action: execute_command };
                 CodeAction(params) => { action: code_action };
             }
             notifications {
-                Initialized => {{ this.handler.initialized(this.output.clone()) }};
+                Initialized => {{ self.handler.initialized(self.output.clone()) }};
                 Exit => {{
-                    let shut_down = this.shut_down.load(Ordering::SeqCst);
+                    let shut_down = self.shut_down.load(Ordering::SeqCst);
                     ::std::process::exit(if shut_down { 0 } else { 1 });
                 }};
                 Cancel(params) => {};
@@ -504,7 +503,7 @@ impl<O: Output> LsService<O> {
                     // We only subscribe to notifications about changes to Cargo.toml/lock.
                     // If we get a notification about something else, this is probably incorrect
                     // behviour, but it is the clients fault.
-                    this.handler.on_cargo_change(this.output.clone())
+                    self.handler.on_cargo_change(self.output.clone())
                 }};
             }
         };
