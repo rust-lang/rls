@@ -84,6 +84,31 @@ impl ActionHandler {
         self.build(&root_path, BuildPriority::Cargo, out);
     }
 
+    // Respond to the `initialized` notification. We take this opportunity to
+    // dynamically register some options.
+    pub fn initialized<O: Output>(&self,out: O) {
+        const WATCH_ID: &'static str = "rls-watch";
+        // TODO we should watch for workspace Cargo.tomls too
+        // TODO we should change the watch if the path changes (does this ever actually happen?).
+        let project_path = match *self.current_project.lock().unwrap() {
+            Some(ref p) => p.to_str().unwrap().to_owned(),
+            None => {
+                debug!("initialized: no current_project");
+                return;
+            }
+        };
+        let pattern = format!("{}/Cargo{{.toml,.lock}}", project_path);
+        let options = json!({
+            "watchers": [{ "globPattern": pattern }]
+        });
+        let output = serde_json::to_string(
+            &RequestMessage::new(out.provide_id(),
+                                 NOTIFICATION__RegisterCapability.to_owned(),
+                                 RegistrationParams { registrations: vec![Registration { id: WATCH_ID.to_owned(), method: NOTIFICATION__DidChangeWatchedFiles.to_owned(), register_options: options } ]})
+        ).unwrap();
+        out.response(output);
+    }
+
     pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
         fn clear_build_results(results: &mut BuildResults) {
             // We must not clear the hashmap, just the values in each list.
@@ -222,6 +247,11 @@ impl ActionHandler {
         self.vfs.on_changes(&changes).expect("error committing to VFS");
 
         self.build_current_project(BuildPriority::Normal, out);
+    }
+
+    pub fn on_cargo_change<O: Output>(&self, out: O) {
+        trace!("on_cargo_change: thread: {:?}", thread::current().id());
+        self.build_current_project(BuildPriority::Cargo, out);
     }
 
     pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, _out: O) {

@@ -53,9 +53,11 @@ pub struct Request {
 
 #[derive(Debug)]
 pub enum Notification {
+    Initialized,
     Exit,
     Cancel(CancelParams),
     DidChangeTextDocument(DidChangeTextDocumentParams),
+    DidChangeWatchedFiles(DidChangeWatchedFilesParams),
     DidOpenTextDocument(DidOpenTextDocumentParams),
     DidSaveTextDocument(DidSaveTextDocumentParams),
     WorkspaceChangeConfiguration(DidChangeConfigurationParams),
@@ -290,12 +292,14 @@ messages! {
         "rustWorkspace/deglob" => Deglob(Location);
     }
     notifications {
+        "initialized" => Initialized;
         "exit" => Exit;
         "textDocument/didChange" => DidChangeTextDocument(DidChangeTextDocumentParams);
         "textDocument/didOpen" => DidOpenTextDocument(DidOpenTextDocumentParams);
         "textDocument/didSave" => DidSaveTextDocument(DidSaveTextDocumentParams);
         "$/cancelRequest" => Cancel(CancelParams);
         "workspace/didChangeConfiguration" => WorkspaceChangeConfiguration(DidChangeConfigurationParams);
+        "workspace/didChangeWatchedFiles" => DidChangeWatchedFiles(DidChangeWatchedFilesParams);
     }
     _ => Err(jsonrpc::Error::method_not_found()); // TODO: Handle more possible messages
 }
@@ -486,6 +490,7 @@ impl<O: Output> LsService<O> {
                 CodeAction(params) => { action: code_action };
             }
             notifications {
+                Initialized => {{ this.handler.initialized(this.output.clone()) }};
                 Exit => {{
                     let shut_down = this.shut_down.load(Ordering::SeqCst);
                     ::std::process::exit(if shut_down { 0 } else { 1 });
@@ -495,6 +500,12 @@ impl<O: Output> LsService<O> {
                 DidOpenTextDocument(open) => { action: on_open };
                 DidSaveTextDocument(save) => { action: on_save };
                 WorkspaceChangeConfiguration(params) => { action: on_change_config };
+                DidChangeWatchedFiles(_params) => {{
+                    // We only subscribe to notifications about changes to Cargo.toml/lock.
+                    // If we get a notification about something else, this is probably incorrect
+                    // behviour, but it is the clients fault.
+                    this.handler.on_cargo_change(this.output.clone())
+                }};
             }
         };
         ServerStateChange::Continue
