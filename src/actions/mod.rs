@@ -180,7 +180,8 @@ impl ActionHandler {
         out.notify("rustDocument/diagnosticsBegin");
         self.build_queue.request_build(project_path, priority, move |result| {
             match result {
-                BuildResult::Success(messages, new_analysis) | BuildResult::Failure(messages, new_analysis) => {
+                BuildResult::Success(messages, new_analysis) |
+                BuildResult::Failure(messages, new_analysis) => {
                     thread::spawn(move || {
                         trace!("build - Success");
 
@@ -202,10 +203,12 @@ impl ActionHandler {
 
                         debug!("reload analysis: {:?}", project_path_clone);
                         let cwd = ::std::env::current_dir().unwrap();
-                        if let Some(new_analysis) = new_analysis {
-                            analysis.reload_from_analysis(new_analysis, &project_path_clone, &cwd).unwrap();
-                        } else {
+                        if new_analysis.is_empty() {
                             analysis.reload(&project_path_clone, &cwd).unwrap();
+                        } else {
+                            for data in new_analysis.into_iter() {
+                                analysis.reload_from_analysis(data, &project_path_clone, &cwd).unwrap();
+                            }
                         }
 
                         out.notify("rustDocument/diagnosticsEnd");

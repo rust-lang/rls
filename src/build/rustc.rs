@@ -76,6 +76,7 @@ pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>
         .unwrap());
 
     let analysis = analysis.lock().unwrap().clone();
+    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or(vec![]);
     match exit_code {
         Ok(0) => BuildResult::Success(stderr_json_msg, analysis),
         _ => BuildResult::Failure(stderr_json_msg, analysis),

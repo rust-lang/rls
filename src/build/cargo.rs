@@ -14,9 +14,10 @@ use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_path
 use cargo::util::errors::{CargoErrorKind, process_error};
 use serde_json;
 
+use data::Analysis;
 use build::{Internals, BufWriter, BuildResult, CompilationContext, Environment};
 use config::Config;
-use super::rustc::convert_message_to_json_strings;
+use vfs::Vfs;
 
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::env;
@@ -31,7 +32,8 @@ use std::thread;
 pub(super) fn cargo(internals: &Internals) -> BuildResult {
     let workspace_mode = internals.config.lock().unwrap().workspace_mode;
     let compiler_messages = Arc::new(Mutex::new(vec![]));
-    let exec = RlsExecutor::new(internals.compilation_cx.clone(), internals.config.clone(), compiler_messages.clone());
+    let analyses = Arc::new(Mutex::new(vec![]));
+    let exec = RlsExecutor::new(internals.compilation_cx.clone(), internals.config.clone(), internals.vfs.clone(), compiler_messages.clone(), analyses.clone());
 
     let out = Arc::new(Mutex::new(vec![]));
     let out_clone = out.clone();
@@ -50,9 +52,10 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     match handle.join() {
         Ok(_) if workspace_mode => {
             let diagnostics = Arc::try_unwrap(compiler_messages).unwrap().into_inner().unwrap();
-            BuildResult::Success(diagnostics, None)
+            let analyses = Arc::try_unwrap(analyses).unwrap().into_inner().unwrap();
+            BuildResult::Success(diagnostics, analyses)
         },
-        Ok(_) => BuildResult::Success(vec![], None),
+        Ok(_) => BuildResult::Success(vec![], vec![]),
         Err(_) => {
             info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
             BuildResult::Err
@@ -141,6 +144,8 @@ struct RlsExecutor {
     compilation_cx: Arc<Mutex<CompilationContext>>,
     cur_package_id: Mutex<Option<PackageId>>,
     config: Arc<Mutex<Config>>,
+    vfs: Arc<Vfs>,
+    analyses: Arc<Mutex<Vec<Analysis>>>,
     workspace_mode: bool,
     /// Packages which are directly a member of the workspace, for which
     /// analysis and diagnostics will be provided
@@ -152,13 +157,17 @@ struct RlsExecutor {
 impl RlsExecutor {
     fn new(compilation_cx: Arc<Mutex<CompilationContext>>,
            config: Arc<Mutex<Config>>,
-           compiler_messages: Arc<Mutex<Vec<String>>>)
+           vfs: Arc<Vfs>,
+           compiler_messages: Arc<Mutex<Vec<String>>>,
+           analyses: Arc<Mutex<Vec<Analysis>>>)
     -> RlsExecutor {
         let workspace_mode = config.lock().unwrap().workspace_mode;
         RlsExecutor {
             compilation_cx,
             cur_package_id: Mutex::new(None),
             config,
+            vfs,
+            analyses,
             workspace_mode,
             member_packages: Mutex::new(HashSet::new()),
             compiler_messages,
@@ -304,6 +313,8 @@ impl Executor for RlsExecutor {
             // that before we return to Cargo.
             // FIXME Don't do this. Start our build here rather than on another thread
             // so the dep-info is ready by the time we return from this callback.
+            // NB: In `workspace_mode` regular compilation is performed here (and we don't
+            // only calculate dep-info) so it should fix the problem mentioned above.
             // Since ProcessBuilder doesn't allow to modify args, we need to create
             // our own command here from scratch here.
             for a in &args {
@@ -321,19 +332,32 @@ impl Executor for RlsExecutor {
             }
         }
 
+        // Prepare modified cargo-generated args/envs for future rustc calls
+        args.insert(0, rustc_exe);
+        let envs = cargo_cmd.get_envs().clone();
+
         if self.workspace_mode {
-            let output = cmd.output().expect("Couldn't execute rustc");
-            let mut stderr_json_msg = convert_message_to_json_strings(output.stderr);
-            self.compiler_messages.lock().unwrap().append(&mut stderr_json_msg);
+            let build_dir = {
+                let cx = self.compilation_cx.lock().unwrap();
+                cx.build_dir.clone().unwrap()
+            };
+
+            match super::rustc::rustc(&self.vfs, &args, &envs, &build_dir, self.config.clone()) {
+                BuildResult::Success(mut messages, mut analysis) |
+                BuildResult::Failure(mut messages, mut analysis) => {
+                    self.compiler_messages.lock().unwrap().append(&mut messages);
+                    self.analyses.lock().unwrap().append(&mut analysis);
+                }
+                _ => {}
+            }
         } else {
             cmd.status().expect("Couldn't execute rustc");
         }
 
         // Finally, store the modified cargo-generated args/envs for future rustc calls
-        args.insert(0, rustc_exe);
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
         compilation_cx.args = args;
-        compilation_cx.envs = cargo_cmd.get_envs().clone();
+        compilation_cx.envs = envs;
 
         Ok(())
     }

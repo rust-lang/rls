@@ -77,9 +77,9 @@ struct Internals {
 #[derive(Debug)]
 pub enum BuildResult {
     // Build was succesful, argument is warnings.
-    Success(Vec<String>, Option<Analysis>),
+    Success(Vec<String>, Vec<Analysis>),
     // Build finished with errors, argument is errors and warnings.
-    Failure(Vec<String>, Option<Analysis>),
+    Failure(Vec<String>, Vec<Analysis>),
     // Build was coelesced with another build.
     Squashed,
     // There was an error attempting to build.
