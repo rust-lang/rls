@@ -132,7 +132,9 @@ fn test_find_all_refs() {
         })),
     ];
 
-    let (server, results) = mock_server(messages);
+    let mut config = Config::default();
+    config.cfg_test = true;
+    let (server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -165,9 +167,7 @@ fn test_find_all_refs_no_cfg_test() {
         })),
     ];
 
-    let mut config = Config::default();
-    config.cfg_test = false;
-    let (server, results) = mock_server_with_config(messages, config);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -408,7 +408,9 @@ fn test_bin_lib_project() {
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
     ];
 
-    let (server, results) = mock_server(messages);
+    let mut config = Config::default();
+    config.cfg_test = true;
+    let (server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
@@ -427,9 +429,7 @@ fn test_bin_lib_project_no_cfg_test() {
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
     ];
 
-    let mut config = Config::default();
-    config.cfg_test = false;
-    let (server, results) = mock_server_with_config(messages, config);
+    let (server, results) = mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(server.clone()),
                ls_server::ServerStateChange::Continue);
