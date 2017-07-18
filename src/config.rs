@@ -40,7 +40,7 @@ impl Config {
             rustflags: None,
             build_lib: false,
             build_bin: None,
-            cfg_test: true,
+            cfg_test: false,
             unstable_features: false,
             wait_to_build: DEFAULT_WAIT_TO_BUILD,
             show_warnings: true,
