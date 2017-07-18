@@ -41,44 +41,32 @@ pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     build_queue: BuildQueue,
-    current_project: Option<PathBuf>,
+    current_project: PathBuf,
     previous_build_results: Arc<Mutex<BuildResults>>,
     config: Arc<Mutex<Config>>,
-    fmt_config: Mutex<FmtConfig>,
+    fmt_config: FmtConfig,
 }
 
 impl ActionHandler {
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
-               config: Arc<Mutex<Config>>) -> ActionHandler {
+               config: Arc<Mutex<Config>>,
+               current_project: PathBuf) -> ActionHandler {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
+        let fmt_config = FmtConfig::from(&current_project);
         ActionHandler {
             analysis,
             vfs: vfs.clone(),
             build_queue,
-            current_project: None,
+            current_project,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             config,
-            fmt_config: Mutex::new(FmtConfig::default()),
+            fmt_config,
         }
     }
 
-    pub fn init<O: Output>(&mut self, root_path: PathBuf, out: O) {
-        {
-            let mut results = self.previous_build_results.lock().unwrap();
-            results.clear();
-        }
-        if self.current_project
-               .as_ref()
-               .map_or(true, |existing| *existing != root_path) {
-            let new_path = root_path.clone();
-            {
-                let mut config = self.fmt_config.lock().unwrap();
-                *config = FmtConfig::from(&new_path);
-            }
-            self.current_project = Some(new_path);
-        }
-        self.build(&root_path, BuildPriority::Cargo, out);
+    pub fn init<O: Output>(&self, out: O) {
+        self.build_current_project(BuildPriority::Cargo, out);
     }
 
     // Respond to the `initialized` notification. We take this opportunity to
@@ -86,15 +74,7 @@ impl ActionHandler {
     pub fn initialized<O: Output>(&self,out: O) {
         const WATCH_ID: &'static str = "rls-watch";
         // TODO we should watch for workspace Cargo.tomls too
-        // TODO we should change the watch if the path changes (does this ever actually happen?).
-        let project_path = match self.current_project {
-            Some(ref p) => p.to_str().unwrap().to_owned(),
-            None => {
-                debug!("initialized: no current_project");
-                return;
-            }
-        };
-        let pattern = format!("{}/Cargo{{.toml,.lock}}", project_path);
+        let pattern = format!("{}/Cargo{{.toml,.lock}}", self.current_project.to_str().unwrap());
         let options = json!({
             "watchers": [{ "globPattern": pattern }]
         });
@@ -257,10 +237,7 @@ impl ActionHandler {
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
-        match self.current_project {
-            Some(ref current_project) => self.build(current_project, priority, out),
-            None => debug!("build_current_project - no project path"),
-        }
+        self.build(&self.current_project, priority, out);
     }
 
     pub fn symbols<O: Output>(&self, id: usize, doc: DocumentSymbolParams, out: O) {
@@ -289,10 +266,11 @@ impl ActionHandler {
     }
 
     pub fn complete<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
+        let vfs = self.vfs.clone();
         let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
-            let cache = racer::FileCache::new(self.vfs.clone());
+            let cache = racer::FileCache::new(vfs);
             let session = racer::Session::new(&cache);
 
             let location = pos_to_racer_location(params.position);
@@ -613,7 +591,7 @@ impl ActionHandler {
         };
 
         let range_whole_file = ls_util::range_from_vfs_file(&self.vfs, path);
-        let mut config = self.fmt_config.lock().unwrap().get_rustfmt_config().clone();
+        let mut config = self.fmt_config.get_rustfmt_config().clone();
         if !config.was_set().hard_tabs() {
             config.set().hard_tabs(!opts.insert_spaces);
         }

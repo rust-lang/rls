@@ -308,7 +308,33 @@ pub struct LsService<O: Output> {
     shut_down: AtomicBool,
     msg_reader: Box<MessageReader + Send + Sync>,
     output: O,
-    handler: ActionHandler,
+    handler: HandlerState,
+}
+
+enum HandlerState {
+    Uninit {
+        analysis: Arc<AnalysisHost>,
+        vfs: Arc<Vfs>,
+        config: Arc<Mutex<Config>>
+    },
+    Init(ActionHandler),
+}
+
+impl HandlerState {
+    fn inited(&self) -> &ActionHandler {
+        match *self {
+            HandlerState::Uninit { .. } => panic!("Handler not initialized"),
+            HandlerState::Init(ref handler) => handler,
+        }
+    }
+
+    fn init(&mut self, project_path: PathBuf) {
+        let handler = match *self {
+            HandlerState::Uninit { ref analysis, ref vfs, ref config } => ActionHandler::new(analysis.clone(), vfs.clone(), config.clone(), project_path),
+            HandlerState::Init(_) => panic!("Handler already initialized"),
+        };
+        *self = HandlerState::Init(handler);
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
@@ -328,7 +354,7 @@ impl<O: Output> LsService<O> {
             shut_down: AtomicBool::new(false),
             msg_reader: reader,
             output: output,
-            handler: ActionHandler::new(analysis, vfs, config),
+            handler: HandlerState::Uninit { analysis, vfs, config },
         }
     }
 
@@ -338,7 +364,6 @@ impl<O: Output> LsService<O> {
 
     fn init(&mut self, id: usize, params: InitializeParams) {
         // TODO we should check that the client has the capabilities we require.
-        let root_path = params.root_path.map(PathBuf::from);
 
         let result = InitializeResult {
             capabilities: ServerCapabilities {
@@ -370,9 +395,10 @@ impl<O: Output> LsService<O> {
             }
         };
         self.output.success(id, ResponseData::Init(result));
-        if let Some(root_path) = root_path {
-            self.handler.init(root_path, self.output.clone());
-        }
+
+        let root_path = params.root_path.map(PathBuf::from).expect("No root path");
+        self.handler.init(root_path);
+        self.handler.inited().init(self.output.clone());
     }
 
     pub fn handle_message(&mut self) -> ServerStateChange {
@@ -380,7 +406,7 @@ impl<O: Output> LsService<O> {
         // a default signature or to execute an arbitrary expression
         macro_rules! action {
             (args: { $($args: tt),+ }; action: $name: ident) => {
-                self.handler.$name( $($args),+, self.output.clone()  );
+                self.handler.inited().$name( $($args),+, self.output.clone()  );
             };
             (args: { $($args: tt),* }; $expr: expr) => { $expr };
             (args: { $($args: tt),* }; ) => {};
@@ -479,17 +505,17 @@ impl<O: Output> LsService<O> {
                 DocumentSymbols(params) => { action: symbols };
                 Rename(params) => { action: rename };
                 Formatting(params) => {
-                    self.handler.reformat(id, params.text_document, None, self.output.clone(), &params.options)
+                    self.handler.inited().reformat(id, params.text_document, None, self.output.clone(), &params.options)
                 };
                 RangeFormatting(params) => {
-                    self.handler.reformat(id, params.text_document, Some(params.range), self.output.clone(), &params.options)
+                    self.handler.inited().reformat(id, params.text_document, Some(params.range), self.output.clone(), &params.options)
                 };
                 Deglob(params) => { action: deglob };
                 ExecuteCommand(params) => { action: execute_command };
                 CodeAction(params) => { action: code_action };
             }
             notifications {
-                Initialized => {{ self.handler.initialized(self.output.clone()) }};
+                Initialized => {{ self.handler.inited().initialized(self.output.clone()) }};
                 Exit => {{
                     let shut_down = self.shut_down.load(Ordering::SeqCst);
                     ::std::process::exit(if shut_down { 0 } else { 1 });
@@ -503,7 +529,7 @@ impl<O: Output> LsService<O> {
                     // We only subscribe to notifications about changes to Cargo.toml/lock.
                     // If we get a notification about something else, this is probably incorrect
                     // behviour, but it is the clients fault.
-                    self.handler.on_cargo_change(self.output.clone())
+                    self.handler.inited().on_cargo_change(self.output.clone())
                 }};
             }
         };
