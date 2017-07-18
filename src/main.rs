@@ -63,6 +63,7 @@ pub fn main() {
     if let Some(first_arg) = ::std::env::args().skip(1).next() {
         match first_arg.as_str() {
             "--version" | "-V" => println!("rls {}", version()),
+            "--help" | "-h" => println!("{}", help()),
             _ => cmd::run(),
         }
         return;
@@ -77,4 +78,12 @@ pub fn main() {
 fn version() -> &'static str {
     // FIXME when we have non-nightly channels, we shouldn't hardwire the "nightly" string here.
     concat!(env!("CARGO_PKG_VERSION"), "-nightly", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
+}
+fn help() -> &'static str {
+    r#" 
+    --version or -V to print the version and commit info
+    --help or -h for this message
+    Other input starts the RLS in command line mode
+    No input starts the RLS as a language server 
+    "#
 }
