@@ -28,13 +28,13 @@ use vfs;
 const TEST_TIMEOUT_IN_SEC: u64 = 10;
 
 // Initialise and run the internals of an LS protocol RLS server.
-pub fn mock_server(messages: Vec<ServerMessage>) -> (Arc<ls_server::LsService<RecordOutput>>, LsResultList)
+pub fn mock_server(messages: Vec<ServerMessage>) -> (ls_server::LsService<RecordOutput>, LsResultList)
 {
     let config = Config::default();
     mock_server_with_config(messages, config)
 }
 
-pub fn mock_server_with_config(messages: Vec<ServerMessage>, mut config: Config) -> (Arc<ls_server::LsService<RecordOutput>>, LsResultList)
+pub fn mock_server_with_config(messages: Vec<ServerMessage>, mut config: Config) -> (ls_server::LsService<RecordOutput>, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
@@ -42,7 +42,7 @@ pub fn mock_server_with_config(messages: Vec<ServerMessage>, mut config: Config)
     let output = RecordOutput::new();
     let results = output.output.clone();
     config.unstable_features = true;
-    (Arc::new(ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(config)), reader, output)), results)
+    (ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(config)), reader, output), results)
 }
 
 

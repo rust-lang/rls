@@ -70,15 +70,15 @@ impl ServerMessage {
 //         })),
 //     ];
 
-//     let (server, results) = mock_server(messages);
+//     let (mut server, results) = mock_server(messages);
 //     // Initialise and build.
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#)]);
@@ -101,15 +101,15 @@ impl ServerMessage {
 //         })),
 //     ];
 
-//     let (server, results) = mock_server(messages);
+//     let (mut server, results) = mock_server(messages);
 //     // Initialise and build.
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"language":"rust","value":"&str"}]"#)]);
 // }
@@ -134,15 +134,15 @@ fn test_find_all_refs() {
 
     let mut config = Config::default();
     config.cfg_test = true;
-    let (server, results) = mock_server_with_config(messages, config);
+    let (mut server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#)
                                                                      .expect_contains(r#"{"start":{"line":15,"character":14},"end":{"line":15,"character":17}}"#)
@@ -167,15 +167,15 @@ fn test_find_all_refs_no_cfg_test() {
         })),
     ];
 
-    let (server, results) = mock_server(messages);
+    let (mut server, results) = mock_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#)
                                                                      .expect_contains(r#"{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#)]);
@@ -190,9 +190,9 @@ fn test_borrow_error() {
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
-    let (server, results) = mock_server(messages);
+    let (mut server, results) = mock_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
@@ -217,15 +217,15 @@ fn test_borrow_error() {
 //         })),
 //     ];
 
-//     let (server, results) = mock_server(messages);
+//     let (mut server, results) = mock_server(messages);
 //     // Initialise and build.
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
 //                                                                      .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#),]);
@@ -249,15 +249,15 @@ fn test_borrow_error() {
 //         })),
 //     ];
 
-//     let (server, results) = mock_server(messages);
+//     let (mut server, results) = mock_server(messages);
 //     // Initialise and build.
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-//     assert_eq!(ls_server::LsService::handle_message(server.clone()),
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#)
 //                                                                      .expect_contains(r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#)
@@ -285,15 +285,15 @@ fn test_reformat() {
         })),
     ];
 
-    let (server, results) = mock_server(messages);
+    let (mut server, results) = mock_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":12,"character":0}}"#)
                                             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)]);
@@ -323,16 +323,16 @@ fn test_reformat_with_range() {
         })),
     ];
 
-    let (server, results) = mock_server(messages);
+    let (mut server, results) = mock_server(messages);
     
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
                                             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\nlet world3 = \"world\"; println!(\"Hello, {}!\", world3);\n}\n"#)]);
@@ -349,9 +349,9 @@ fn test_multiple_binaries() {
 
     let mut config = Config::default();
     config.build_bin = Some("bin2".to_owned());
-    let (server, results) = mock_server_with_config(messages, config);
+    let (mut server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
@@ -381,19 +381,19 @@ fn test_completion() {
         })),
     ];
 
-    let (server, results) = mock_server(messages);
+    let (mut server, results) = mock_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"label":"world","kind":6,"detail":"let world = \"world\";"}]"#)]);
 
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(22)).expect_contains(r#"{"label":"x","kind":5,"detail":"u64"#)]);
 }
@@ -410,9 +410,9 @@ fn test_bin_lib_project() {
 
     let mut config = Config::default();
     config.cfg_test = true;
-    let (server, results) = mock_server_with_config(messages, config);
+    let (mut server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
@@ -429,9 +429,9 @@ fn test_bin_lib_project_no_cfg_test() {
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
     ];
 
-    let (server, results) = mock_server(messages);
+    let (mut server, results) = mock_server(messages);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
@@ -451,9 +451,9 @@ fn test_simple_workspace() {
 
     let mut config = Config::default();
     config.workspace_mode = true;
-    let (server, results) = mock_server_with_config(messages, config);
+    let (mut server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(server.clone()),
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
@@ -477,9 +477,9 @@ fn test_parse_error_on_malformed_input() {
     let reader = Box::new(NoneMsgReader);
     let output = RecordOutput::new();
     let results = output.output.clone();
-    let server = Arc::new(ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(Config::default())), reader, output));
+    let mut server = ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(Config::default())), reader, output);
 
-    let result = ls_server::LsService::handle_message(server.clone());
+    let result = ls_server::LsService::handle_message(&mut server);
     assert_eq!(result,
                ls_server::ServerStateChange::Break);
 
