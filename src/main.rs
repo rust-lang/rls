@@ -83,6 +83,7 @@ fn help() -> &'static str {
     r#" 
     --version or -V to print the version and commit info
     --help or -h for this message
-    Other input starts the RLS as a language server 
+    Other input starts the RLS in command line mode
+    No input starts the RLS as a language server 
     "#
 }
