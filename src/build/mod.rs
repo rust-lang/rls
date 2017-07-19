@@ -421,13 +421,17 @@ impl Environment {
         };
 
         for (k, v) in envs {
-            result.old_vars.insert(k.to_owned(), env::var_os(k));
-            match *v {
-                Some(ref v) => env::set_var(k, v),
-                None => env::remove_var(k),
-            }
+            result.push_var(k, v);
         }
         result
+    }
+
+    fn push_var(&mut self, key: &str, value: &Option<OsString>) {
+        self.old_vars.insert(key.to_owned(), env::var_os(key));
+        match *value {
+            Some(ref v) => env::set_var(key, v),
+            None => env::remove_var(key),
+        }
     }
 }
 
