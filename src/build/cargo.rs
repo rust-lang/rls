@@ -205,13 +205,14 @@ impl Executor for RlsExecutor {
     }
 
     fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId) -> CargoResult<()> {
-        trace!("exec");
         // Delete any stale data. We try and remove any json files with
         // the same crate name as Cargo would emit. This includes files
         // with the same crate name but different hashes, e.g., those
         // made with a different compiler.
         let cargo_args = cargo_cmd.get_args();
         let crate_name = parse_arg(cargo_args, "--crate-name").expect("no crate-name in rustc command line");
+        trace!("exec: {}", crate_name);
+
         let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
         let analysis_dir = Path::new(&out_dir).join("save-analysis");
         if let Ok(dir_contents) = read_dir(&analysis_dir) {
@@ -283,7 +284,7 @@ impl Executor for RlsExecutor {
                 // as others may emit required metadata for dependent crate types
                 if a.starts_with("--emit") && is_final_crate_type && !self.workspace_mode {
                     cmd.arg("--emit=dep-info");
-                } else {
+                } else if a != "-Zsave-analysis" {
                     cmd.arg(a);
                 }
             }
