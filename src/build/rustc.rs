@@ -134,6 +134,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
                         matches: &getopts::Matches)
                         -> CompileController<'a> {
         let mut result = self.default_calls.build_controller(sess, matches);
+        result.keep_ast = true;
         let analysis = self.analysis.clone();
 
         result.after_analysis.callback = Box::new(move |state| {
@@ -146,14 +147,15 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             //                     state.expanded_crate.unwrap(),
             //                     state.analysis.unwrap(),
             //                     state.crate_name.unwrap(),
-            //                     save::DumpHandler::new(save::Format::Json,
-            //                                            state.out_dir,
+            //                     None,
+            //                     save::DumpHandler::new(state.out_dir,
             //                                            state.crate_name.unwrap()));
             // This version passes directly, it is more efficient.
-            save::process_crate(state.tcx.unwrap(),
-                                state.expanded_crate.unwrap(),
-                                state.analysis.unwrap(),
-                                state.crate_name.unwrap(),
+            save::process_crate(state.tcx.expect("missing tcx"),
+                                state.expanded_crate.expect("missing crate"),
+                                state.analysis.expect("missing analysis"),
+                                state.crate_name.expect("missing crate name"),
+                                None,
                                 CallbackHandler {
                                     callback: &mut |a| {
                                         let mut analysis = analysis.lock().unwrap();
