@@ -216,12 +216,12 @@ impl Executor for RlsExecutor {
         let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
         let analysis_dir = Path::new(&out_dir).join("save-analysis");
         if let Ok(dir_contents) = read_dir(&analysis_dir) {
+            let lib_crate_name = "lib".to_owned() + &crate_name;
             for entry in dir_contents {
                 let entry = entry.expect("unexpected error reading save-analysis directory");
                 let name = entry.file_name();
                 let name = name.to_str().unwrap();
-                if name.starts_with(&crate_name) && name.ends_with(".json") {
-                    debug!("removing: `{:?}`", name);
+                if (name.starts_with(&crate_name) || name.starts_with(&lib_crate_name)) && name.ends_with(".json") {
                     remove_file(entry.path()).expect("could not remove file");
                 }
             }
