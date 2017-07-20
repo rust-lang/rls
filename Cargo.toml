@@ -15,7 +15,7 @@ env_logger = "0.4"
 languageserver-types = "0.12"
 log = "0.3"
 racer = "2.0.6"
-rls-analysis = "0.4"
+rls-analysis = "0.4.5"
 rls-data = "0.9"
 rls-span = { version = "0.4" , features = ["serialize-serde"] }
 rls-vfs = { version = "0.4", features = ["racer-impls"] }

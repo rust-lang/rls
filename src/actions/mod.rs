@@ -300,7 +300,7 @@ impl ActionHandler {
                 }
             }
 
-            let id = unwrap_or_empty!(analysis.id(&span));
+            let id = unwrap_or_empty!(analysis.crate_local_id(&span));
             let def = unwrap_or_empty!(analysis.get_def(id));
             if def.name == "self" || def.name == "Self" {
                 t.unpark();
