@@ -370,16 +370,20 @@ impl ActionHandler {
         });
 
         // Racer thread.
-        let racer_handle = thread::spawn(move || {
-            let file_path = &parse_file_path(&params.text_document.uri).unwrap();
+        let racer_handle = if self.config.lock().unwrap().goto_def_racer_fallback {
+                Some(thread::spawn(move || {
+                    let file_path = &parse_file_path(&params.text_document.uri).unwrap();
 
-            let cache = racer::FileCache::new(vfs);
-            let session = racer::Session::new(&cache);
-            let location = pos_to_racer_location(params.position);
+                    let cache = racer::FileCache::new(vfs);
+                    let session = racer::Session::new(&cache);
+                    let location = pos_to_racer_location(params.position);
 
-            racer::find_definition(file_path, location, &session)
-                .and_then(location_from_racer_match)
-        });
+                    racer::find_definition(file_path, location, &session)
+                        .and_then(location_from_racer_match)
+                }))
+        } else {
+            None
+        };
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
@@ -392,19 +396,22 @@ impl ActionHandler {
             }
             _ => {
                 info!("goto_def - falling back to Racer");
-                match racer_handle.join() {
-                    Ok(Some(r)) => {
-                        trace!("goto_def: {:?}", r);
-                        out.success(id, ResponseData::Locations(vec![r]));
-                    }
-                    Ok(None) => {
-                        trace!("goto_def: None");
-                        out.success(id, ResponseData::Locations(vec![]));
-                    }
-                    _ => {
-                        debug!("Error in Racer");
-                        out.success(id, ResponseData::Locations(vec![]));
-                    }
+                match racer_handle {
+                    Some(racer_handle) => match racer_handle.join() {
+                        Ok(Some(r)) => {
+                            trace!("goto_def: {:?}", r);
+                            out.success(id, ResponseData::Locations(vec![r]));
+                        }
+                        Ok(None) => {
+                            trace!("goto_def: None");
+                            out.success(id, ResponseData::Locations(vec![]));
+                        }
+                        _ => {
+                            debug!("Error in Racer");
+                            out.success(id, ResponseData::Locations(vec![]));
+                        }
+                    },
+                    None => out.success(id, ResponseData::Locations(vec![])),
                 }
             }
         }
