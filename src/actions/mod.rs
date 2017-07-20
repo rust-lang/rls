@@ -403,7 +403,7 @@ impl ActionHandler {
                     }
                     _ => {
                         debug!("Error in Racer");
-                        out.failure_message(id, ErrorCode::InternalError, "GotoDef failed to complete successfully");
+                        out.success(id, ResponseData::Locations(vec![]));
                     }
                 }
             }
@@ -447,7 +447,11 @@ impl ActionHandler {
                 out.success(id, ResponseData::HoverSuccess(r));
             }
             Err(_) => {
-                out.failure_message(id, ErrorCode::InternalError, "Hover failed to complete successfully");
+                let r = Hover {
+                    contents: vec![],
+                    range: None,
+                };
+                out.success(id, ResponseData::HoverSuccess(r));
             }
         }
     }
@@ -521,26 +525,32 @@ impl ActionHandler {
             out.failure_message(id, ErrorCode::InvalidParams, "Empty selection");
             return;
         }
-        match self.vfs.load_span(span.clone()) {
-            Ok(ref s) if s != "*" => {
-                out.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
-                return;
-            }
-            Err(e) => {
-                debug!("Deglob failed: {:?}", e);
-                out.failure_message(id, ErrorCode::InternalError, "Couldn't open file");
-                return;
-            }
-            _ => {}
-        }
 
         // Save-analysis exports the deglobbed version of a glob import as its type string.
+        let vfs = self.vfs.clone();
         let analysis = self.analysis.clone();
+        let out_clone = out.clone();
         let rustw_handle = thread::spawn(move || {
+            match vfs.load_span(span.clone()) {
+                Ok(ref s) if s != "*" => {
+                    out_clone.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
+                    return Err("Not a glob");
+                }
+                Err(e) => {
+                    debug!("Deglob failed: {:?}", e);
+                    out_clone.failure_message(id, ErrorCode::InternalError, "Couldn't open file");
+                    return Err("Couldn't open file");
+                }
+                _ => {}
+            }
+
             let ty = analysis.show_type(&span);
             t.unpark();
 
-            ty
+            ty.map_err(|_| {
+                out_clone.failure_message(id, ErrorCode::InternalError, "Couldn't get info from analysis");
+                "Couldn't get info from analysis"
+            })
         });
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
@@ -549,7 +559,6 @@ impl ActionHandler {
         let mut deglob_str = match result {
             Ok(Ok(s)) => s,
             _ => {
-                out.failure_message(id, ErrorCode::InternalError, "Couldn't get info from analysis");
                 return;
             }
         };
