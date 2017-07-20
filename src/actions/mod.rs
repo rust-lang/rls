@@ -285,18 +285,37 @@ impl ActionHandler {
     pub fn rename<O: Output>(&self, id: usize, params: RenameParams, out: O) {
         let t = thread::current();
         let span = self.convert_pos_to_span(&params.text_document, params.position);
+
         let analysis = self.analysis.clone();
-
         let rustw_handle = thread::spawn(move || {
-            let result = analysis.find_all_refs(&span, true);
-            t.unpark();
+            macro_rules! unwrap_or_empty {
+                ($e: expr) => {
+                    match $e {
+                        Ok(e) => e,
+                        Err(_) => {
+                            t.unpark();
+                            return vec![];
+                        }
+                    }
+                }
+            }
 
-            result
+            let id = unwrap_or_empty!(analysis.id(&span));
+            let def = unwrap_or_empty!(analysis.get_def(id));
+            if def.name == "self" || def.name == "Self" {
+                t.unpark();
+                return vec![];
+            }
+
+            let result = analysis.find_all_refs(&span, true);
+
+            t.unpark();
+            unwrap_or_empty!(result)
         });
 
         thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = rustw_handle.join().ok().and_then(|t| t.ok()).unwrap_or_else(Vec::new);
+        let result = rustw_handle.join().unwrap_or_else(|_| Vec::new());
 
         let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
@@ -541,11 +560,13 @@ impl ActionHandler {
             match vfs.load_span(span.clone()) {
                 Ok(ref s) if s != "*" => {
                     out_clone.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
+                    t.unpark();
                     return Err("Not a glob");
                 }
                 Err(e) => {
                     debug!("Deglob failed: {:?}", e);
                     out_clone.failure_message(id, ErrorCode::InternalError, "Couldn't open file");
+                    t.unpark();
                     return Err("Couldn't open file");
                 }
                 _ => {}
