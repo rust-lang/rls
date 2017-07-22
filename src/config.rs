@@ -31,6 +31,8 @@ pub struct Config {
     pub analyze_package: Option<String>,
     /// Clear the RUST_LOG env variable before calling rustc/cargo? Default: true
     pub clear_env_rust_log: bool,
+    /// Build the project only when a file got saved and not on file change. Default: false
+    pub build_on_save: bool,
 }
 
 impl Config {
@@ -49,6 +51,7 @@ impl Config {
             workspace_mode: false,
             analyze_package: None,
             clear_env_rust_log: true,
+            build_on_save: false,
         }
     }
 }

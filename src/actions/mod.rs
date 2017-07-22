@@ -223,7 +223,9 @@ impl ActionHandler {
         }).collect();
         self.vfs.on_changes(&changes).expect("error committing to VFS");
 
-        self.build_current_project(BuildPriority::Normal, out);
+        if !self.config.lock().unwrap().build_on_save {
+            self.build_current_project(BuildPriority::Normal, out);
+        }
     }
 
     pub fn on_cargo_change<O: Output>(&self, out: O) {
@@ -231,9 +233,13 @@ impl ActionHandler {
         self.build_current_project(BuildPriority::Cargo, out);
     }
 
-    pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, _out: O) {
+    pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, out: O) {
         let fname = parse_file_path(&save.text_document.uri).unwrap();
         self.vfs.file_saved(&fname).unwrap();
+
+        if self.config.lock().unwrap().build_on_save {
+            self.build_current_project(BuildPriority::Normal, out);
+        }
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
