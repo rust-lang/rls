@@ -465,9 +465,11 @@ fn test_simple_workspace() {
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       // TODO: it'd be convenient to test if compilation encountered an internal error
-                                       // or at least to check stderr's contents. We shouldn't check for presence of a warning here
-                                       ExpectedMessage::new(None).expect_contains("unused variable: `a`"),
+                                       // TODO: Ideally we should check for message contents for different crates/targets,
+                                       // however order of received messages is non-deterministic and this
+                                       // would require implementing something like `or_expect_contains`
+                                       ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
+                                       ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
