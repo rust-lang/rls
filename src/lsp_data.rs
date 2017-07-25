@@ -178,10 +178,19 @@ pub fn completion_item_from_racer_match(m : racer::Match) -> CompletionItem {
 /// Supported initilization options that can be passed in the `initialize`
 /// request, under `initialization_options` key. These are specific to the RLS.
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(default)]
 pub struct InitializationOptions {
     /// Should the build not be triggered immediately after receiving `initialize`
     #[serde(rename="omitInitBuild")]
-    pub omit_init_build: Option<bool>,
+    pub omit_init_build: bool,
+}
+
+impl Default for InitializationOptions {
+    fn default() -> Self {
+        InitializationOptions {
+            omit_init_build: false
+        }
+    }
 }
 
 /// An event-like (no response needed) notification message.

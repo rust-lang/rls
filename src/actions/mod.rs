@@ -65,11 +65,10 @@ impl ActionHandler {
         }
     }
 
-    pub fn init<O: Output>(&self, init_options: Option<InitializationOptions>, out: O) {
-        let omit_init_build = init_options.and_then(|x| x.omit_init_build)
-                                          .unwrap_or(false);
-        debug!("omit_init_build: {:?}", omit_init_build);
-        if !omit_init_build {
+    pub fn init<O: Output>(&self, init_options: InitializationOptions, out: O) {
+        trace!("init: {:?}", init_options);
+
+        if !init_options.omit_init_build {
             self.build_current_project(BuildPriority::Cargo, out);
         }
     }
