@@ -25,7 +25,7 @@ use serde_json;
 use server::{self as ls_server, ServerMessage};
 use vfs;
 
-const TEST_TIMEOUT_IN_SEC: u64 = 10;
+const TEST_TIMEOUT_IN_SEC: u64 = 60;
 
 // Initialise and run the internals of an LS protocol RLS server.
 pub fn mock_server(messages: Vec<ServerMessage>) -> (ls_server::LsService<RecordOutput>, LsResultList)
