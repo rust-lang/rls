@@ -225,7 +225,9 @@ impl Executor for RlsExecutor {
                 let name = entry.file_name();
                 let name = name.to_str().unwrap();
                 if (name.starts_with(&crate_name) || name.starts_with(&lib_crate_name)) && name.ends_with(".json") {
-                    remove_file(entry.path()).expect("could not remove file");
+                    if let Err(e) = remove_file(entry.path()) {
+                        debug!("Error deleting file, {}: {}", name, e);
+                    }
                 }
             }
         }
