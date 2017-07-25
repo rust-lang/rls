@@ -128,7 +128,8 @@ fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathB
 
     let mut restore_env = Environment::push(&env);
     // FIXME use serialize for this rather than writing in out by hand.
-    restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(r#"{"output_file": null, "full_docs": false, "pub_only": false, "signatures": false, "borrow_data": false}"#)));
+    let save_config = r#"{"output_file": null, "full_docs": false, "pub_only": true, "signatures": false, "borrow_data": false}"#;
+    restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(save_config)));
 
     compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
 }
