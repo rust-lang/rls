@@ -36,6 +36,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+
 // Runs a single instance of rustc. Runs in-process.
 pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path, rls_config: Arc<Mutex<Config>>) -> BuildResult {
     trace!("rustc - args: `{:?}`, envs: {:?}, build dir: {:?}", args, envs, build_dir);
@@ -47,6 +48,7 @@ pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>
     if rls_config.lock().unwrap().clear_env_rust_log {
         local_envs.insert(String::from("RUST_LOG"), None);
     }
+
     let _restore_env = Environment::push(&local_envs);
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();

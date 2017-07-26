@@ -19,10 +19,11 @@ use std::ffi::OsString;
 use std::io::{self, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
+
 
 mod cargo;
 mod rustc;
@@ -409,15 +410,24 @@ impl Write for BufWriter {
     }
 }
 
-// An RAII helper to set and reset the current working directory and env vars.
-struct Environment {
-    old_vars: HashMap<String, Option<OsString>>,
+
+// Ensures we don't race on the env vars. This is only likely in tests, where we
+// have multiple copies of the RLS running in the same process.
+lazy_static! {
+    static ref ENV_LOCK: Mutex<()> = Mutex::new(());
 }
 
-impl Environment {
-    fn push(envs: &HashMap<String, Option<OsString>>) -> Environment {
+// An RAII helper to set and reset the current working directory and env vars.
+struct Environment<'a> {
+    old_vars: HashMap<String, Option<OsString>>,
+    _guard: MutexGuard<'a, ()>,
+}
+
+impl<'a> Environment<'a> {
+    fn push(envs: &HashMap<String, Option<OsString>>) -> Environment<'a> {
         let mut result = Environment {
             old_vars: HashMap::new(),
+            _guard: ENV_LOCK.lock().unwrap(),
         };
 
         for (k, v) in envs {
@@ -435,7 +445,7 @@ impl Environment {
     }
 }
 
-impl Drop for Environment {
+impl<'a> Drop for Environment<'a> {
     fn drop(&mut self) {
         for (k, v) in &self.old_vars {
             match *v {
