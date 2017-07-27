@@ -65,8 +65,12 @@ impl ActionHandler {
         }
     }
 
-    pub fn init<O: Output>(&self, out: O) {
-        self.build_current_project(BuildPriority::Cargo, out);
+    pub fn init<O: Output>(&self, init_options: InitializationOptions, out: O) {
+        trace!("init: {:?}", init_options);
+
+        if !init_options.omit_init_build {
+            self.build_current_project(BuildPriority::Cargo, out);
+        }
     }
 
     // Respond to the `initialized` notification. We take this opportunity to

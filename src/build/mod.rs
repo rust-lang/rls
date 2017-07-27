@@ -203,10 +203,18 @@ impl BuildQueue {
     // `and_then` is a closure to run after a build has completed or been squashed.
     // It must return quickly and without blocking. If it has work to do, it should
     // spawn a thread to do it.
-    pub fn request_build<F>(&self, new_build_dir: &Path, priority: BuildPriority, and_then: F)
+    pub fn request_build<F>(&self, new_build_dir: &Path, mut priority: BuildPriority, and_then: F)
         where F: FnOnce(BuildResult) + Send + 'static
     {
         trace!("request_build {:?}", priority);
+        let needs_compilation_ctx_from_cargo = {
+            let context = self.internals.compilation_cx.lock().unwrap();
+            context.args.is_empty() && context.envs.is_empty()
+        };
+        if needs_compilation_ctx_from_cargo {
+            priority = BuildPriority::Cargo;
+        }
+
         let build = PendingBuild {
             build_dir: new_build_dir.to_owned(),
             priority,

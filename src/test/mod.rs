@@ -27,17 +27,25 @@ use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, moc
 
 use url::Url;
 use ls_types::*;
+use lsp_data::InitializationOptions;
 use std::path::Path;
 
 impl ServerMessage {
     pub fn initialize(id: usize, root_path: Option<String>) -> ServerMessage {
+         Self::initialize_with_opts(id, root_path, None)
+    }
+
+    pub fn initialize_with_opts(id: usize, root_path: Option<String>, initialization_options: Option<InitializationOptions>) -> ServerMessage {
+        let init_opts = initialization_options
+                            .map(|val| serde_json::to_value(val).unwrap());
+
         ServerMessage::Request(Request {
             id: id,
             method: Method::Initialize(InitializeParams {
                 process_id: None,
-                root_path: root_path,
+                root_path,
                 root_uri: None,
-                initialization_options: None,
+                initialization_options: init_opts,
                 capabilities: ClientCapabilities {
                     workspace: None,
                     text_document: None,
@@ -462,6 +470,25 @@ fn test_simple_workspace() {
                                        ExpectedMessage::new(None).expect_contains("unused variable: `a`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
+
+#[test]
+fn test_omit_init_build() {
+    let (cache, _tc) = init_env("omit_init_build");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
+    let init_options = Some(InitializationOptions { omit_init_build: true });
+    let initialize = ServerMessage::initialize_with_opts(0, root_path, init_options);
+
+    let messages = vec![initialize];
+
+    let (mut server, results) = mock_server(messages);
+
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities")]);
+}
+
 
 #[test]
 fn test_parse_error_on_malformed_input() {
