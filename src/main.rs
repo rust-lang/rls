@@ -8,53 +8,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![feature(rustc_private)]
-#![feature(concat_idents)]
-#![feature(type_ascription)]
-#![feature(integer_atomics)]
-#![feature(fnbox)]
-
-extern crate cargo;
+extern crate rls;
 extern crate env_logger;
-extern crate languageserver_types as ls_types;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-extern crate racer;
-extern crate rls_analysis as analysis;
-extern crate rls_vfs as vfs;
-extern crate rls_span as span;
-extern crate rls_data as data;
-extern crate rustfmt_nightly as rustfmt;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
-extern crate serde_json;
-
-extern crate toml;
-extern crate url;
-extern crate url_serde;
-extern crate jsonrpc_core;
 
 use std::sync::Arc;
 
-mod actions;
-mod build;
-mod cmd;
-mod config;
-mod lsp_data;
-mod server;
-
-#[cfg(test)]
-mod test;
-
-// Timeout = 1.5s (totally arbitrary).
-const COMPILER_TIMEOUT: u64 = 1500;
-
-type Span = span::Span<span::ZeroIndexed>;
+use rls::analysis;
+use rls::server;
+use rls::vfs;
+use rls::cmd;
 
 pub fn main() {
     env_logger::init().unwrap();
@@ -79,10 +41,10 @@ fn version() -> &'static str {
     concat!(env!("CARGO_PKG_VERSION"), "-nightly", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
 }
 fn help() -> &'static str {
-    r#" 
+    r#"
     --version or -V to print the version and commit info
     --help or -h for this message
     Other input starts the RLS in command line mode
-    No input starts the RLS as a language server 
+    No input starts the RLS as a language server
     "#
 }
