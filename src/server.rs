@@ -32,7 +32,6 @@ pub fn server_failure(id: jsonrpc::Id, error: jsonrpc::Error) -> jsonrpc::Failur
     }
 }
 
-#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const REQUEST__Deglob: &'static str = "rustWorkspace/deglob";
 
@@ -194,12 +193,10 @@ macro_rules! messages {
 
         // Helper macro that's used to replace optional enum payload with a given tree,
         // allows to give an arbitrary identifier to payload (or `_`) instead of a type.
-        #[cfg(test)]
         macro_rules! expand_into {
             ($tt: ty => $target: tt) => ($target)
         }
 
-        #[cfg(test)]
         macro_rules! expand_into_ref {
             ($tt: tt => $target: tt) => (ref $target)
         }
@@ -207,7 +204,6 @@ macro_rules! messages {
         impl ServerMessage {
             // Returns an LSP method name (e.g. "textDocument/hover")
             // corresponding to the server message type.
-            #[cfg(test)]
             pub fn get_method_name(&self) -> &'static str {
                 match self {
                     &ServerMessage::Request(ref request) => {
@@ -233,7 +229,6 @@ macro_rules! messages {
 
             // Returns a JSON-RPC string representing given message.
             // Effectively an inverse of `parse_message` function.
-            #[cfg(test)]
             pub fn to_message_str(&self) -> String {
                 match self {
                     &ServerMessage::Request(ref request) => {
