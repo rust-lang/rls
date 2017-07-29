@@ -105,7 +105,7 @@ fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathB
         (opts, rustflags)
     };
 
-    let spec = Packages::from_flags(opts.all, &opts.exclude, &opts.package)
+    let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)
         .expect("Couldn't create Packages for Cargo");
 
     let compile_opts = CompileOptions {
