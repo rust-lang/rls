@@ -35,6 +35,27 @@ use std::time::Duration;
 
 use self::compiler_message_parsing::{FileDiagnostic, ParseError, Suggestion};
 
+// TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
+// we don't want to crash the RLS in case a client opens a file under different URI scheme
+// like with git:/ or perforce:/ (Probably even http:/? We currently don't support remote schemes).
+macro_rules! ignore_non_file_uri {
+    ($expr: expr, $uri: expr, $log_name: expr) => {
+        match $expr {
+            Err(UrlFileParseError::InvalidScheme) => {
+                trace!("{}: Non-`file` URI scheme, ignoring: {:?}", $log_name, $uri);
+                return;
+            },
+            result @ _ => result.unwrap(),
+        }
+    };
+}
+
+macro_rules! parse_file_path {
+    ($uri: expr, $log_name: expr) => {
+        ignore_non_file_uri!(parse_file_path($uri), $uri, $log_name)
+    }
+}
+
 type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
 pub struct ActionHandler {
@@ -201,26 +222,29 @@ impl ActionHandler {
     }
 
     pub fn on_open<O: Output>(&self, open: DidOpenTextDocumentParams, _out: O) {
-        let fname = parse_file_path(&open.text_document.uri).unwrap();
-        self.vfs.set_file(fname.as_path(), &open.text_document.text);
+        trace!("on_open: {:?}", open.text_document.uri);
 
-        trace!("on_open: {:?}", fname);
+        let file_path = parse_file_path!(&open.text_document.uri, "on_open");
+
+        self.vfs.set_file(&file_path, &open.text_document.text);
     }
 
     pub fn on_change<O: Output>(&self, change: DidChangeTextDocumentParams, out: O) {
         trace!("on_change: {:?}, thread: {:?}", change, thread::current().id());
-        let fname = parse_file_path(&change.text_document.uri).unwrap();
+
+        let file_path = parse_file_path!(&change.text_document.uri, "on_change");
+
         let changes: Vec<Change> = change.content_changes.iter().map(move |i| {
             if let Some(range) = i.range {
                 let range = ls_util::range_to_rls(range);
                 Change::ReplaceText {
-                    span: Span::from_range(range, fname.clone()),
+                    span: Span::from_range(range, file_path.clone()),
                     len: i.range_length,
                     text: i.text.clone()
                 }
             } else {
                 Change::AddFile {
-                    file: fname.clone(),
+                    file: file_path.clone(),
                     text: i.text.clone(),
                 }
             }
@@ -238,8 +262,9 @@ impl ActionHandler {
     }
 
     pub fn on_save<O: Output>(&self, save: DidSaveTextDocumentParams, out: O) {
-        let fname = parse_file_path(&save.text_document.uri).unwrap();
-        self.vfs.file_saved(&fname).unwrap();
+        let file_path = parse_file_path!(&save.text_document.uri, "on_save");
+
+        self.vfs.file_saved(&file_path).unwrap();
 
         if self.config.lock().unwrap().build_on_save {
             self.build_current_project(BuildPriority::Normal, out);
@@ -252,11 +277,12 @@ impl ActionHandler {
 
     pub fn symbols<O: Output>(&self, id: usize, doc: DocumentSymbolParams, out: O) {
         let t = thread::current();
+        let file_path = parse_file_path!(&doc.text_document.uri, "symbols");
+
         let analysis = self.analysis.clone();
 
         let rustw_handle = thread::spawn(move || {
-            let file_name = parse_file_path(&doc.text_document.uri).unwrap();
-            let symbols = analysis.symbols(&file_name).unwrap_or_else(|_| vec![]);
+            let symbols = analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
             t.unpark();
 
             symbols.into_iter().map(|s| {
@@ -277,9 +303,9 @@ impl ActionHandler {
 
     pub fn complete<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let vfs = self.vfs.clone();
-        let result: Vec<CompletionItem> = panic::catch_unwind(move || {
-            let file_path = &parse_file_path(&params.text_document.uri).unwrap();
+        let file_path = parse_file_path!(&params.text_document.uri, "complete");
 
+        let result: Vec<CompletionItem> = panic::catch_unwind(move || {
             let cache = racer::FileCache::new(vfs);
             let session = racer::Session::new(&cache);
 
@@ -294,7 +320,8 @@ impl ActionHandler {
 
     pub fn rename<O: Output>(&self, id: usize, params: RenameParams, out: O) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, params.position);
+        let file_path = parse_file_path!(&params.text_document.uri, "rename");
+        let span = self.convert_pos_to_span(file_path, params.position);
 
         let analysis = self.analysis.clone();
         let rustw_handle = thread::spawn(move || {
@@ -342,7 +369,8 @@ impl ActionHandler {
 
     pub fn highlight<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, params.position);
+        let file_path = parse_file_path!(&params.text_document.uri, "highlight");
+        let span = self.convert_pos_to_span(file_path, params.position);
         let analysis = self.analysis.clone();
 
         let handle = thread::spawn(move || {
@@ -365,7 +393,8 @@ impl ActionHandler {
 
     pub fn find_all_refs<O: Output>(&self, id: usize, params: ReferenceParams, out: O) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, params.position);
+        let file_path = parse_file_path!(&params.text_document.uri, "find_all_refs");
+        let span = self.convert_pos_to_span(file_path, params.position);
         let analysis = self.analysis.clone();
 
         let handle = thread::spawn(move || {
@@ -386,7 +415,8 @@ impl ActionHandler {
     pub fn goto_def<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         // Save-analysis thread.
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, params.position);
+        let file_path = parse_file_path!(&params.text_document.uri, "goto_def");
+        let span = self.convert_pos_to_span(file_path.clone(), params.position);
         let analysis = self.analysis.clone();
         let vfs = self.vfs.clone();
 
@@ -400,16 +430,15 @@ impl ActionHandler {
 
         // Racer thread.
         let racer_handle = if self.config.lock().unwrap().goto_def_racer_fallback {
-                Some(thread::spawn(move || {
-                    let file_path = &parse_file_path(&params.text_document.uri).unwrap();
+            Some(thread::spawn(move || {
 
-                    let cache = racer::FileCache::new(vfs);
-                    let session = racer::Session::new(&cache);
-                    let location = pos_to_racer_location(params.position);
+                let cache = racer::FileCache::new(vfs);
+                let session = racer::Session::new(&cache);
+                let location = pos_to_racer_location(params.position);
 
-                    racer::find_definition(file_path, location, &session)
-                        .and_then(location_from_racer_match)
-                }))
+                racer::find_definition(file_path, location, &session)
+                    .and_then(location_from_racer_match)
+            }))
         } else {
             None
         };
@@ -448,7 +477,8 @@ impl ActionHandler {
 
     pub fn hover<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let t = thread::current();
-        let span = self.convert_pos_to_span(&params.text_document, params.position);
+        let file_path = parse_file_path!(&params.text_document.uri, "hover");
+        let span = self.convert_pos_to_span(file_path, params.position);
 
         trace!("hover: {:?}", span);
 
@@ -521,9 +551,9 @@ impl ActionHandler {
     pub fn code_action<O: Output>(&self, id: usize, params: CodeActionParams, out: O) {
         trace!("code_action {:?}", params);
 
-        let path = parse_file_path(&params.text_document.uri).expect("bad url");
+        let file_path = parse_file_path!(&params.text_document.uri, "code_action");
 
-        match self.previous_build_results.lock().unwrap().get(&path) {
+        match self.previous_build_results.lock().unwrap().get(&file_path) {
             Some(ref diagnostics) => {
                 let suggestions = diagnostics.iter().filter(|&&(ref d, _)| d.range == params.range).flat_map(|&(_, ref ss)| ss.iter());
                 let mut cmds = vec![];
@@ -553,7 +583,9 @@ impl ActionHandler {
 
     pub fn deglob<O: Output>(&self, id: usize, location: Location, out: O) {
         let t = thread::current();
-        let span = ls_util::location_to_rls(location.clone()).unwrap();
+        let span = ls_util::location_to_rls(location.clone());
+        let span = ignore_non_file_uri!(span, &location.uri, "deglob");
+
         trace!("deglob {:?}", span);
 
         // Start by checking that the user has selected a glob import.
@@ -621,9 +653,9 @@ impl ActionHandler {
 
     pub fn reformat<O: Output>(&self, id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, out: O, opts: &FormattingOptions) {
         trace!("Reformat: {} {:?} {:?} {} {}", id, doc, selection, opts.tab_size, opts.insert_spaces);
+        let path = parse_file_path!(&doc.uri, "reformat");
 
-        let path = &parse_file_path(&doc.uri).unwrap();
-        let input = match self.vfs.load_file(path) {
+        let input = match self.vfs.load_file(&path) {
             Ok(FileContents::Text(s)) => FmtInput::Text(s),
             Ok(_) => {
                 debug!("Reformat failed, found binary file");
@@ -637,7 +669,7 @@ impl ActionHandler {
             }
         };
 
-        let range_whole_file = ls_util::range_from_vfs_file(&self.vfs, path);
+        let range_whole_file = ls_util::range_from_vfs_file(&self.vfs, &path);
         let mut config = self.fmt_config.get_rustfmt_config().clone();
         if !config.was_set().hard_tabs() {
             config.set().hard_tabs(!opts.insert_spaces);
@@ -727,12 +759,11 @@ impl ActionHandler {
         debug!("Received unactionable config: {:?}", params.settings);
     }
 
-    fn convert_pos_to_span(&self, doc: &TextDocumentIdentifier, pos: Position) -> Span {
-        let fname = parse_file_path(&doc.uri).unwrap();
-        trace!("convert_pos_to_span: {:?} {:?}", fname, pos);
+    fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {
+        trace!("convert_pos_to_span: {:?} {:?}", file_path, pos);
 
         let pos = ls_util::position_to_rls(pos);
-        let line = self.vfs.load_line(&fname, pos.row).unwrap();
+        let line = self.vfs.load_line(&file_path, pos.row).unwrap();
         trace!("line: `{}`", line);
 
         let start_pos = {
@@ -761,9 +792,7 @@ impl ActionHandler {
             span::Position::new(pos.row, span::Column::new_zero_indexed(col as u32))
         };
 
-        Span::from_positions(start_pos,
-                             end_pos,
-                             fname.to_owned())
+        Span::from_positions(start_pos, end_pos, file_path)
     }
 }
 
