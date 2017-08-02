@@ -16,6 +16,7 @@ use rustfmt::config::WriteMode;
 const DEFAULT_WAIT_TO_BUILD: u64 = 500;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Config {
     pub sysroot: Option<String>,
     pub target: Option<String>,
@@ -35,8 +36,8 @@ pub struct Config {
     pub build_on_save: bool,
 }
 
-impl Config {
-    pub fn default() -> Config {
+impl Default for Config {
+    fn default() -> Config {
         Config {
             sysroot: None,
             target: None,

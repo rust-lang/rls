@@ -17,6 +17,8 @@ use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
 use config::{Config, FmtConfig};
+use serde::Deserialize;
+use serde::de::Error;
 use serde_json;
 use span;
 use Span;
@@ -718,42 +720,47 @@ impl ActionHandler {
 
     pub fn on_change_config<O: Output>(&self, params: DidChangeConfigurationParams, out: O) {
         trace!("config change: {:?}", params.settings);
-        if let Some(config) = params.settings.get("rust") {
-            if let Ok(new_config) = serde_json::from_value(config.clone()): Result<Config, _> {
-                let unstable_features = new_config.unstable_features;
+        let config = params.settings.get("rust")
+                         .ok_or(serde_json::Error::missing_field("rust"))
+                         .and_then(|value| Config::deserialize(value));
 
-                {
-                    let mut config = self.config.lock().unwrap();
-                    *config = new_config;
-                }
-                // We do a clean build so that if we've changed any relevant options
-                // for Cargo, we'll notice them. But if nothing relevant changes
-                // then we don't do unnecessary building (i.e., we don't delete
-                // artifacts on disk).
-                self.build_current_project(BuildPriority::Cargo, out.clone());
-
-                const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
-                // FIXME should handle the response
-                if unstable_features {
-                    let output = serde_json::to_string(
-                        &RequestMessage::new(out.provide_id(),
-                                             NOTIFICATION__RegisterCapability.to_owned(),
-                                             RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null }] })
-                    ).unwrap();
-                    out.response(output);
-                } else {
-                    let output = serde_json::to_string(
-                        &RequestMessage::new(out.provide_id(),
-                                             NOTIFICATION__UnregisterCapability.to_owned(),
-                                             UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() }] })
-                    ).unwrap();
-                    out.response(output);
-                }
-
+        let new_config = match config {
+            Ok(value) => value,
+            Err(err) => {
+                debug!("Received unactionable config: {:?} (error: {:?})", params.settings, err);
                 return;
             }
+        };
+
+        let unstable_features = new_config.unstable_features;
+
+        {
+            let mut config = self.config.lock().unwrap();
+            *config = new_config;
         }
-        debug!("Received unactionable config: {:?}", params.settings);
+        // We do a clean build so that if we've changed any relevant options
+        // for Cargo, we'll notice them. But if nothing relevant changes
+        // then we don't do unnecessary building (i.e., we don't delete
+        // artifacts on disk).
+        self.build_current_project(BuildPriority::Cargo, out.clone());
+
+        const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
+        // FIXME should handle the response
+        if unstable_features {
+            let output = serde_json::to_string(
+                &RequestMessage::new(out.provide_id(),
+                                        NOTIFICATION__RegisterCapability.to_owned(),
+                                        RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null }] })
+            ).unwrap();
+            out.response(output);
+        } else {
+            let output = serde_json::to_string(
+                &RequestMessage::new(out.provide_id(),
+                                        NOTIFICATION__UnregisterCapability.to_owned(),
+                                        UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() }] })
+            ).unwrap();
+            out.response(output);
+        }
     }
 
     fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {
