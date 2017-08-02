@@ -12,6 +12,7 @@ use cargo::core::{PackageId, Shell, Workspace, Verbosity};
 use cargo::ops::{compile_with_exec, Executor, Context, Packages, CompileOptions, CompileMode, CompileFilter, Unit};
 use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_paths, ConfigValue, CargoResult};
 use cargo::util::errors::{CargoErrorKind, process_error};
+use serde_json;
 
 use build::{Internals, BufWriter, BuildResult, CompilationContext, Environment};
 use config::Config;
@@ -128,8 +129,9 @@ fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathB
     }
 
     let mut restore_env = Environment::push(&env);
-    // FIXME use serialize for this rather than writing in out by hand.
-    let save_config = r#"{"output_file": null, "full_docs": false, "pub_only": true, "signatures": false, "borrow_data": false}"#;
+    let mut save_config = ::data::config::Config::default();
+    save_config.pub_only = true;
+    let save_config = serde_json::to_string(&save_config).expect("could not serialise config");
     restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(save_config)));
 
     compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
