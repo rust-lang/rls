@@ -17,9 +17,9 @@ languageserver-types = "0.12"
 lazy_static = "0.2"
 log = "0.3"
 racer = "2.0.6"
-rls-analysis = "0.4.5"
-rls-data = "0.9"
-rls-span = { version = "0.4" , features = ["serialize-serde"] }
+rls-analysis = "0.6"
+rls-data = { version = "0.10", features = ["serialize-serde"] }
+rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4", features = ["racer-impls"] }
 rustfmt-nightly = "0.2"
 serde = "1.0"

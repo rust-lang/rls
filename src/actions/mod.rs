@@ -201,9 +201,9 @@ impl ActionHandler {
                         debug!("reload analysis: {:?}", project_path_clone);
                         let cwd = ::std::env::current_dir().unwrap();
                         if let Some(new_analysis) = new_analysis {
-                            analysis.reload_from_analysis(new_analysis, &project_path_clone, &cwd, false).unwrap();
+                            analysis.reload_from_analysis(new_analysis, &project_path_clone, &cwd).unwrap();
                         } else {
-                            analysis.reload(&project_path_clone, &cwd, false).unwrap();
+                            analysis.reload(&project_path_clone, &cwd).unwrap();
                         }
 
                         out.notify("rustDocument/diagnosticsEnd");
