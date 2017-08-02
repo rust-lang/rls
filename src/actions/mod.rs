@@ -733,22 +733,19 @@ impl ActionHandler {
                 self.build_current_project(BuildPriority::Cargo, out.clone());
 
                 const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
-                const RENAME_ID: &'static str = "rls-rename";
                 // FIXME should handle the response
                 if unstable_features {
                     let output = serde_json::to_string(
                         &RequestMessage::new(out.provide_id(),
                                              NOTIFICATION__RegisterCapability.to_owned(),
-                                             RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null },
-                                                                                      Registration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned(), register_options: serde_json::Value::Null }] })
+                                             RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null }] })
                     ).unwrap();
                     out.response(output);
                 } else {
                     let output = serde_json::to_string(
                         &RequestMessage::new(out.provide_id(),
                                              NOTIFICATION__UnregisterCapability.to_owned(),
-                                             UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() },
-                                                                                           Unregistration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned() }] })
+                                             UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() }] })
                     ).unwrap();
                     out.response(output);
                 }

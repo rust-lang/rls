@@ -383,11 +383,11 @@ impl<O: Output> LsService<O> {
                 execute_command_provider: Some(ExecuteCommandOptions {
                     commands: vec!["rls.applySuggestion".to_owned()],
                 }),
+                rename_provider: Some(true),
                 // These are supported if the `unstable_features` option is set.
                 // We'll update these capabilities dynamically when we get config
                 // info from the client.
                 document_range_formatting_provider: Some(false),
-                rename_provider: Some(false),
 
                 code_lens_provider: None,
                 document_on_type_formatting_provider: None,
