@@ -34,6 +34,7 @@ pub struct Config {
     pub clear_env_rust_log: bool,
     /// Build the project only when a file got saved and not on file change. Default: false
     pub build_on_save: bool,
+    pub use_crate_blacklist: bool,
 }
 
 impl Default for Config {
@@ -53,6 +54,7 @@ impl Default for Config {
             analyze_package: None,
             clear_env_rust_log: true,
             build_on_save: false,
+            use_crate_blacklist: true,
         }
     }
 }

@@ -54,6 +54,8 @@ mod test;
 // Timeout = 1.5s (totally arbitrary).
 const COMPILER_TIMEOUT: u64 = 1500;
 
+const CRATE_BLACKLIST: [&'static str; 3] = ["libc", "typenum", "alloc"];
+
 type Span = span::Span<span::ZeroIndexed>;
 
 pub fn main() {
