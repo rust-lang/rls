@@ -24,6 +24,7 @@ use span;
 use Span;
 
 use build::*;
+use CRATE_BLACKLIST;
 use lsp_data::*;
 use server::{ResponseData, Output, Ack};
 use jsonrpc_core::types::ErrorCode;
@@ -170,9 +171,9 @@ impl ActionHandler {
         let previous_build_results = self.previous_build_results.clone();
         let project_path_clone = project_path.to_owned();
         let out = out.clone();
-        let show_warnings = {
+        let (show_warnings, use_black_list) = {
             let config = self.config.lock().unwrap();
-            config.show_warnings
+            (config.show_warnings, config.use_crate_blacklist)
         };
 
         // We use `rustDocument` document here since these notifications are
@@ -204,10 +205,18 @@ impl ActionHandler {
                         debug!("reload analysis: {:?}", project_path_clone);
                         let cwd = ::std::env::current_dir().unwrap();
                         if new_analysis.is_empty() {
-                            analysis.reload(&project_path_clone, &cwd).unwrap();
+                            if use_black_list {
+                                analysis.reload_with_blacklist(&project_path_clone, &cwd, &CRATE_BLACKLIST).unwrap();
+                            } else {
+                                analysis.reload(&project_path_clone, &cwd).unwrap();
+                            }
                         } else {
                             for data in new_analysis.into_iter() {
-                                analysis.reload_from_analysis(data, &project_path_clone, &cwd).unwrap();
+                                if use_black_list {
+                                    analysis.reload_from_analysis(data, &project_path_clone, &cwd, &CRATE_BLACKLIST).unwrap();
+                                } else {
+                                    analysis.reload_from_analysis(data, &project_path_clone, &cwd, &[]).unwrap();
+                                }
                             }
                         }
 
