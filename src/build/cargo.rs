@@ -14,15 +14,17 @@ use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_path
 use cargo::util::errors::{CargoErrorKind, process_error};
 use serde_json;
 
-use build::{Internals, BufWriter, BuildResult, CompilationContext, Environment};
+use data::Analysis;
+use build::{Internals, BufWriter, BuildResult, CompilationContext};
+use build::environment::{self, Environment, EnvironmentLock};
 use config::Config;
-use super::rustc::convert_message_to_json_strings;
+use vfs::Vfs;
 
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::env;
 use std::ffi::OsString;
 use std::fs::{read_dir, remove_file};
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -30,29 +32,33 @@ use std::thread;
 // Runs an in-process instance of Cargo.
 pub(super) fn cargo(internals: &Internals) -> BuildResult {
     let workspace_mode = internals.config.lock().unwrap().workspace_mode;
-    let compiler_messages = Arc::new(Mutex::new(vec![]));
-    let exec = RlsExecutor::new(internals.compilation_cx.clone(), internals.config.clone(), compiler_messages.clone());
 
+    let compilation_cx = internals.compilation_cx.clone();
+    let config = internals.config.clone();
+    let vfs = internals.vfs.clone();
+    let env_lock = internals.env_lock.clone();
+
+    let diagnostics = Arc::new(Mutex::new(vec![]));
+    let diagnostics_clone = diagnostics.clone();
+    let analyses = Arc::new(Mutex::new(vec![]));
+    let analyses_clone = analyses.clone();
     let out = Arc::new(Mutex::new(vec![]));
     let out_clone = out.clone();
-    let rls_config = internals.config.clone();
-    let build_dir = {
-        let compilation_cx = internals.compilation_cx.lock().unwrap();
-        compilation_cx.build_dir.as_ref().unwrap().clone()
-    };
 
     // Cargo may or may not spawn threads to run the various builds, since
     // we may be in separate threads we need to block and wait our thread.
     // However, if Cargo doesn't run a separate thread, then we'll just wait
     // forever. Therefore, we spawn an extra thread here to be safe.
-    let handle = thread::spawn(move || run_cargo(exec, rls_config, build_dir, out));
+    let handle = thread::spawn(|| run_cargo(compilation_cx, config, vfs, env_lock,
+                                            diagnostics, analyses, out));
 
     match handle.join() {
         Ok(_) if workspace_mode => {
-            let diagnostics = Arc::try_unwrap(compiler_messages).unwrap().into_inner().unwrap();
-            BuildResult::Success(diagnostics, None)
+            let diagnostics = Arc::try_unwrap(diagnostics_clone).unwrap().into_inner().unwrap();
+            let analyses = Arc::try_unwrap(analyses_clone).unwrap().into_inner().unwrap();
+            BuildResult::Success(diagnostics, analyses)
         },
-        Ok(_) => BuildResult::Success(vec![], None),
+        Ok(_) => BuildResult::Success(vec![], vec![]),
         Err(_) => {
             info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
             BuildResult::Err
@@ -60,7 +66,31 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     }
 }
 
-fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathBuf, out: Arc<Mutex<Vec<u8>>>) {
+fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
+             rls_config: Arc<Mutex<Config>>,
+             vfs: Arc<Vfs>,
+             env_lock: Arc<EnvironmentLock>,
+             compiler_messages: Arc<Mutex<Vec<String>>>,
+             analyses: Arc<Mutex<Vec<Analysis>>>,
+             out: Arc<Mutex<Vec<u8>>>) {
+    // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
+    // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
+    // during exec() callback when calling linked compiler in parallel, for which we need to
+    // guarantee consistent environment variables.
+    let (lock_guard, inner_lock) = env_lock.lock();
+
+    let build_dir = {
+        let compilation_cx = compilation_cx.lock().unwrap();
+        compilation_cx.build_dir.as_ref().unwrap().clone()
+    };
+
+    let exec = RlsExecutor::new(compilation_cx,
+                                rls_config.clone(),
+                                inner_lock,
+                                vfs,
+                                compiler_messages,
+                                analyses);
+
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)
         .expect(&format!("Couldn't find a root manifest for cwd: {:?}", &build_dir));
@@ -128,7 +158,7 @@ fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathB
         env.insert("RUST_LOG".to_owned(), None);
     }
 
-    let mut restore_env = Environment::push(&env);
+    let mut restore_env = Environment::push_with_lock(&env, lock_guard);
     let mut save_config = ::data::config::Config::default();
     save_config.pub_only = true;
     let save_config = serde_json::to_string(&save_config).expect("could not serialise config");
@@ -141,6 +171,12 @@ struct RlsExecutor {
     compilation_cx: Arc<Mutex<CompilationContext>>,
     cur_package_id: Mutex<Option<PackageId>>,
     config: Arc<Mutex<Config>>,
+    /// Because of the Cargo API design, we first acquire outer lock before creating the executor
+    /// and calling the compilation function. This, resulting, inner lock is used to synchronize
+    /// env var access during underlying `rustc()` calls during parallel `exec()` callback threads.
+    env_lock: environment::InnerLock,
+    vfs: Arc<Vfs>,
+    analyses: Arc<Mutex<Vec<Analysis>>>,
     workspace_mode: bool,
     /// Packages which are directly a member of the workspace, for which
     /// analysis and diagnostics will be provided
@@ -152,13 +188,19 @@ struct RlsExecutor {
 impl RlsExecutor {
     fn new(compilation_cx: Arc<Mutex<CompilationContext>>,
            config: Arc<Mutex<Config>>,
-           compiler_messages: Arc<Mutex<Vec<String>>>)
+           env_lock: environment::InnerLock,
+           vfs: Arc<Vfs>,
+           compiler_messages: Arc<Mutex<Vec<String>>>,
+           analyses: Arc<Mutex<Vec<Analysis>>>)
     -> RlsExecutor {
         let workspace_mode = config.lock().unwrap().workspace_mode;
         RlsExecutor {
             compilation_cx,
             cur_package_id: Mutex::new(None),
             config,
+            env_lock,
+            vfs,
+            analyses,
             workspace_mode,
             member_packages: Mutex::new(HashSet::new()),
             compiler_messages,
@@ -304,6 +346,8 @@ impl Executor for RlsExecutor {
             // that before we return to Cargo.
             // FIXME Don't do this. Start our build here rather than on another thread
             // so the dep-info is ready by the time we return from this callback.
+            // NB: In `workspace_mode` regular compilation is performed here (and we don't
+            // only calculate dep-info) so it should fix the problem mentioned above.
             // Since ProcessBuilder doesn't allow to modify args, we need to create
             // our own command here from scratch here.
             for a in &args {
@@ -321,19 +365,34 @@ impl Executor for RlsExecutor {
             }
         }
 
+        // Prepare modified cargo-generated args/envs for future rustc calls
+        args.insert(0, rustc_exe);
+        let envs = cargo_cmd.get_envs().clone();
+
         if self.workspace_mode {
-            let output = cmd.output().expect("Couldn't execute rustc");
-            let mut stderr_json_msg = convert_message_to_json_strings(output.stderr);
-            self.compiler_messages.lock().unwrap().append(&mut stderr_json_msg);
+            let build_dir = {
+                let cx = self.compilation_cx.lock().unwrap();
+                cx.build_dir.clone().unwrap()
+            };
+
+            let env_lock = self.env_lock.as_facade();
+
+            match super::rustc::rustc(&self.vfs, &args, &envs, &build_dir, self.config.clone(), env_lock) {
+                BuildResult::Success(mut messages, mut analysis) |
+                BuildResult::Failure(mut messages, mut analysis) => {
+                    self.compiler_messages.lock().unwrap().append(&mut messages);
+                    self.analyses.lock().unwrap().append(&mut analysis);
+                }
+                _ => {}
+            }
         } else {
             cmd.status().expect("Couldn't execute rustc");
         }
 
         // Finally, store the modified cargo-generated args/envs for future rustc calls
-        args.insert(0, rustc_exe);
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
         compilation_cx.args = args;
-        compilation_cx.envs = cargo_cmd.get_envs().clone();
+        compilation_cx.envs = envs;
 
         Ok(())
     }
@@ -350,7 +409,7 @@ struct CargoOptions {
     exclude: Vec<String>,
 }
 
-impl CargoOptions {
+impl Default for CargoOptions {
     fn default() -> CargoOptions {
         CargoOptions {
             package: vec![],
@@ -362,7 +421,9 @@ impl CargoOptions {
             exclude: vec![],
         }
     }
+}
 
+impl CargoOptions {
     fn new(config: &Config) -> CargoOptions {
         if config.workspace_mode {
             let (package, all) = match config.analyze_package {
