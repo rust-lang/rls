@@ -107,8 +107,14 @@ squiggles to see the text of the error.
 
 ## Configuration
 
-The RLS can be configured on a per-project basis by adding a file called
-`.rls.toml` or `rls.toml` to the project root (i.e., next to Cargo.toml).
+The RLS can be configured on a per-project basis, using the official Visual
+Studio Code extension this will be done via the workspace settings file
+`settings.json`.
+
+Other editors will have their own way of sending the
+[workspace/DidChangeConfiguration](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#workspace_didChangeConfiguration)
+method.
+
 Entries in this file will affect how the RLS operates and how it builds your
 project.
 
