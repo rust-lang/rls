@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+pub use self::cargo::make_cargo_config;
+
 use data::Analysis;
 use vfs::Vfs;
 use config::Config;

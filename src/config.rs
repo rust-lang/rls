@@ -9,11 +9,83 @@
 // except according to those terms.
 
 use std::path::Path;
+use std::fmt::Debug;
+
+use serde::de::{Deserialize, Deserializer};
 
 use rustfmt::config::Config as RustfmtConfig;
 use rustfmt::config::WriteMode;
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 500;
+
+/// Some values in the config can be inferred without an explicit value set by
+/// the user. There are no guarantees which values will or will not be passed
+/// to the server, so we treat deserialized values effectively as `Option<T>`
+/// and use `None` to mark the values as unspecified, otherwise we always use
+/// `Specified` variant for the deserialized values. For user-provided `None`
+/// values, they must be `Inferred` prior to usage (and can be further
+/// `Specified` by the user).
+#[derive(Clone, Debug, Serialize)]
+pub enum Inferrable<T> {
+    /// Explicitly specified value by the user. Retrieved by deserializing a
+    /// non-`null` value. Can replace every other variant.
+    Specified(T),
+    /// Value that's inferred by the server. Can't replace a `Specified` variant.
+    Inferred(T),
+    /// Marker value that's retrieved when deserializing a user-specified `null`
+    /// value. Can't be used alone and has to be replaced by server-`Inferred`
+    /// or user-`Specified` value.
+    None
+}
+
+// Deserialize as if it's `Option<T>` and use `None` variant if it's `None`,
+// otherwise use `Specified` variant for deserialized value.
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Inferrable<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Inferrable<T>, D::Error>
+        where D: Deserializer<'de>
+    {
+        let value = Option::<T>::deserialize(deserializer)?;
+        Ok(match value {
+            None => Inferrable::None,
+            Some(value) => Inferrable::Specified(value),
+        })
+    }
+}
+
+impl<T: Clone + Debug> Inferrable<T> {
+    pub fn combine_with_default(&self, new: &Self, default: T) -> Self {
+        match (self, new) {
+            // Don't allow to update a Specified value with an Inferred one
+            (&Inferrable::Specified(_), &Inferrable::Inferred(_)) => self.clone(),
+            // When trying to update with a `None`, use Inferred variant with
+            // a specified default value, as `None` value can't be used directly
+            (_, &Inferrable::None) => Inferrable::Inferred(default),
+            _ => new.clone(),
+        }
+    }
+
+    pub fn infer(&mut self, value: T) {
+        if let &mut Inferrable::Specified(_) = self {
+            trace!("Trying to infer {:?} on a {:?}", value, self);
+            return;
+        }
+
+        *self = Inferrable::Inferred(value);
+    }
+}
+
+impl<T> AsRef<T> for Inferrable<T> {
+    fn as_ref(&self) -> &T {
+        match *self {
+            Inferrable::Inferred(ref value) |
+            Inferrable::Specified(ref value) => value,
+            // Default values should always be initialized as `Inferred` even
+            // before actual inference takes place, `None` variant is only used
+            // when deserializing and should not be read directly (via `as_ref`)
+            Inferrable::None => unreachable!(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -21,8 +93,8 @@ pub struct Config {
     pub sysroot: Option<String>,
     pub target: Option<String>,
     pub rustflags: Option<String>,
-    pub build_lib: bool,
-    pub build_bin: Option<String>,
+    pub build_lib: Inferrable<bool>,
+    pub build_bin: Inferrable<Option<String>>,
     pub cfg_test: bool,
     pub unstable_features: bool,
     pub wait_to_build: u64,
@@ -43,8 +115,8 @@ impl Default for Config {
             sysroot: None,
             target: None,
             rustflags: None,
-            build_lib: false,
-            build_bin: None,
+            build_lib: Inferrable::Inferred(false),
+            build_bin: Inferrable::Inferred(None),
             cfg_test: false,
             unstable_features: false,
             wait_to_build: DEFAULT_WAIT_TO_BUILD,
@@ -55,6 +127,23 @@ impl Default for Config {
             clear_env_rust_log: true,
             build_on_save: false,
             use_crate_blacklist: true,
+        }
+    }
+}
+
+impl Config {
+    pub fn update(&mut self, mut new: Config) {
+        new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
+        new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
+
+        *self = new;
+    }
+
+    pub fn needs_inference(&self) -> bool {
+        match (&self.build_lib, &self.build_bin) {
+            (&Inferrable::None, _) |
+            (_, &Inferrable::None) => true,
+            _ => false,
         }
     }
 }

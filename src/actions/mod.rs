@@ -10,13 +10,17 @@
 
 mod compiler_message_parsing;
 
+use cargo::CargoResult;
+use cargo::util::important_paths;
+use cargo::core::{Shell, Workspace};
+
 use analysis::{AnalysisHost};
 use url::Url;
 use vfs::{Vfs, Change, FileContents};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
-use config::{Config, FmtConfig};
+use config::{Config, FmtConfig, Inferrable};
 use serde::Deserialize;
 use serde::de::Error;
 use serde_json;
@@ -32,6 +36,7 @@ use jsonrpc_core::types::ErrorCode;
 use std::collections::HashMap;
 use std::panic;
 use std::path::{Path, PathBuf};
+use std::io::sink;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -91,6 +96,19 @@ impl ActionHandler {
 
     pub fn init<O: Output>(&self, init_options: InitializationOptions, out: O) {
         trace!("init: {:?}", init_options);
+
+        let project_dir = self.current_project.clone();
+        let config = self.config.clone();
+        // Spawn another thread since we're shelling out to Cargo and this can
+        // cause a non-trivial amount of time due to disk access
+        thread::spawn(move || {
+            let mut config = config.lock().unwrap();
+            if let Err(e)  = infer_config_defaults(&project_dir, &mut *config) {
+                debug!("Encountered an error while trying to infer config \
+                    defaults: {:?}", e);
+            }
+
+        });
 
         if !init_options.omit_init_build {
             self.build_current_project(BuildPriority::Cargo, out);
@@ -748,7 +766,27 @@ impl ActionHandler {
 
         {
             let mut config = self.config.lock().unwrap();
-            *config = new_config;
+
+            // User may specify null (to be inferred) options, in which case
+            // we schedule further inference on a separate thread not to block
+            // the main thread
+            let needs_inference = new_config.needs_inference();
+            // In case of null options, we provide default values for now
+            config.update(new_config);
+            trace!("Updated config: {:?}", *config);
+
+            if needs_inference {
+                let project_dir = self.current_project.clone();
+                let config = self.config.clone();
+                // Will lock and access Config just outside the current scope
+                thread::spawn(move || {
+                    let mut config = config.lock().unwrap();
+                    if let Err(e)  = infer_config_defaults(&project_dir, &mut *config) {
+                        debug!("Encountered an error while trying to infer config \
+                            defaults: {:?}", e);
+                    }
+                });
+            }
         }
         // We do a clean build so that if we've changed any relevant options
         // for Cargo, we'll notice them. But if nothing relevant changes
@@ -810,6 +848,76 @@ impl ActionHandler {
 
         Span::from_positions(start_pos, end_pos, file_path)
     }
+}
+
+fn infer_config_defaults(project_dir: &Path, config: &mut Config) -> CargoResult<()> {
+    // Note that this may not be equal build_dir when inside a workspace member
+    let manifest_path = important_paths::find_root_manifest_for_wd(None, project_dir)?;
+    trace!("root manifest_path: {:?}", &manifest_path);
+
+    // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
+    let manifest_dir = manifest_path.parent().unwrap();
+    let shell = Shell::from_write(Box::new(sink()));
+    let cargo_config = make_cargo_config(manifest_dir, shell);
+
+    let ws = Workspace::new(&manifest_path, &cargo_config)?;
+
+    // Auto-detect --lib/--bin switch if working under single package mode
+    // or under workspace mode with `analyze_package` specified
+    let package = match config.workspace_mode {
+        true => {
+            let package_name = match config.analyze_package {
+                // No package specified, nothing to do
+                None => { return Ok(()); },
+                Some(ref package) => package,
+            };
+
+            ws.members()
+              .find(move |x| x.name() == package_name)
+              .ok_or(
+                  format!("Couldn't find specified `{}` package via \
+                      `analyze_package` in the workspace", package_name)
+              )?
+        },
+        false => ws.current()?,
+    };
+
+    trace!("infer_config_defaults: Auto-detected `{}` package", package.name());
+
+    let targets = package.targets();
+    let (lib, bin) = if targets.iter().any(|x| x.is_lib()) {
+        (true, None)
+    } else {
+        let mut bins = targets.iter().filter(|x| x.is_bin());
+        // No `lib` detected, but also can't find any `bin` target - there's
+        // no sensible target here, so just Err out
+        let first = bins.nth(0)
+            .ok_or("No `bin` or `lib` targets in the package")?;
+
+        let mut bins = targets.iter().filter(|x| x.is_bin());
+        let target = match bins.find(|x| x.src_path().ends_with("main.rs")) {
+            Some(main_bin) => main_bin,
+            None => first,
+        };
+
+        (false, Some(target.name().to_owned()))
+    };
+
+    trace!("infer_config_defaults: build_lib: {:?}, build_bin: {:?}", lib, bin);
+
+    // Unless crate target is explicitly specified, mark the values as
+    // inferred, so they're not simply ovewritten on config change without
+    // any specified value
+    let (lib, bin) = match (&config.build_lib, &config.build_bin) {
+        (&Inferrable::Specified(true), _) => (lib, None),
+        (_, &Inferrable::Specified(Some(_))) => (false, bin),
+        _ => (lib, bin),
+    };
+
+    config.build_lib.infer(lib);
+    config.build_bin.infer(bin);
+
+    Ok(())
 }
 
 fn racer_coord(line: span::Row<span::OneIndexed>,
