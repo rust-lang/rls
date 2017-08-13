@@ -17,6 +17,7 @@ use serde_json;
 use data::Analysis;
 use build::{Internals, BufWriter, BuildResult, CompilationContext};
 use build::environment::{self, Environment, EnvironmentLock};
+use super::plan::create_plan;
 use config::Config;
 use vfs::Vfs;
 
@@ -24,6 +25,7 @@ use std::collections::{HashMap, HashSet, BTreeMap};
 use std::env;
 use std::ffi::OsString;
 use std::fs::{read_dir, remove_file};
+use std::mem;
 use std::path::{Path};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -79,17 +81,17 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     // guarantee consistent environment variables.
     let (lock_guard, inner_lock) = env_lock.lock();
 
-    let build_dir = {
-        let compilation_cx = compilation_cx.lock().unwrap();
-        compilation_cx.build_dir.as_ref().unwrap().clone()
-    };
-
-    let exec = RlsExecutor::new(compilation_cx,
+    let exec = RlsExecutor::new(compilation_cx.clone(),
                                 rls_config.clone(),
                                 inner_lock,
                                 vfs,
                                 compiler_messages,
                                 analyses);
+
+    // Hold the lock until we create `Workspace`, which is needed to create
+    // a build plan.
+    let mut compilation_cx_access = compilation_cx.lock().unwrap();
+    let build_dir = compilation_cx_access.build_dir.as_ref().unwrap().clone();
 
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)
@@ -105,9 +107,15 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
 
     let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
 
+    // Create and store a build plan for the created Workspace
+    let build_plan = create_plan(&ws).unwrap();
+    compilation_cx_access.build_plan = Some(build_plan);
+    // Release the lock on the compilation_cx
+    mem::drop(compilation_cx_access);
+
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
     // it on every relevant configuration change
-    let (opts, rustflags) = {
+    let (opts, rustflags, clear_env_rust_log) = {
         // We mustn't lock configuration for the whole build process
         let rls_config = rls_config.lock().unwrap();
 
@@ -134,7 +142,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
             }
         }
 
-        (opts, rustflags)
+        (opts, rustflags, rls_config.clear_env_rust_log)
     };
 
     let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)
@@ -154,7 +162,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     let mut env: HashMap<String, Option<OsString>> = HashMap::new();
     env.insert("RUSTFLAGS".to_owned(), Some(rustflags.into()));
 
-    if rls_config.lock().unwrap().clear_env_rust_log {
+    if clear_env_rust_log {
         env.insert("RUST_LOG".to_owned(), None);
     }
 
