@@ -1,0 +1,6 @@
+[package]
+name = "infer_bin"
+version = "0.1.0"
+authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
+
+[dependencies]

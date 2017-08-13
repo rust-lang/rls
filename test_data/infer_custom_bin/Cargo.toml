@@ -1,0 +1,10 @@
+[package]
+name = "infer_custom_bin"
+version = "0.1.0"
+authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
+
+[[bin]]
+name = "custom_bin"
+path = "src/custom_bin.rs"
+
+[dependencies]
