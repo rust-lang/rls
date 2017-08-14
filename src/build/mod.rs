@@ -28,6 +28,9 @@ use std::time::Duration;
 mod environment;
 mod cargo;
 mod rustc;
+pub mod plan;
+
+use self::plan::Plan as BuildPlan;
 
 /// Manages builds.
 ///
@@ -99,14 +102,17 @@ pub enum BuildPriority {
     Normal,
 }
 
-// Information passed to Cargo/rustc to build.
+/// Information passed to Cargo/rustc to build.
 #[derive(Debug)]
 struct CompilationContext {
-    // args and envs are saved from Cargo and passed to rustc.
+    /// args and envs are saved from Cargo and passed to rustc.
     args: Vec<String>,
     envs: HashMap<String, Option<OsString>>,
-    // The build directory is supplied by the client and passed to Cargo.
+    /// The build directory is supplied by the client and passed to Cargo.
     build_dir: Option<PathBuf>,
+    /// Build plan, which should know all the inter-package/target dependencies
+    /// along with args/envs. Only contains inter-package dep-graph for now.
+    build_plan: Option<BuildPlan>,
 }
 
 impl CompilationContext {
@@ -115,6 +121,7 @@ impl CompilationContext {
             args: vec![],
             envs: HashMap::new(),
             build_dir: None,
+            build_plan: None,
         }
     }
 }
