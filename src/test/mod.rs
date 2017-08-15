@@ -18,7 +18,7 @@ use env_logger;
 use serde_json;
 
 use analysis;
-use config::Config;
+use config::{Config, Inferrable};
 use server::{self as ls_server, ServerMessage, Request, Method};
 use jsonrpc_core;
 use vfs;
@@ -332,7 +332,7 @@ fn test_reformat_with_range() {
     ];
 
     let (mut server, results) = mock_server(messages);
-    
+
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -356,7 +356,7 @@ fn test_multiple_binaries() {
     ];
 
     let mut config = Config::default();
-    config.build_bin = Some("bin2".to_owned());
+    config.build_bin = Inferrable::Specified(Some("bin2".to_owned()));
     let (mut server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
@@ -418,6 +418,7 @@ fn test_bin_lib_project() {
 
     let mut config = Config::default();
     config.cfg_test = true;
+    config.build_bin = Inferrable::Specified(Some("bin_lib".into()));
     let (mut server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
@@ -437,7 +438,10 @@ fn test_bin_lib_project_no_cfg_test() {
         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let mut config = Config::default();
+    config.build_lib = Inferrable::Specified(false);
+    config.build_bin = Inferrable::Specified(Some("bin_lib_no_cfg_test".into()));
+    let (mut server, results) = mock_server_with_config(messages, config);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -470,6 +474,63 @@ fn test_simple_workspace() {
                                        // would require implementing something like `or_expect_contains`
                                        ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
                                        ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
+fn test_infer_lib() {
+    let (cache, _tc) = init_env("infer_lib");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+    ];
+
+    let (mut server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedLib`"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
+fn test_infer_bin() {
+    let (cache, _tc) = init_env("infer_bin");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+    ];
+
+    let (mut server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedBin`"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
+fn test_infer_custom_bin() {
+    let (cache, _tc) = init_env("infer_custom_bin");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+    ];
+
+    let (mut server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedCustomBin`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 

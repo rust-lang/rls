@@ -97,12 +97,12 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)
         .expect(&format!("Couldn't find a root manifest for cwd: {:?}", &build_dir));
     trace!("root manifest_path: {:?}", &manifest_path);
+    // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
+    let manifest_dir = manifest_path.parent().unwrap();
 
     let mut shell = Shell::from_write(Box::new(BufWriter(out.clone())));
     shell.set_verbosity(Verbosity::Quiet);
 
-    // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
-    let manifest_dir = manifest_path.parent().unwrap();
     let config = make_cargo_config(manifest_dir, shell);
 
     let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
@@ -128,7 +128,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         if !rls_config.workspace_mode {
             let cur_pkg_targets = ws.current().unwrap().targets();
 
-            if let Some(ref build_bin) = rls_config.build_bin {
+            if let &Some(ref build_bin) = rls_config.build_bin.as_ref() {
                 let mut bins = cur_pkg_targets.iter().filter(|x| x.is_bin());
                 if let None = bins.find(|x| x.name() == build_bin) {
                     warn!("cargo - couldn't find binary `{}` specified in `build_bin` configuration", build_bin);
@@ -329,7 +329,8 @@ impl Executor for RlsExecutor {
             // assume crate_type arg (i.e. in `cargo test` it isn't specified for --test targets)
             // and build test harness only for final crate type
             let crate_type = crate_type.expect("no crate-type in rustc command line");
-            let is_final_crate_type = crate_type == "bin" || (crate_type == "lib" && config.build_lib);
+            let build_lib = *config.build_lib.as_ref();
+            let is_final_crate_type = crate_type == "bin" || (crate_type == "lib" && build_lib);
 
             if config.cfg_test {
                 // FIXME(#351) allow passing --test to lib crate-type when building a dependency
@@ -448,10 +449,10 @@ impl CargoOptions {
         } else {
             // In single-crate mode we currently support only one crate target,
             // and if lib is set, then we ignore bin target config
-            let (lib, bin) = match config.build_lib {
+            let (lib, bin) = match *config.build_lib.as_ref() {
                 true => (true, vec![]),
                 false => {
-                    let bin = match config.build_bin {
+                    let bin = match *config.build_bin.as_ref() {
                         Some(ref bin) => vec![bin.clone()],
                         None => vec![],
                     };
@@ -485,7 +486,7 @@ fn prepare_cargo_rustflags(config: &Config) -> String {
     dedup_flags(&flags)
 }
 
-fn make_cargo_config(build_dir: &Path, shell: Shell) -> CargoConfig {
+pub fn make_cargo_config(build_dir: &Path, shell: Shell) -> CargoConfig {
     let config = CargoConfig::new(shell,
                                   // This is Cargo's cwd. We're using the actual cwd,
                                   // because Cargo will generate relative paths based
