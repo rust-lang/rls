@@ -616,22 +616,45 @@ impl ActionHandler {
     pub fn deglob<O: Output>(&self, id: usize, location: Location, out: O) {
         let t = thread::current();
         let span = ls_util::location_to_rls(location.clone());
-        let span = ignore_non_file_uri!(span, &location.uri, "deglob");
+        let mut span = ignore_non_file_uri!(span, &location.uri, "deglob");
 
         trace!("deglob {:?}", span);
 
         // Start by checking that the user has selected a glob import.
         if span.range.start() == span.range.end() {
-            out.failure_message(id, ErrorCode::InvalidParams, "Empty selection");
-            return;
+            // search for a glob in the line
+            let vfs = self.vfs.clone();
+            let line = match vfs.load_line(&span.file, span.range.row_start) {
+                Ok(l) => l,
+                Err(_) => {
+                    out.failure_message(id, ErrorCode::InvalidParams, "Could not retrieve line from VFS.");
+                    return;
+                }
+            };
+
+            // search for exactly one "::*;" in the line. This should work fine for formatted text, but
+            // multiple use statements could be in the same line, then it is not possible to find which
+            // one to deglob.
+            let matches: Vec<_> = line.char_indices().filter(|&(_, chr)| chr == '*').collect();
+            if matches.len() == 0 {
+                out.failure_message(id, ErrorCode::InvalidParams, "No glob in selection.");
+                return;
+            } else if matches.len() > 1 {
+                out.failure_message(id, ErrorCode::InvalidParams, "Multiple globs in selection.");
+                return;
+            }
+            let index = matches[0].0 as u32;
+            span.range.col_start = span::Column::new_zero_indexed(index);
+            span.range.col_end = span::Column::new_zero_indexed(index+1);
         }
 
         // Save-analysis exports the deglobbed version of a glob import as its type string.
         let vfs = self.vfs.clone();
         let analysis = self.analysis.clone();
         let out_clone = out.clone();
+        let span_ = span.clone();
         let rustw_handle = thread::spawn(move || {
-            match vfs.load_span(span.clone()) {
+            match vfs.load_span(span_.clone()) {
                 Ok(ref s) if s != "*" => {
                     out_clone.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
                     t.unpark();
@@ -646,7 +669,7 @@ impl ActionHandler {
                 _ => {}
             }
 
-            let ty = analysis.show_type(&span);
+            let ty = analysis.show_type(&span_);
             t.unpark();
 
             ty.map_err(|_| {
@@ -675,7 +698,7 @@ impl ActionHandler {
         let output = serde_json::to_string(
             &RequestMessage::new(out.provide_id(),
                                  "workspace/applyEdit".to_owned(),
-                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(location, deglob_str) })
+                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(ls_util::rls_to_location(&span), deglob_str) })
         ).unwrap();
         out.response(output);
 
