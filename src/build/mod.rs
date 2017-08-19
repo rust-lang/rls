@@ -114,7 +114,7 @@ struct CompilationContext {
     build_dir: Option<PathBuf>,
     /// Build plan, which should know all the inter-package/target dependencies
     /// along with args/envs. Only contains inter-package dep-graph for now.
-    build_plan: Option<BuildPlan>,
+    build_plan: BuildPlan
 }
 
 impl CompilationContext {
@@ -123,7 +123,7 @@ impl CompilationContext {
             args: vec![],
             envs: HashMap::new(),
             build_dir: None,
-            build_plan: None,
+            build_plan: BuildPlan::new(),
         }
     }
 }
