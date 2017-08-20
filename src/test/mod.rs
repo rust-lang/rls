@@ -204,7 +204,7 @@ fn test_borrow_error() {
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains(r#""message":"cannot borrow `x` as mutable more than once at a time""#),
+                                       ExpectedMessage::new(None).expect_contains(r#""message":"cannot borrow `x` as mutable more than once at a time\nsecond mutable borrow occurs here""#),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
