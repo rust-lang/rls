@@ -81,13 +81,6 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     // guarantee consistent environment variables.
     let (lock_guard, inner_lock) = env_lock.lock();
 
-    let exec = RlsExecutor::new(compilation_cx.clone(),
-                                rls_config.clone(),
-                                inner_lock,
-                                vfs,
-                                compiler_messages,
-                                analyses);
-
     // Hold the lock until we create `Workspace`, which is needed to create
     // a build plan.
     let mut compilation_cx_access = compilation_cx.lock().unwrap();
@@ -172,6 +165,14 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     let save_config = serde_json::to_string(&save_config).expect("could not serialise config");
     restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(save_config)));
 
+    let exec = RlsExecutor::new(&ws,
+                                compilation_cx.clone(),
+                                rls_config.clone(),
+                                inner_lock,
+                                vfs,
+                                compiler_messages,
+                                analyses);
+
     compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
 }
 
@@ -194,7 +195,8 @@ struct RlsExecutor {
 }
 
 impl RlsExecutor {
-    fn new(compilation_cx: Arc<Mutex<CompilationContext>>,
+    fn new(ws: &Workspace,
+           compilation_cx: Arc<Mutex<CompilationContext>>,
            config: Arc<Mutex<Config>>,
            env_lock: environment::InnerLock,
            vfs: Arc<Vfs>,
@@ -202,15 +204,27 @@ impl RlsExecutor {
            analyses: Arc<Mutex<Vec<Analysis>>>)
     -> RlsExecutor {
         let workspace_mode = config.lock().unwrap().workspace_mode;
+        let (cur_package_id, member_packages) = if workspace_mode {
+            let member_packages = ws.members()
+                                    .map(|x| x.package_id().clone())
+                                    .collect();
+            (None, member_packages)
+        } else {
+            let pkg_id = ws.current_opt().expect("No current package in Cargo")
+                           .package_id()
+                           .clone();
+            (Some(pkg_id), HashSet::new())
+        };
+
         RlsExecutor {
             compilation_cx,
-            cur_package_id: Mutex::new(None),
+            cur_package_id: Mutex::new(cur_package_id),
             config,
             env_lock,
             vfs,
             analyses,
             workspace_mode,
-            member_packages: Mutex::new(HashSet::new()),
+            member_packages: Mutex::new(member_packages),
             compiler_messages,
         }
     }
@@ -226,21 +240,7 @@ impl RlsExecutor {
 }
 
 impl Executor for RlsExecutor {
-    fn init(&self, cx: &Context) {
-        if self.workspace_mode {
-            *self.member_packages.lock().unwrap() = cx.ws
-                                                      .members()
-                                                      .map(|x| x.package_id().clone())
-                                                      .collect();
-        } else {
-            let mut cur_package_id = self.cur_package_id.lock().unwrap();
-            *cur_package_id = Some(cx.ws
-                                     .current_opt()
-                                     .expect("No current package in Cargo")
-                                     .package_id()
-                                     .clone());
-        };
-    }
+    fn init(&self, _cx: &Context) { }
 
     fn force_rebuild(&self, unit: &Unit) -> bool {
         // TODO: Currently workspace_mode doesn't use rustc, so it doesn't
