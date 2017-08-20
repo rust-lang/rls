@@ -504,19 +504,18 @@ impl ActionHandler {
         match compiler_result {
             Ok(Ok(r)) => {
                 let result = vec![ls_util::rls_to_location(&r)];
-                trace!("goto_def TO: {:?}", result);
+                trace!("goto_def (compiler): {:?}", result);
                 out.success(id, ResponseData::Locations(result));
             }
             _ => {
-                info!("goto_def - falling back to Racer");
                 match racer_handle {
                     Some(racer_handle) => match racer_handle.join() {
                         Ok(Some(r)) => {
-                            trace!("goto_def: {:?}", r);
+                            trace!("goto_def (Racer): {:?}", r);
                             out.success(id, ResponseData::Locations(vec![r]));
                         }
                         Ok(None) => {
-                            trace!("goto_def: None");
+                            trace!("goto_def (Racer): None");
                             out.success(id, ResponseData::Locations(vec![]));
                         }
                         _ => {
