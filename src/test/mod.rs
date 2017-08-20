@@ -209,6 +209,25 @@ fn test_borrow_error() {
 }
 
 #[test]
+fn test_mismatched_types() {
+    let (cache, _tc) = init_env("mismatched_types");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let messages = vec![
+        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+    ];
+
+    let (mut server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains(r#""message":"mismatched types\nexpected u32, found &str""#),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
 fn test_highlight() {
     let (mut cache, _tc) = init_env("highlight");
 
