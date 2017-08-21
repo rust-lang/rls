@@ -11,7 +11,7 @@ Here is the list of known [issues](https://github.com/rust-lang-nursery/rls/issu
 These are [good issues to start on](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aopen+is%3Aissue+label%3Aeasy).
 
 We're happy to help however we can. The best way to get help is either to
-leave a comment on an issue in this repo, or to ping us (nrc or jntrnr) in #rust-tools
+leave a comment on an issue in this repo, or to ping us (nrc) in #rust-dev-tools
 on IRC.
 
 We'd love for existing and new tools to use the RLS. If that sounds interesting

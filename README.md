@@ -146,23 +146,7 @@ Currently we accept the following options:
 
 ## Troubleshooting
 
-If you get an error like `error while loading shared libraries` while starting
-up the RLS, you should try the following:
-
-On Linux:
-
-```
-export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib:$LD_LIBRARY_PATH
-```
-
-On MacOS:
-
-```
-export DYLD_LIBRARY_PATH=$(rustc --print sysroot)/lib:$DYLD_LIBRARY_PATH
-```
-
-(This should not happen if you are using Rustup, only if building and running
-from source).
+For tips on debugging and troubleshooting, see [debugging.md](debugging.md).
 
 ## Contributing
 
