@@ -30,11 +30,29 @@ impl Plan {
             dep_graph: HashMap::new()
         }
     }
-    /// Emplace a given `Unit`, along with its dependencies (recursively) into
-    /// dependency graph.
+
+    /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
+    /// into dependency graph
+    #[allow(dead_code)]
     pub fn emplace_dep(&mut self, unit: &Unit, cx: &Context) -> CargoResult<()> {
+        let null_filter = |_unit: &Unit| { true };
+        self.emplace_dep_with_filter(unit, cx, &null_filter)
+    }
+
+    /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
+    /// into dependency graph as long as the passed `Unit` isn't filtered out by
+    /// the `filter` closure.
+    pub fn emplace_dep_with_filter<Filter>(&mut self,
+                                           unit: &Unit,
+                                           cx: &Context,
+                                           filter: &Filter) -> CargoResult<()>
+                                           where Filter: Fn(&Unit) -> bool {
+        // We might not want certain deps to be added transitively (e.g. when
+        // creating only a sub-dep-graph, limiting the scope to the workspace)
+        if filter(unit) == false { return Ok(()); }
+
         let key: OwnedUnit = unit.into();
-        // Only process units that are not yet in the dep graph
+        // Process only those units, which are not yet in the dep graph
         if let None = self.dep_graph.get(&key) {
             let units = cx.dep_targets(unit)?;
             let dep_keys: Vec<OwnedUnit> = units
@@ -46,9 +64,8 @@ impl Plan {
             // TODO: Should we be careful about blowing the stack and do it
             // iteratively instead?
             for unit in units {
-                self.emplace_dep(&unit, cx)?;
+                self.emplace_dep_with_filter(&unit, cx, filter)?;
             }
-
         }
         Ok(())
     }

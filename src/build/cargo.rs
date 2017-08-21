@@ -246,7 +246,9 @@ impl Executor for RlsExecutor {
     fn init(&self, cx: &Context, unit: &Unit) {
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
         let plan = &mut compilation_cx.build_plan;
-        if let Err(err) = plan.emplace_dep(&unit, &cx) {
+        let only_primary = |unit: &Unit| self.is_primary_crate(unit.pkg.package_id());
+
+        if let Err(err) = plan.emplace_dep_with_filter(&unit, &cx, &only_primary) {
             error!("{:?}", err);
         }
     }
