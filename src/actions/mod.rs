@@ -121,8 +121,10 @@ impl ActionHandler {
         const WATCH_ID: &'static str = "rls-watch";
         // TODO we should watch for workspace Cargo.tomls too
         let pattern = format!("{}/Cargo{{.toml,.lock}}", self.current_project.to_str().unwrap());
+        let target_pattern = format!("{}/target", self.current_project.to_str().unwrap());
+        // For target, we only watch if it gets deleted.
         let options = json!({
-            "watchers": [{ "globPattern": pattern }]
+            "watchers": [{ "globPattern": pattern }, { "globPattern": target_pattern, "kind": 4 }]
         });
         let output = serde_json::to_string(
             &RequestMessage::new(out.provide_id(),
