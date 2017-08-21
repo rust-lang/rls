@@ -9,128 +9,83 @@
 // except according to those terms.
 
 use std::collections::HashMap;
+use std::fmt;
 
-use cargo::core::{Package as CargoPackage, PackageId, Resolve, Target, Workspace};
-use cargo::ops::{self, OutputMetadataOptions, Packages};
-use cargo::util::CargoResult;
-
-/// Metadata version copied from `cargo_output_metadata.rs`. TODO: Remove
-/// when Cargo API will expose more information regarding output metadata.
-const VERSION: u32 = 1;
+use cargo::core::{PackageId, Profile, Target};
+use cargo::ops::{Kind, Unit, Context};
+use cargo::util::{CargoResult};
 
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
 /// **TODO:** Use it to schedule an analysis build instead of relying on Cargo
 /// invocations.
-#[derive(Debug)]
+pub type DependencyGraph = HashMap<OwnedUnit, Vec<OwnedUnit>>;
 pub struct Plan {
-    // TODO: Implement/add inter-(package) target dep queue
-    // with args/envs per-target/package
-    pub metadata: Metadata
+    pub dep_graph: DependencyGraph
 }
 
-pub fn create_plan(ws: &Workspace) -> CargoResult<Plan> {
-    // TODO: Fill appropriately
-    let options = OutputMetadataOptions {
-        features: vec![],
-        no_default_features: false,
-        all_features: false,
-        no_deps: false,
-        version: VERSION,
-    };
+impl Plan {
+    pub fn new() -> Plan {
+        Plan {
+            dep_graph: HashMap::new()
+        }
+    }
+    /// Emplace a given `Unit`, along with its dependencies (recursively) into
+    /// dependency graph.
+    pub fn emplace_dep(&mut self, unit: &Unit, cx: &Context) -> CargoResult<()> {
+        let key: OwnedUnit = unit.into();
+        // Only process units that are not yet in the dep graph
+        if let None = self.dep_graph.get(&key) {
+            let units = cx.dep_targets(unit)?;
+            let dep_keys: Vec<OwnedUnit> = units
+                                          .iter()
+                                          .map(|x| x.into())
+                                          .collect();
+            self.dep_graph.insert(key, dep_keys);
+            // Recursively process other remaining dependencies.
+            // TODO: Should we be careful about blowing the stack and do it
+            // iteratively instead?
+            for unit in units {
+                self.emplace_dep(&unit, cx)?;
+            }
 
-    let metadata = metadata_full(ws, &options)?;
-    Ok(Plan { metadata: metadata.into() })
+        }
+        Ok(())
+    }
+
+    pub fn clear(&mut self) {
+        self.dep_graph.clear()
+    }
 }
 
-/// Targets and features for a given package in the dep graph.
-#[derive(Debug)]
-pub struct Package {
+impl fmt::Debug for Plan {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (key, deps) in &self.dep_graph {
+            f.write_str(&format!("{:?}\n", key))?;
+            for dep in deps {
+                f.write_str(&format!("- {:?}\n", dep))?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug)]
+/// An owned version of `cargo::core::Unit`.
+pub struct OwnedUnit {
     pub id: PackageId,
-    pub targets: Vec<Target>,
-    pub features: HashMap<String, Vec<String>>,
+    pub target: Target,
+    pub profile: Profile,
+    pub kind: Kind
 }
 
-impl From<CargoPackage> for Package {
-    fn from(pkg: CargoPackage) -> Package {
-        Package {
-            id: pkg.package_id().clone(),
-            targets: pkg.targets().iter().map(|x| x.clone()).collect(),
-            features: pkg.summary().features().clone()
+impl<'a> From<&'a Unit<'a>> for OwnedUnit {
+    fn from(unit: &Unit<'a>) -> OwnedUnit {
+        OwnedUnit {
+            id: unit.pkg.package_id().to_owned(),
+            target: unit.target.clone(),
+            profile: unit.profile.clone(),
+            kind: unit.kind
         }
     }
-}
-
-/// Provides inter-package dependency graph and available packages' info in the
-/// workspace scope, along with workspace members and root package ids.
-#[derive(Debug)]
-pub struct Metadata {
-    packages: HashMap<PackageId, Package>,
-    resolve: Resolve,
-    members: Vec<PackageId>,
-    root: Option<PackageId>
-}
-
-impl From<ExportInfo> for Metadata {
-    fn from(info: ExportInfo) -> Metadata {
-        // ExportInfo with deps information will always have `Some` resolve
-        let MetadataResolve { resolve, root } = info.resolve.unwrap();
-
-        let packages: HashMap<PackageId, Package> = info.packages
-            .iter()
-            .map(|x| x.to_owned().into())
-            .map(|pkg: Package| (pkg.id.clone(), pkg)) // TODO: Can I borrow key from member of value?
-            .collect();
-
-        Metadata {
-            packages,
-            resolve,
-            members: info.workspace_members,
-            root,
-        }
-    }
-}
-
-// TODO: Copied for now from Cargo, since it's not fully exposed in the API.
-// Remove when appropriate members are exposed.
-#[derive(Debug)]
-pub struct ExportInfo {
-    pub packages: Vec<CargoPackage>,
-    pub workspace_members: Vec<PackageId>,
-    pub resolve: Option<MetadataResolve>,
-    pub target_directory: String,
-    pub version: u32,
-}
-
-#[derive(Debug)]
-pub struct MetadataResolve {
-    pub resolve: Resolve,
-    pub root: Option<PackageId>,
-}
-
-fn metadata_full(ws: &Workspace,
-                 opt: &OutputMetadataOptions) -> CargoResult<ExportInfo> {
-    let specs = Packages::All.into_package_id_specs(ws)?;
-    let deps = ops::resolve_ws_precisely(ws,
-                                         None,
-                                         &opt.features,
-                                         opt.all_features,
-                                         opt.no_default_features,
-                                         &specs)?;
-    let (packages, resolve) = deps;
-
-    let packages = packages.package_ids()
-                           .map(|i| packages.get(i).map(|p| p.clone()))
-                           .collect::<CargoResult<Vec<_>>>()?;
-
-    Ok(ExportInfo {
-        packages: packages,
-        workspace_members: ws.members().map(|pkg| pkg.package_id().clone()).collect(),
-        resolve: Some(MetadataResolve{
-            resolve: resolve,
-            root: ws.current_opt().map(|pkg| pkg.package_id().clone()),
-        }),
-        target_directory: ws.target_dir().display().to_string(),
-        version: VERSION,
-    })
 }

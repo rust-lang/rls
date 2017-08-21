@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use cargo::core::{PackageId, Shell, Workspace, Verbosity};
+use cargo::core::{PackageId, Shell, Target, Workspace, Verbosity};
 use cargo::ops::{compile_with_exec, Executor, Context, Packages, CompileOptions, CompileMode, CompileFilter, Unit};
 use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_paths, ConfigValue, CargoResult};
 use cargo::util::errors::{CargoErrorKind, process_error};
@@ -17,7 +17,6 @@ use serde_json;
 use data::Analysis;
 use build::{Internals, BufWriter, BuildResult, CompilationContext};
 use build::environment::{self, Environment, EnvironmentLock};
-use super::plan::create_plan;
 use config::Config;
 use vfs::Vfs;
 
@@ -25,7 +24,6 @@ use std::collections::{HashMap, HashSet, BTreeMap};
 use std::env;
 use std::ffi::OsString;
 use std::fs::{read_dir, remove_file};
-use std::mem;
 use std::path::{Path};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -81,11 +79,14 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     // guarantee consistent environment variables.
     let (lock_guard, inner_lock) = env_lock.lock();
 
-    // Hold the lock until we create `Workspace`, which is needed to create
-    // a build plan.
-    let mut compilation_cx_access = compilation_cx.lock().unwrap();
-    let build_dir = compilation_cx_access.build_dir.as_ref().unwrap().clone();
+    let build_dir = {
+        let mut compilation_cx = compilation_cx.lock().unwrap();
+        // Since Cargo build routine will try to regenerate the unit dep graph,
+        // we need to clear the existing dep graph.
+        compilation_cx.build_plan.clear();
 
+        compilation_cx.build_dir.as_ref().unwrap().clone()
+    };
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)
         .expect(&format!("Couldn't find a root manifest for cwd: {:?}", &build_dir));
@@ -99,12 +100,6 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     let config = make_cargo_config(manifest_dir, shell);
 
     let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
-
-    // Create and store a build plan for the created Workspace
-    let build_plan = create_plan(&ws).unwrap();
-    compilation_cx_access.build_plan = Some(build_plan);
-    // Release the lock on the compilation_cx
-    mem::drop(compilation_cx_access);
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
     // it on every relevant configuration change
@@ -147,7 +142,8 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         filter: CompileFilter::new(opts.lib,
                                 &opts.bin, opts.bins,
                                 // TODO: Support more crate target types
-                                &[], false, &[], false, &[], false),
+                                &[], false, &[], false, &[], false,
+                                false),
         .. CompileOptions::default(&config, CompileMode::Check)
     };
 
@@ -174,6 +170,9 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
                                 analyses);
 
     compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
+
+    trace!("Created build plan after Cargo compilation routine: {:?}",
+        compilation_cx.lock().unwrap().build_plan);
 }
 
 struct RlsExecutor {
@@ -240,7 +239,17 @@ impl RlsExecutor {
 }
 
 impl Executor for RlsExecutor {
-    fn init(&self, _cx: &Context) { }
+    /// Called after a rustc process invocation is prepared up-front for a given
+    /// unit of work (may still be modified for runtime-known dependencies, when
+    /// the work is actually executed). This is called even for a target that
+    /// is fresh and won't be compiled.
+    fn init(&self, cx: &Context, unit: &Unit) {
+        let mut compilation_cx = self.compilation_cx.lock().unwrap();
+        let plan = &mut compilation_cx.build_plan;
+        if let Err(err) = plan.emplace_dep(&unit, &cx) {
+            error!("{:?}", err);
+        }
+    }
 
     fn force_rebuild(&self, unit: &Unit) -> bool {
         // TODO: Currently workspace_mode doesn't use rustc, so it doesn't
@@ -260,7 +269,7 @@ impl Executor for RlsExecutor {
         self.is_primary_crate(id)
     }
 
-    fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId) -> CargoResult<()> {
+    fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId, _target: &Target) -> CargoResult<()> {
         // Delete any stale data. We try and remove any json files with
         // the same crate name as Cargo would emit. This includes files
         // with the same crate name but different hashes, e.g., those
