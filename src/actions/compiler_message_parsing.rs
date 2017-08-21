@@ -105,7 +105,13 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
             None => String::new(),
         })),
         source: Some("rustc".into()),
-        message: message.message,
+        message: {
+            if let Some(label) = primary.label {
+                format!("{}\n{}", message.message, label)
+            } else {
+                message.message
+            }
+        },
     };
 
     Ok(FileDiagnostic {
