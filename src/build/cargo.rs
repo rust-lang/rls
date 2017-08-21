@@ -10,7 +10,7 @@
 
 use cargo::core::{PackageId, Shell, Target, Workspace, Verbosity};
 use cargo::ops::{compile_with_exec, Executor, Context, Packages, CompileOptions, CompileMode, CompileFilter, Unit};
-use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_paths, ConfigValue, CargoResult};
+use cargo::util::{Config as CargoConfig, process_builder, ProcessBuilder, homedir, important_paths, ConfigValue, CargoResult};
 use cargo::util::errors::{CargoErrorKind, process_error};
 use serde_json;
 
@@ -271,7 +271,7 @@ impl Executor for RlsExecutor {
         self.is_primary_crate(id)
     }
 
-    fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId, _target: &Target) -> CargoResult<()> {
+    fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target) -> CargoResult<()> {
         // Delete any stale data. We try and remove any json files with
         // the same crate name as Cargo would emit. This includes files
         // with the same crate name but different hashes, e.g., those
@@ -384,6 +384,24 @@ impl Executor for RlsExecutor {
             if let Some(cwd) = cargo_cmd.get_cwd() {
                 cmd.current_dir(cwd);
             }
+        }
+
+        // Cache executed command for the build plan
+        {
+            let mut cx = self.compilation_cx.lock().unwrap();
+
+            let mut store_cmd = process_builder::process(&rustc_exe);
+            store_cmd.args(&args.iter().map(OsString::from).collect::<Vec<_>>());
+            for (k, v) in cargo_cmd.get_envs().clone() {
+                if let Some(v) = v {
+                    store_cmd.env(&k, v);
+                }
+            }
+            if let Some(cwd) = cargo_cmd.get_cwd() {
+                cmd.current_dir(cwd);
+            }
+
+            cx.build_plan.cache_compiler_job(id, target, &store_cmd);
         }
 
         // Prepare modified cargo-generated args/envs for future rustc calls

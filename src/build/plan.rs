@@ -11,24 +11,37 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use cargo::core::{PackageId, Profile, Target};
+use cargo::core::{PackageId, Profile, Target, TargetKind};
 use cargo::ops::{Kind, Unit, Context};
-use cargo::util::{CargoResult};
+use cargo::util::{CargoResult, ProcessBuilder};
 
+pub type DependencyGraph = HashMap<OwnedUnit, Vec<OwnedUnit>>;
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
 /// **TODO:** Use it to schedule an analysis build instead of relying on Cargo
 /// invocations.
-pub type DependencyGraph = HashMap<OwnedUnit, Vec<OwnedUnit>>;
 pub struct Plan {
-    pub dep_graph: DependencyGraph
+    pub dep_graph: DependencyGraph,
+    /// We don't make a distinction between Units with different Profiles,
+    /// as we're practically interested in bin, lib and (built, not run)
+    /// build scripts for each package, because for these we can run `rustc` job
+    pub compiler_jobs: HashMap<(PackageId, TargetKind), ProcessBuilder>,
 }
 
 impl Plan {
     pub fn new() -> Plan {
         Plan {
-            dep_graph: HashMap::new()
+            dep_graph: HashMap::new(),
+            compiler_jobs: HashMap::new(),
         }
+    }
+
+
+    /// Cache a given compiler invocation in `ProcessBuilder` for a given `PackageId`
+    /// and `TargetKind` in `Target`, to be used when processing cached  build plan
+    pub fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, cmd: &ProcessBuilder) {
+        let pkg_key = (id.clone(), target.kind().clone());
+        self.compiler_jobs.insert(pkg_key, cmd.clone());
     }
 
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
@@ -71,18 +84,21 @@ impl Plan {
     }
 
     pub fn clear(&mut self) {
-        self.dep_graph.clear()
+        self.dep_graph.clear();
+        self.compiler_jobs.clear();
     }
 }
 
 impl fmt::Debug for Plan {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Dep graph:\n")?;
         for (key, deps) in &self.dep_graph {
             f.write_str(&format!("{:?}\n", key))?;
             for dep in deps {
                 f.write_str(&format!("- {:?}\n", dep))?;
             }
         }
+        f.write_str(&format!("Compiler jobs: {:?}\n", self.compiler_jobs))?;
         Ok(())
     }
 }
