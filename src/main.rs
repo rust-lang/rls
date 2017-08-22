@@ -23,9 +23,10 @@ extern crate lazy_static;
 extern crate log;
 extern crate racer;
 extern crate rls_analysis as analysis;
-extern crate rls_vfs as vfs;
-extern crate rls_span as span;
 extern crate rls_data as data;
+extern crate rls_rustc as rustc_shim;
+extern crate rls_span as span;
+extern crate rls_vfs as vfs;
 extern crate rustfmt_nightly as rustfmt;
 extern crate serde;
 #[macro_use]
@@ -39,6 +40,7 @@ extern crate url;
 extern crate url_serde;
 extern crate jsonrpc_core;
 
+use std::env;
 use std::sync::Arc;
 
 mod actions;
@@ -59,10 +61,16 @@ const CRATE_BLACKLIST: [&'static str; 10] = [
     "serde_json", "librustc_serialize", "libunicode_segmentation",
 ];
 
+const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
+
 type Span = span::Span<span::ZeroIndexed>;
 
 pub fn main() {
     env_logger::init().unwrap();
+
+    if env::var(RUSTC_SHIM_ENV_VAR_NAME).map(|v| v != "0").unwrap_or(false) {
+        rustc_shim::run();
+    }
 
     if let Some(first_arg) = ::std::env::args().skip(1).next() {
         match first_arg.as_str() {
