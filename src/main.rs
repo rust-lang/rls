@@ -88,8 +88,7 @@ pub fn main() {
 }
 
 fn version() -> &'static str {
-    // FIXME when we have non-nightly channels, we shouldn't hardwire the "nightly" string here.
-    concat!(env!("CARGO_PKG_VERSION"), "-nightly", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
+    concat!(env!("CARGO_PKG_VERSION"), "-", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
 }
 fn help() -> &'static str {
     r#" 
