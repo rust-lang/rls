@@ -451,31 +451,32 @@ fn test_bin_lib_project_no_cfg_test() {
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
-#[test]
-fn test_simple_workspace() {
-    let (cache, _tc) = init_env("simple_workspace");
+// FIXME(#455) reinstate this test
+// #[test]
+// fn test_simple_workspace() {
+//     let (cache, _tc) = init_env("simple_workspace");
 
-    let root_path = cache.abs_path(Path::new("."));
+//     let root_path = cache.abs_path(Path::new("."));
 
-    let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-    ];
+//     let messages = vec![
+//         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+//     ];
 
-    let mut config = Config::default();
-    config.workspace_mode = true;
-    let (mut server, results) = mock_server_with_config(messages, config);
-    // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(&mut server),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       // TODO: Ideally we should check for message contents for different crates/targets,
-                                       // however order of received messages is non-deterministic and this
-                                       // would require implementing something like `or_expect_contains`
-                                       ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
-                                       ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
-}
+//     let mut config = Config::default();
+//     config.workspace_mode = true;
+//     let (mut server, results) = mock_server_with_config(messages, config);
+//     // Initialise and build.
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+//                                        // TODO: Ideally we should check for message contents for different crates/targets,
+//                                        // however order of received messages is non-deterministic and this
+//                                        // would require implementing something like `or_expect_contains`
+//                                        ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
+//                                        ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+// }
 
 #[test]
 fn test_infer_lib() {
