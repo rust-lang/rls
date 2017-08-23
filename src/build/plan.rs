@@ -26,6 +26,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::path::Path;
 
 use cargo::core::{PackageId, Profile, Target, TargetKind};
 use cargo::ops::{Kind, Unit, Context};
@@ -124,6 +125,100 @@ impl Plan {
         }
         Ok(())
     }
+
+    /// TODO: Improve detecting dirty crate targets for a set of dirty file paths.
+    /// This uses a lousy heuristic of checking path prefix for a given crate
+    /// target to determine whether a given unit (crate target) is dirty. This
+    /// can easily backfire, e.g. when build script is under src/. Any change
+    /// to a file under src/ would imply the build script is always dirty, so we
+    /// never do work and always offload to Cargo in such case.
+    /// Because of that, build scripts are checked separately and only other
+    /// crate targets are checked with path prefixes.
+    fn fetch_dirty_units<T: AsRef<Path> + fmt::Debug>(&self, files: &[T]) -> HashSet<UnitKey> {
+        let mut result = HashSet::new();
+
+        let build_scripts: HashMap<&Path, UnitKey> = self.units.iter()
+            .filter(|&(&(_, ref kind), _)| *kind == TargetKind::CustomBuild)
+            .map(|(key, ref unit)| (unit.target.src_path(), key.clone())).collect();
+        let other_targets: HashMap<UnitKey, &Path> = self.units.iter()
+            .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
+            .map(|(key, ref unit)| (key.clone(), unit.target.src_path().parent().unwrap())).collect();
+
+        for modified in files {
+            if let Some(unit) = build_scripts.get(modified.as_ref()) {
+                result.insert(unit.clone());
+            } else {
+                // It's not a build script, so we can check for path prefix now
+                for (unit, src_dir) in &other_targets {
+                    if modified.as_ref().starts_with(src_dir) {
+                        trace!("Adding {:?}, as a modified file {:?} starts with {:?}", &unit, modified, src_dir);
+                        result.insert(unit.clone());
+                    }
+                }
+            }
+        }
+        result
+    }
+
+    /// For a given set of select dirty units, returns a set of all the
+    /// dependencies that has to be rebuilt transitively.
+    fn transitive_dirty_units(&self, dirties: &HashSet<UnitKey>) -> HashSet<UnitKey> {
+        let mut transitive = dirties.clone();
+        // Walk through a rev dep graph using a stack of nodes to collect
+        // transitively every dirty node
+        let mut to_process: Vec<_> = dirties.iter().cloned().collect();
+        while let Some(top) = to_process.pop() {
+            if transitive.get(&top).is_some() { continue; }
+            else { transitive.insert(top.clone()); }
+
+            // Process every dirty rev dep of the processed node
+            let dirty_rev_deps = self.rev_dep_graph.get(&top).unwrap()
+                .iter().filter(|dep| dirties.contains(dep));
+            for rev_dep in dirty_rev_deps {
+                to_process.push(rev_dep.clone());
+            }
+        }
+        transitive
+    }
+
+    /// Creates a dirty reverse dependency graph using a set of given dirty units.
+    fn dirty_rev_dep_graph(&self, dirties: &HashSet<UnitKey>) -> HashMap<UnitKey, HashSet<UnitKey>> {
+        let dirties = self.transitive_dirty_units(dirties);
+        trace!("transitive_dirty_units: {:?}", dirties);
+
+        self.rev_dep_graph.iter()
+            // Remove nodes that are not dirty
+            .filter(|&(unit, _)| dirties.contains(&unit))
+            // Retain only dirty dependencies of the ones that are dirty
+            .map(|(k, deps)| (k.clone(), deps.iter().cloned().filter(|d| dirties.contains(&d)).collect()))
+            .collect()
+    }
+
+    pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
+        let dirties = self.fetch_dirty_units(modified);
+        trace!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties);
+
+        if dirties.iter().any(|&(_, ref kind)| *kind == TargetKind::CustomBuild) {
+            WorkStatus::NeedsCargo
+        } else {
+            let graph = self.dirty_rev_dep_graph(&dirties);
+            trace!("Constructed dirty rev dep graph: {:?}", graph);
+
+            // TODO: Then sort topologically the deps
+            // TODO: Then map those with a ProcessBuilder
+
+            WorkStatus::Execute(JobQueue { })
+        }
+    }
+}
+
+pub enum WorkStatus {
+    NeedsCargo,
+    Execute(JobQueue)
+}
+
+pub struct JobQueue {
+
 }
 
 fn key_from_unit(unit: &Unit) -> UnitKey {
