@@ -61,6 +61,10 @@ impl Plan {
         *self = Plan::new();
     }
 
+    pub fn is_ready(&self) -> bool {
+        self.compiler_jobs.is_empty() == false
+    }
+
     /// Cache a given compiler invocation in `ProcessBuilder` for a given
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
@@ -194,6 +198,36 @@ impl Plan {
             .collect()
     }
 
+    /// Returns a topological ordering of a connected DAG of rev deps. The
+    /// output is a stack of units that can be linearly rebuilt, starting from
+    /// the last element.
+    fn topological_sort(&self, dirties: &HashMap<UnitKey, HashSet<UnitKey>>) -> Vec<UnitKey> {
+        let mut visited: HashSet<UnitKey> = HashSet::new();
+        let mut output = vec![];
+
+        for (k, _) in dirties {
+            if !visited.contains(&k) {
+                dfs(k, &self.rev_dep_graph, &mut visited, &mut output);
+            }
+        }
+
+        return output;
+
+        // Process graph depth-first recursively. A node needs to be pushed
+        // after processing every other before to ensure topological ordering.
+        fn dfs(unit: &UnitKey, graph: &HashMap<UnitKey, HashSet<UnitKey>>,
+               visited: &mut HashSet<UnitKey>, output: &mut Vec<UnitKey>) {
+            if visited.contains(&unit) { return; }
+            else {
+                visited.insert(unit.clone());
+                for neighbour in graph.get(&unit).unwrap() {
+                    dfs(neighbour, graph, visited, output);
+                }
+                output.push(unit.clone());
+            }
+        }
+    }
+
     pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
         let dirties = self.fetch_dirty_units(modified);
         trace!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties);
@@ -204,10 +238,13 @@ impl Plan {
             let graph = self.dirty_rev_dep_graph(&dirties);
             trace!("Constructed dirty rev dep graph: {:?}", graph);
 
-            // TODO: Then sort topologically the deps
-            // TODO: Then map those with a ProcessBuilder
+            let queue = self.topological_sort(&graph);
+            trace!("Topologically sorted dirty graph: {:?}", queue);
+            let jobs = queue.iter()
+                .map(|x| self.compiler_jobs.get(x).unwrap().clone())
+                .collect();
 
-            WorkStatus::Execute(JobQueue { })
+            WorkStatus::Execute(JobQueue(jobs))
         }
     }
 }
@@ -217,8 +254,12 @@ pub enum WorkStatus {
     Execute(JobQueue)
 }
 
-pub struct JobQueue {
+pub struct JobQueue(Vec<ProcessBuilder>);
 
+impl JobQueue {
+    pub fn dequeue(&mut self) -> Option<ProcessBuilder> {
+        self.0.pop()
+    }
 }
 
 fn key_from_unit(unit: &Unit) -> UnitKey {
