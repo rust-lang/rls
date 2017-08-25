@@ -30,9 +30,9 @@ use std::time::Duration;
 mod environment;
 mod cargo;
 mod rustc;
-pub mod plan;
+mod plan;
 
-use self::plan::Plan as BuildPlan;
+use self::plan::{Plan as BuildPlan, WorkStatus};
 
 /// Manages builds.
 ///
@@ -401,14 +401,27 @@ impl Internals {
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
         let workspace_mode = self.config.lock().unwrap().workspace_mode;
 
-        if workspace_mode || needs_to_run_cargo {
-            let result = cargo::cargo(self);
+        if workspace_mode {
+            // If the build plan has already been cached, use it, unless Cargo
+            // has to be specifically rerun (e.g. when build scripts changed)
+            let work = {
+                let cx = self.compilation_cx.lock().unwrap();
+                let modified: Vec<_> = self.vfs.get_changes().keys().cloned().collect();
 
-            match result {
-                BuildResult::Err => return BuildResult::Err,
-                _ if workspace_mode => return result,
-                _ => {},
+                cx.build_plan.prepare_work(&modified)
             };
+            return match work {
+                // In workspace_mode, cargo performs the full build and returns
+                // appropriate diagnostics/analysis data
+                WorkStatus::NeedsCargo => cargo::cargo(self),
+                WorkStatus::Execute(job_queue) => job_queue.execute(self),
+            };
+        // In single package mode Cargo needs to be run to cache args/envs for
+        // future rustc calls
+        } else if needs_to_run_cargo {
+            if let BuildResult::Err = cargo::cargo(self) {
+                return BuildResult::Err;
+            }
         }
 
         let compile_cx = self.compilation_cx.lock().unwrap();

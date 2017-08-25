@@ -227,6 +227,8 @@ impl RlsExecutor {
         }
     }
 
+    /// Returns wheter a given package is a primary one (every member of the
+    /// workspace is considered as such).
     fn is_primary_crate(&self, id: &PackageId) -> bool {
         if self.workspace_mode {
             self.member_packages.lock().unwrap().contains(id)
@@ -253,13 +255,9 @@ impl Executor for RlsExecutor {
     }
 
     fn force_rebuild(&self, unit: &Unit) -> bool {
-        // TODO: Currently workspace_mode doesn't use rustc, so it doesn't
-        // need args. When we start using rustc, we might consider doing
-        // force_rebuild to retrieve args for given package if they're stale/missing
-        if self.workspace_mode {
-            return false;
-        }
-
+        // In workspace_mode we need to force rebuild every package in the
+        // workspace, even if it's not dirty at a time, to cache compiler
+        // invocations in the build plan.
         // We only do a cargo build if we want to force rebuild the last
         // crate (e.g., because some args changed). Therefore we should
         // always force rebuild the primary crate.

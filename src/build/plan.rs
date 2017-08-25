@@ -32,6 +32,8 @@ use cargo::core::{PackageId, Profile, Target, TargetKind};
 use cargo::ops::{Kind, Unit, Context};
 use cargo::util::{CargoResult, ProcessBuilder};
 
+use super::{BuildResult, Internals};
+
 /// Main key type by which `Unit`s will be distinguished in the build plan.
 pub type UnitKey = (PackageId, TargetKind);
 /// Holds the information how exactly the build will be performed for a given
@@ -61,6 +63,8 @@ impl Plan {
         *self = Plan::new();
     }
 
+    /// Returns whether a build plan has cached compiler invocations and dep
+    /// graph so it's at all able to return a job queue via `prepare_work`.
     pub fn is_ready(&self) -> bool {
         self.compiler_jobs.is_empty() == false
     }
@@ -229,6 +233,8 @@ impl Plan {
     }
 
     pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
+        if self.is_ready() == false { return WorkStatus::NeedsCargo; }
+
         let dirties = self.fetch_dirty_units(modified);
         trace!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties);
 
@@ -240,11 +246,15 @@ impl Plan {
 
             let queue = self.topological_sort(&graph);
             trace!("Topologically sorted dirty graph: {:?}", queue);
-            let jobs = queue.iter()
+            let jobs: Vec<_> = queue.iter()
                 .map(|x| self.compiler_jobs.get(x).unwrap().clone())
                 .collect();
 
-            WorkStatus::Execute(JobQueue(jobs))
+            if jobs.is_empty() {
+                WorkStatus::NeedsCargo
+            } else {
+                WorkStatus::Execute(JobQueue(jobs))
+            }
         }
     }
 }
@@ -259,6 +269,45 @@ pub struct JobQueue(Vec<ProcessBuilder>);
 impl JobQueue {
     pub fn dequeue(&mut self) -> Option<ProcessBuilder> {
         self.0.pop()
+    }
+
+    /// Performs a rustc build using cached compiler invocations.
+    pub(super) fn execute(mut self, internals: &Internals) -> BuildResult {
+        // TODO: In case of an empty job queue we shouldn't be here, since the
+        // returned results will replace currently held diagnostics/analyses.
+        // Either allow to return a BuildResult::Squashed here or just delegate
+        // to Cargo (which we do currently) in `prepare_work`
+        assert!(self.0.is_empty() == false);
+
+        let build_dir = internals.compilation_cx.lock().unwrap().build_dir.clone().unwrap();
+
+        let mut compiler_messages = vec![];
+        let mut analyses = vec![];
+        // Go through cached compiler invocations sequentially, collecting each
+        // invocation's compiler messages for diagnostics and analysis data
+        while let Some(job) = self.dequeue() {
+            trace!("Executing: {:?}", job);
+            let mut args: Vec<_> = job.get_args().iter().cloned()
+                .map(|x| x.into_string().unwrap()).collect();
+            // TODO: is it crucial to pass *actual* executed program (e.g. rustc
+            // shim) or does the compiler API just care about the order and not
+            // which exact binary was run (1st argument)?
+            args.insert(0, "rustc".to_owned());
+
+            match super::rustc::rustc(&internals.vfs, &args, job.get_envs(),
+                                      &build_dir, internals.config.clone(),
+                                      internals.env_lock.as_facade()) {
+                BuildResult::Success(mut messages, mut analysis) |
+                BuildResult::Failure(mut messages, mut analysis) => {
+                    compiler_messages.append(&mut messages);
+                    analyses.append(&mut analysis);
+                },
+                BuildResult::Err => { return BuildResult:: Err },
+                _ => {}
+            }
+        }
+        // TODO: Should we combine with ::Failure? What's the difference between those two?
+        return BuildResult::Success(compiler_messages, analyses);
     }
 }
 
