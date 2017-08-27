@@ -257,7 +257,7 @@ impl ActionHandler {
 
     pub fn find_impls<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
         let t = thread::current();
-        let file_path = parse_file_path!(&params.text_document.uri, "find_impls");
+        let file_path = parse_file_path!(params.text_document.uri, "find_impls");
         let span = self.convert_pos_to_span(file_path, params.position);
         let type_id = self.analysis.id(&span).expect("Analysis: Getting typeid from span");
         let analysis = self.analysis.clone();
