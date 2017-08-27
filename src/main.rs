@@ -35,9 +35,7 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
-extern crate toml;
 extern crate url;
-extern crate url_serde;
 extern crate jsonrpc_core;
 
 use std::env;
