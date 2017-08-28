@@ -314,16 +314,22 @@ impl Executor for RlsExecutor {
         // Currently we don't cache nor modify build script args
         let is_build_script = *target.kind() == TargetKind::CustomBuild;
         if !self.is_primary_crate(id) || is_build_script {
-            let mut cmd = Command::new(&env::var("RUSTC").unwrap_or("rustc".to_owned()));
             let build_script_notice = if is_build_script {" (build script)"} else {""};
             trace!("rustc not intercepted - {}{}", id.name(), build_script_notice);
 
-            // Recreate the command, minus -Zsave-analysis.
+            // Recreate the original command, minus -Zsave-analysis. Since the
+            // shim sets it internally, be sure not to use it.
             if ::CRATE_BLACKLIST.contains(&&*crate_name) {
-                let args: Vec<_> = cmd.get_args().iter().cloned()
+                let mut cargo_cmd = cargo_cmd.clone();
+                let args: Vec<_> = cargo_cmd.get_args().iter().cloned()
                     .filter(|x| x != "Zsave-analysis").collect();
-                cmd.args_replace(&args);
+                cargo_cmd.args_replace(&args);
+
+                return cargo_cmd.exec();
             }
+            // TODO: Make sure we don't pass any unstable options (incl. -Zsave-analysis)
+            // to the shim. For stable toolchains it won't accept those as arguments,
+            // but rather it sets them internally instead to work around that
             return cmd.exec();
         }
 
