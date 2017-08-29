@@ -305,6 +305,7 @@ impl Executor for RlsExecutor {
         // Currently we don't cache nor modify build script args
         let is_build_script = crate_name == "build_script_build";
         if !self.is_primary_crate(id) || is_build_script {
+            let mut cmd = Command::new(&env::var("RUSTC").unwrap_or("rustc".to_owned()));
             let build_script_notice = if is_build_script {" (build script)"} else {""};
             trace!("rustc not intercepted - {}{}", id.name(), build_script_notice);
 
