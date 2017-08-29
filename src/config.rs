@@ -111,7 +111,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Config {
-        Config {
+        let mut result = Config {
             sysroot: None,
             target: None,
             rustflags: None,
@@ -127,7 +127,9 @@ impl Default for Config {
             clear_env_rust_log: true,
             build_on_save: false,
             use_crate_blacklist: true,
-        }
+        };
+        result.normalise();
+        result
     }
 }
 
@@ -137,6 +139,27 @@ impl Config {
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
 
         *self = new;
+    }
+
+    /// Ensures that unstable options are only allowed if `unstable_features` is
+    /// true and that is not allowed on stable release channels.
+    pub fn normalise(&mut self) {
+        let allow_unstable = option_env!("CFG_RELEASE_CHANNEL").map(|c| c == "nightly").unwrap_or(true);
+
+        if !allow_unstable {
+            if self.unstable_features {
+                eprintln!("`unstable_features` setting can only be used on nightly channel");
+            }
+            self.unstable_features = false;
+        }
+
+        if !self.unstable_features {
+            if self.workspace_mode {
+                eprintln!("`workspace_mode` setting is unstable; ignored");
+            }
+            self.workspace_mode = false;
+            self.analyze_package = None;
+        }
     }
 
     pub fn needs_inference(&self) -> bool {

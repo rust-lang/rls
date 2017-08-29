@@ -802,7 +802,10 @@ impl ActionHandler {
                          .and_then(|value| Config::deserialize(value));
 
         let new_config = match config {
-            Ok(value) => value,
+            Ok(mut value) => {
+                value.normalise();
+                value
+            }
             Err(err) => {
                 debug!("Received unactionable config: {:?} (error: {:?})", params.settings, err);
                 return;
