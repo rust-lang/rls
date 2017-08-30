@@ -72,7 +72,7 @@ pub fn main() {
 
     if let Some(first_arg) = ::std::env::args().skip(1).next() {
         match first_arg.as_str() {
-            "--version" | "-V" => println!("rls {}", version()),
+            "--version" | "-V" => println!("rls-preview {}", version()),
             "--help" | "-h" => println!("{}", help()),
             _ => cmd::run(),
         }
