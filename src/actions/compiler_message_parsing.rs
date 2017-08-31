@@ -8,27 +8,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ls_types::{Diagnostic, Range, DiagnosticSeverity, NumberOrString};
 use serde_json;
 use span::compiler::DiagnosticSpan;
+use Span;
 
 use lsp_data::ls_util;
-
-#[derive(Debug, Deserialize)]
-struct CompilerMessageCode {
-    code: String
-}
-
-#[derive(Debug, Deserialize)]
-struct CompilerMessage {
-    message: String,
-    code: Option<CompilerMessageCode>,
-    level: String,
-    spans: Vec<DiagnosticSpan>,
-    children: Vec<CompilerMessage>,
-}
 
 #[derive(Debug)]
 pub struct FileDiagnostic {
@@ -44,40 +31,55 @@ pub struct Suggestion {
     pub label: String,
 }
 
-#[derive(Debug)]
-pub enum ParseError {
-    JsonError(serde_json::Error),
-    NoSpans,
-}
-
-impl From<serde_json::Error> for ParseError {
-    fn from(error: serde_json::Error) -> Self {
-        ParseError::JsonError(error)
-    }
-}
-
-pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
-    let message = serde_json::from_str::<CompilerMessage>(message)?;
+pub fn parse(message: &str) -> Option<FileDiagnostic> {
+    let message = match serde_json::from_str::<CompilerMessage>(message) {
+        Ok(m) => m,
+        Err(e) => {
+            debug!("build error {:?}", e);
+            debug!("from {}", message);
+            return None;
+        }
+    };
 
     if message.spans.is_empty() {
-        return Err(ParseError::NoSpans);
+        return None;
     }
 
-    let primary = message.spans
-        .iter()
-        .filter(|x| x.is_primary)
-        .next()
-        .unwrap()
-        .clone();
-    let primary_span = primary.rls_span().zero_indexed();
-    let primary_range = ls_util::rls_to_range(primary_span.range);
-    let file_path = primary_span.file.clone();
+    let primary_span = primary_span(&message);
+    let suggestions = make_suggestions(message.children, &primary_span.file);
 
+    let diagnostic = Diagnostic {
+        range: ls_util::rls_to_range(primary_span.range),
+        severity: Some(severity(&message.level)),
+        code: Some(NumberOrString::String(match message.code {
+            Some(c) => c.code.clone(),
+            None => String::new(),
+        })),
+        source: Some("rustc".into()),
+        message: message.message,
+    };
+
+    Some(FileDiagnostic {
+        file_path: primary_span.file,
+        diagnostic: diagnostic,
+        suggestions: suggestions,
+    })
+}
+
+fn severity(level: &str) -> DiagnosticSeverity {
+    if level == "error" {
+        DiagnosticSeverity::Error
+    } else {
+        DiagnosticSeverity::Warning
+    }
+}
+
+fn make_suggestions(children: Vec<CompilerMessage>, file: &Path) -> Vec<Suggestion> {
     let mut suggestions = vec![];
-    for c in message.children {
+    for c in children {
         for sp in c.spans {
             let span = sp.rls_span().zero_indexed();
-            if span.file == file_path {
+            if span.file == file {
                 if let Some(s) = sp.suggested_replacement {
                     let suggestion = Suggestion {
                         new_text: s.clone(),
@@ -89,28 +91,29 @@ pub fn parse(message: &str) -> Result<FileDiagnostic, ParseError> {
             }
         }
     }
+    suggestions
+}
 
-    let diagnostic = Diagnostic {
-        range: Range {
-            start: primary_range.start,
-            end: primary_range.end,
-        },
-        severity: Some(if message.level == "error" {
-            DiagnosticSeverity::Error
-        } else {
-            DiagnosticSeverity::Warning
-        }),
-        code: Some(NumberOrString::String(match message.code {
-            Some(c) => c.code.clone(),
-            None => String::new(),
-        })),
-        source: Some("rustc".into()),
-        message: message.message,
-    };
+fn primary_span(message: &CompilerMessage) -> Span {
+    let primary = message.spans
+        .iter()
+        .filter(|x| x.is_primary)
+        .next()
+        .unwrap()
+        .clone();
+    primary.rls_span().zero_indexed()
+}
 
-    Ok(FileDiagnostic {
-        file_path: file_path,
-        diagnostic: diagnostic,
-        suggestions: suggestions,
-    })
+#[derive(Debug, Deserialize)]
+struct CompilerMessage {
+    message: String,
+    code: Option<CompilerMessageCode>,
+    level: String,
+    spans: Vec<DiagnosticSpan>,
+    children: Vec<CompilerMessage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CompilerMessageCode {
+    code: String
 }

@@ -41,7 +41,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use self::compiler_message_parsing::{FileDiagnostic, ParseError, Suggestion};
+use self::compiler_message_parsing::{FileDiagnostic, Suggestion};
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
 // we don't want to crash the RLS in case a client opens a file under different URI scheme
@@ -135,37 +135,16 @@ impl ActionHandler {
     }
 
     pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
-        fn clear_build_results(results: &mut BuildResults) {
-            // We must not clear the hashmap, just the values in each list.
-            // This allows us to save allocated before memory.
-            for v in &mut results.values_mut() {
-                v.clear();
-            }
-        }
-
-        fn parse_compiler_messages(messages: &[String], results: &mut BuildResults) {
-            for msg in messages {
-                match compiler_message_parsing::parse(msg) {
-                    Ok(FileDiagnostic { file_path, diagnostic, suggestions }) => {
-                        results.entry(file_path).or_insert_with(Vec::new).push((diagnostic, suggestions));
-                    }
-                    Err(ParseError::JsonError(e)) => {
-                        debug!("build error {:?}", e);
-                        debug!("from {}", msg);
-                    }
-                    Err(ParseError::NoSpans) => {}
-                }
-            }
-        }
-
-        fn convert_build_results_to_notifications(build_results: &BuildResults, show_warnings: bool)
-            -> Vec<NotificationMessage<PublishDiagnosticsParams>>
-        {
+        fn emit_notifications<O: Output>(
+            build_results: &BuildResults,
+            show_warnings: bool,
+            out: &O,
+        ) {
             let cwd = ::std::env::current_dir().unwrap();
 
             build_results
                 .iter()
-                .map(|(path, diagnostics)| {
+                .for_each(|(path, diagnostics)| {
                     let method = "textDocument/publishDiagnostics".to_string();
 
                     let params = PublishDiagnosticsParams {
@@ -182,9 +161,11 @@ impl ActionHandler {
                             .collect(),
                     };
 
-                    NotificationMessage::new(method, params)
+                    let notification = NotificationMessage::new(method, params);
+                    // FIXME(43) factor out the notification mechanism.
+                    let output = serde_json::to_string(&notification).unwrap();
+                    out.response(output);
                 })
-                .collect()
         }
 
         let analysis = self.analysis.clone();
@@ -209,18 +190,23 @@ impl ActionHandler {
                         // These notifications will include empty sets of errors for files
                         // which had errors, but now don't. This instructs the IDE to clear
                         // errors for those files.
-                        let notifications = {
+                        {
                             let mut results = previous_build_results.lock().unwrap();
-                            clear_build_results(&mut results);
-                            parse_compiler_messages(&messages, &mut results);
-                            convert_build_results_to_notifications(&results, show_warnings)
-                        };
+                            // We must not clear the hashmap, just the values in each list.
+                            // This allows us to save allocated before memory.
+                            for v in &mut results.values_mut() {
+                                v.clear();
+                            }
 
-                        for notification in notifications {
-                            // FIXME(43) factor out the notification mechanism.
-                            let output = serde_json::to_string(&notification).unwrap();
-                            out.response(output);
+                            for msg in &messages {
+                                if let Some(FileDiagnostic { file_path, diagnostic, suggestions }) = compiler_message_parsing::parse(msg) {
+                                    results.entry(file_path).or_insert_with(Vec::new).push((diagnostic, suggestions));
+                                }
+                            }
+
+                            emit_notifications(&results, show_warnings, &out);
                         }
+
 
                         debug!("reload analysis: {:?}", project_path_clone);
                         let cwd = ::std::env::current_dir().unwrap();

@@ -13,6 +13,7 @@
 #![feature(type_ascription)]
 #![feature(integer_atomics)]
 #![feature(fnbox)]
+#![feature(iterator_for_each)]
 
 extern crate cargo;
 extern crate env_logger;
@@ -88,6 +89,7 @@ pub fn main() {
 fn version() -> &'static str {
     concat!(env!("CARGO_PKG_VERSION"), "-", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
 }
+
 fn help() -> &'static str {
     r#" 
     --version or -V to print the version and commit info
