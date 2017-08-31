@@ -1,6 +1,6 @@
 [root]
 name = "rls"
-version = "0.121.0"
+version = "0.122.0"
 dependencies = [
  "cargo 0.23.0 (git+https://github.com/rust-lang/cargo)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
