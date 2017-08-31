@@ -166,7 +166,9 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
 // Initialise the environment for a test.
 pub fn init_env(project_dir: &str) -> (Cache, TestCleanup) {
     let _ = env_logger::init();
-    env::set_var("RUSTC", "rustc");
+    if env::var("RUSTC").is_err() {
+        env::set_var("RUSTC", "rustc");
+    }
 
     let path = &Path::new("test_data").join(project_dir);
     let tc = TestCleanup { path: path.to_owned() };
