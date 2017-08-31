@@ -8,13 +8,13 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-mod compiler_message_parsing;
+mod post_build;
 
 use cargo::CargoResult;
 use cargo::util::important_paths;
 use cargo::core::{Shell, Workspace};
 
-use analysis::{AnalysisHost};
+use analysis::AnalysisHost;
 use url::Url;
 use vfs::{Vfs, Change, FileContents};
 use racer;
@@ -27,8 +27,8 @@ use serde_json;
 use span;
 use Span;
 
+use actions::post_build::{BuildResults, PostBuildHandler};
 use build::*;
-use CRATE_BLACKLIST;
 use lsp_data::*;
 use server::{ResponseData, Output, Ack};
 use jsonrpc_core::types::ErrorCode;
@@ -41,7 +41,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use self::compiler_message_parsing::{FileDiagnostic, Suggestion};
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
 // we don't want to crash the RLS in case a client opens a file under different URI scheme
@@ -63,8 +62,6 @@ macro_rules! parse_file_path {
         ignore_non_file_uri!(parse_file_path($uri), $uri, $log_name)
     }
 }
-
-type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
 pub struct ActionHandler {
     analysis: Arc<AnalysisHost>,
@@ -135,109 +132,20 @@ impl ActionHandler {
     }
 
     pub fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
-        fn emit_notifications<O: Output>(
-            build_results: &BuildResults,
-            show_warnings: bool,
-            out: &O,
-        ) {
-            let cwd = ::std::env::current_dir().unwrap();
-
-            build_results
-                .iter()
-                .for_each(|(path, diagnostics)| {
-                    let method = "textDocument/publishDiagnostics".to_string();
-
-                    let params = PublishDiagnosticsParams {
-                        uri: Url::from_file_path(cwd.join(path)).unwrap(),
-                        diagnostics: diagnostics.iter()
-                            .filter_map(|&(ref d, _)| {
-                                let d = d.clone();
-                                if show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
-                                    Some(d)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect(),
-                    };
-
-                    let notification = NotificationMessage::new(method, params);
-                    // FIXME(43) factor out the notification mechanism.
-                    let output = serde_json::to_string(&notification).unwrap();
-                    out.response(output);
-                })
-        }
-
-        let analysis = self.analysis.clone();
-        let previous_build_results = self.previous_build_results.clone();
-        let project_path_clone = project_path.to_owned();
-        let out = out.clone();
-        let (show_warnings, use_black_list) = {
+        let pbh = {
             let config = self.config.lock().unwrap();
-            (config.show_warnings, config.use_crate_blacklist)
+            PostBuildHandler {
+                analysis: self.analysis.clone(),
+                previous_build_results: self.previous_build_results.clone(),
+                project_path: project_path.to_owned(),
+                out: out.clone(),
+                show_warnings: config.show_warnings,
+                use_black_list: config.use_crate_blacklist,
+            }
         };
 
-        // We use `rustDocument` document here since these notifications are
-        // custom to the RLS and not part of the LS protocol.
-        out.notify("rustDocument/diagnosticsBegin");
         self.build_queue.request_build(project_path, priority, move |result| {
-            match result {
-                BuildResult::Success(messages, new_analysis) |
-                BuildResult::Failure(messages, new_analysis) => {
-                    thread::spawn(move || {
-                        trace!("build - Success");
-
-                        // These notifications will include empty sets of errors for files
-                        // which had errors, but now don't. This instructs the IDE to clear
-                        // errors for those files.
-                        {
-                            let mut results = previous_build_results.lock().unwrap();
-                            // We must not clear the hashmap, just the values in each list.
-                            // This allows us to save allocated before memory.
-                            for v in &mut results.values_mut() {
-                                v.clear();
-                            }
-
-                            for msg in &messages {
-                                if let Some(FileDiagnostic { file_path, diagnostic, suggestions }) = compiler_message_parsing::parse(msg) {
-                                    results.entry(file_path).or_insert_with(Vec::new).push((diagnostic, suggestions));
-                                }
-                            }
-
-                            emit_notifications(&results, show_warnings, &out);
-                        }
-
-
-                        debug!("reload analysis: {:?}", project_path_clone);
-                        let cwd = ::std::env::current_dir().unwrap();
-                        if new_analysis.is_empty() {
-                            if use_black_list {
-                                analysis.reload_with_blacklist(&project_path_clone, &cwd, &CRATE_BLACKLIST).unwrap();
-                            } else {
-                                analysis.reload(&project_path_clone, &cwd).unwrap();
-                            }
-                        } else {
-                            for data in new_analysis.into_iter() {
-                                if use_black_list {
-                                    analysis.reload_from_analysis(data, &project_path_clone, &cwd, &CRATE_BLACKLIST).unwrap();
-                                } else {
-                                    analysis.reload_from_analysis(data, &project_path_clone, &cwd, &[]).unwrap();
-                                }
-                            }
-                        }
-
-                        out.notify("rustDocument/diagnosticsEnd");
-                    });
-                }
-                BuildResult::Squashed => {
-                    trace!("build - Squashed");
-                    out.notify("rustDocument/diagnosticsEnd");
-                },
-                BuildResult::Err => {
-                    trace!("build - Error");
-                    out.notify("rustDocument/diagnosticsEnd");
-                },
-            }
+            pbh.handle(result)
         });
     }
 
