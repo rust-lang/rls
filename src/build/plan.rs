@@ -39,9 +39,9 @@ pub type UnitKey = (PackageId, TargetKind);
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
 pub struct Plan {
-    // Stores a full Cargo `Unit` data for a first processed unit with a given key.
+    /// Stores a full Cargo `Unit` data for a first processed unit with a given key.
     pub units: HashMap<UnitKey, OwnedUnit>,
-    // Main dependency graph between the simplified units.
+    /// Main dependency graph between the simplified units.
     pub dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
     /// Reverse dependency graph that's used to construct a dirty compiler call queue.
     pub rev_dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
@@ -156,13 +156,17 @@ impl Plan {
             if let Some(unit) = build_scripts.get(modified.as_ref()) {
                 result.insert(unit.clone());
             } else {
-                // It's not a build script, so we can check for path prefix now
-                for (unit, src_dir) in &other_targets {
-                    if modified.as_ref().starts_with(src_dir) {
-                        trace!("Adding {:?}, as a modified file {:?} starts with {:?}", &unit, modified, src_dir);
-                        result.insert(unit.clone());
-                    }
-                }
+                // Not a build script, so we associate a dirty package with a
+                // dirty file by finding longest (most specified) path prefix
+                let unit = other_targets.iter().max_by_key(|&(_, src_dir)| {
+                    modified.as_ref().components().zip(src_dir.components())
+                        .take_while(|&(a, b)| a == b)
+                        .count()
+                });
+                match unit {
+                    None => trace!("Modified file {:?} doesn't correspond to any package!", modified),
+                    Some(unit) => { result.insert(unit.0.clone()); },
+                };
             }
         }
         result
