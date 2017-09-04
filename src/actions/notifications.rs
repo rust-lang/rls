@@ -10,6 +10,7 @@
 
 use actions::ActionContext;
 use actions::FileWatch;
+use CRATE_BLACKLIST;
 use vfs::Change;
 use config::Config;
 use serde::Deserialize;
@@ -182,9 +183,32 @@ impl<'a> NotificationAction<'a> for DidChangeConfiguration {
             // we schedule further inference on a separate thread not to block
             // the main thread
             let needs_inference = new_config.needs_inference();
+            // reloading analysis data is expensive, so avoid it if possible
+            let needs_analysis_reload = config.path_rewrites != new_config.path_rewrites;
             // In case of null options, we provide default values for now
             config.update(new_config);
             trace!("Updated config: {:?}", *config);
+
+            if needs_analysis_reload {
+                let analysis = ctx.analysis.clone();
+                let current_project = ctx.current_project.clone();
+                let rewrites = config.path_rewrites.clone();
+                let use_crate_blacklist = config.use_crate_blacklist;
+                // perform the expensive update process in a background thread
+                thread::spawn(move || {
+                    analysis.update_path_rewrites(rewrites);
+
+                    // force a hard reload of all analysis data such that the spans can be corrected
+                    let cwd = ::std::env::current_dir().unwrap();
+                    if use_crate_blacklist {
+                        analysis
+                            .hard_reload_with_blacklist(&current_project, &cwd, &CRATE_BLACKLIST)
+                            .unwrap();
+                    } else {
+                        analysis.hard_reload(&current_project, &cwd).unwrap();
+                    }
+                });
+            }
 
             if needs_inference {
                 let project_dir = ctx.current_project.clone();

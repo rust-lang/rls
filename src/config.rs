@@ -10,6 +10,7 @@
 
 use build;
 
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::io::sink;
 use std::path::{Path, PathBuf};
@@ -120,6 +121,8 @@ pub struct Config {
     pub features: Vec<String>,
     pub all_features: bool,
     pub no_default_features: bool,
+    /// Specify a set of path prefixes and how to rewrite them to existing paths
+    pub path_rewrites: BTreeMap<PathBuf, PathBuf>,
 }
 
 impl Default for Config {
@@ -144,6 +147,7 @@ impl Default for Config {
             features: vec![],
             all_features: false,
             no_default_features: false,
+            path_rewrites: BTreeMap::new(),
         };
         result.normalise();
         result
