@@ -306,6 +306,9 @@ impl Executor for RlsExecutor {
         //        later in-process execution of the compiler
         let mut cmd = cargo_cmd.clone();
         let rls_executable = env::args().next().unwrap();
+        let sysroot = current_sysroot()
+                        .expect("need to specify SYSROOT env var or use rustup or multirust");
+
         cmd.program(env::var("RUSTC").unwrap_or(rls_executable));
         cmd.env(::RUSTC_SHIM_ENV_VAR_NAME, "1");
 
@@ -314,12 +317,17 @@ impl Executor for RlsExecutor {
         // Currently we don't cache nor modify build script args
         let is_build_script = *target.kind() == TargetKind::CustomBuild;
         if !self.is_primary_crate(id) || is_build_script {
-            let build_script_notice = if is_build_script {" (build script)"} else {""};
+            let build_script_notice = if is_build_script {
+                " (build script)"
+            } else {
+                ""
+            };
             trace!("rustc not intercepted - {}{}", id.name(), build_script_notice);
 
             // Recreate the original command, minus -Zsave-analysis. Since the
             // shim sets it internally, be sure not to use it.
             if ::CRATE_BLACKLIST.contains(&&*crate_name) {
+                trace!("crate is blacklisted");
                 let mut cargo_cmd = cargo_cmd.clone();
                 let args: Vec<_> = cargo_cmd.get_args().iter().cloned()
                     .filter(|x| x != "Zsave-analysis").collect();
@@ -327,6 +335,8 @@ impl Executor for RlsExecutor {
 
                 return cargo_cmd.exec();
             }
+            cmd.arg("--sysroot");
+            cmd.arg(&sysroot);
             // TODO: Make sure we don't pass any unstable options (incl. -Zsave-analysis)
             // to the shim. For stable toolchains it won't accept those as arguments,
             // but rather it sets them internally instead to work around that
@@ -358,8 +368,6 @@ impl Executor for RlsExecutor {
                 }
             }
             if config.sysroot.is_none() {
-                let sysroot = current_sysroot()
-                                .expect("need to specify SYSROOT env var or use rustup or multirust");
                 args.push("--sysroot".to_owned());
                 args.push(sysroot);
             }
@@ -490,8 +498,7 @@ impl CargoOptions {
 }
 
 fn prepare_cargo_rustflags(config: &Config) -> String {
-    let mut flags = "-Zunstable-options -Zsave-analysis --error-format=json \
-                        -Zcontinue-parse-after-error".to_owned();
+    let mut flags = "--error-format=json ".to_owned();
 
     if let Some(ref sysroot) = config.sysroot {
         flags.push_str(&format!(" --sysroot {}", sysroot));
