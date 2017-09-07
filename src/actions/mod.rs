@@ -144,6 +144,7 @@ impl ActionHandler {
             }
         };
 
+        out.notify("rustDocument/beginBuild");
         self.build_queue.request_build(project_path, priority, move |result| {
             pbh.handle(result)
         });

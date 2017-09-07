@@ -306,8 +306,11 @@ The RLS uses some custom extensions to the Language Server Protocol.
 These are all sent from the RLS to an LSP client and are only used to improve
 the user experience by showing progress indicators.
 
-* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent before a
-  build starts and before any diagnostics from a build are sent.
+
+* `rustDocument/beginBuild`: notification, no arguments. Sent before a
+  build starts.
+* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent before
+  indexing or any diagnostics from a build are sent (build is likely in progress).
 * `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
   is complete (successfully or not, or even skipped) and all post-build analysis
   by the RLS is complete.
