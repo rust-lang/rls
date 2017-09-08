@@ -8,8 +8,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::path::Path;
+use build;
+
 use std::fmt::Debug;
+use std::io::sink;
+use std::path::Path;
+
+use cargo::CargoResult;
+use cargo::util::important_paths;
+use cargo::core::{Shell, Workspace};
 
 use serde::de::{Deserialize, Deserializer};
 
@@ -168,6 +175,76 @@ impl Config {
             (_, &Inferrable::None) => true,
             _ => false,
         }
+    }
+
+    pub fn infer_defaults(&mut self, project_dir: &Path) -> CargoResult<()> {
+        // Note that this may not be equal build_dir when inside a workspace member
+        let manifest_path = important_paths::find_root_manifest_for_wd(None, project_dir)?;
+        trace!("root manifest_path: {:?}", &manifest_path);
+
+        // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
+        let manifest_dir = manifest_path.parent().unwrap();
+        let shell = Shell::from_write(Box::new(sink()));
+        let cargo_config = build::make_cargo_config(manifest_dir, shell);
+
+        let ws = Workspace::new(&manifest_path, &cargo_config)?;
+
+        // Auto-detect --lib/--bin switch if working under single package mode
+        // or under workspace mode with `analyze_package` specified
+        let package = match self.workspace_mode {
+            true => {
+                let package_name = match self.analyze_package {
+                    // No package specified, nothing to do
+                    None => { return Ok(()); },
+                    Some(ref package) => package,
+                };
+
+                ws.members()
+                  .find(move |x| x.name() == package_name)
+                  .ok_or(
+                      format!("Couldn't find specified `{}` package via \
+                          `analyze_package` in the workspace", package_name)
+                  )?
+            },
+            false => ws.current()?,
+        };
+
+        trace!("infer_config_defaults: Auto-detected `{}` package", package.name());
+
+        let targets = package.targets();
+        let (lib, bin) = if targets.iter().any(|x| x.is_lib()) {
+            (true, None)
+        } else {
+            let mut bins = targets.iter().filter(|x| x.is_bin());
+            // No `lib` detected, but also can't find any `bin` target - there's
+            // no sensible target here, so just Err out
+            let first = bins.nth(0)
+                .ok_or("No `bin` or `lib` targets in the package")?;
+
+            let mut bins = targets.iter().filter(|x| x.is_bin());
+            let target = match bins.find(|x| x.src_path().ends_with("main.rs")) {
+                Some(main_bin) => main_bin,
+                None => first,
+            };
+
+            (false, Some(target.name().to_owned()))
+        };
+
+        trace!("infer_config_defaults: build_lib: {:?}, build_bin: {:?}", lib, bin);
+
+        // Unless crate target is explicitly specified, mark the values as
+        // inferred, so they're not simply ovewritten on config change without
+        // any specified value
+        let (lib, bin) = match (&self.build_lib, &self.build_bin) {
+            (&Inferrable::Specified(true), _) => (lib, None),
+            (_, &Inferrable::Specified(Some(_))) => (false, bin),
+            _ => (lib, bin),
+        };
+
+        self.build_lib.infer(lib);
+        self.build_bin.infer(bin);
+
+        Ok(())
     }
 }
 

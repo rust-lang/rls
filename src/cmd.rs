@@ -12,20 +12,23 @@
 // versions of commands, turns them into messages the RLS will understand, runs
 // the RLS as usual and prints the JSON result back on the command line.
 
+use actions::requests;
 use analysis::{AnalysisHost, Target};
 use config::Config;
-use server::{self, ServerMessage, Request, Notification, Method, LsService, ResponseData};
+use server::{self, Request, Notification, LsService, NoParams};
 use vfs::Vfs;
-use jsonrpc_core;
 
 use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams};
-use std::time::Duration;
+
+use std::fmt;
 use std::io::{stdin, stdout, Write};
+use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
+use std::time::Duration;
 use url::Url;
 
 const VERBOSE: bool = false;
@@ -62,28 +65,28 @@ pub fn run() {
                 let file_name = bits.next().expect("Expected file name");
                 let row = bits.next().expect("Expected line number");
                 let col = bits.next().expect("Expected column number");
-                def(file_name, row, col)
+                def(file_name, row, col).to_string()
             }
             "rename" => {
                 let file_name = bits.next().expect("Expected file name");
                 let row = bits.next().expect("Expected line number");
                 let col = bits.next().expect("Expected column number");
                 let new_name = bits.next().expect("Expected new name");
-                rename(file_name, row, col, new_name)
+                rename(file_name, row, col, new_name).to_string()
             }
             "hover" => {
                 let file_name = bits.next().expect("Expected file name");
                 let row = bits.next().expect("Expected line number");
                 let col = bits.next().expect("Expected column number");
-                hover(file_name, row, col)
+                hover(file_name, row, col).to_string()
             }
             "h" | "help" => {
                 help();
                 continue;
             }
             "q" | "quit" => {
-                sender.send(shutdown()).expect("Error sending on channel");
-                sender.send(exit()).expect("Error sending on channel");
+                sender.send(shutdown().to_string()).expect("Error sending on channel");
+                sender.send(exit().to_string()).expect("Error sending on channel");
                 // Sometimes we don't quite exit in time and we get an error on the channel. Hack it.
                 thread::sleep(Duration::from_millis(100));
                 return;
@@ -99,61 +102,62 @@ pub fn run() {
     }
 }
 
-// `def` command
-fn def(file_name: &str, row: &str, col: &str) -> ServerMessage {
+fn def<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Definition> {
     let params = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
                                 u64::from_str(col).expect("Bad column number")),
     };
-    let request = Request {
+    Request {
         id: next_id(),
-        method: Method::GotoDefinition(params),
-    };
-    ServerMessage::Request(request)
+        params,
+        _action: PhantomData,
+    }
 }
 
-// `rename` command
-fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> ServerMessage {
+fn rename<'a>(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<'a, requests::Rename> {
     let params = RenameParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
                                 u64::from_str(col).expect("Bad column number")),
         new_name: new_name.to_owned(),
     };
-    let request = Request {
+    Request {
         id: next_id(),
-        method: Method::Rename(params),
-    };
-    ServerMessage::Request(request)
+        params,
+        _action: PhantomData,
+    }
 }
 
-fn hover(file_name: &str, row: &str, col: &str) -> ServerMessage {
+fn hover<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Hover> {
     let params = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
                                 u64::from_str(col).expect("Bad column number")),
     };
-    let request = Request {
+    Request {
         id: next_id(),
-        method: Method::Hover(params),
-    };
-    ServerMessage::Request(request)
+        params,
+        _action: PhantomData,
+    }
 }
 
-fn shutdown() -> ServerMessage {
-    let request = Request {
+fn shutdown<'a>() -> Request<'a, server::ShutdownRequest<'a>> {
+    Request {
         id: next_id(),
-        method: Method::Shutdown,
-    };
-    ServerMessage::Request(request)
+        params: NoParams {},
+        _action: PhantomData,
+    }
 }
 
-fn exit() -> ServerMessage {
-    ServerMessage::Notification(Notification::Exit)
+fn exit<'a>() -> Notification<'a, server::ExitNotification<'a>> {
+    Notification {
+        params: NoParams {},
+        _action: PhantomData,
+    }
 }
 
-fn initialize(root_path: String) -> ServerMessage {
+fn initialize<'a>(root_path: String) -> Request<'a, server::InitializeRequest> {
     let params = InitializeParams {
         process_id: None,
         root_path: Some(root_path), // FIXME(#299): This property is deprecated. Instead Use `root_uri`.
@@ -166,11 +170,11 @@ fn initialize(root_path: String) -> ServerMessage {
         },
         trace: TraceOption::Off,
     };
-    let request = Request {
+    Request {
         id: next_id(),
-        method: Method::Initialize(params),
-    };
-    ServerMessage::Request(request)    
+        params,
+        _action: PhantomData,
+    }
 }
 
 fn url(file_name: &str) -> Url {
@@ -199,17 +203,17 @@ impl server::Output for PrintlnOutput {
         0
     }
 
-    fn success(&self, id: usize, data: ResponseData) {
+    fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: usize, data: &D) {
         println!("{}: {:#?}", id, data);
     }
 }
 
 struct ChannelMsgReader {
-    channel: Mutex<Receiver<ServerMessage>>,
+    channel: Mutex<Receiver<String>>,
 }
 
 impl ChannelMsgReader {
-    fn new(rx: Receiver<ServerMessage>) -> ChannelMsgReader {
+    fn new(rx: Receiver<String>) -> ChannelMsgReader {
         ChannelMsgReader {
             channel: Mutex::new(rx),
         }
@@ -217,16 +221,16 @@ impl ChannelMsgReader {
 }
 
 impl server::MessageReader for ChannelMsgReader {
-    fn parsed_message(&self) -> Option<Result<ServerMessage, Option<jsonrpc_core::Failure>>> {
+    fn read_message(&self) -> Option<String> {
         let channel = self.channel.lock().unwrap();
         let msg = channel.recv().expect("Error reading from channel");
-        Some(Ok(msg))
+        Some(msg)
     }
 }
 
 // Initialise a server, returns the sender end of a channel for posting messages.
 // The initialised server will live on its own thread and look after the receiver.
-fn init() -> Sender<ServerMessage> {
+fn init() -> Sender<String> {
     let analysis = Arc::new(AnalysisHost::new(Target::Debug));
     let vfs = Arc::new(Vfs::new());
     let (sender, receiver) = channel();
@@ -238,7 +242,7 @@ fn init() -> Sender<ServerMessage> {
                                  PrintlnOutput);
     thread::spawn(move || LsService::run(service));
 
-    sender.send(initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned())).expect("Error sending init");
+    sender.send(initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned()).to_string()).expect("Error sending init");
     println!("Initialising (look for `diagnosticsEnd` message)...");
 
     sender

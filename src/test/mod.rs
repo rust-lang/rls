@@ -30,35 +30,33 @@ use ls_types::*;
 use lsp_data::InitializationOptions;
 use std::path::Path;
 
-impl ServerMessage {
-    pub fn initialize(id: usize, root_path: Option<String>) -> ServerMessage {
-         Self::initialize_with_opts(id, root_path, None)
-    }
+pub fn initialize(id: usize, root_path: Option<String>) -> ServerMessage {
+     initialize_with_opts(id, root_path, None)
+}
 
-    pub fn initialize_with_opts(id: usize, root_path: Option<String>, initialization_options: Option<InitializationOptions>) -> ServerMessage {
-        let init_opts = initialization_options
-                            .map(|val| serde_json::to_value(val).unwrap());
+pub fn initialize_with_opts(id: usize, root_path: Option<String>, initialization_options: Option<InitializationOptions>) -> ServerMessage {
+    let init_opts = initialization_options
+                        .map(|val| serde_json::to_value(val).unwrap());
 
-        ServerMessage::Request(Request {
-            id: id,
-            method: Method::Initialize(InitializeParams {
-                process_id: None,
-                root_path,
-                root_uri: None,
-                initialization_options: init_opts,
-                capabilities: ClientCapabilities {
-                    workspace: None,
-                    text_document: None,
-                    experimental: None,
-                },
-                trace: TraceOption::Off,
-            })
+    ServerMessage::Request(Request {
+        id: id,
+        method: Method::Initialize(InitializeParams {
+            process_id: None,
+            root_path,
+            root_uri: None,
+            initialization_options: init_opts,
+            capabilities: ClientCapabilities {
+                workspace: None,
+                text_document: None,
+                experimental: None,
+            },
+            trace: TraceOption::Off,
         })
-    }
+    })
+}
 
-    pub fn request(id: usize, method: Method) -> ServerMessage {
-        ServerMessage::Request(Request { id: id, method: method })
-    }
+pub fn request(id: usize, method: Method) -> ServerMessage {
+    ServerMessage::Request(Request { id: id, method: method })
 }
 
 #[test]
@@ -71,8 +69,8 @@ fn test_goto_def() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::GotoDefinition(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(11, Method::GotoDefinition(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
         })),
@@ -103,8 +101,8 @@ fn test_hover() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(11, Method::Hover(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
         })),
@@ -134,8 +132,8 @@ fn test_find_all_refs() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::References(ReferenceParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(42, Method::References(ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
@@ -170,8 +168,8 @@ fn test_find_all_refs_no_cfg_test() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::References(ReferenceParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(42, Method::References(ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
@@ -199,7 +197,7 @@ fn test_borrow_error() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -223,8 +221,8 @@ fn test_highlight() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::DocumentHighlight(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(42, Method::DocumentHighlight(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
         })),
@@ -255,8 +253,8 @@ fn test_rename() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::Rename(RenameParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(42, Method::Rename(RenameParams {
             text_document: text_doc,
             position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
             new_name: "foo".to_owned()
@@ -289,8 +287,8 @@ fn test_reformat() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::Formatting(DocumentFormattingParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(42, Method::Formatting(DocumentFormattingParams {
             text_document: text_doc,
             options: FormattingOptions {
                 tab_size: 4,
@@ -324,8 +322,8 @@ fn test_reformat_with_range() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::RangeFormatting(DocumentRangeFormattingParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(42, Method::RangeFormatting(DocumentRangeFormattingParams {
             text_document: text_doc,
             range: Range {
                 start: Position { line: 12, character: 0 },
@@ -361,7 +359,7 @@ fn test_multiple_binaries() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
     let mut config = Config::default();
@@ -388,12 +386,12 @@ fn test_completion() {
     let text_doc = TextDocumentIdentifier::new(url);
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::Completion(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(11, Method::Completion(TextDocumentPositionParams {
             text_document: text_doc.clone(),
             position: cache.mk_ls_position(src(&source_file_path, 22, "rld"))
         })),
-        ServerMessage::request(22, Method::Completion(TextDocumentPositionParams {
+        request(22, Method::Completion(TextDocumentPositionParams {
             text_document: text_doc.clone(),
             position: cache.mk_ls_position(src(&source_file_path, 25, "x)"))
         })),
@@ -424,7 +422,7 @@ fn test_bin_lib_project() {
     let root_path = cache.abs_path(Path::new("."));
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
     ];
 
     let mut config = Config::default();
@@ -447,7 +445,7 @@ fn test_bin_lib_project_no_cfg_test() {
     let root_path = cache.abs_path(Path::new("."));
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
     ];
 
     let mut config = Config::default();
@@ -472,7 +470,7 @@ fn test_bin_lib_project_no_cfg_test() {
 //     let root_path = cache.abs_path(Path::new("."));
 
 //     let messages = vec![
-//         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+//         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
 //     ];
 
 //     let mut config = Config::default();
@@ -498,7 +496,7 @@ fn test_infer_lib() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -518,7 +516,7 @@ fn test_infer_bin() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -538,7 +536,7 @@ fn test_infer_custom_bin() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -559,7 +557,7 @@ fn test_omit_init_build() {
     let root_path = cache.abs_path(Path::new("."));
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
     let init_options = Some(InitializationOptions { omit_init_build: true });
-    let initialize = ServerMessage::initialize_with_opts(0, root_path, init_options);
+    let initialize = initialize_with_opts(0, root_path, init_options);
 
     let messages = vec![initialize];
 
@@ -616,17 +614,17 @@ fn test_find_impls() {
     // e.g., https://travis-ci.org/rust-lang-nursery/rls/jobs/265339002
 
     let messages = vec![
-        ServerMessage::initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(1, Method::FindImpls(TextDocumentPositionParams {
+        initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        request(1, Method::FindImpls(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url.clone()),
             position: cache.mk_ls_position(src(&source_file_path, 13, "Bar"))
         })),
-        ServerMessage::request(2, Method::FindImpls(TextDocumentPositionParams {
+        request(2, Method::FindImpls(TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url.clone()),
             position: cache.mk_ls_position(src(&source_file_path, 16, "Super"))
         })),
         // Does not work on Travis
-        // ServerMessage::request(3, Method::FindImpls(TextDocumentPositionParams {
+        // request(3, Method::FindImpls(TextDocumentPositionParams {
         //     text_document: TextDocumentIdentifier::new(url),
         //     position: cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
         // })),
