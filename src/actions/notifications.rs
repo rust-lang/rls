@@ -98,7 +98,7 @@ impl<'a> NotificationAction<'a> for DidChange {
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_change")?;
 
-        let changes: Vec<Change> = params.content_changes.iter().map(move |i| {
+        let changes: Vec<Change> = params.content_changes.iter().map(|i| {
             if let Some(range) = i.range {
                 let range = ls_util::range_to_rls(range);
                 Change::ReplaceText {
@@ -114,6 +114,9 @@ impl<'a> NotificationAction<'a> for DidChange {
             }
         }).collect();
         ctx.vfs.on_changes(&changes).expect("error committing to VFS");
+        if !changes.is_empty() {
+            ctx.build_queue.mark_file_dirty(file_path, params.text_document.version)
+        }
 
         if !ctx.config.lock().unwrap().build_on_save {
             ctx.build_current_project(BuildPriority::Normal, out);
