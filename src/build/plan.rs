@@ -293,10 +293,8 @@ impl JobQueue {
             trace!("Executing: {:?}", job);
             let mut args: Vec<_> = job.get_args().iter().cloned()
                 .map(|x| x.into_string().unwrap()).collect();
-            // TODO: is it crucial to pass *actual* executed program (e.g. rustc
-            // shim) or does the compiler API just care about the order and not
-            // which exact binary was run (1st argument)?
-            args.insert(0, "rustc".to_owned());
+
+            args.insert(0, job.get_program().clone().into_string().unwrap());
 
             match super::rustc::rustc(&internals.vfs, &args, job.get_envs(),
                                       &build_dir, internals.config.clone(),
