@@ -16,6 +16,7 @@ extern crate rustc_resolve;
 extern crate rustc_save_analysis;
 extern crate syntax;
 
+use self::rustc::middle::cstore::CrateStore;
 use self::rustc::session::Session;
 use self::rustc::session::config::{self, Input, ErrorOutputType};
 use self::rustc_driver::{RustcDefaultCalls, run_compiler, run, Compilation, CompilerCalls};
@@ -128,11 +129,12 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
     fn late_callback(&mut self,
                      matches: &getopts::Matches,
                      sess: &Session,
+                     cstore: &CrateStore,
                      input: &Input,
                      odir: &Option<PathBuf>,
                      ofile: &Option<PathBuf>)
                      -> Compilation {
-        self.default_calls.late_callback(matches, sess, input, odir, ofile)
+        self.default_calls.late_callback(matches, sess, cstore, input, odir, ofile)
     }
 
     fn build_controller(&mut self,
@@ -145,7 +147,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
         result.after_analysis.callback = Box::new(move |state| {
             // There are two ways to move the data from rustc to the RLS, either
-            // directly or by serialising and deserialising. We only want to do 
+            // directly or by serialising and deserialising. We only want to do
             // the latter when there are compatibility issues between crates.
 
             // This version passes via JSON, it is more easily backwards compatible.
