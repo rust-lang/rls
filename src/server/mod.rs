@@ -27,8 +27,6 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 mod io;
-//#[cfg(test)]
-//mod test;
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
     debug!("Language Server Starting up");
@@ -263,10 +261,7 @@ impl<O: Output> LsService<O> {
 
     fn parse_message(&mut self, msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
         // Parse the message.
-        let ls_command: serde_json::Value = match serde_json::from_str(msg) {
-            Ok(value) => value,
-            Err(_) => return Err(jsonrpc::Error::parse_error()),
-        };
+        let ls_command: serde_json::Value = serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
 
         // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
         let id = ls_command.get("id").map(|id| serde_json::from_value(id.to_owned()).unwrap());
@@ -279,7 +274,6 @@ impl<O: Output> LsService<O> {
         };
 
         let method = method.as_str().ok_or_else(|| jsonrpc::Error::invalid_request())?.to_owned();
-
         let params = ls_command.get("params");
 
         Ok(Some(RawMessage { method, id, params: params.map(|p| p.to_owned()) }))
@@ -289,6 +283,7 @@ impl<O: Output> LsService<O> {
         macro_rules! match_action {
             ($method: expr; notifications: $($n_action: ty),*; requests: $($r_action: ty),*;) => {
                 let mut handled = false;
+                trace!("Handling `{}`", $method);
                 $(
                     if $method == <$n_action as Action>::METHOD {
                         let notification = msg.parse_as_notification::<$n_action>()?;
@@ -381,6 +376,7 @@ impl<O: Output> LsService<O> {
         trace!("Parsed message `{:?}`", raw_message);
 
         if let Err(e) = self.dispatch_message(&raw_message) {
+            debug!("dispatch error, {:?}", e);
             self.output.failure(raw_message.id.unwrap_or(Id::Null), e);
             return ServerStateChange::Break;
         }
