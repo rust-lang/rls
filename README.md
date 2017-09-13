@@ -152,3 +152,5 @@ For tips on debugging and troubleshooting, see [debugging.md](debugging.md).
 
 You can look in the [contributing.md](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md)
 in this repo to learn more about contributing to this project.
+
+If you want to implement RLS support in an editor, see [clients.md](clients.md).

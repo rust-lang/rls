@@ -17,6 +17,7 @@ on IRC.
 We'd love for existing and new tools to use the RLS. If that sounds interesting
 please get in touch by filing an issue or on IRC.
 
+If you want to implement RLS support in an editor, see [clients.md](clients.md).
 
 ## Building
 
