@@ -13,7 +13,6 @@
 #![feature(type_ascription)]
 #![feature(integer_atomics)]
 #![feature(fnbox)]
-#![feature(iterator_for_each)]
 
 extern crate cargo;
 extern crate env_logger;
