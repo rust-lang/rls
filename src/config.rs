@@ -121,6 +121,8 @@ pub struct Config {
     pub features: Vec<String>,
     pub all_features: bool,
     pub no_default_features: bool,
+    /// Automatically infer the correct rewrite rule for stdlib if source code is installed and use it
+    pub apply_stdlib_rewrite: bool,
     /// Specify a set of path prefixes and how to rewrite them to existing paths
     pub path_rewrites: BTreeMap<PathBuf, PathBuf>,
 }
@@ -147,6 +149,7 @@ impl Default for Config {
             features: vec![],
             all_features: false,
             no_default_features: false,
+            apply_stdlib_rewrite: true,
             path_rewrites: BTreeMap::new(),
         };
         result.normalise();

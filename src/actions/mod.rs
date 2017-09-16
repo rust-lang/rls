@@ -58,14 +58,40 @@ pub enum ActionContext {
 impl ActionContext {
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
-               config: Arc<Mutex<Config>>) -> ActionContext {
-        ActionContext::Uninit(UninitActionContext::new(analysis, vfs, config))
+               config: Arc<Mutex<Config>>,
+               stdlib_rewrite: Option<(PathBuf, PathBuf)>) -> ActionContext {
+        // if the stdlib path rewrite should be used this has to be done very early
+        // such that loading of the stdlib can use the rewrite rules
+        {
+            let mut config = config.lock().unwrap();
+
+            // transparently update the rewrite rules if the user wishes so
+            if config.apply_stdlib_rewrite {
+                use std::collections::btree_map::Entry;
+                // insert the default path rewrite rule if no rule exists
+                if let Some((ref checkout_dir, ref source_code)) = stdlib_rewrite {
+                    if let Entry::Vacant(o) = config.path_rewrites.entry(checkout_dir.clone()) {
+                        o.insert(source_code.clone());
+                    }
+
+                    // also update the analysis host
+                    analysis.update_path_rewrites(config.path_rewrites.clone());
+                }
+            }
+        }
+        ActionContext::Uninit(UninitActionContext::new(analysis, vfs, config, stdlib_rewrite))
     }
 
     pub fn init<O: Output>(&mut self, current_project: PathBuf, init_options: &InitializationOptions, out: O) {
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
-                let ctx = InitActionContext::new(uninit.analysis.clone(), uninit.vfs.clone(), uninit.config.clone(), current_project);
+                let ctx = InitActionContext::new(
+                    uninit.analysis.clone(),
+                    uninit.vfs.clone(),
+                    uninit.config.clone(),
+                    current_project,
+                    uninit.stdlib_rewrite.clone(),
+                );
                 ctx.init(init_options, out);
                 ctx
             }
@@ -87,6 +113,7 @@ pub struct InitActionContext {
     vfs: Arc<Vfs>,
 
     current_project: PathBuf,
+    stdlib_rewrite: Option<(PathBuf, PathBuf)>,
 
     previous_build_results: Arc<Mutex<BuildResults>>,
     build_queue: BuildQueue,
@@ -99,16 +126,19 @@ pub struct UninitActionContext {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     config: Arc<Mutex<Config>>,
+    stdlib_rewrite: Option<(PathBuf, PathBuf)>,
 }
 
 impl UninitActionContext {
     fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
-               config: Arc<Mutex<Config>>) -> UninitActionContext {
+               config: Arc<Mutex<Config>>,
+               stdlib_rewrite: Option<(PathBuf, PathBuf)>) -> UninitActionContext {
         UninitActionContext {
             analysis,
             vfs,
             config,
+            stdlib_rewrite
         }
     }
 
@@ -118,7 +148,8 @@ impl InitActionContext {
     fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
                config: Arc<Mutex<Config>>,
-               current_project: PathBuf) -> InitActionContext {
+               current_project: PathBuf,
+               stdlib_rewrite: Option<(PathBuf, PathBuf)>) -> InitActionContext {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
         let fmt_config = FmtConfig::from(&current_project);
         InitActionContext {
@@ -126,6 +157,7 @@ impl InitActionContext {
             vfs,
             config,
             current_project,
+            stdlib_rewrite,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
             fmt_config,
