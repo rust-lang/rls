@@ -100,6 +100,19 @@ impl<'a> EnvironmentLockFacade {
     }
 }
 
+macro_rules! safe_lock {
+    ($lock: expr) => {
+        match $lock.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                warn!("A poisoned mutex was encountered when trying to use the\
+                       environment lock. Recovering");
+                poisoned.into_inner()
+            }
+        }
+    };
+}
+
 impl<'a> EnvironmentLock {
     fn new() -> EnvironmentLock {
         EnvironmentLock {
@@ -116,7 +129,7 @@ impl<'a> EnvironmentLock {
     /// user can access the second, inner lock. Does not enforce any guarantees regarding order of
     /// locking, since `InnerLock` can be copied outside 'a lifetime and locked there.
     pub fn lock(&self) -> (MutexGuard<'a, ()>, InnerLock) {
-        (ENV_LOCK.outer.lock().unwrap(), InnerLock{ })
+        (safe_lock!(ENV_LOCK.outer), InnerLock{ })
     }
 
     /// Constructs a corresponding `EnvironmentLockFacade` value, erasing specific type of the lock.
@@ -131,7 +144,7 @@ pub struct InnerLock;
 impl<'a> InnerLock {
     /// Acquires the second, inner environment lock.
     pub fn lock(&self) -> MutexGuard<'a, ()> {
-        ENV_LOCK.inner.lock().unwrap()
+        safe_lock!(ENV_LOCK.inner)
     }
 
     /// Constructs a corresponding `EnvironmentLockFacade` value, erasing specific type of the lock.
