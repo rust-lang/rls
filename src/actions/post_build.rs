@@ -15,13 +15,14 @@ use std::thread;
 
 use build::BuildResult;
 use lsp_data::{NotificationMessage, PublishDiagnosticsParams, ls_util};
+use lsp_data::{NOTIFICATION_DIAGNOSTICS_BEGIN, NOTIFICATION_DIAGNOSTICS_END};
 use server::Output;
 use CRATE_BLACKLIST;
 use Span;
 
 use analysis::AnalysisHost;
 use data::Analysis;
-use ls_types::{Diagnostic, Range, DiagnosticSeverity, NumberOrString};
+use ls_types::{self, Diagnostic, Range, DiagnosticSeverity, NumberOrString};
 use serde_json;
 use span::compiler::DiagnosticSpan;
 use url::Url;
@@ -42,7 +43,10 @@ impl<O: Output> PostBuildHandler<O> {
     pub fn handle(self, result: BuildResult) {
         // We use `rustDocument` document here since these notifications are
         // custom to the RLS and not part of the LS protocol.
-        self.out.notify("rustDocument/diagnosticsBegin");
+        self.out.notify(NotificationMessage::new(
+            NOTIFICATION_DIAGNOSTICS_BEGIN,
+            None,
+        ));
 
         match result {
             BuildResult::Success(messages, new_analysis) |
@@ -60,16 +64,25 @@ impl<O: Output> PostBuildHandler<O> {
                         self.reload_analysis_from_memory(new_analysis);
                     }
 
-                    self.out.notify("rustDocument/diagnosticsEnd");
+                    self.out.notify(NotificationMessage::new(
+                        NOTIFICATION_DIAGNOSTICS_END,
+                        None,
+                    ));
                 });
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                self.out.notify("rustDocument/diagnosticsEnd");
+                self.out.notify(NotificationMessage::new(
+                    NOTIFICATION_DIAGNOSTICS_END,
+                    None,
+                ));
             },
             BuildResult::Err => {
                 trace!("build - Error");
-                self.out.notify("rustDocument/diagnosticsEnd");
+                self.out.notify(NotificationMessage::new(
+                    NOTIFICATION_DIAGNOSTICS_END,
+                    None,
+                ));
             },
         }
     }
@@ -226,15 +239,12 @@ fn emit_notifications<O: Output>(
     build_results
         .iter()
         .for_each(|(path, diagnostics)| {
-            let method = "textDocument/publishDiagnostics".to_string();
-
             let params = PublishDiagnosticsParams {
                 uri: Url::from_file_path(cwd.join(path)).unwrap(),
                 diagnostics: diagnostics.iter()
                     .filter_map(|&(ref d, _)| {
-                        let d = d.clone();
                         if show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
-                            Some(d)
+                            Some(d.clone())
                         } else {
                             None
                         }
@@ -242,9 +252,9 @@ fn emit_notifications<O: Output>(
                     .collect(),
             };
 
-            let notification = NotificationMessage::new(method, params);
-            // FIXME(43) factor out the notification mechanism.
-            let output = serde_json::to_string(&notification).unwrap();
-            out.response(output);
+            out.notify(NotificationMessage::new(
+                ls_types::NOTIFICATION__PublishDiagnostics,
+                Some(params),
+            ));
         })
 }
