@@ -315,8 +315,6 @@ the user experience by showing progress indicators.
 * `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
   is complete (successfully or not, or even skipped) and all post-build analysis
   by the RLS is complete.
-* `rustWorkspace/deglob`: message sent from the client to the RLS to initiate a
-  deglob refactoring.
 
 #### LSP Client to RLS
 
@@ -331,3 +329,6 @@ The following request is to support Rust specific features.
 
 [`TextDocumentPositionParams`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#textdocumentpositionparams)
 [`Location`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#location)
+* `rustWorkspace/deglob`: message sent from the client to the RLS to initiate a
+  deglob refactoring.
+
