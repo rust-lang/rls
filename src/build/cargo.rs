@@ -322,22 +322,14 @@ impl Executor for RlsExecutor {
             };
             trace!("rustc not intercepted - {}{}", id.name(), build_script_notice);
 
-            // Recreate the original command, minus -Zsave-analysis. Since the
-            // shim sets it internally, be sure not to use it.
             if ::CRATE_BLACKLIST.contains(&&*crate_name) {
+                // By running the original command (rather than using our shim), we
+                // avoid producing save-analysis data.
                 trace!("crate is blacklisted");
-                let mut cargo_cmd = cargo_cmd.clone();
-                let args: Vec<_> = cargo_cmd.get_args().iter().cloned()
-                    .filter(|x| x != "Zsave-analysis").collect();
-                cargo_cmd.args_replace(&args);
-
                 return cargo_cmd.exec();
             }
             cmd.arg("--sysroot");
             cmd.arg(&sysroot);
-            // TODO: Make sure we don't pass any unstable options (incl. -Zsave-analysis)
-            // to the shim. For stable toolchains it won't accept those as arguments,
-            // but rather it sets them internally instead to work around that
             return cmd.exec();
         }
 
@@ -380,7 +372,6 @@ impl Executor for RlsExecutor {
             // NB: In `workspace_mode` regular compilation is performed here (and we don't
             // only calculate dep-info) so it should fix the problem mentioned above.
             let modified = args.iter()
-                .filter(|a| *a != "-Zsave-analysis")
                 .map(|a| {
                     // Emitting only dep-info is possible only for final crate type, as
                     // as others may emit required metadata for dependent crate types

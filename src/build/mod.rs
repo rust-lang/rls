@@ -433,7 +433,7 @@ impl Internals {
         //
         // Our 'short' rustc build runs rustc directly and in-process (we must
         // do this so we can load changed code from the VFS, rather than from
-        // disk). We get the data we need by building with `-Zsave-analysis`.
+        // disk).
 
         // Don't hold this lock when we run Cargo.
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
