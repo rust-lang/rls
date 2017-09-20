@@ -30,9 +30,9 @@ use std::time::Duration;
 mod environment;
 mod cargo;
 mod rustc;
-pub mod plan;
+mod plan;
 
-use self::plan::Plan as BuildPlan;
+use self::plan::{Plan as BuildPlan, WorkStatus};
 
 /// Manages builds.
 ///
@@ -68,6 +68,9 @@ pub struct BuildQueue {
     queued: Arc<Mutex<(Build, Build)>>,
 }
 
+/// Used when tracking modified files across different builds.
+type FileVersion = u64;
+
 // Information needed to run and configure builds.
 struct Internals {
     // Arguments and environment with which we call rustc.
@@ -75,6 +78,8 @@ struct Internals {
     // This lock should only be held transiently.
     compilation_cx: Arc<Mutex<CompilationContext>>,
     env_lock: Arc<EnvironmentLock>,
+    /// Set of files that were modified since last build.
+    dirty_files: Arc<Mutex<HashMap<PathBuf, FileVersion>>>,
     vfs: Arc<Vfs>,
     // This lock should only be held transiently.
     config: Arc<Mutex<Config>>,
@@ -146,7 +151,8 @@ enum Build {
 struct PendingBuild {
     build_dir: PathBuf,
     priority: BuildPriority,
-    // Closure to execture once the build is complete.
+    built_files: HashMap<PathBuf, FileVersion>,
+    // Closure to execute once the build is complete.
     and_then: Box<FnBox(BuildResult) + Send + 'static>,
 }
 
@@ -228,6 +234,7 @@ impl BuildQueue {
 
         let build = PendingBuild {
             build_dir: new_build_dir.to_owned(),
+            built_files: self.internals.dirty_files.lock().unwrap().clone(),
             priority,
             and_then: Box::new(and_then),
         };
@@ -324,7 +331,8 @@ impl BuildQueue {
             }
 
             // Run the build.
-            let result = internals.run_build(&build.build_dir, build.priority);
+            let result = internals.run_build(&build.build_dir, build.priority,
+                                             &build.built_files);
             // Assert that the build was not squashed.
             if let BuildResult::Squashed = result {
                 unreachable!();
@@ -340,6 +348,14 @@ impl BuildQueue {
             }
         }
     }
+
+    /// Marks a given versioned file as dirty since last build. The dirty flag
+    /// will be cleared by a successful build that builds this or a more recent
+    /// version of this file.
+    pub fn mark_file_dirty(&self, file: PathBuf, version: FileVersion) {
+        trace!("Marking file as dirty: {:?} ({})", file, version);
+        self.internals.dirty_files.lock().unwrap().insert(file, version);
+    }
 }
 
 impl Internals {
@@ -348,6 +364,7 @@ impl Internals {
             compilation_cx: Arc::new(Mutex::new(CompilationContext::new())),
             vfs,
             config,
+            dirty_files: Arc::new(Mutex::new(HashMap::new())),
             // Since environment is global mutable state and we can run multiple server
             // instances, be sure to use a global lock to ensure env var consistency
             env_lock: EnvironmentLock::get(),
@@ -356,7 +373,12 @@ impl Internals {
     }
 
     // Entry point method for building.
-    fn run_build(&self, new_build_dir: &Path, priority: BuildPriority) -> BuildResult {
+    fn run_build(
+        &self,
+        new_build_dir: &Path,
+        priority: BuildPriority,
+        built_files: &HashMap<PathBuf, FileVersion>,
+    ) -> BuildResult {
         trace!("run_build, {:?} {:?}", new_build_dir, priority);
 
         // Check if the build directory changed and update it.
@@ -375,7 +397,23 @@ impl Internals {
             }
         }
 
-        self.build()
+        let result = self.build();
+        // On a successful build, clear dirty files that were successfuly built
+        // now. It's possible that a build was scheduled with given files, but
+        // user later changed them. These should still be left as dirty (not built).
+        match *&result {
+            BuildResult::Success(_, _) | BuildResult::Failure(_, _) => {
+                let mut dirty_files = self.dirty_files.lock().unwrap();
+                dirty_files.retain(|file, dirty_version| {
+                    built_files.get(file)
+                    .map(|built_version| built_version < dirty_version)
+                    .unwrap_or(false)
+                });
+                trace!("Files still dirty after the build: {:?}", *dirty_files);
+            },
+            _ => {}
+        };
+        result
     }
 
     // Build the project.
@@ -401,14 +439,27 @@ impl Internals {
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
         let workspace_mode = self.config.lock().unwrap().workspace_mode;
 
-        if workspace_mode || needs_to_run_cargo {
-            let result = cargo::cargo(self);
-
-            match result {
-                BuildResult::Err => return BuildResult::Err,
-                _ if workspace_mode => return result,
-                _ => {},
+        if workspace_mode {
+            // If the build plan has already been cached, use it, unless Cargo
+            // has to be specifically rerun (e.g. when build scripts changed)
+            let work = {
+                let modified: Vec<_> = self.dirty_files.lock().unwrap()
+                                           .keys().cloned().collect();
+                let cx = self.compilation_cx.lock().unwrap();
+                cx.build_plan.prepare_work(&modified)
             };
+            return match work {
+                // In workspace_mode, cargo performs the full build and returns
+                // appropriate diagnostics/analysis data
+                WorkStatus::NeedsCargo => cargo::cargo(self),
+                WorkStatus::Execute(job_queue) => job_queue.execute(self),
+            };
+        // In single package mode Cargo needs to be run to cache args/envs for
+        // future rustc calls
+        } else if needs_to_run_cargo {
+            if let BuildResult::Err = cargo::cargo(self) {
+                return BuildResult::Err;
+            }
         }
 
         let compile_cx = self.compilation_cx.lock().unwrap();
