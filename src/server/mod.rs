@@ -13,6 +13,7 @@ use jsonrpc_core::{self as jsonrpc, Id};
 use vfs::Vfs;
 use serde;
 use serde_json;
+use serde::Deserialize;
 
 use version;
 use lsp_data::*;
@@ -410,7 +411,6 @@ struct RawMessage {
 
 impl RawMessage {
     fn parse_as_request<'a, T: RequestAction<'a>>(&'a self) -> Result<Request<T>, jsonrpc::Error> {
-        use serde::Deserialize;
 
         // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
         // to using jsonrpc_core::Id
@@ -420,10 +420,11 @@ impl RawMessage {
             _ => None,
         };
 
-        let params = match T::Params::deserialize(&self.params) {
-            Err(_) => return Err(jsonrpc::Error::invalid_request()),
-            Ok(params) => params,
-        };
+        let params = T::Params::deserialize(&self.params)
+            .map_err(|e| {
+                debug!("error when parsing as request: {}", e);
+                jsonrpc::Error::invalid_request()
+            })?;
 
         match parsed_numeric_id {
             Some(id) => {
@@ -440,13 +441,11 @@ impl RawMessage {
     fn parse_as_notification<'a, T: NotificationAction<'a>>(&'a self) -> Result<Notification<T>, jsonrpc::Error> {
         use serde::Deserialize;
 
-        let params = match T::Params::deserialize(&self.params) {
-            Err(e) => {
-                eprintln!("Error when parsing as notification: {}", e);
-                return Err(jsonrpc::Error::invalid_request());
-            },
-            Ok(params) => params,
-        };
+        let params = T::Params::deserialize(&self.params)
+            .map_err(|e| {
+                debug!("error when parsing as notification: {}", e);
+                jsonrpc::Error::invalid_request()
+            })?;
 
         Ok(Notification {
             params,
