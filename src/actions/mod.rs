@@ -160,7 +160,10 @@ impl InitActionContext {
             }
         };
 
-        out.notify("rustDocument/beginBuild");
+        out.notify(NotificationMessage::new(
+            NOTIFICATION_BUILD_BEGIN,
+            None,
+        ));
         self.build_queue.request_build(project_path, priority, move |result| {
             pbh.handle(result)
         });

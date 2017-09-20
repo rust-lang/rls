@@ -123,11 +123,8 @@ pub trait Output: Sync + Send + Clone + 'static {
         self.response(output);
     }
 
-    fn notify(&self, message: &str) {
-        let output = serde_json::to_string(
-            &NotificationMessage::new(message.to_owned(), ())
-        ).unwrap();
-        self.response(output);
+    fn notify(&self, notification: NotificationMessage) {
+        self.response(serde_json::to_string(&notification).unwrap());
     }
 }
 
