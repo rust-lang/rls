@@ -22,6 +22,7 @@ use server::{Output, Action, NotificationAction, LsState, NoParams};
 
 use std::thread;
 
+#[derive(Debug, PartialEq)]
 pub struct Initialized;
 
 impl<'a> Action<'a> for Initialized {
@@ -58,6 +59,7 @@ impl<'a> NotificationAction<'a> for Initialized {
     }
 }
 
+#[derive(Debug)]
 pub struct DidOpen;
 
 impl<'a> Action<'a> for DidOpen {
@@ -80,6 +82,7 @@ impl<'a> NotificationAction<'a> for DidOpen {
     }
 }
 
+#[derive(Debug)]
 pub struct DidChange;
 
 impl<'a> Action<'a> for DidChange {
@@ -122,6 +125,7 @@ impl<'a> NotificationAction<'a> for DidChange {
     }
 }
 
+#[derive(Debug)]
 pub struct Cancel;
 
 impl<'a> Action<'a> for Cancel {
@@ -140,6 +144,7 @@ impl<'a> NotificationAction<'a> for Cancel {
     }
 }
 
+#[derive(Debug)]
 pub struct DidChangeConfiguration;
 
 impl<'a> Action<'a> for DidChangeConfiguration {
@@ -223,6 +228,7 @@ impl<'a> NotificationAction<'a> for DidChangeConfiguration {
     }
 }
 
+#[derive(Debug)]
 pub struct DidSave;
 
 impl<'a> Action<'a> for DidSave {
@@ -249,6 +255,7 @@ impl<'a> NotificationAction<'a> for DidSave {
     }
 }
 
+#[derive(Debug)]
 pub struct DidChangeWatchedFiles;
 
 impl<'a> Action<'a> for DidChangeWatchedFiles {

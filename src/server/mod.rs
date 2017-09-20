@@ -14,6 +14,7 @@ use vfs::Vfs;
 use serde;
 use serde_json;
 
+use version;
 use lsp_data::*;
 use actions::{ActionContext, requests, notifications};
 use config::Config;
@@ -29,7 +30,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 mod io;
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
-    debug!("Language Server Starting up");
+    debug!("Language Server Starting up. Version: {}", version());
     let service = LsService::new(analysis,
                                  vfs,
                                  Arc::new(Mutex::new(Config::default())),
@@ -43,8 +44,8 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
 #[derive(Debug, Serialize)]
 pub struct Ack;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NoParams {}
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct NoParams;
 
 pub trait Action<'a> {
     type Params: serde::Serialize + for<'de> ::serde::Deserialize<'de>;
@@ -70,6 +71,7 @@ pub struct Request<'a, A: RequestAction<'a>> {
     pub _action: PhantomData<A>,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Notification<'a, A: NotificationAction<'a>> {
     pub params: A::Params,
     pub _action: PhantomData<A>,
@@ -122,6 +124,7 @@ pub struct LsService<O: Output> {
     pub state: LsState,
 }
 
+#[derive(Debug)]
 pub struct LsState {
     shut_down: AtomicBool,
 }
@@ -149,6 +152,7 @@ impl<'a> RequestAction<'a> for ShutdownRequest<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct ExitNotification<'a> {
     state: &'a mut LsState,
 }
@@ -274,9 +278,21 @@ impl<O: Output> LsService<O> {
         };
 
         let method = method.as_str().ok_or_else(|| jsonrpc::Error::invalid_request())?.to_owned();
-        let params = ls_command.get("params");
+        
+        // Representing internally a missing parameter as Null instead of None,
+        // (Null being unused value of param by the JSON-RPC 2.0 spec)
+        // to unify the type handling – now the parameter type implements Deserialize.
+        let params = match ls_command.get("params").map(|p| p.to_owned()) {
+            Some(params @ serde_json::Value::Object(..)) => params,
+            Some(params @ serde_json::Value::Array(..)) => params,
+            None => serde_json::Value::Null,
+            // Null as input value is not allowed by JSON-RPC 2.0,
+            //but including it for robustness
+            Some(serde_json::Value::Null) => serde_json::Value::Null,
+            _ => return Err(jsonrpc::Error::invalid_request()),
+        };
 
-        Ok(Some(RawMessage { method, id, params: params.map(|p| p.to_owned()) }))
+        Ok(Some(RawMessage { method, id, params }))
     }
 
     fn dispatch_message(&mut self, msg: &RawMessage) -> Result<(), jsonrpc::Error> {
@@ -389,11 +405,13 @@ impl<O: Output> LsService<O> {
 struct RawMessage {
     method: String,
     id: Option<Id>,
-    params: Option<serde_json::Value>,
+    params: serde_json::Value,
 }
 
 impl RawMessage {
     fn parse_as_request<'a, T: RequestAction<'a>>(&'a self) -> Result<Request<T>, jsonrpc::Error> {
+        use serde::Deserialize;
+
         // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
         // to using jsonrpc_core::Id
         let parsed_numeric_id = match &self.id {
@@ -402,9 +420,13 @@ impl RawMessage {
             _ => None,
         };
 
+        let params = match T::Params::deserialize(&self.params) {
+            Err(_) => return Err(jsonrpc::Error::invalid_request()),
+            Ok(params) => params,
+        };
+
         match parsed_numeric_id {
             Some(id) => {
-                let params = params_as(self.params.as_ref())?;
                 Ok(Request {
                     id,
                     params,
@@ -416,7 +438,16 @@ impl RawMessage {
     }
 
     fn parse_as_notification<'a, T: NotificationAction<'a>>(&'a self) -> Result<Notification<T>, jsonrpc::Error> {
-        let params = params_as(self.params.as_ref())?;
+        use serde::Deserialize;
+
+        let params = match T::Params::deserialize(&self.params) {
+            Err(e) => {
+                eprintln!("Error when parsing as notification: {}", e);
+                return Err(jsonrpc::Error::invalid_request());
+            },
+            Ok(params) => params,
+        };
+
         Ok(Notification {
             params,
             _action: PhantomData,
@@ -424,19 +455,17 @@ impl RawMessage {
     }
 }
 
-fn params_as<T: for<'de> ::serde::Deserialize<'de>>(params: Option<&serde_json::Value>) -> Result<T, jsonrpc::Error> {
-    let params = match params {
-        Some(value) => value.to_owned(),
-        None => return Err(jsonrpc::Error::invalid_request()),
+#[test]
+fn test_parse_as_notification() {
+    let raw = RawMessage {
+        method: "initialize".to_owned(),
+        id: None,
+        params: serde_json::Value::Null,
     };
+    let notification = raw.parse_as_notification::<notifications::Initialized>();
 
-    let method = match serde_json::from_value(params.to_owned()) {
-        Ok(value) => value,
-        Err(e) => {
-            debug!("error parsing params {:?}", e);
-            debug!("{:?}", params);
-            return Err(jsonrpc::Error::invalid_params(e.to_string()));
-        }
-    };
-    Ok(method)
+    assert_eq!(notification, Ok(Notification::<notifications::Initialized> {
+        params: NoParams {},
+        _action: PhantomData,
+    }));
 }
