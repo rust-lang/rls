@@ -51,15 +51,16 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     let handle = thread::spawn(|| run_cargo(compilation_cx, config, vfs, env_lock,
                                             diagnostics, analyses, out));
 
-    match handle.join() {
+    match handle.join().map_err(|_| "thread panicked".into()).and_then(|res| res) {
         Ok(_) if workspace_mode => {
             let diagnostics = Arc::try_unwrap(diagnostics_clone).unwrap().into_inner().unwrap();
             let analyses = Arc::try_unwrap(analyses_clone).unwrap().into_inner().unwrap();
             BuildResult::Success(diagnostics, analyses)
         },
         Ok(_) => BuildResult::Success(vec![], vec![]),
-        Err(_) => {
-            info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
+        Err(err) => {
+            let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
+            info!("cargo failed\ncause: {}\nstdout: {}", err, stdout);
             BuildResult::Err
         }
     }
@@ -71,7 +72,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
              env_lock: Arc<EnvironmentLock>,
              compiler_messages: Arc<Mutex<Vec<String>>>,
              analyses: Arc<Mutex<Vec<Analysis>>>,
-             out: Arc<Mutex<Vec<u8>>>) {
+             out: Arc<Mutex<Vec<u8>>>) -> CargoResult<()> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
     // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
     // during exec() callback when calling linked compiler in parallel, for which we need to
@@ -87,8 +88,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         compilation_cx.build_dir.as_ref().unwrap().clone()
     };
     // Note that this may not be equal build_dir when inside a workspace member
-    let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)
-        .expect(&format!("Couldn't find a root manifest for cwd: {:?}", &build_dir));
+    let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)?;
     trace!("root manifest_path: {:?}", &manifest_path);
     // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
     let manifest_dir = manifest_path.parent().unwrap();
@@ -98,7 +98,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
 
     let config = make_cargo_config(manifest_dir, shell);
 
-    let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
+    let ws = Workspace::new(&manifest_path, &config)?;
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
     // it on every relevant configuration change
@@ -132,8 +132,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         (opts, rustflags, rls_config.clear_env_rust_log)
     };
 
-    let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)
-        .expect("Couldn't create Packages for Cargo");
+    let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)?;
 
     let compile_opts = CompileOptions {
         target: opts.target.as_ref().map(|t| &t[..]),
@@ -157,7 +156,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     let mut restore_env = Environment::push_with_lock(&env, lock_guard);
     let mut save_config = ::data::config::Config::default();
     save_config.pub_only = true;
-    let save_config = serde_json::to_string(&save_config).expect("could not serialise config");
+    let save_config = serde_json::to_string(&save_config)?;
     restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(save_config)));
 
     let exec = RlsExecutor::new(&ws,
@@ -168,10 +167,12 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
                                 compiler_messages,
                                 analyses);
 
-    compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
+    compile_with_exec(&ws, &compile_opts, Arc::new(exec))?;
 
     trace!("Created build plan after Cargo compilation routine: {:?}",
         compilation_cx.lock().unwrap().build_plan);
+
+    Ok(())
 }
 
 struct RlsExecutor {
