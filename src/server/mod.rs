@@ -31,7 +31,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 mod io;
 
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
-    debug!("Language Server Starting up. Version: {}", version());
+    debug!("Language Server starting up. Version: {}", version());
     let service = LsService::new(analysis,
                                  vfs,
                                  Arc::new(Mutex::new(Config::default())),
