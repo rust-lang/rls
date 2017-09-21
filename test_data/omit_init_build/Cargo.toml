@@ -1,6 +1,0 @@
-[package]
-name = "omit_init_build"
-version = "0.1.0"
-authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
-
-[dependencies]

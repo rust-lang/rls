@@ -20,7 +20,7 @@ use server::{self as ls_server, Request};
 use jsonrpc_core;
 use vfs;
 
-use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, mock_server_with_config, RecordOutput, src};
+use self::harness::{Environment, expect_messages, ExpectedMessage, RecordOutput, src};
 
 use ls_types::*;
 use lsp_data::InitializationOptions;
@@ -67,22 +67,22 @@ pub fn request<'a, T: ls_server::RequestAction<'a>>(id: usize, params: T::Params
 
 #[test]
 fn test_goto_def() {
-    let (mut cache, _tc) = init_env("goto_def");
+    let mut env = Environment::new("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::Definition>(11, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+            position: env.cache.mk_ls_position(src(&source_file_path, 22, "world"))
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -99,22 +99,22 @@ fn test_goto_def() {
 
 #[test]
 fn test_hover() {
-    let (mut cache, _tc) = init_env("hover");
+    let mut env = Environment::new("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::Hover>(11, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+            position: env.cache.mk_ls_position(src(&source_file_path, 22, "world"))
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -130,9 +130,9 @@ fn test_hover() {
 
 #[test]
 fn test_workspace_symbol() {
-    let (cache, _tc) = init_env("workspace_symbol");
+    let mut env = Environment::new("workspace_symbol");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
@@ -141,9 +141,8 @@ fn test_workspace_symbol() {
         }).to_string(),
     ];
 
-    let mut config = Config::default();
-    config.cfg_test = true;
-    let (mut server, results) = mock_server_with_config(messages, config);
+    env.with_config(|c| c.cfg_test = true);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -154,7 +153,7 @@ fn test_workspace_symbol() {
 
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
-    
+
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
                                                                      // in main.rs
                                                                      .expect_contains(r#"main.rs"#)
@@ -162,7 +161,7 @@ fn test_workspace_symbol() {
                                                                      .expect_contains(r#""kind":12"#)
                                                                      .expect_contains(r#""range":{"start":{"line":11,"character":11},"end":{"line":11,"character":15}}"#)
                                                                      .expect_contains(r#""containerName":"x""#)
-                                                                     
+
                                                                      // in foo.rs
                                                                      .expect_contains(r#"foo.rs"#)
                                                                      .expect_contains(r#""name":"nemo""#)
@@ -173,25 +172,24 @@ fn test_workspace_symbol() {
 
 #[test]
 fn test_find_all_refs() {
-    let (mut cache, _tc) = init_env("find_all_refs");
+    let mut env = Environment::new("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::References>(42, ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+            position: env.cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
         }).to_string(),
     ];
 
-    let mut config = Config::default();
-    config.cfg_test = true;
-    let (mut server, results) = mock_server_with_config(messages, config);
+    env.with_config(|c| c.cfg_test = true);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -209,23 +207,23 @@ fn test_find_all_refs() {
 
 #[test]
 fn test_find_all_refs_no_cfg_test() {
-    let (mut cache, _tc) = init_env("find_all_refs_no_cfg_test");
+    let mut env = Environment::new("find_all_refs_no_cfg_test");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::References>(42, ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+            position: env.cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -242,14 +240,14 @@ fn test_find_all_refs_no_cfg_test() {
 
 #[test]
 fn test_borrow_error() {
-    let (cache, _tc) = init_env("borrow_error");
+    let mut env = Environment::new("borrow_error");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -262,22 +260,22 @@ fn test_borrow_error() {
 
 #[test]
 fn test_highlight() {
-    let (mut cache, _tc) = init_env("highlight");
+    let mut env = Environment::new("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::DocumentHighlight>(42, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
+            position: env.cache.mk_ls_position(src(&source_file_path, 22, "world"))
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -294,23 +292,23 @@ fn test_highlight() {
 
 #[test]
 fn test_rename() {
-    let (mut cache, _tc) = init_env("rename");
+    let mut env = Environment::new("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::Rename>(42, RenameParams {
             text_document: text_doc,
-            position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
+            position: env.cache.mk_ls_position(src(&source_file_path, 22, "world")),
             new_name: "foo".to_owned()
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -328,12 +326,12 @@ fn test_rename() {
 
 #[test]
 fn test_reformat() {
-    let (cache, _tc) = init_env("reformat");
+    let mut env = Environment::new("reformat");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
@@ -347,7 +345,7 @@ fn test_reformat() {
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -364,11 +362,11 @@ fn test_reformat() {
 
 #[test]
 fn test_reformat_with_range() {
-    let (cache, _tc) = init_env("reformat_with_range");
+    let mut env = Environment::new("reformat_with_range");
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
@@ -386,7 +384,7 @@ fn test_reformat_with_range() {
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
 
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
@@ -404,16 +402,15 @@ fn test_reformat_with_range() {
 
 #[test]
 fn test_multiple_binaries() {
-    let (cache, _tc) = init_env("multiple_bins");
+    let mut env = Environment::new("multiple_bins");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
-    let mut config = Config::default();
-    config.build_bin = Inferrable::Specified(Some("bin2".to_owned()));
-    let (mut server, results) = mock_server_with_config(messages, config);
+    env.with_config(|c| c.build_bin = Inferrable::Specified(Some("bin2".to_owned())));
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -426,27 +423,27 @@ fn test_multiple_binaries() {
 
 #[test]
 fn test_completion() {
-    let (mut cache, _tc) = init_env("completion");
+    let mut env = Environment::new("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::Completion>(11, TextDocumentPositionParams {
             text_document: text_doc.clone(),
-            position: cache.mk_ls_position(src(&source_file_path, 22, "rld"))
+            position: env.cache.mk_ls_position(src(&source_file_path, 22, "rld"))
         }).to_string(),
         request::<requests::Completion>(22, TextDocumentPositionParams {
             text_document: text_doc.clone(),
-            position: cache.mk_ls_position(src(&source_file_path, 25, "x)"))
+            position: env.cache.mk_ls_position(src(&source_file_path, 25, "x)"))
         }).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -466,18 +463,19 @@ fn test_completion() {
 
 #[test]
 fn test_bin_lib_project() {
-    let (cache, _tc) = init_env("bin_lib");
+    let mut env = Environment::new("bin_lib");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
-    let mut config = Config::default();
-    config.cfg_test = true;
-    config.build_bin = Inferrable::Specified(Some("bin_lib".into()));
-    let (mut server, results) = mock_server_with_config(messages, config);
+    env.with_config(|c| {
+        c.cfg_test = true;
+        c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
+    });
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -489,42 +487,42 @@ fn test_bin_lib_project() {
 
 #[test]
 fn test_bin_lib_project_no_cfg_test() {
-    let (cache, _tc) = init_env("bin_lib_no_cfg_test");
+    let mut env = Environment::new("bin_lib");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
-    let mut config = Config::default();
-    config.build_lib = Inferrable::Specified(false);
-    config.build_bin = Inferrable::Specified(Some("bin_lib_no_cfg_test".into()));
-    let (mut server, results) = mock_server_with_config(messages, config);
+    env.with_config(|c| {
+        c.build_lib = Inferrable::Specified(false);
+        c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
+    });
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
                                        ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib_no_cfg_test`"),
+                                       ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
 // FIXME(#455) reinstate this test
 // #[test]
 // fn test_simple_workspace() {
-//     let (cache, _tc) = init_env("simple_workspace");
+//     let mut env = Environment::new("simple_workspace");
 
-//     let root_path = cache.abs_path(Path::new("."));
+//     let root_path = env.cache.abs_path(Path::new("."));
 
 //     let messages = vec![
 //         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
 //     ];
 
-//     let mut config = Config::default();
-//     config.workspace_mode = true;
-//     let (mut server, results) = mock_server_with_config(messages, config);
+//     env.with_config(|c| c.workspace_mode = true);
+//     let (mut server, results) = env.mock_server(messages);
 //     // Initialise and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
@@ -541,14 +539,14 @@ fn test_bin_lib_project_no_cfg_test() {
 
 #[test]
 fn test_infer_lib() {
-    let (cache, _tc) = init_env("infer_lib");
+    let mut env = Environment::new("infer_lib");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -561,14 +559,14 @@ fn test_infer_lib() {
 
 #[test]
 fn test_infer_bin() {
-    let (cache, _tc) = init_env("infer_bin");
+    let mut env = Environment::new("infer_bin");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -581,14 +579,14 @@ fn test_infer_bin() {
 
 #[test]
 fn test_infer_custom_bin() {
-    let (cache, _tc) = init_env("infer_custom_bin");
+    let mut env = Environment::new("infer_custom_bin");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -601,16 +599,16 @@ fn test_infer_custom_bin() {
 
 #[test]
 fn test_omit_init_build() {
-    let (cache, _tc) = init_env("omit_init_build");
+    let mut env = Environment::new("common");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
     let init_options = Some(InitializationOptions { omit_init_build: true });
     let initialize = initialize_with_opts(0, root_path, init_options);
 
     let messages = vec![initialize.to_string()];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
 
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -649,12 +647,12 @@ fn test_parse_error_on_malformed_input() {
 
 #[test]
 fn test_find_impls() {
-    let (mut cache, _tc) = init_env("find_impls");
+    let mut env = Environment::new("find_impls");
 
     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(cache.abs_path(&source_file_path))
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
         .expect("couldn't convert file path to URL");
 
     // This test contains code for testing implementations of `Eq`. However, `rust-analysis` is not
@@ -666,20 +664,20 @@ fn test_find_impls() {
         initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::FindImpls>(1, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url.clone()),
-            position: cache.mk_ls_position(src(&source_file_path, 13, "Bar"))
+            position: env.cache.mk_ls_position(src(&source_file_path, 13, "Bar"))
         }).to_string(),
         request::<requests::FindImpls>(2, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url.clone()),
-            position: cache.mk_ls_position(src(&source_file_path, 16, "Super"))
+            position: env.cache.mk_ls_position(src(&source_file_path, 16, "Super"))
         }).to_string(),
         // Does not work on Travis
         // request::<requests::FindImpls>(3, TextDocumentPositionParams {
         //     text_document: TextDocumentIdentifier::new(url),
-        //     position: cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
+        //     position: env.cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
         // })).to_string(),
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
@@ -716,15 +714,15 @@ fn test_find_impls() {
 
 #[test]
 fn test_handle_utf8_directory() {
-    let (cache, _tc) = init_env("unicødë");
+    let mut env = Environment::new("unicødë");
 
-    let root_path = cache.abs_path(Path::new("."));
+    let root_path = env.cache.abs_path(Path::new("."));
     let root_url = Url::from_directory_path(&root_path).unwrap();
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
-    let (mut server, results) = mock_server(messages);
+    let (mut server, results) = env.mock_server(messages);
     // Initialise and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);

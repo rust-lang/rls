@@ -12,7 +12,7 @@ use build;
 
 use std::fmt::Debug;
 use std::io::sink;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use cargo::CargoResult;
 use cargo::util::important_paths;
@@ -114,6 +114,9 @@ pub struct Config {
     /// Build the project only when a file got saved and not on file change. Default: false
     pub build_on_save: bool,
     pub use_crate_blacklist: bool,
+    /// Cargo target dir. If set overrides the default one.
+    #[serde(skip_deserializing, skip_serializing)]
+    pub target_dir: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -134,6 +137,7 @@ impl Default for Config {
             clear_env_rust_log: true,
             build_on_save: false,
             use_crate_blacklist: true,
+            target_dir: None,
         };
         result.normalise();
         result
@@ -185,7 +189,7 @@ impl Config {
         // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
         let manifest_dir = manifest_path.parent().unwrap();
         let shell = Shell::from_write(Box::new(sink()));
-        let cargo_config = build::make_cargo_config(manifest_dir, shell);
+        let cargo_config = build::make_cargo_config(manifest_dir, None, shell);
 
         let ws = Workspace::new(&manifest_path, &cargo_config)?;
 

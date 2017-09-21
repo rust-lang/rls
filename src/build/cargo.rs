@@ -96,7 +96,12 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     let mut shell = Shell::from_write(Box::new(BufWriter(out.clone())));
     shell.set_verbosity(Verbosity::Quiet);
 
-    let config = make_cargo_config(manifest_dir, shell);
+    let config = {
+        let rls_config = rls_config.lock().unwrap();
+
+        let target_dir = rls_config.target_dir.as_ref().map(|p| p as &Path);
+        make_cargo_config(manifest_dir, target_dir, shell)
+    };
 
     let ws = Workspace::new(&manifest_path, &config)?;
 
@@ -502,7 +507,7 @@ fn prepare_cargo_rustflags(config: &Config) -> String {
     dedup_flags(&flags)
 }
 
-pub fn make_cargo_config(build_dir: &Path, shell: Shell) -> CargoConfig {
+pub fn make_cargo_config(build_dir: &Path, target_dir: Option<&Path>, shell: Shell) -> CargoConfig {
     let config = CargoConfig::new(shell,
                                   // This is Cargo's cwd. We're using the actual cwd,
                                   // because Cargo will generate relative paths based
@@ -522,7 +527,8 @@ pub fn make_cargo_config(build_dir: &Path, shell: Shell) -> CargoConfig {
     {
         let build_value = config_value_map.entry("build".to_owned()).or_insert(ConfigValue::Table(HashMap::new(), config_path.clone()));
 
-        let target_dir = build_dir.join("target").join("rls").to_str().unwrap().to_owned();
+        let target_dir = target_dir.map(|d| d.to_str().unwrap().to_owned())
+                .unwrap_or_else(|| build_dir.join("target").join("rls").to_str().unwrap().to_owned());
         let td_value = ConfigValue::String(target_dir, config_path);
         if let &mut ConfigValue::Table(ref mut build_table, _) = build_value {
             build_table.insert("target-dir".to_owned(), td_value);
