@@ -45,8 +45,16 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
 #[derive(Debug, Serialize)]
 pub struct Ack;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct NoParams {}
+#[derive(Debug, Serialize, PartialEq)]
+pub struct NoParams;
+
+impl<'de> Deserialize<'de> for NoParams {
+    fn deserialize<D>(_deserializer: D) -> Result<NoParams, D::Error>
+        where D: serde::Deserializer<'de>,
+    {
+        Ok(NoParams)
+    }
+}
 
 pub trait Action<'a> {
     type Params: serde::Serialize + for<'de> ::serde::Deserialize<'de>;
