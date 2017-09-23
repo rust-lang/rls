@@ -670,3 +670,26 @@ fn test_find_impls() {
     //         .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
     // ]);
 }
+
+#[test]
+fn test_handle_utf8_directory() {
+    let (cache, _tc) = init_env("unicødë");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let root_url = Url::from_directory_path(&root_path).unwrap();
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
+    ];
+
+    let (mut server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None)
+                                           .expect_contains(root_url.path())
+                                           .expect_contains("struct is never used: `Unused`"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
