@@ -4,6 +4,8 @@
 
 # Rust Language Server (RLS)
 
+[impl period](https://blog.rust-lang.org/2017/09/18/impl-future-for-rust.html) has been started! Join us at [Gitter.im](https://gitter.im/rust-impl-period/WG-dev-tools-rls).
+
 **This project is in the alpha stage of development. It is likely to be buggy in
 some situations; proceed with caution.**
 
