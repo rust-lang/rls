@@ -282,23 +282,11 @@ impl<O: Output> LsService<O> {
                reader: Box<MessageReader + Send + Sync>,
                output: O)
                -> LsService<O> {
-        let stdlib_rewrite = {
-            // this check is cheaper so perform it first
-            let source_path = SystemPaths::get_rust_source_path();
-            if let Some(source_path) = source_path {
-                if let Ok(checkout_path) = SystemPaths::get_library_checkout_path() {
-                    Some((checkout_path, source_path))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
+        let stdlib_source = SystemPaths::get_rust_source_path();
         LsService {
             msg_reader: reader,
             output: output,
-            ctx: ActionContext::new(analysis, vfs, config, stdlib_rewrite),
+            ctx: ActionContext::new(analysis, vfs, config, stdlib_source),
             state: LsState {
                 shut_down: AtomicBool::new(false),
             }

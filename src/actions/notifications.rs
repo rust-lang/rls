@@ -163,7 +163,7 @@ impl<'a> NotificationAction<'a> for DidChangeConfiguration {
                          .ok_or(serde_json::Error::missing_field("rust"))
                          .and_then(|value| Config::deserialize(value));
 
-        let mut new_config = match config {
+        let new_config = match config {
             Ok(mut value) => {
                 value.normalise();
                 value
@@ -184,18 +184,11 @@ impl<'a> NotificationAction<'a> for DidChangeConfiguration {
             // the main thread
             let needs_inference = new_config.needs_inference();
 
-            // transparently update the rewrite rules if the user wishes so
-            if new_config.apply_stdlib_rewrite {
-                use std::collections::btree_map::Entry;
-                // insert the default path rewrite rule if no rule exists
-                if let Some((ref checkout_dir, ref source_code)) = ctx.stdlib_rewrite {
-                    if let Entry::Vacant(o) = new_config.path_rewrites.entry(checkout_dir.clone()) {
-                        o.insert(source_code.clone());
-                    }
-                }
-            }
             // reloading analysis data is expensive, so avoid it if possible
-            let needs_analysis_reload = config.path_rewrites != new_config.path_rewrites;
+            // only reload if stdlib path changed
+            let needs_analysis_reload =
+                config.apply_stdlib_rewrite.as_ref().get_stdlib_source(&ctx.stdlib_source)
+                != new_config.apply_stdlib_rewrite.as_ref().get_stdlib_source(&ctx.stdlib_source);
 
             // In case of null options, we provide default values for now
             config.update(new_config);
@@ -203,12 +196,13 @@ impl<'a> NotificationAction<'a> for DidChangeConfiguration {
 
             if needs_analysis_reload {
                 let analysis = ctx.analysis.clone();
+                let stdlib_source = ctx.stdlib_source.clone();
                 let current_project = ctx.current_project.clone();
-                let rewrites = config.path_rewrites.clone();
+                let cfg_stdlib_rewrite = config.apply_stdlib_rewrite.as_ref().clone();
                 let use_crate_blacklist = config.use_crate_blacklist;
                 // perform the expensive update process in a background thread
                 thread::spawn(move || {
-                    analysis.update_path_rewrites(rewrites);
+                    analysis.update_stdlib_rewrite(cfg_stdlib_rewrite.get_stdlib_source(&stdlib_source));
 
                     // force a hard reload of all analysis data such that the spans can be corrected
                     let cwd = ::std::env::current_dir().unwrap();

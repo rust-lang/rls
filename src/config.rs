@@ -10,7 +10,6 @@
 
 use build;
 
-use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::io::sink;
 use std::path::{Path, PathBuf};
@@ -95,6 +94,26 @@ impl<T> AsRef<T> for Inferrable<T> {
     }
 }
 
+/// Configuration for rewriting of paths
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum PathRewrite {
+    /// `true`/`false` apply/don't apply path rewrites
+    B(bool),
+    /// Apply rewrite and specify the path to the source location
+    S(PathBuf),
+}
+
+impl PathRewrite {
+    pub fn get_stdlib_source(&self, sysroot_path: &Option<PathBuf>) -> Option<PathBuf> {
+        match *self {
+            PathRewrite::B(false) => None,
+            PathRewrite::B(true) => sysroot_path.clone(),
+            PathRewrite::S(ref path) => Some(path.to_path_buf()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -121,10 +140,9 @@ pub struct Config {
     pub features: Vec<String>,
     pub all_features: bool,
     pub no_default_features: bool,
+    /// XXX Fix description
     /// Automatically infer the correct rewrite rule for stdlib if source code is installed and use it
-    pub apply_stdlib_rewrite: bool,
-    /// Specify a set of path prefixes and how to rewrite them to existing paths
-    pub path_rewrites: BTreeMap<PathBuf, PathBuf>,
+    pub apply_stdlib_rewrite: Inferrable<PathRewrite>,
 }
 
 impl Default for Config {
@@ -149,8 +167,7 @@ impl Default for Config {
             features: vec![],
             all_features: false,
             no_default_features: false,
-            apply_stdlib_rewrite: true,
-            path_rewrites: BTreeMap::new(),
+            apply_stdlib_rewrite: Inferrable::Inferred(PathRewrite::B(true)),
         };
         result.normalise();
         result
@@ -187,9 +204,10 @@ impl Config {
     }
 
     pub fn needs_inference(&self) -> bool {
-        match (&self.build_lib, &self.build_bin) {
-            (&Inferrable::None, _) |
-            (_, &Inferrable::None) => true,
+        match (&self.build_lib, &self.build_bin, &self.apply_stdlib_rewrite) {
+            (&Inferrable::None, _, _) |
+            (_, &Inferrable::None, _) |
+            (_, _, &Inferrable::None) => true,
             _ => false,
         }
     }
@@ -260,6 +278,7 @@ impl Config {
 
         self.build_lib.infer(lib);
         self.build_bin.infer(bin);
+        self.apply_stdlib_rewrite.infer(PathRewrite::B(true));
 
         Ok(())
     }
