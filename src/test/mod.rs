@@ -129,6 +129,49 @@ fn test_hover() {
 }
 
 #[test]
+fn test_workspace_symbol() {
+    let (cache, _tc) = init_env("workspace_symbol");
+
+    let root_path = cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::WorkspaceSymbol>(42, WorkspaceSymbolParams {
+            query: "nemo".to_owned(),
+        }).to_string(),
+    ];
+
+    let mut config = Config::default();
+    config.cfg_test = true;
+    let (mut server, results) = mock_server_with_config(messages, config);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
+                                                                     // in main.rs
+                                                                     .expect_contains(r#"main.rs"#)
+                                                                     .expect_contains(r#""name":"nemo""#)
+                                                                     .expect_contains(r#""kind":12"#)
+                                                                     .expect_contains(r#""range":{"start":{"line":11,"character":11},"end":{"line":11,"character":15}}"#)
+                                                                     .expect_contains(r#""containerName":"x""#)
+                                                                     
+                                                                     // in foo.rs
+                                                                     .expect_contains(r#"foo.rs"#)
+                                                                     .expect_contains(r#""name":"nemo""#)
+                                                                     .expect_contains(r#""kind":2"#)
+                                                                     .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
+                                                                     .expect_contains(r#""containerName":"foo""#)]);
+}
+
+#[test]
 fn test_find_all_refs() {
     let (mut cache, _tc) = init_env("find_all_refs");
 
