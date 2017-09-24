@@ -141,10 +141,10 @@ impl<'a> RequestAction<'a> for FindImpls {
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "find_impls")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
-        let type_id = ctx.analysis.id(&span).expect("Analysis: Getting typeid from span");
         let analysis = ctx.analysis.clone();
 
         let handle = thread::spawn(move || {
+            let type_id = analysis.id(&span)?;
             let result = analysis.find_impls(type_id).map(|spans| {
                 spans.into_iter().map(|x| ls_util::rls_to_location(&x)).collect()
             });
