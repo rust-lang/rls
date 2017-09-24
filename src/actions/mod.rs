@@ -180,32 +180,68 @@ impl InitActionContext {
         let line = self.vfs.load_line(&file_path, pos.row).unwrap();
         trace!("line: `{}`", line);
 
-        let start_pos = {
-            let mut col = 0;
-            for (i, c) in line.chars().enumerate() {
-                if !(c.is_alphanumeric() || c == '_') {
-                    col = i + 1;
-                }
-                if i == pos.col.0 as usize {
-                    break;
-                }
-            }
-            trace!("start: {}", col);
-            span::Position::new(pos.row, span::Column::new_zero_indexed(col as u32))
-        };
+        let (start, end) = find_word_at_pos(&line, &pos.col);
+        trace!("start: {}, end: {}", start.0, end.0);
 
-        let end_pos = {
-            let mut col = pos.col.0 as usize;
-            for c in line.chars().skip(col) {
-                if !(c.is_alphanumeric() || c == '_') {
-                    break;
-                }
-                col += 1;
-            }
-            trace!("end: {}", col);
-            span::Position::new(pos.row, span::Column::new_zero_indexed(col as u32))
-        };
+        Span::from_positions(span::Position::new(pos.row, start),
+                             span::Position::new(pos.row, end),
+                             file_path)
+    }
+}
 
-        Span::from_positions(start_pos, end_pos, file_path)
+/// Represents a text cursor between characters, pointing at the next character
+/// in the buffer.
+type Column = span::Column<span::ZeroIndexed>;
+/// Returns a text cursor range for a found word inside `line` at which `pos`
+/// text cursor points to. Resulting type represents a (`start`, `end`) range
+/// between `start` and `end` cursors.
+/// For example (4, 4) means an empty selection starting after first 4 characters.
+fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
+    let col = pos.0 as usize;
+    let is_ident_char = |c: char| c.is_alphanumeric() || c == '_';
+
+    let start = line.chars().enumerate().take(col)
+                    .filter(|&(_, c)| !is_ident_char(c))
+                    .last().map(|(i, _)| i + 1).unwrap_or(0) as u32;
+
+    let end = line.chars().enumerate().skip(col)
+                .filter(|&(_, c)| !is_ident_char(c))
+                .nth(0).map(|(i, _)| i).unwrap_or(col) as u32;
+
+    (span::Column::new_zero_indexed(start), span::Column::new_zero_indexed(end))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_find_word_at_pos() {
+        fn assert_range(test_str: &'static str, range: (u32, u32)) {
+            assert!(test_str.chars().filter(|c| *c == '|').count() == 1);
+            let col = test_str.find('|').unwrap() as u32;
+            let line = test_str.replace('|', "");
+            let (start, end) = find_word_at_pos(&line, &Column::new_zero_indexed(col));
+            assert_eq!(range, (start.0, end.0), "Assertion failed for {:?}", test_str);
+        }
+
+        assert_range("|struct Def {", (0, 6));
+        assert_range("stru|ct Def {", (0, 6));
+        assert_range("struct| Def {", (0, 6));
+
+        assert_range("struct |Def {", (7, 10));
+        assert_range("struct De|f {", (7, 10));
+        assert_range("struct Def| {", (7, 10));
+
+        assert_range("struct Def |{", (11, 11));
+
+        assert_range("|span::Position<T>", (0, 4));
+        assert_range(" |span::Position<T>", (1, 5));
+        assert_range("sp|an::Position<T>", (0, 4));
+        assert_range("span|::Position<T>", (0, 4));
+        assert_range("span::|Position<T>", (6, 14));
+        assert_range("span::Position|<T>", (6, 14));
+        assert_range("span::Position<|T>", (15, 16));
+        assert_range("span::Position<T|>", (15, 16));
     }
 }
