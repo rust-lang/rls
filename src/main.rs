@@ -68,6 +68,7 @@ pub fn main() {
 
     if env::var(RUSTC_SHIM_ENV_VAR_NAME).map(|v| v != "0").unwrap_or(false) {
         rustc_shim::run();
+        return;
     }
 
     if let Some(first_arg) = ::std::env::args().skip(1).next() {
