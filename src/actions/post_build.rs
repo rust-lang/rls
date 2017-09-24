@@ -236,25 +236,23 @@ fn emit_notifications<O: Output>(
 ) {
     let cwd = ::std::env::current_dir().unwrap();
 
-    build_results
-        .iter()
-        .for_each(|(path, diagnostics)| {
-            let params = PublishDiagnosticsParams {
-                uri: Url::from_file_path(cwd.join(path)).unwrap(),
-                diagnostics: diagnostics.iter()
-                    .filter_map(|&(ref d, _)| {
-                        if show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
-                            Some(d.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect(),
-            };
+    for (path, diagnostics) in build_results {
+        let params = PublishDiagnosticsParams {
+            uri: Url::from_file_path(cwd.join(path)).unwrap(),
+            diagnostics: diagnostics.iter()
+                .filter_map(|&(ref d, _)| {
+                    if show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
+                        Some(d.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        };
 
-            out.notify(NotificationMessage::new(
-                ls_types::NOTIFICATION__PublishDiagnostics,
-                Some(params),
-            ));
-        })
+        out.notify(NotificationMessage::new(
+            ls_types::NOTIFICATION__PublishDiagnostics,
+            Some(params),
+        ));
+    }
 }

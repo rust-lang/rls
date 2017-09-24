@@ -74,16 +74,15 @@ pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>
 
     // FIXME(#25) given that we are running the compiler directly, there is no need
     // to serialise the error messages - we should pass them in memory.
-    let stderr_json_msg = convert_message_to_json_strings(Arc::try_unwrap(err_buf)
-        .unwrap()
-        .into_inner()
-        .unwrap());
+    let err_buf = Arc::try_unwrap(err_buf).unwrap().into_inner().unwrap();
+    let err_buf = String::from_utf8(err_buf).unwrap();
+    let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();
 
     let analysis = analysis.lock().unwrap().clone();
     let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or(vec![]);
     match exit_code {
-        Ok(0) => BuildResult::Success(stderr_json_msg, analysis),
-        _ => BuildResult::Failure(stderr_json_msg, analysis),
+        Ok(0) => BuildResult::Success(stderr_json_msgs, analysis),
+        _ => BuildResult::Failure(stderr_json_msgs, analysis),
     }
 }
 
@@ -179,39 +178,6 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
         result
     }
-}
-
-pub fn convert_message_to_json_strings(input: Vec<u8>) -> Vec<String> {
-    let mut output = vec![];
-
-    // FIXME: this is *so gross*  Trying to work around cargo not supporting json messages
-    let it = input.into_iter();
-
-    let mut read_iter = it.skip_while(|&x| x != b'{');
-
-    let mut _msg = String::new();
-    loop {
-        match read_iter.next() {
-            Some(b'\n') => {
-                output.push(_msg);
-                _msg = String::new();
-                while let Some(res) = read_iter.next() {
-                    if res == b'{' {
-                        _msg.push('{');
-                        break;
-                    }
-                }
-            }
-            Some(x) => {
-                _msg.push(x as char);
-            }
-            None => {
-                break;
-            }
-        }
-    }
-
-    output
 }
 
 /// Tries to read a file from a list of replacements, and if the file is not
