@@ -358,6 +358,7 @@ impl<O: Output> LsService<O> {
                 requests::FindImpls,
                 requests::Deglob,
                 requests::Symbols,
+                requests::WorkspaceSymbol,
                 requests::Formatting,
                 requests::RangeFormatting,
                 requests::Hover;

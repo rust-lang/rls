@@ -27,6 +27,47 @@ use std::panic;
 use std::thread;
 use std::time::Duration;
 
+pub struct WorkspaceSymbol;
+
+impl<'a> Action<'a> for WorkspaceSymbol {
+    type Params = lsp_data::WorkspaceSymbolParams;
+    const METHOD: &'static str = "workspace/symbol";
+
+    fn new(_: &'a mut LsState) -> Self {
+        WorkspaceSymbol
+    }
+}
+
+impl<'a> RequestAction<'a> for WorkspaceSymbol {
+    type Response = Vec<SymbolInformation>;
+
+    fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
+        let t = thread::current();
+        let ctx = ctx.inited();
+
+        let analysis = ctx.analysis.clone();
+
+        let rustw_handle: ::std::thread::JoinHandle<_> = thread::spawn(move || {
+            let defs = analysis.name_defs(&params.query).unwrap_or_else(|_| vec![]);
+            t.unpark();
+
+            defs.into_iter().map(|d| {
+                SymbolInformation {
+                    name: d.name,
+                    kind:  source_kind_from_def_kind(d.kind),
+                    location: ls_util::rls_to_location(&d.span),
+                    container_name: d.parent.and_then(|id| analysis.get_def(id).ok()).map(|parent| parent.name)
+                }
+            }).collect()
+        });
+
+        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+
+        let result = rustw_handle.join().unwrap_or_else(|_| vec![]);
+        Ok(result)
+    }
+}
+
 pub struct Symbols;
 
 impl<'a> Action<'a> for Symbols {
