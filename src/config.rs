@@ -117,6 +117,9 @@ pub struct Config {
     /// Cargo target dir. If set overrides the default one.
     #[serde(skip_deserializing, skip_serializing)]
     pub target_dir: Option<PathBuf>,
+    pub features: Vec<String>,
+    pub all_features: bool,
+    pub no_default_features: bool,
 }
 
 impl Default for Config {
@@ -138,6 +141,9 @@ impl Default for Config {
             build_on_save: false,
             use_crate_blacklist: true,
             target_dir: None,
+            features: vec![],
+            all_features: false,
+            no_default_features: false,
         };
         result.normalise();
         result

@@ -712,8 +712,73 @@ fn test_find_impls() {
     // ]);
 }
 
+#[test]
+fn test_features() {
+    let mut env = Environment::new("features");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
+    ];
+
+    env.with_config(|c| c.features = vec!["foo".to_owned()]);
+    let (mut server, results) = env.mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains(r#""message":"cannot find struct, variant or union type `Bar` in this scope""#),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
+fn test_all_features() {
+    let mut env = Environment::new("features");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
+    ];
+
+    env.with_config(|c| c.all_features = true);
+    let (mut server, results) = env.mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
+#[test]
+fn test_no_default_features() {
+    let mut env = Environment::new("features");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
+    ];
+
+    env.with_config(|c| {
+        c.no_default_features = true;
+        c.features = vec!["foo".to_owned(), "bar".to_owned()]
+    });
+    let (mut server, results) = env.mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains(r#""message":"cannot find struct, variant or union type `Baz` in this scope""#),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+}
+
 // #[test]
-// fn test_handle_utf8_directory) {
+// fn test_handle_utf8_directory() {
 //     let mut env = Environment::new("unicødë");
 //
 //     let root_path = env.cache.abs_path(Path::new("."));
@@ -733,3 +798,4 @@ fn test_find_impls() {
 //                                            .expect_contains(root_url.path())
 //                                            .expect_contains("struct is never used: `Unused`"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+// }
