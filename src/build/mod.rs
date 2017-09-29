@@ -212,7 +212,7 @@ impl BuildQueue {
     // builds so that we don't hog the CPU, we might want to change that in the
     // future).
     //
-    // There is never any point in queing more than one build of each priority
+    // There is never any point in queuing more than one build of each priority
     // (we might want to do a high priority build, then a low priority one). So
     // our build queue is just a single slot (for each priority). We record if a
     // build is waiting and if not, if a build is running.
