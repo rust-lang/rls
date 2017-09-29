@@ -27,24 +27,71 @@ use vfs;
 
 const TEST_TIMEOUT_IN_SEC: u64 = 320;
 
-// Initialise and run the internals of an LS protocol RLS server.
-pub fn mock_server(messages: Vec<String>) -> (ls_server::LsService<RecordOutput>, LsResultList)
-{
-    let config = Config::default();
-    mock_server_with_config(messages, config)
+pub struct Environment {
+    pub config: Option<Config>,
+    pub cache: Cache,
+    pub target_path: PathBuf,
 }
 
-pub fn mock_server_with_config(messages: Vec<String>, mut config: Config) -> (ls_server::LsService<RecordOutput>, LsResultList)
-{
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
-    let reader = Box::new(MockMsgReader::new(messages));
-    let output = RecordOutput::new();
-    let results = output.output.clone();
-    config.unstable_features = true;
-    (ls_server::LsService::new(analysis, vfs, Arc::new(Mutex::new(config)), reader, output), results)
+impl Environment {
+    pub fn new(project_dir: &str) -> Self {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        lazy_static! {
+            static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
+        }
+
+        let _ = env_logger::init();
+        if env::var("RUSTC").is_err() {
+            env::set_var("RUSTC", "rustc");
+        }
+
+        let cur_dir = env::current_dir().expect("Could not find current working directory");
+        let project_path = cur_dir.join("test_data").join(project_dir);
+        let target_path = cur_dir.join("target").join("tests")
+                .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
+
+        let mut config = Config::default();
+        config.target_dir = Some(target_path.clone());
+        config.unstable_features = true;
+
+        let cache = Cache::new(project_path);
+
+        Self {
+            config: Some(config),
+            cache,
+            target_path,
+        }
+    }
 }
 
+impl Environment {
+    pub fn with_config<F>(&mut self, f: F) where F: FnOnce(&mut Config) {
+        let config = self.config.as_mut().unwrap();
+        f(config);
+    }
+
+    // Initialise and run the internals of an LS protocol RLS server.
+    pub fn mock_server(&mut self, messages: Vec<String>) -> (ls_server::LsService<RecordOutput>, LsResultList) {
+        let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
+        let vfs = Arc::new(vfs::Vfs::new());
+        let config = Arc::new(Mutex::new(self.config.take().unwrap()));
+        let reader = Box::new(MockMsgReader::new(messages));
+        let output = RecordOutput::new();
+        let results = output.output.clone();
+        (ls_server::LsService::new(analysis, vfs, config, reader, output), results)
+    }
+}
+
+impl Drop for Environment {
+    fn drop(&mut self) {
+        use std::fs;
+
+        if fs::metadata(&self.target_path).is_ok() {
+            fs::remove_dir_all(&self.target_path).expect("failed to tidy up");
+        }
+    }
+}
 
 struct MockMsgReader {
     messages: Vec<String>,
@@ -163,33 +210,6 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     *results = vec![];
 }
 
-// Initialise the environment for a test.
-pub fn init_env(project_dir: &str) -> (Cache, TestCleanup) {
-    let _ = env_logger::init();
-    if env::var("RUSTC").is_err() {
-        env::set_var("RUSTC", "rustc");
-    }
-
-    let path = &Path::new("test_data").join(project_dir);
-    let tc = TestCleanup { path: path.to_owned() };
-    (Cache::new(path), tc)
-}
-
-pub struct TestCleanup {
-    path: PathBuf
-}
-
-impl Drop for TestCleanup {
-    fn drop(&mut self) {
-        use std::fs;
-
-        let target_path = self.path.join("target");
-        if fs::metadata(&target_path).is_ok() {
-            fs::remove_dir_all(target_path).expect("failed to tidy up");
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct Src<'a, 'b> {
     pub file_name: &'a Path,
@@ -212,12 +232,9 @@ pub struct Cache {
 }
 
 impl Cache {
-    fn new(base_path: &Path) -> Cache {
-        let mut root_path = env::current_dir().expect("Could not find current working directory");
-        root_path.push(base_path);
-
+    fn new(base_path: PathBuf) -> Cache {
         Cache {
-            base_path: root_path,
+            base_path,
             files: HashMap::new(),
         }
     }
