@@ -76,6 +76,7 @@ pub fn main() {
             "--version" | "-V" => println!("rls-preview {}", version()),
             "--help" | "-h" => println!("{}", help()),
             "cli" => cmd::run(),
+            "cli-debug" => cmd::run(),
             _ => println!("found an unexpected argument, try --help.")
         }
         return;
@@ -93,9 +94,14 @@ fn version() -> &'static str {
 
 fn help() -> &'static str {
     r#" 
-    --version or -V to print the version and commit info
-    --help or -h for this message
-    cli starts the RLS in command line mode
+    commands:
+
+      cli-debug       starts the RLS in command line mode,
+                        printing language server output
+      cli             starts the RLS in command line mode
+      --version  -V   output version and commit info
+      --help     -h   output this message
+
     No input starts the RLS as a language server 
     "#
 }
