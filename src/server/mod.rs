@@ -235,7 +235,7 @@ impl<'a> RequestAction<'a> for InitializeRequest {
                 signature_help_provider: None,
             }
         };
-        out.success(id, &result);
+        trace!("init result: {:?}", result);
 
         let root_path = params.root_path.as_ref().map(PathBuf::from).expect("No root path");
         ctx.init(root_path, &init_options, out);
