@@ -197,7 +197,7 @@ impl<'a> Action<'a> for InitializeRequest {
 
 impl<'a> RequestAction<'a> for InitializeRequest {
     type Response = ();
-    fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         let init_options: InitializationOptions = params
             .initialization_options
             .as_ref()
