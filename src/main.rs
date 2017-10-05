@@ -75,7 +75,8 @@ pub fn main() {
         match first_arg.as_str() {
             "--version" | "-V" => println!("rls-preview {}", version()),
             "--help" | "-h" => println!("{}", help()),
-            _ => cmd::run(),
+            "cli" => cmd::run(),
+            _ => println!("found an unexpected argument, try --help.")
         }
         return;
     }
@@ -94,7 +95,7 @@ fn help() -> &'static str {
     r#" 
     --version or -V to print the version and commit info
     --help or -h for this message
-    Other input starts the RLS in command line mode
+    cli starts the RLS in command line mode
     No input starts the RLS as a language server 
     "#
 }
