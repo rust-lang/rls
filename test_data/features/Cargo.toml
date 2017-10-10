@@ -1,0 +1,10 @@
+[package]
+name = "features"
+version = "0.1.0"
+authors = ["Bastien Orivel <eijebong@bananium.fr>"]
+
+[features]
+default = ["baz"]
+foo = []
+bar = []
+baz = []

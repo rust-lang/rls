@@ -147,6 +147,9 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
                                 // TODO: Support more crate target types
                                 &[], false, &[], false, &[], false,
                                 false),
+        features: &opts.features,
+        all_features: opts.all_features,
+        no_default_features: opts.no_default_features,
         .. CompileOptions::default(&config, CompileMode::Check)
     };
 
@@ -438,6 +441,9 @@ struct CargoOptions {
     bins: bool,
     all: bool,
     exclude: Vec<String>,
+    all_features: bool,
+    no_default_features: bool,
+    features: Vec<String>,
 }
 
 impl Default for CargoOptions {
@@ -450,6 +456,9 @@ impl Default for CargoOptions {
             bins: false,
             all: false,
             exclude: vec![],
+            all_features: false,
+            no_default_features: false,
+            features: vec![],
         }
     }
 }
@@ -466,6 +475,9 @@ impl CargoOptions {
                 package,
                 all,
                 target: config.target.clone(),
+                features: config.features.clone(),
+                all_features: config.all_features,
+                no_default_features: config.no_default_features,
                 .. CargoOptions::default()
             }
         } else {
@@ -486,6 +498,9 @@ impl CargoOptions {
                 lib,
                 bin,
                 target: config.target.clone(),
+                features: config.features.clone(),
+                all_features: config.all_features,
+                no_default_features: config.no_default_features,
                 .. CargoOptions::default()
             }
         }
