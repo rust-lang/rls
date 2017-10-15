@@ -610,7 +610,7 @@ fn dedup_flags(flag_str: &str) -> String {
 
         if bit.starts_with('-') {
             if bit.contains('=') {
-                let bits: Vec<_> = bit.split('=').collect();
+                let bits: Vec<_> = bit.splitn(2, '=').collect();
                 assert!(bits.len() == 2);
                 flags.insert(bits[0].to_owned() + "=", bits[1].to_owned());
             } else {
@@ -674,5 +674,8 @@ mod test {
 
         assert!(dedup_flags("--error-format=json --error-format=json") == " --error-format=json");
         assert!(dedup_flags("--error-format=foo --error-format=json") == " --error-format=json");
+
+        assert!(dedup_flags("-C link-args=-fuse-ld=gold -C target-cpu=native -C link-args=-fuse-ld=gold") ==
+                " -Clink-args=-fuse-ld=gold -Ctarget-cpu=native");
     }
 }
