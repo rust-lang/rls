@@ -16,7 +16,7 @@ mod harness;
 use analysis;
 use actions::requests;
 use config::{Config, Inferrable};
-use server::{self as ls_server, Request};
+use server::{self as ls_server, Request, ShutdownRequest, NoParams};
 use jsonrpc_core;
 use vfs;
 
@@ -63,6 +63,31 @@ pub fn request<'a, T: ls_server::RequestAction<'a>>(id: usize, params: T::Params
         params,
         _action: PhantomData,
     }
+}
+
+#[test]
+fn test_shutdown() {
+    let mut env = Environment::new("common");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<ShutdownRequest>(1, NoParams).to_string(),
+    ];
+
+    let (mut server, results) = env.mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[&ExpectedMessage::new(Some(1))]);
 }
 
 #[test]

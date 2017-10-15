@@ -71,6 +71,10 @@ pub trait RequestAction<'a>: Action<'a> {
     type Response: ::serde::Serialize + fmt::Debug;
 
     fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()>;
+	
+	fn sends_success_response(&self) -> bool {
+        false
+    }
 }
 
 
@@ -90,7 +94,7 @@ impl<'a, A: RequestAction<'a>> Request<'a, A> {
     fn dispatch<O: Output>(self, state: &'a mut LsState, ctx: &mut ActionContext, out: O) -> Result<A::Response, ()> {
         let mut action = A::new(state);
         let result = action.handle(self.id, self.params, ctx, out.clone())?;
-        if ::std::mem::size_of::<A::Response>() > 0 {
+		if !action.sends_success_response() {
             out.success(self.id, &result);
         }
         Ok(result)
@@ -241,6 +245,10 @@ impl<'a> RequestAction<'a> for InitializeRequest {
         ctx.init(root_path, &init_options, out);
 
         Ok(())
+    }
+	
+	fn sends_success_response(&self) -> bool {
+        true
     }
 }
 
