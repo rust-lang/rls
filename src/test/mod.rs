@@ -165,7 +165,7 @@ fn test_workspace_symbol() {
                                                                      // in foo.rs
                                                                      .expect_contains(r#"foo.rs"#)
                                                                      .expect_contains(r#""name":"nemo""#)
-                                                                     .expect_contains(r#""kind":5"#)
+                                                                     .expect_contains(r#""kind":2"#)
                                                                      .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
                                                                      .expect_contains(r#""containerName":"foo""#)]);
 }
