@@ -610,6 +610,8 @@ fn dedup_flags(flag_str: &str) -> String {
 
         if bit.starts_with('-') {
             if bit.contains('=') {
+                // Split only on the first equals sign (there may be
+                // more than one)
                 let bits: Vec<_> = bit.splitn(2, '=').collect();
                 assert!(bits.len() == 2);
                 flags.insert(bits[0].to_owned() + "=", bits[1].to_owned());
