@@ -45,6 +45,9 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
 #[derive(Debug, Serialize)]
 pub struct Ack;
 
+#[derive(Debug)]
+pub struct NoResponse;
+
 #[derive(Debug, Serialize, PartialEq)]
 pub struct NoParams;
 
@@ -53,6 +56,21 @@ impl<'de> Deserialize<'de> for NoParams {
         where D: serde::Deserializer<'de>,
     {
         Ok(NoParams)
+    }
+}
+
+pub trait Response {
+    fn send<O: Output>(&self, id: usize, out: O); 
+}
+
+impl Response for NoResponse {
+    fn send<O: Output>(&self, _id: usize, _out: O) {
+    }
+}
+
+impl<R: ::serde::Serialize + fmt::Debug> Response for R {
+    fn send<O: Output>(&self, id: usize, out: O) {
+        out.success(id, &self);
     }
 }
 
@@ -68,13 +86,9 @@ pub trait NotificationAction<'a>: Action<'a> {
 }
 
 pub trait RequestAction<'a>: Action<'a> {
-    type Response: ::serde::Serialize + fmt::Debug;
+    type Response: Response + fmt::Debug;
 
     fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()>;
-	
-	fn sends_success_response(&self) -> bool {
-        false
-    }
 }
 
 
@@ -94,9 +108,7 @@ impl<'a, A: RequestAction<'a>> Request<'a, A> {
     fn dispatch<O: Output>(self, state: &'a mut LsState, ctx: &mut ActionContext, out: O) -> Result<A::Response, ()> {
         let mut action = A::new(state);
         let result = action.handle(self.id, self.params, ctx, out.clone())?;
-		if !action.sends_success_response() {
-            out.success(self.id, &result);
-        }
+        result.send(self.id, out);
         Ok(result)
     }
 }
@@ -200,8 +212,8 @@ impl<'a> Action<'a> for InitializeRequest {
 }
 
 impl<'a> RequestAction<'a> for InitializeRequest {
-    type Response = ();
-    fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    type Response = NoResponse;
+    fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<NoResponse, ()> {
         let init_options: InitializationOptions = params
             .initialization_options
             .as_ref()
@@ -244,11 +256,7 @@ impl<'a> RequestAction<'a> for InitializeRequest {
         let root_path = params.root_path.as_ref().map(PathBuf::from).expect("No root path");
         ctx.init(root_path, &init_options, out);
 
-        Ok(())
-    }
-	
-	fn sends_success_response(&self) -> bool {
-        true
+        Ok(NoResponse)
     }
 }
 
