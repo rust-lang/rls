@@ -211,6 +211,54 @@ impl<'a> Action<'a> for InitializeRequest {
     }
 }
 
+fn get_root_path(params: &InitializeParams) -> PathBuf {
+    if let Some(uri) = params.root_uri.as_ref() {
+        if uri.scheme() != "file" {
+            panic!("Root URI is not a file://")
+        }
+
+        uri.to_file_path().expect("Could not convert URI to path")
+    } else {
+        params.root_path.as_ref().map(PathBuf::from).expect("No root path")
+    }
+}
+
+#[cfg(test)]
+fn get_default_params() -> InitializeParams {
+    InitializeParams {
+        process_id: None,
+        root_path: None,
+        root_uri: None,
+        initialization_options: None,
+        capabilities: ClientCapabilities {
+            workspace: None,
+            text_document: None,
+            experimental: None,
+        },
+        trace: TraceOption::Off,
+    }
+}
+
+#[test]
+fn test_use_root_uri() {
+    let mut params = get_default_params();
+
+    params.root_path = Some(String::from("/path/a"));
+    params.root_uri = Some(::url::Url::parse("file:///path/b").unwrap());
+
+    assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/b");
+}
+
+#[test]
+fn test_use_root_path() {
+    let mut params = get_default_params();
+
+    params.root_path = Some(String::from("/path/a"));
+    params.root_uri = None;
+
+    assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/a");
+}
+
 impl<'a> RequestAction<'a> for InitializeRequest {
     type Response = NoResponse;
     fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<NoResponse, ()> {
@@ -253,8 +301,7 @@ impl<'a> RequestAction<'a> for InitializeRequest {
         };
         out.success(id, &result);
 
-        let root_path = params.root_path.as_ref().map(PathBuf::from).expect("No root path");
-        ctx.init(root_path, &init_options, out);
+        ctx.init(get_root_path(&params), &init_options, out);
 
         Ok(NoResponse)
     }
