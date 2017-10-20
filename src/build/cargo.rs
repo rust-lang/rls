@@ -161,11 +161,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         env.insert("RUST_LOG".to_owned(), None);
     }
 
-    let mut restore_env = Environment::push_with_lock(&env, lock_guard);
-    let mut save_config = ::data::config::Config::default();
-    save_config.pub_only = true;
-    let save_config = serde_json::to_string(&save_config)?;
-    restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(save_config)));
+    let _restore_env = Environment::push_with_lock(&env, lock_guard);
 
     let exec = RlsExecutor::new(&ws,
                                 compilation_cx.clone(),
@@ -337,6 +333,12 @@ impl Executor for RlsExecutor {
                 trace!("crate is blacklisted");
                 return cargo_cmd.exec();
             }
+            // Only include public symbols in externally compiled deps data
+            let mut save_config = ::data::config::Config::default();
+            save_config.pub_only = true;
+            let save_config = serde_json::to_string(&save_config)?;
+            cmd.env("RUST_SAVE_ANALYSIS_CONFIG", &OsString::from(save_config));
+
             cmd.arg("--sysroot");
             cmd.arg(&sysroot);
             return cmd.exec();
