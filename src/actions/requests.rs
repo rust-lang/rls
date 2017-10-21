@@ -767,12 +767,12 @@ impl<'a> Action<'a> for ResolveCompletion {
 }
 
 impl<'a> RequestAction<'a> for ResolveCompletion {
-    type Response = Vec<CompletionItem>;
+    type Response = CompletionItem;
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, _ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
         // currently, we safely ignore this as a pass-through since we fully handle
         // textDocument/completion.  In the future, we may want to use this method as a
         // way to more lazily fill out completion information
-        Ok(vec![params])
+        Ok(params)
     }
 }
 
