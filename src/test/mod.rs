@@ -510,30 +510,31 @@ fn test_bin_lib_project() {
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
-#[test]
-fn test_bin_lib_project_no_cfg_test() {
-    let mut env = Environment::new("bin_lib");
+// FIXME(#524) timing issues when run concurrently with `test_bin_lib_project`
+// #[test]
+// fn test_bin_lib_project_no_cfg_test() {
+//     let mut env = Environment::new("bin_lib");
 
-    let root_path = env.cache.abs_path(Path::new("."));
+//     let root_path = env.cache.abs_path(Path::new("."));
 
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+//     let messages = vec![
+//         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+//     ];
 
-    env.with_config(|c| {
-        c.build_lib = Inferrable::Specified(false);
-        c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
-    });
-    let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
-    assert_eq!(ls_server::LsService::handle_message(&mut server),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
-}
+//     env.with_config(|c| {
+//         c.build_lib = Inferrable::Specified(false);
+//         c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
+//     });
+//     let (mut server, results) = env.mock_server(messages);
+//     // Initialise and build.
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("beginBuild"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+//                                        ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+// }
 
 // FIXME(#455) reinstate this test
 // #[test]
