@@ -173,11 +173,10 @@ Everything should now work! You may need to restart the RLS.
 
 ### Build it yourself
 
-When you build Rust, add `-Zsave-analysis-api` to your stage 2 flags, e.g., by
-setting the environment variable:
+When you build Rust, run it with a `RUSTC_SAVE_ANALYSIS=api` environment variable, e.g. with:
 
 ```
-export RUSTFLAGS_STAGE2='-Zsave-analysis-api'
+RUSTC_SAVE_ANALYSIS=api ./x.py build
 ```
 
 When the build has finished, you should have a bunch of JSON data in a directory like
