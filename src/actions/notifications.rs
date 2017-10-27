@@ -271,8 +271,24 @@ impl<'a> Action<'a> for DidChangeWatchedFiles {
 }
 
 impl<'a> NotificationAction<'a> for DidChangeWatchedFiles {
-    fn handle<O: Output>(&mut self, _params: DidChangeWatchedFilesParams, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        params: DidChangeWatchedFilesParams,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         trace!("on_cargo_change: thread: {:?}", thread::current().id());
+
+        // ignore irrelevant files from more spammy clients
+        if !params.changes.iter().any(|change| {
+                change.uri.as_str().ends_with("/Cargo.toml") ||
+                change.uri.as_str().ends_with("/Cargo.lock") ||
+                change.typ == FileChangeType::Deleted && change.uri.as_str().ends_with("/target")
+            })
+        {
+            return Ok(());
+        }
+
         let ctx = ctx.inited();
         ctx.build_current_project(BuildPriority::Cargo, out);
 
