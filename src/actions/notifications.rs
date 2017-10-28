@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use actions::ActionContext;
+use actions::FileWatch;
 use vfs::Change;
 use config::Config;
 use serde::Deserialize;
@@ -42,13 +43,7 @@ impl<'a> NotificationAction<'a> for Initialized {
 
         let ctx = ctx.inited();
 
-        // TODO we should watch for workspace Cargo.tomls too
-        let pattern = format!("{}/Cargo{{.toml,.lock}}", ctx.current_project.to_str().unwrap());
-        let target_pattern = format!("{}/target", ctx.current_project.to_str().unwrap());
-        // For target, we only watch if it gets deleted.
-        let options = json!({
-            "watchers": [{ "globPattern": pattern }, { "globPattern": target_pattern, "kind": 4 }]
-        });
+        let options = FileWatch::new(&ctx).watchers_config();
         let output = serde_json::to_string(
             &RequestMessage::new(out.provide_id(),
                                  NOTIFICATION__RegisterCapability.to_owned(),
@@ -279,17 +274,14 @@ impl<'a> NotificationAction<'a> for DidChangeWatchedFiles {
     ) -> Result<(), ()> {
         trace!("on_cargo_change: thread: {:?}", thread::current().id());
 
+        let ctx = ctx.inited();
+        let file_watch = FileWatch::new(&ctx);
+
         // ignore irrelevant files from more spammy clients
-        if !params.changes.iter().any(|change| {
-                change.uri.as_str().ends_with("/Cargo.toml") ||
-                change.uri.as_str().ends_with("/Cargo.lock") ||
-                change.typ == FileChangeType::Deleted && change.uri.as_str().ends_with("/target")
-            })
-        {
+        if !params.changes.iter().any(|c| file_watch.is_relevant(c)) {
             return Ok(());
         }
 
-        let ctx = ctx.inited();
         ctx.build_current_project(BuildPriority::Cargo, out);
 
         Ok(())
