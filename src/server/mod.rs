@@ -212,51 +212,12 @@ impl<'a> Action<'a> for InitializeRequest {
 }
 
 fn get_root_path(params: &InitializeParams) -> PathBuf {
-    if let Some(uri) = params.root_uri.as_ref() {
-        if uri.scheme() != "file" {
-            panic!("Root URI is not a file://")
-        }
-
+    params.root_uri.as_ref().map(|uri| {
+        assert!(uri.scheme() == "file");
         uri.to_file_path().expect("Could not convert URI to path")
-    } else {
-        params.root_path.as_ref().map(PathBuf::from).expect("No root path")
-    }
-}
-
-#[cfg(test)]
-fn get_default_params() -> InitializeParams {
-    InitializeParams {
-        process_id: None,
-        root_path: None,
-        root_uri: None,
-        initialization_options: None,
-        capabilities: ClientCapabilities {
-            workspace: None,
-            text_document: None,
-            experimental: None,
-        },
-        trace: TraceOption::Off,
-    }
-}
-
-#[test]
-fn test_use_root_uri() {
-    let mut params = get_default_params();
-
-    params.root_path = Some(String::from("/path/a"));
-    params.root_uri = Some(::url::Url::parse("file:///path/b").unwrap());
-
-    assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/b");
-}
-
-#[test]
-fn test_use_root_path() {
-    let mut params = get_default_params();
-
-    params.root_path = Some(String::from("/path/a"));
-    params.root_uri = None;
-
-    assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/a");
+    }).unwrap_or_else(|| {
+        params.root_path.as_ref().map(PathBuf::from).expect("No root path or URI")
+    })
 }
 
 impl<'a> RequestAction<'a> for InitializeRequest {
@@ -526,17 +487,57 @@ impl RawMessage {
     }
 }
 
-#[test]
-fn test_parse_as_notification() {
-    let raw = RawMessage {
-        method: "initialize".to_owned(),
-        id: None,
-        params: serde_json::Value::Null,
-    };
-    let notification = raw.parse_as_notification::<notifications::Initialized>();
+#[cfg(test)]
+mod test {
+    use super::*;
 
-    assert_eq!(notification, Ok(Notification::<notifications::Initialized> {
-        params: NoParams {},
-        _action: PhantomData,
-    }));
+    fn get_default_params() -> InitializeParams {
+        InitializeParams {
+            process_id: None,
+            root_path: None,
+            root_uri: None,
+            initialization_options: None,
+            capabilities: ClientCapabilities {
+                workspace: None,
+                text_document: None,
+                experimental: None,
+            },
+            trace: TraceOption::Off,
+        }
+    }
+
+    #[test]
+    fn test_use_root_uri() {
+        let mut params = get_default_params();
+
+        params.root_path = Some(String::from("/path/a"));
+        params.root_uri = Some(::url::Url::parse("file:///path/b").unwrap());
+
+        assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/b");
+    }
+
+    #[test]
+    fn test_use_root_path() {
+        let mut params = get_default_params();
+
+        params.root_path = Some(String::from("/path/a"));
+        params.root_uri = None;
+
+        assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/a");
+    }
+
+    #[test]
+    fn test_parse_as_notification() {
+        let raw = RawMessage {
+            method: "initialize".to_owned(),
+            id: None,
+            params: serde_json::Value::Null,
+        };
+        let notification = raw.parse_as_notification::<notifications::Initialized>();
+
+        assert_eq!(notification, Ok(Notification::<notifications::Initialized> {
+            params: NoParams {},
+            _action: PhantomData,
+        }));
+    }
 }
