@@ -277,12 +277,9 @@ impl<'a> NotificationAction<'a> for DidChangeWatchedFiles {
         let ctx = ctx.inited();
         let file_watch = FileWatch::new(&ctx);
 
-        // ignore irrelevant files from more spammy clients
-        if !params.changes.iter().any(|c| file_watch.is_relevant(c)) {
-            return Ok(());
+        if params.changes.iter().any(|c| file_watch.is_relevant(c)) {
+            ctx.build_current_project(BuildPriority::Cargo, out);
         }
-
-        ctx.build_current_project(BuildPriority::Cargo, out);
 
         Ok(())
     }

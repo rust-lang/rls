@@ -240,6 +240,8 @@ impl<'ctx> FileWatch<'ctx> {
     }
 
     /// Returns if a file change is relevant to the files we actually wanted to watch
+    // Implementation note: This is expected to be called a large number of times in a loop
+    // so should be fast / avoid allocation.
     #[inline]
     pub fn is_relevant(&self, change: &FileEvent) -> bool {
         let path = change.uri.as_str();
@@ -250,7 +252,7 @@ impl<'ctx> FileWatch<'ctx> {
 
         let local = &path[self.project_uri.len()..];
 
-        local == "/Cargo.lock" || local == "Cargo.toml"
+        local == "/Cargo.lock" || local == "/Cargo.toml"
             || local == "/target" && change.typ == FileChangeType::Deleted
     }
 }
