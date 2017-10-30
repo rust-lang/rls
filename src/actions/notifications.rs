@@ -9,6 +9,7 @@
 // except according to those terms.
 
 use actions::ActionContext;
+use actions::FileWatch;
 use vfs::Change;
 use config::Config;
 use serde::Deserialize;
@@ -42,13 +43,7 @@ impl<'a> NotificationAction<'a> for Initialized {
 
         let ctx = ctx.inited();
 
-        // TODO we should watch for workspace Cargo.tomls too
-        let pattern = format!("{}/Cargo{{.toml,.lock}}", ctx.current_project.to_str().unwrap());
-        let target_pattern = format!("{}/target", ctx.current_project.to_str().unwrap());
-        // For target, we only watch if it gets deleted.
-        let options = json!({
-            "watchers": [{ "globPattern": pattern }, { "globPattern": target_pattern, "kind": 4 }]
-        });
+        let options = FileWatch::new(&ctx).watchers_config();
         let output = serde_json::to_string(
             &RequestMessage::new(out.provide_id(),
                                  NOTIFICATION__RegisterCapability.to_owned(),
@@ -271,10 +266,20 @@ impl<'a> Action<'a> for DidChangeWatchedFiles {
 }
 
 impl<'a> NotificationAction<'a> for DidChangeWatchedFiles {
-    fn handle<O: Output>(&mut self, _params: DidChangeWatchedFilesParams, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        params: DidChangeWatchedFilesParams,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         trace!("on_cargo_change: thread: {:?}", thread::current().id());
+
         let ctx = ctx.inited();
-        ctx.build_current_project(BuildPriority::Cargo, out);
+        let file_watch = FileWatch::new(&ctx);
+
+        if params.changes.iter().any(|c| file_watch.is_relevant(c)) {
+            ctx.build_current_project(BuildPriority::Cargo, out);
+        }
 
         Ok(())
     }
