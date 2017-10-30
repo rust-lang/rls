@@ -772,7 +772,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rls"
-version = "0.122.0"
+version = "0.123.0"
 dependencies = [
  "cargo 0.24.0 (git+https://github.com/rust-lang/cargo)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
