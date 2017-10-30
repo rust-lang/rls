@@ -20,6 +20,18 @@ should warn you if it is not present. See the extension section below for more
 issues.
 
 
+### Missing RLS component
+
+You might see an error like `toolchain 'nightly-x86_64-unknown-linux-gnu' does not contain component 'rls-preview' for target 'x86_64-unknown-linux-gnu'`.
+
+This is due to a nightly release missing the RLS component. That
+happens occasionally when the RLS cannot be built with the current compiler. To
+work around this issue you can use an RLS from the beta or stable channels, wait
+for a new nightly which does contain the RLS component, or use an older nightly
+which includes the RLS component. To do the latter follow [these
+instructions](https://github.com/rust-lang-nursery/rls-vscode/issues/181#issue-269383659),
+then avoid `rustup update`.
+
 ### Out of date components
 
 Run `rustup update` from the command line to make sure Rust, the RLS, and
