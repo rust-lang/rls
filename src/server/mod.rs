@@ -337,7 +337,7 @@ impl<O: Output> LsService<O> {
                     if $method == <$n_action as Action>::METHOD {
                         let notification = msg.parse_as_notification::<$n_action>()?;
                         if let Err(_) = notification.dispatch(&mut self.state, &mut self.ctx, self.output.clone()) {
-                            debug!("Error handling notifcation: {:?}", msg);
+                            debug!("Error handling notification: {:?}", msg);
                         }
                         handled = true;
                     }
@@ -346,7 +346,7 @@ impl<O: Output> LsService<O> {
                     if $method == <$r_action as Action>::METHOD {
                         let request = msg.parse_as_request::<$r_action>()?;
                         if let Err(_) = request.dispatch(&mut self.state, &mut self.ctx, self.output.clone()) {
-                            debug!("Error handling notifcation: {:?}", msg);
+                            debug!("Error handling notification: {:?}", msg);
                         }
                         handled = true;
                     }

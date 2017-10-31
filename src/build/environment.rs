@@ -67,7 +67,7 @@ impl<'a> Drop for Environment<'a> {
 /// It uses two locks instead of one, because RLS, while executing a Cargo build routine, not only
 /// needs to guarantee consistent env vars across the Cargo invocation, but also, while holding it,
 /// it needs to provide a more fine-grained way to synchronize env vars across different inner
-/// compiler invokations, for which Cargo sets specific env vars.
+/// compiler invocations, for which Cargo sets specific env vars.
 /// To enforce proper env var guarantees, regular rustc and Cargo build routines must first acquire
 /// the first, outer lock. Only then, if needed, nested rustc calls inside Cargo routine can
 /// acquire the second, inner lock.

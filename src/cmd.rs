@@ -228,8 +228,8 @@ impl server::MessageReader for ChannelMsgReader {
     }
 }
 
-// Initialise a server, returns the sender end of a channel for posting messages.
-// The initialised server will live on its own thread and look after the receiver.
+// Initialize a server, returns the sender end of a channel for posting messages.
+// The initialized server will live on its own thread and look after the receiver.
 fn init() -> Sender<String> {
     let analysis = Arc::new(AnalysisHost::new(Target::Debug));
     let vfs = Arc::new(Vfs::new());
@@ -243,7 +243,7 @@ fn init() -> Sender<String> {
     thread::spawn(move || LsService::run(service));
 
     sender.send(initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned()).to_string()).expect("Error sending init");
-    println!("Initialising (look for `diagnosticsEnd` message)...");
+    println!("Initializing (look for `diagnosticsEnd` message)...");
 
     sender
 }
