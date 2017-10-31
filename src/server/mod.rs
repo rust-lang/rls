@@ -490,6 +490,7 @@ impl RawMessage {
 #[cfg(test)]
 mod test {
     use super::*;
+    use url::Url;
 
     fn get_default_params() -> InitializeParams {
         InitializeParams {
@@ -506,24 +507,35 @@ mod test {
         }
     }
 
+    fn make_platform_path(path: &'static str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(format!("C:/{}", path))
+        } else {
+            PathBuf::from(format!("/{}", path))
+        }
+    }
+
     #[test]
     fn test_use_root_uri() {
         let mut params = get_default_params();
 
-        params.root_path = Some(String::from("/path/a"));
-        params.root_uri = Some(::url::Url::parse("file:///path/b").unwrap());
+        let root_path = make_platform_path("path/a");
+        let root_uri = make_platform_path("path/b");
+        params.root_path = Some(root_path.to_str().unwrap().to_owned());
+        params.root_uri = Some(Url::from_directory_path(&root_uri).unwrap());
 
-        assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/b");
+        assert_eq!(get_root_path(&params), root_uri);
     }
 
     #[test]
     fn test_use_root_path() {
         let mut params = get_default_params();
 
-        params.root_path = Some(String::from("/path/a"));
+        let root_path = make_platform_path("path/a");
+        params.root_path = Some(root_path.to_str().unwrap().to_owned());
         params.root_uri = None;
 
-        assert_eq!(get_root_path(&params).to_str().unwrap(), "/path/a");
+        assert_eq!(get_root_path(&params), root_path);
     }
 
     #[test]
