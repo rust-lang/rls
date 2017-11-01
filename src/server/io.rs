@@ -107,7 +107,7 @@ pub trait Output: Sync + Send + Clone + 'static {
         let data = match serde_json::to_string(data) {
             Ok(data) => data,
             Err(e) => {
-                debug!("Could not serialise data for success message. ");
+                debug!("Could not serialize data for success message. ");
                 debug!("  Data: `{:?}`", data);
                 debug!("  Error: {:?}", e);
                 return;

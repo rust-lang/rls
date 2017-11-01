@@ -88,11 +88,11 @@ struct Internals {
 
 #[derive(Debug)]
 pub enum BuildResult {
-    // Build was succesful, argument is warnings.
+    // Build was successful, argument is warnings.
     Success(Vec<String>, Vec<Analysis>),
     // Build finished with errors, argument is errors and warnings.
     Failure(Vec<String>, Vec<Analysis>),
-    // Build was coelesced with another build.
+    // Build was coalesced with another build.
     Squashed,
     // There was an error attempting to build.
     Err,
@@ -320,11 +320,11 @@ impl BuildQueue {
                 thread::sleep(Duration::from_millis(wait_to_build));
 
                 // Check if a new build arrived while we were sleeping.
-                let interupt = {
+                let interrupt = {
                     let queued = queued.lock().unwrap();
                     queued.0.is_pending() || queued.1.is_pending()
                 };
-                if interupt {
+                if interrupt {
                     and_then(BuildResult::Squashed);
                     continue;
                 }
@@ -398,7 +398,7 @@ impl Internals {
         }
 
         let result = self.build();
-        // On a successful build, clear dirty files that were successfuly built
+        // On a successful build, clear dirty files that were successfully built
         // now. It's possible that a build was scheduled with given files, but
         // user later changed them. These should still be left as dirty (not built).
         match *&result {

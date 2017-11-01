@@ -39,8 +39,8 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
 
     let diagnostics = Arc::new(Mutex::new(vec![]));
     let diagnostics_clone = diagnostics.clone();
-    let analyses = Arc::new(Mutex::new(vec![]));
-    let analyses_clone = analyses.clone();
+    let analysis = Arc::new(Mutex::new(vec![]));
+    let analysis_clone = analysis.clone();
     let out = Arc::new(Mutex::new(vec![]));
     let out_clone = out.clone();
 
@@ -49,13 +49,13 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     // However, if Cargo doesn't run a separate thread, then we'll just wait
     // forever. Therefore, we spawn an extra thread here to be safe.
     let handle = thread::spawn(|| run_cargo(compilation_cx, config, vfs, env_lock,
-                                            diagnostics, analyses, out));
+                                            diagnostics, analysis, out));
 
     match handle.join().map_err(|_| "thread panicked".into()).and_then(|res| res) {
         Ok(_) if workspace_mode => {
             let diagnostics = Arc::try_unwrap(diagnostics_clone).unwrap().into_inner().unwrap();
-            let analyses = Arc::try_unwrap(analyses_clone).unwrap().into_inner().unwrap();
-            BuildResult::Success(diagnostics, analyses)
+            let analysis = Arc::try_unwrap(analysis_clone).unwrap().into_inner().unwrap();
+            BuildResult::Success(diagnostics, analysis)
         },
         Ok(_) => BuildResult::Success(vec![], vec![]),
         Err(err) => {
@@ -71,7 +71,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
              vfs: Arc<Vfs>,
              env_lock: Arc<EnvironmentLock>,
              compiler_messages: Arc<Mutex<Vec<String>>>,
-             analyses: Arc<Mutex<Vec<Analysis>>>,
+             analysis: Arc<Mutex<Vec<Analysis>>>,
              out: Arc<Mutex<Vec<u8>>>) -> CargoResult<()> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
     // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
@@ -169,7 +169,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
                                 inner_lock,
                                 vfs,
                                 compiler_messages,
-                                analyses);
+                                analysis);
 
     compile_with_exec(&ws, &compile_opts, Arc::new(exec))?;
 
@@ -188,7 +188,7 @@ struct RlsExecutor {
     /// env var access during underlying `rustc()` calls during parallel `exec()` callback threads.
     env_lock: environment::InnerLock,
     vfs: Arc<Vfs>,
-    analyses: Arc<Mutex<Vec<Analysis>>>,
+    analysis: Arc<Mutex<Vec<Analysis>>>,
     workspace_mode: bool,
     /// Packages which are directly a member of the workspace, for which
     /// analysis and diagnostics will be provided
@@ -204,7 +204,7 @@ impl RlsExecutor {
            env_lock: environment::InnerLock,
            vfs: Arc<Vfs>,
            compiler_messages: Arc<Mutex<Vec<String>>>,
-           analyses: Arc<Mutex<Vec<Analysis>>>)
+           analysis: Arc<Mutex<Vec<Analysis>>>)
     -> RlsExecutor {
         let workspace_mode = config.lock().unwrap().workspace_mode;
         let (cur_package_id, member_packages) = if workspace_mode {
@@ -225,21 +225,21 @@ impl RlsExecutor {
             config,
             env_lock,
             vfs,
-            analyses,
+            analysis,
             workspace_mode,
             member_packages: Mutex::new(member_packages),
             compiler_messages,
         }
     }
 
-    /// Returns wheter a given package is a primary one (every member of the
+    /// Returns whether a given package is a primary one (every member of the
     /// workspace is considered as such).
     fn is_primary_crate(&self, id: &PackageId) -> bool {
         if self.workspace_mode {
             self.member_packages.lock().unwrap().contains(id)
         } else {
             let cur_package_id = self.cur_package_id.lock().unwrap();
-            id == cur_package_id.as_ref().expect("Executor has not been initialised")
+            id == cur_package_id.as_ref().expect("Executor has not been initialized")
         }
     }
 }
@@ -352,7 +352,7 @@ impl Executor for RlsExecutor {
         {
             let config = self.config.lock().unwrap();
             let crate_type = parse_arg(cargo_args, "--crate-type");
-            // Becase we only try to emulate `cargo test` using `cargo check`, so for now
+            // Because we only try to emulate `cargo test` using `cargo check`, so for now
             // assume crate_type arg (i.e. in `cargo test` it isn't specified for --test targets)
             // and build test harness only for final crate type
             let crate_type = crate_type.expect("no crate-type in rustc command line");
@@ -417,7 +417,7 @@ impl Executor for RlsExecutor {
                 BuildResult::Success(mut messages, mut analysis) |
                 BuildResult::Failure(mut messages, mut analysis) => {
                     self.compiler_messages.lock().unwrap().append(&mut messages);
-                    self.analyses.lock().unwrap().append(&mut analysis);
+                    self.analysis.lock().unwrap().append(&mut analysis);
                 }
                 _ => {}
             }

@@ -137,7 +137,7 @@ Some crates can have surprisingly large data files. Large data files can slow
 down the RLS to the point of crashing (or appearing to crash). Check the json
 files in the `target/rls/deps/save-analysis` directory. Anything over 1mb is
 suspicious. You can test if this is important by deleting the json file(s) and
-restating the extension (you'd have to do this every time you do a full build,
+restarting the extension (you'd have to do this every time you do a full build,
 for example after `cargo clean` or updating the toolchain).
 
 If you find such large data files, please report an issue on this repo. We can

@@ -123,12 +123,12 @@ temporary logging you may find the `eprintln` macro useful.
 Test using `cargo test`.
 
 Testing is unfortunately minimal. There is support for regression tests, but not
-many actual tests exists yet. There is signifcant [work to do](https://github.com/rust-lang-nursery/rls/issues/12)
+many actual tests exists yet. There is significant [work to do](https://github.com/rust-lang-nursery/rls/issues/12)
 before we have a comprehensive testing story.
 
 You can run the RLS in command line mode by running with an argument (any
 argument), e.g., `cargo run -- foo`. You need to run it in the root directory of
-the project to be analysed. This should initialise the RLS (which will take some
+the project to be analyzed. This should initialize the RLS (which will take some
 time for large projects) and then give you a `>` prompt. Type `help` (or just
 `h`) to see the commands available.
 
@@ -223,7 +223,7 @@ inside your project's target directory.
 
 The goal of the RLS project is to provide an awesome IDE experience *now*. That
 means not waiting for incremental compilation support in the compiler. However,
-Rust is a somewhat complex language to analyse and providing precise and
+Rust is a somewhat complex language to analyze and providing precise and
 complete information about programs requires using the compiler.
 
 The RLS has two data sources - the compiler and Racer. The compiler is always
@@ -271,7 +271,7 @@ change](https://github.com/rust-lang-nursery/rls/issues/25)).
 
 ### Analysis data
 
-From the compiler, we get a serialised dump of its analysis data (from name
+From the compiler, we get a serialized dump of its analysis data (from name
 resolution and type checking). We combine data from all crates and the standard
 libraries and combine this into an index for the whole project. We cross-
 reference and store this data in HashMaps and use it to look up data for the

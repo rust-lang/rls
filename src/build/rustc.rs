@@ -73,7 +73,7 @@ pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>
     });
 
     // FIXME(#25) given that we are running the compiler directly, there is no need
-    // to serialise the error messages - we should pass them in memory.
+    // to serialize the error messages - we should pass them in memory.
     let err_buf = Arc::try_unwrap(err_buf).unwrap().into_inner().unwrap();
     let err_buf = String::from_utf8(err_buf).unwrap();
     let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();
