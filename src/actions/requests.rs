@@ -795,10 +795,10 @@ fn pos_to_racer_location(pos: Position) -> racer::Location {
     racer::Location::Coords(racer_coord(pos.row.one_indexed(), pos.col))
 }
 
-fn location_from_racer_match(mtch: racer::Match) -> Option<Location> {
-    let source_path = &mtch.filepath;
+fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
+    let source_path = &a_match.filepath;
 
-    mtch.coords.map(|coord| {
+    a_match.coords.map(|coord| {
         let (row, col) = from_racer_coord(coord);
         let loc = span::Location::new(row.zero_indexed(), col, source_path);
         ls_util::rls_location_to_location(&loc)

@@ -77,7 +77,7 @@ fn test_shutdown() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -108,7 +108,7 @@ fn test_goto_def() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -140,7 +140,7 @@ fn test_hover() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -168,7 +168,7 @@ fn test_workspace_symbol() {
 
     env.with_config(|c| c.cfg_test = true);
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -215,7 +215,7 @@ fn test_find_all_refs() {
 
     env.with_config(|c| c.cfg_test = true);
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -249,7 +249,7 @@ fn test_find_all_refs_no_cfg_test() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -273,7 +273,7 @@ fn test_borrow_error() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -301,7 +301,7 @@ fn test_highlight() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -334,7 +334,7 @@ fn test_rename() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -371,7 +371,7 @@ fn test_reformat() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -411,7 +411,7 @@ fn test_reformat_with_range() {
 
     let (mut server, results) = env.mock_server(messages);
 
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -436,7 +436,7 @@ fn test_multiple_binaries() {
 
     env.with_config(|c| c.build_bin = Inferrable::Specified(Some("bin2".to_owned())));
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -469,7 +469,7 @@ fn test_completion() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -501,7 +501,7 @@ fn test_bin_lib_project() {
         c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
     });
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -526,7 +526,7 @@ fn test_bin_lib_project() {
 //         c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
 //     });
 //     let (mut server, results) = env.mock_server(messages);
-//     // Initialise and build.
+//     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -549,7 +549,7 @@ fn test_bin_lib_project() {
 
 //     env.with_config(|c| c.workspace_mode = true);
 //     let (mut server, results) = env.mock_server(messages);
-//     // Initialise and build.
+//     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -573,7 +573,7 @@ fn test_infer_lib() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -593,7 +593,7 @@ fn test_infer_bin() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -613,7 +613,7 @@ fn test_infer_custom_bin() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -704,7 +704,7 @@ fn test_find_impls() {
     ];
 
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(),
@@ -749,7 +749,7 @@ fn test_features() {
 
     env.with_config(|c| c.features = vec!["foo".to_owned()]);
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -770,7 +770,7 @@ fn test_all_features() {
 
     env.with_config(|c| c.all_features = true);
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -793,7 +793,7 @@ fn test_no_default_features() {
         c.features = vec!["foo".to_owned(), "bar".to_owned()]
     });
     let (mut server, results) = env.mock_server(messages);
-    // Initialise and build.
+    // Initialize and build.
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -814,7 +814,7 @@ fn test_no_default_features() {
 //     ];
 //
 //     let (mut server, results) = env.mock_server(messages);
-//     // Initialise and build.
+//     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),

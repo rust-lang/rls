@@ -71,7 +71,7 @@ impl Environment {
         f(config);
     }
 
-    // Initialise and run the internals of an LS protocol RLS server.
+    // Initialize and run the internals of an LS protocol RLS server.
     pub fn mock_server(&mut self, messages: Vec<String>) -> (ls_server::LsService<RecordOutput>, LsResultList) {
         let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
         let vfs = Arc::new(vfs::Vfs::new());

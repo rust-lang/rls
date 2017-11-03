@@ -11,6 +11,8 @@
 use analysis::AnalysisHost;
 use vfs::Vfs;
 use config::{Config, FmtConfig};
+use serde_json;
+use url::Url;
 use span;
 use Span;
 
@@ -210,6 +212,51 @@ fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
 
     (span::Column::new_zero_indexed(start), span::Column::new_zero_indexed(end))
 }
+
+// TODO include workspace Cargo.tomls in watchers / relevant
+/// Client file-watching request / filtering logic
+/// We want to watch workspace 'Cargo.toml', root 'Cargo.lock' & the root 'target' dir
+pub struct FileWatch<'ctx> {
+    project_str: &'ctx str,
+    project_uri: String,
+}
+
+impl<'ctx> FileWatch<'ctx> {
+    pub fn new(ctx: &'ctx InitActionContext) -> Self {
+        Self {
+            project_str: ctx.current_project.to_str().unwrap(),
+            project_uri: Url::from_file_path(&ctx.current_project).unwrap().into_string(),
+        }
+    }
+
+    /// Returns json config for desired file watches
+    pub fn watchers_config(&self) -> serde_json::Value {
+        let pattern = format!("{}/Cargo{{.toml,.lock}}", self.project_str);
+        let target_pattern = format!("{}/target", self.project_str);
+        // For target, we only watch if it gets deleted.
+        json!({
+            "watchers": [{ "globPattern": pattern }, { "globPattern": target_pattern, "kind": 4 }]
+        })
+    }
+
+    /// Returns if a file change is relevant to the files we actually wanted to watch
+    // Implementation note: This is expected to be called a large number of times in a loop
+    // so should be fast / avoid allocation.
+    #[inline]
+    pub fn is_relevant(&self, change: &FileEvent) -> bool {
+        let path = change.uri.as_str();
+
+        if !path.starts_with(&self.project_uri) {
+            return false;
+        }
+
+        let local = &path[self.project_uri.len()..];
+
+        local == "/Cargo.lock" || local == "/Cargo.toml"
+            || local == "/target" && change.typ == FileChangeType::Deleted
+    }
+}
+
 
 #[cfg(test)]
 mod test {
