@@ -60,7 +60,7 @@ impl<'de> Deserialize<'de> for NoParams {
 }
 
 pub trait Response {
-    fn send<O: Output>(&self, id: usize, out: O); 
+    fn send<O: Output>(&self, id: usize, out: O);
 }
 
 impl Response for NoResponse {
@@ -311,7 +311,7 @@ impl<O: Output> LsService<O> {
         };
 
         let method = method.as_str().ok_or_else(|| jsonrpc::Error::invalid_request())?.to_owned();
-        
+
         // Representing internally a missing parameter as Null instead of None,
         // (Null being unused value of param by the JSON-RPC 2.0 spec)
         // to unify the type handling – now the parameter type implements Deserialize.
@@ -402,17 +402,6 @@ impl<O: Output> LsService<O> {
 
         trace!("Read message `{}`", msg_string);
 
-        {
-            let shut_down = self.state.shut_down.load(Ordering::SeqCst);
-            if shut_down {
-                if msg_string != ExitNotification::METHOD {
-                    // We're shutdown, ignore any messages other than 'exit'. This is not actually
-                    // in the spec, I'm not sure we should do this, but it kinda makes sense.
-                    return ServerStateChange::Continue;
-                }
-            }
-        }
-
         let raw_message = match self.parse_message(&msg_string) {
             Ok(Some(rm)) => rm,
             Ok(None) => return ServerStateChange::Continue,
@@ -422,8 +411,19 @@ impl<O: Output> LsService<O> {
                 return ServerStateChange::Break;
             }
         };
-        
+
         trace!("Parsed message `{:?}`", raw_message);
+
+        // If we're in shutdown mode, ignore any messages other than 'exit'.
+        // This is not actually in the spec, I'm not sure we should do this,
+        // but it kinda makes sense.
+        {
+            let shut_down = self.state.shut_down.load(Ordering::SeqCst);
+            if shut_down && raw_message.method != ExitNotification::METHOD {
+                trace!("In shutdown mode, ignoring {:?}!", raw_message);
+                return ServerStateChange::Continue;
+            }
+        }
 
         if let Err(e) = self.dispatch_message(&raw_message) {
             debug!("dispatch error, {:?}", e);
