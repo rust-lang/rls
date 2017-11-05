@@ -118,12 +118,10 @@ impl<O: Output> PostBuildHandler<O> {
 
     fn reload_analysis_from_memory(&self, analysis: Vec<Analysis>) {
         let cwd = ::std::env::current_dir().unwrap();
-        for data in analysis.into_iter() {
-            if self.use_black_list {
-                self.analysis.reload_from_analysis(data, &self.project_path, &cwd, &CRATE_BLACKLIST).unwrap();
-            } else {
-                self.analysis.reload_from_analysis(data, &self.project_path, &cwd, &[]).unwrap();
-            }
+        if self.use_black_list {
+            self.analysis.reload_from_analysis(analysis, &self.project_path, &cwd, &CRATE_BLACKLIST).unwrap();
+        } else {
+            self.analysis.reload_from_analysis(analysis, &self.project_path, &cwd, &[]).unwrap();
         }
     }
 }
