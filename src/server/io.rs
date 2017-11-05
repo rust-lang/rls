@@ -160,8 +160,10 @@ impl Output for StdioOutput {
 
         trace!("response: {:?}", o);
 
-        print!("{}", o);
-        io::stdout().flush().unwrap();
+        let stdout = io::stdout();
+        let mut stdout_lock = stdout.lock();
+        write!(stdout_lock, "{}", o).unwrap();
+        stdout_lock.flush().unwrap();
     }
 
     fn provide_id(&self) -> u32 {

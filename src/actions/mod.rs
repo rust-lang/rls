@@ -81,16 +81,17 @@ impl ActionContext {
         *self = ActionContext::Init(ctx);
     }
 
-    fn inited(&self) -> &InitActionContext {
+    pub fn inited(&self) -> InitActionContext {
         match *self {
             ActionContext::Uninit(_) => panic!("ActionContext not initialized"),
-            ActionContext::Init(ref ctx) => ctx,
+            ActionContext::Init(ref ctx) => ctx.clone(),
         }
     }
 }
 
 /// Persistent context shared across all requests and actions after the RLS has
 /// been initialized.
+#[derive(Clone)]
 pub struct InitActionContext {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
@@ -101,7 +102,6 @@ pub struct InitActionContext {
     build_queue: BuildQueue,
 
     config: Arc<Mutex<Config>>,
-    fmt_config: FmtConfig,
 }
 
 /// Persistent context shared across all requests and actions before the RLS has
@@ -131,7 +131,6 @@ impl InitActionContext {
                config: Arc<Mutex<Config>>,
                current_project: PathBuf) -> InitActionContext {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
-        let fmt_config = FmtConfig::from(&current_project);
         InitActionContext {
             analysis,
             vfs,
@@ -139,8 +138,11 @@ impl InitActionContext {
             current_project,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
-            fmt_config,
         }
+    }
+
+    fn fmt_config(&self) -> FmtConfig {
+        FmtConfig::from(&self.current_project)
     }
 
     fn init<O: Output>(&self, init_options: &InitializationOptions, out: O) {

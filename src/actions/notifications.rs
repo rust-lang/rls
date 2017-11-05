@@ -21,7 +21,7 @@ use Span;
 
 use build::*;
 use lsp_data::*;
-use server::{Output, Action, NotificationAction, LsState, NoParams};
+use server::{Output, Action, BlockingNotificationAction, LsState, NoParams};
 
 use std::thread;
 
@@ -29,16 +29,16 @@ use std::thread;
 #[derive(Debug, PartialEq)]
 pub struct Initialized;
 
-impl<'a> Action<'a> for Initialized {
+impl Action for Initialized {
     type Params = NoParams;
     const METHOD: &'static str = "initialized";
+}
 
+impl<'a> BlockingNotificationAction<'a> for Initialized {
     fn new(_: &'a mut LsState) -> Self {
         Initialized
     }
-}
 
-impl<'a> NotificationAction<'a> for Initialized {
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
     fn handle<O: Output>(&mut self, _params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
@@ -62,16 +62,16 @@ impl<'a> NotificationAction<'a> for Initialized {
 #[derive(Debug)]
 pub struct DidOpen;
 
-impl<'a> Action<'a> for DidOpen {
+impl Action for DidOpen {
     type Params = DidOpenTextDocumentParams;
     const METHOD: &'static str = "textDocument/didOpen";
+}
 
+impl<'a> BlockingNotificationAction<'a> for DidOpen {
     fn new(_: &'a mut LsState) -> Self {
         DidOpen
     }
-}
 
-impl<'a> NotificationAction<'a> for DidOpen {
     fn handle<O: Output>(&mut self, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
         trace!("on_open: {:?}", params.text_document.uri);
         let ctx = ctx.inited();
@@ -86,16 +86,16 @@ impl<'a> NotificationAction<'a> for DidOpen {
 #[derive(Debug)]
 pub struct DidChange;
 
-impl<'a> Action<'a> for DidChange {
+impl Action for DidChange {
     type Params = DidChangeTextDocumentParams;
     const METHOD: &'static str = "textDocument/didChange";
+}
 
+impl<'a> BlockingNotificationAction<'a> for DidChange {
     fn new(_: &'a mut LsState) -> Self {
         DidChange
     }
-}
 
-impl<'a> NotificationAction<'a> for DidChange {
     fn handle<O: Output>(&mut self, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         trace!("on_change: {:?}, thread: {:?}", params, thread::current().id());
 
@@ -133,16 +133,16 @@ impl<'a> NotificationAction<'a> for DidChange {
 #[derive(Debug)]
 pub struct Cancel;
 
-impl<'a> Action<'a> for Cancel {
+impl Action for Cancel {
     type Params = CancelParams;
     const METHOD: &'static str = "$/cancelRequest";
+}
 
+impl<'a> BlockingNotificationAction<'a> for Cancel {
     fn new(_: &'a mut LsState) -> Self {
         Cancel
     }
-}
 
-impl<'a> NotificationAction<'a> for Cancel {
     fn handle<O: Output>(&mut self, _params: CancelParams, _ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
         // Nothing to do.
         Ok(())
@@ -154,16 +154,17 @@ impl<'a> NotificationAction<'a> for Cancel {
 #[derive(Debug)]
 pub struct DidChangeConfiguration;
 
-impl<'a> Action<'a> for DidChangeConfiguration {
+impl Action for DidChangeConfiguration {
     type Params = DidChangeConfigurationParams;
     const METHOD: &'static str = "workspace/didChangeConfiguration";
 
+}
+
+impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
     fn new(_: &'a mut LsState) -> Self {
         DidChangeConfiguration
     }
-}
 
-impl<'a> NotificationAction<'a> for DidChangeConfiguration {
     fn handle<O: Output>(&mut self, params: DidChangeConfigurationParams, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
         let ctx = ctx.inited();
@@ -239,16 +240,16 @@ impl<'a> NotificationAction<'a> for DidChangeConfiguration {
 #[derive(Debug)]
 pub struct DidSave;
 
-impl<'a> Action<'a> for DidSave {
+impl Action for DidSave {
     type Params = DidSaveTextDocumentParams;
     const METHOD: &'static str = "textDocument/didSave";
+}
 
+impl<'a> BlockingNotificationAction<'a> for DidSave {
     fn new(_: &'a mut LsState) -> Self {
         DidSave
     }
-}
 
-impl<'a> NotificationAction<'a> for DidSave {
     fn handle<O: Output>(&mut self, params: DidSaveTextDocumentParams, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_save")?;
@@ -268,16 +269,16 @@ impl<'a> NotificationAction<'a> for DidSave {
 #[derive(Debug)]
 pub struct DidChangeWatchedFiles;
 
-impl<'a> Action<'a> for DidChangeWatchedFiles {
+impl Action for DidChangeWatchedFiles {
     type Params = DidChangeWatchedFilesParams;
     const METHOD: &'static str = "workspace/didChangeWatchedFiles";
+}
 
+impl<'a> BlockingNotificationAction<'a> for DidChangeWatchedFiles {
     fn new(_: &'a mut LsState) -> Self {
         DidChangeWatchedFiles
     }
-}
 
-impl<'a> NotificationAction<'a> for DidChangeWatchedFiles {
     fn handle<O: Output>(
         &mut self,
         params: DidChangeWatchedFilesParams,
