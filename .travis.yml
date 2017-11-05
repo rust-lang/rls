@@ -9,4 +9,4 @@ rust:
   - nightly
 script:
   - cargo build --release --verbose
-  - cargo test --release --verbose
+  - RUST_TEST_THREADS=1 cargo test --release --verbose
