@@ -150,7 +150,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         features: &opts.features,
         all_features: opts.all_features,
         no_default_features: opts.no_default_features,
-        .. CompileOptions::default(&config, CompileMode::Check)
+        .. CompileOptions::default(&config, CompileMode::Check { test: false })
     };
 
     // Create a custom environment for running cargo, the environment is reset afterwards automatically
