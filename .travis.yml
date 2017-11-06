@@ -8,5 +8,6 @@ os:
 rust:
   - nightly
 script:
-  - cargo build --release --verbose
-  - cargo test --release --verbose
+  # compile #[cfg(not(test))] code
+  - cargo build --verbose
+  - cargo test --verbose

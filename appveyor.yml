@@ -22,13 +22,10 @@ install:
 
 build: false
 
-build_script:
-  # Build both build/test configurations to make sure both compile
-  - cargo build --release --verbose
-
 test_script:
-  # Test compilation reuses built dependencies during `cargo build --release`
-  - cargo test --release --verbose
+  # compile #[cfg(not(test))] code
+  - cargo build --verbose
+  - cargo test --verbose
 
 cache:
   - target
