@@ -31,5 +31,5 @@ test_script:
   - cargo test --release --verbose
 
 cache:
-  - target
+  - target -> Cargo.lock
   - C:\Users\appveyor\.cargo\registry
