@@ -162,7 +162,7 @@ fn test_workspace_symbol() {
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::WorkspaceSymbol>(42, WorkspaceSymbolParams {
-            query: "nemo".to_owned(),
+            query: "nem".to_owned(),
         }).to_string(),
     ];
 
