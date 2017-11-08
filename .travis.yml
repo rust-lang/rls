@@ -7,6 +7,9 @@ os:
   - osx
 rust:
   - nightly
+install:
+    # Required for Racer autoconfiguration
+    rustup component add rust-src
 script:
   # compile #[cfg(not(test))] code
   - cargo build --verbose
