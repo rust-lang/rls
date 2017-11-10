@@ -446,45 +446,46 @@ fn test_multiple_binaries() {
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
 
-#[test]
-fn test_completion() {
-    let mut env = Environment::new("common");
+// FIXME Requires rust-src component, which would break Rust CI
+// #[test]
+// fn test_completion() {
+//     let mut env = Environment::new("common");
 
-    let source_file_path = Path::new("src").join("main.rs");
+//     let source_file_path = Path::new("src").join("main.rs");
 
-    let root_path = env.cache.abs_path(Path::new("."));
-    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
-    let text_doc = TextDocumentIdentifier::new(url);
+//     let root_path = env.cache.abs_path(Path::new("."));
+//     let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+//     let text_doc = TextDocumentIdentifier::new(url);
 
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-        request::<requests::Completion>(11, TextDocumentPositionParams {
-            text_document: text_doc.clone(),
-            position: env.cache.mk_ls_position(src(&source_file_path, 22, "rld"))
-        }).to_string(),
-        request::<requests::Completion>(22, TextDocumentPositionParams {
-            text_document: text_doc.clone(),
-            position: env.cache.mk_ls_position(src(&source_file_path, 25, "x)"))
-        }).to_string(),
-    ];
+//     let messages = vec![
+//         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+//         request::<requests::Completion>(11, TextDocumentPositionParams {
+//             text_document: text_doc.clone(),
+//             position: env.cache.mk_ls_position(src(&source_file_path, 22, "rld"))
+//         }).to_string(),
+//         request::<requests::Completion>(22, TextDocumentPositionParams {
+//             text_document: text_doc.clone(),
+//             position: env.cache.mk_ls_position(src(&source_file_path, 25, "x)"))
+//         }).to_string(),
+//     ];
 
-    let (mut server, results) = env.mock_server(messages);
-    // Initialize and build.
-    assert_eq!(ls_server::LsService::handle_message(&mut server),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+//     let (mut server, results) = env.mock_server(messages);
+//     // Initialize and build.
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("beginBuild"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+//                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
-    assert_eq!(ls_server::LsService::handle_message(&mut server),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"label":"world","kind":6,"detail":"let world = \"world\";"}]"#)]);
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"label":"world","kind":6,"detail":"let world = \"world\";"}]"#)]);
 
-    assert_eq!(ls_server::LsService::handle_message(&mut server),
-               ls_server::ServerStateChange::Continue);
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(22)).expect_contains(r#"{"label":"x","kind":5,"detail":"u64"#)]);
-}
+//     assert_eq!(ls_server::LsService::handle_message(&mut server),
+//                ls_server::ServerStateChange::Continue);
+//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(22)).expect_contains(r#"{"label":"x","kind":5,"detail":"u64"#)]);
+// }
 
 #[test]
 fn test_bin_lib_project() {
