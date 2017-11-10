@@ -1,0 +1,13 @@
+refresh_rate: 1 seconds
+appenders:
+  stdout:
+    kind: console
+  requests:
+    kind: file
+    path: "/tmp/rls.log"
+    encoder:
+      pattern: "{([{level}]):7} {date} - {message} - {file}:{line}{n}"
+root:
+  level: warn
+  appenders:
+    - requests

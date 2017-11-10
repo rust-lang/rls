@@ -16,6 +16,7 @@
 
 extern crate cargo;
 extern crate env_logger;
+extern crate log4rs;
 extern crate languageserver_types as ls_types;
 #[macro_use]
 extern crate lazy_static;
@@ -64,7 +65,10 @@ const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
 type Span = span::Span<span::ZeroIndexed>;
 
 pub fn main() {
-    env_logger::init().unwrap();
+    if let Err(e) = log4rs::init_file("/home/jbushart/projects/rls/src/log4rs.yaml", Default::default()) {
+        env_logger::init().unwrap();
+        warn!("Could not initialize log4rs:\n{}", e);
+    }
 
     if env::var(RUSTC_SHIM_ENV_VAR_NAME).map(|v| v != "0").unwrap_or(false) {
         rustc_shim::run();
