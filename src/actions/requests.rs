@@ -30,6 +30,12 @@ use std::collections::HashMap;
 use std::time::{Duration};
 use std::sync::{mpsc, Arc};
 
+#[derive(Debug)]
+struct DeglobResult {
+    location: Location,
+    new_text: String,
+}
+
 /// A request for information about a symbol in this workspace.
 pub struct WorkspaceSymbol;
 
@@ -440,6 +446,81 @@ impl<'a> RequestAction<'a> for Rename {
 /// that is actually used (`use foo::{Bar, Quux}`).
 pub struct Deglob;
 
+impl Deglob {
+    fn calculate_workspace_edit(&mut self, location: &<Self as Action>::Params, ctx: &ActionContext) -> Result<DeglobResult, (ErrorCode, &'static str)> {
+        let ctx = ctx.inited();
+        let span = ls_util::location_to_rls(location.clone());
+        let mut span = ignore_non_file_uri!(span, &location.uri, "deglob").map_err(|_| (ErrorCode::InvalidParams, "Not a file URL"))?;
+
+        trace!("deglob {:?}", span);
+
+        // Start by checking that the user has selected a glob import.
+        if span.range.start() == span.range.end() {
+            // search for a glob in the line
+            let vfs = ctx.vfs.clone();
+            let line = match vfs.load_line(&span.file, span.range.row_start) {
+                Ok(l) => l,
+                Err(_) => {
+                    return Err((ErrorCode::InvalidParams, "Could not retrieve line from VFS."));
+                }
+            };
+
+            // search for exactly one "::*;" in the line. This should work fine for formatted text, but
+            // multiple use statements could be in the same line, then it is not possible to find which
+            // one to deglob.
+            let matches: Vec<_> = line.char_indices().filter(|&(_, chr)| chr == '*').collect();
+            if matches.is_empty() {
+                return Err((ErrorCode::InvalidParams, "No glob in selection."));
+            } else if matches.len() > 1 {
+                return Err((ErrorCode::InvalidParams, "Multiple globs in selection."));
+            }
+            let index = matches[0].0 as u32;
+            span.range.col_start = span::Column::new_zero_indexed(index);
+            span.range.col_end = span::Column::new_zero_indexed(index+1);
+        }
+
+        // Save-analysis exports the deglobbed version of a glob import as its type string.
+        let vfs = ctx.vfs.clone();
+        let analysis = ctx.analysis.clone();
+        let span_ = span.clone();
+
+        let receiver = receive_from_thread(move || {
+            match vfs.load_span(span_.clone()) {
+                Ok(ref s) if s != "*" => {
+                    return Err((ErrorCode::InvalidParams, "Not a glob"));
+                }
+                Err(e) => {
+                    debug!("Deglob failed: {:?}", e);
+                    return Err((ErrorCode::InternalError, "Couldn't open file"));
+                }
+                _ => {}
+            }
+
+            let ty = analysis.show_type(&span_);
+            ty.map_err(|_| {
+                (ErrorCode::InternalError, "Couldn't get info from analysis")
+            })
+        });
+
+        let result = receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+        let mut deglob_str = match result {
+            Ok(Ok(s)) => s,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => return Err((ErrorCode::InternalError, "Internal thread paniced")),
+        };
+
+        // Handle multiple imports.
+        if deglob_str.contains(',') {
+            deglob_str = format!("{{{}}}", deglob_str);
+        }
+
+        Ok(DeglobResult{
+            location: ls_util::rls_to_location(&span),
+            new_text: deglob_str,
+        })
+    }
+}
+
 impl<'a> Action<'a> for Deglob {
     type Params = Location;
     const METHOD: &'static str = "rustWorkspace/deglob";
@@ -452,91 +533,28 @@ impl<'a> Action<'a> for Deglob {
 impl<'a> RequestAction<'a> for Deglob {
     type Response = Ack;
     fn handle<O: Output>(&mut self, id: usize, location: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()> {
-        let ctx = ctx.inited();
-        let span = ls_util::location_to_rls(location.clone());
-        let mut span = ignore_non_file_uri!(span, &location.uri, "deglob")?;
+        match self.calculate_workspace_edit(&location, ctx) {
+            Ok(DeglobResult {
+                location,
+                new_text,
+            }) => {
+                // Send a workspace edit to make the actual change.
+                // FIXME should handle the response
+                let output = serde_json::to_string(
+                    &RequestMessage::new(out.provide_id(),
+                                         "workspace/applyEdit".to_owned(),
+                                         ApplyWorkspaceEditParams { edit: make_workspace_edit(location, new_text) })
+                ).unwrap();
+                out.response(output);
 
-        trace!("deglob {:?}", span);
-
-        // Start by checking that the user has selected a glob import.
-        if span.range.start() == span.range.end() {
-            // search for a glob in the line
-            let vfs = ctx.vfs.clone();
-            let line = match vfs.load_line(&span.file, span.range.row_start) {
-                Ok(l) => l,
-                Err(_) => {
-                    out.failure_message(id, ErrorCode::InvalidParams, "Could not retrieve line from VFS.");
-                    return Err(());
-                }
-            };
-
-            // search for exactly one "::*;" in the line. This should work fine for formatted text, but
-            // multiple use statements could be in the same line, then it is not possible to find which
-            // one to deglob.
-            let matches: Vec<_> = line.char_indices().filter(|&(_, chr)| chr == '*').collect();
-            if matches.len() == 0 {
-                out.failure_message(id, ErrorCode::InvalidParams, "No glob in selection.");
-                return Err(());
-            } else if matches.len() > 1 {
-                out.failure_message(id, ErrorCode::InvalidParams, "Multiple globs in selection.");
-                return Err(());
+                // Nothing to actually send in the response.
+                Ok(Ack)
             }
-            let index = matches[0].0 as u32;
-            span.range.col_start = span::Column::new_zero_indexed(index);
-            span.range.col_end = span::Column::new_zero_indexed(index+1);
+            Err((code, msg)) => {
+                out.failure_message(id, code, msg);
+                Err(())
+            }
         }
-
-        // Save-analysis exports the deglobbed version of a glob import as its type string.
-        let vfs = ctx.vfs.clone();
-        let analysis = ctx.analysis.clone();
-        let out_clone = out.clone();
-        let span_ = span.clone();
-
-        let receiver = receive_from_thread(move || {
-            match vfs.load_span(span_.clone()) {
-                Ok(ref s) if s != "*" => {
-                    out_clone.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
-                    return Err("Not a glob");
-                }
-                Err(e) => {
-                    debug!("Deglob failed: {:?}", e);
-                    out_clone.failure_message(id, ErrorCode::InternalError, "Couldn't open file");
-                    return Err("Couldn't open file");
-                }
-                _ => {}
-            }
-
-            let ty = analysis.show_type(&span_);
-            ty.map_err(|_| {
-                out_clone.failure_message(id, ErrorCode::InternalError, "Couldn't get info from analysis");
-                "Couldn't get info from analysis"
-            })
-        });
-
-        let result = receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
-        let mut deglob_str = match result {
-            Ok(Ok(s)) => s,
-            _ => {
-                return Err(());
-            }
-        };
-
-        // Handle multiple imports.
-        if deglob_str.contains(',') {
-            deglob_str = format!("{{{}}}", deglob_str);
-        }
-
-        // Send a workspace edit to make the actual change.
-        // FIXME should handle the response
-        let output = serde_json::to_string(
-            &RequestMessage::new(out.provide_id(),
-                                 "workspace/applyEdit".to_owned(),
-                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(ls_util::rls_to_location(&span), deglob_str) })
-        ).unwrap();
-        out.response(output);
-
-        // Nothing to actually send in the response.
-        Ok(Ack)
     }
 }
 
@@ -604,37 +622,54 @@ impl<'a> Action<'a> for CodeAction {
 
 impl<'a> RequestAction<'a> for CodeAction {
     type Response = Vec<Command>;
-    fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
+    fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx_: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
         trace!("code_action {:?}", params);
 
-        let ctx = ctx.inited();
+        let ctx = ctx_.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "code_action")?;
 
-        match ctx.previous_build_results.lock().unwrap().get(&file_path) {
-            Some(ref diagnostics) => {
-                let suggestions = diagnostics.iter().filter(|&&(ref d, _)| d.range == params.range).flat_map(|&(_, ref ss)| ss.iter());
-                let mut cmds = vec![];
-                for s in suggestions {
-                    let span = Location {
-                        uri: params.text_document.uri.clone(),
-                        range: s.range,
-                    };
-                    let span = serde_json::to_value(&span).unwrap();
-                    let new_text = serde_json::to_value(&s.new_text).unwrap();
+        let mut cmds = vec![];
+
+        // search for compiler suggestions
+        if let Some(diagnostics) = ctx.previous_build_results.lock().unwrap().get(&file_path) {
+            let suggestions = diagnostics.iter().filter(|&&(ref d, _)| d.range == params.range).flat_map(|&(_, ref ss)| ss.iter());
+            for s in suggestions {
+                let span = Location {
+                    uri: params.text_document.uri.clone(),
+                    range: s.range,
+                };
+                let span = serde_json::to_value(&span).unwrap();
+                let new_text = serde_json::to_value(&s.new_text).unwrap();
+                let cmd = Command {
+                    title: s.label.clone(),
+                    command: "rls.applySuggestion".to_owned(),
+                    arguments: Some(vec![span, new_text]),
+                };
+                cmds.push(cmd);
+            }
+        }
+
+        // search for glob imports
+        // search for a glob in the line
+        let vfs = ctx.vfs.clone();
+        if let Ok(line) = vfs.load_line(&file_path, ls_util::range_to_rls(params.range).row_start) {
+            if line.contains("use ") && line.contains("::*") && !line.contains("prelude::*") {
+                let location = Location::new(params.text_document.uri.clone(), params.range);
+                // call Deglob implementation in order to avoid any false positive of the `contains()`
+                if let Ok(deglob) = Deglob.calculate_workspace_edit(&location, ctx_) {
+                    let location = serde_json::to_value(&deglob.location).unwrap();
+                    let new_text = serde_json::to_value(&deglob.new_text).unwrap();
                     let cmd = Command {
-                        title: s.label.clone(),
+                        title: "Deglob Import".to_owned(),
                         command: "rls.applySuggestion".to_owned(),
-                        arguments: Some(vec![span, new_text]),
+                        arguments: Some(vec![location, new_text]),
                     };
                     cmds.push(cmd);
                 }
+            }
+        };
 
-                Ok(cmds)
-            }
-            None => {
-                Ok(vec![])
-            }
-        }
+        Ok(cmds)
     }
 }
 
