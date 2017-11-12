@@ -251,6 +251,7 @@ fn init() -> Sender<String> {
 // Display help message.
 fn help() {
     println!("RLS command line interface.");
+    println!("\nLine and column numbers are zero indexed");
     println!("\nSupported commands:");
     println!("    help    display this message");
     println!("    quit    exit");
