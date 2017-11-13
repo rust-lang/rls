@@ -49,7 +49,7 @@ extern crate jsonrpc_core;
 use std::env;
 use std::sync::Arc;
 
-mod actions;
+pub mod actions;
 mod build;
 mod cmd;
 mod config;
