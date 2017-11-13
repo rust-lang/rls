@@ -95,7 +95,10 @@ pub fn run() {
                 thread::sleep(Duration::from_millis(100));
                 return;
             }
-            _ => panic!("unknown action"),
+            _ => {
+                println!("Unknown action. Type 'help' to see available actions.");
+                continue;
+            }
         };
 
         // Send the message to the server.
