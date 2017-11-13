@@ -18,7 +18,7 @@ use config::Config;
 use server::{self, Request, Notification, LsService, NoParams};
 use vfs::Vfs;
 
-use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, DocumentFormattingParams, FormattingOptions};
+use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, WorkspaceSymbolParams, DocumentFormattingParams, FormattingOptions};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -81,6 +81,10 @@ pub fn run() {
                 let col = bits.next().expect("Expected column number");
                 hover(file_name, row, col).to_string()
             }
+            "symbol" => {
+                let query = bits.next().expect("Expected a query");
+                workspace_symbol(query).to_string()
+            }
             "format" => {
                 let file_name = bits.next().expect("Expected file name");
                 let tab_size : u64 = bits.next().unwrap_or("4").parse().expect("Tab size should be an unsigned integer");
@@ -98,7 +102,10 @@ pub fn run() {
                 thread::sleep(Duration::from_millis(100));
                 return;
             }
-            _ => panic!("unknown action"),
+            _ => {
+                println!("Unknown action. Type 'help' to see available actions.");
+                continue;
+            }
         };
 
         // Send the message to the server.
@@ -141,6 +148,17 @@ fn hover<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Hov
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
                                 u64::from_str(col).expect("Bad column number")),
+    };
+    Request {
+        id: next_id(),
+        params,
+        _action: PhantomData,
+    }
+}
+
+fn workspace_symbol<'a>(query: &str) -> Request<'a, requests::WorkspaceSymbol> {
+    let params = WorkspaceSymbolParams {
+        query: query.to_owned()
     };
     Request {
         id: next_id(),
@@ -273,6 +291,7 @@ fn init() -> Sender<String> {
 // Display help message.
 fn help() {
     println!("RLS command line interface.");
+    println!("\nLine and column numbers are zero indexed");
     println!("\nSupported commands:");
     println!("    help    display this message");
     println!("    quit    exit");
@@ -288,6 +307,9 @@ fn help() {
     println!("    hover   file_name line_number column_number");
     println!("            textDocument/hover");
     println!("            used for 'hover'");
+    println!("");
+    println!("    symbol  query");
+    println!("            workspace/symbol");
     println!("");
     println!("    format  file_name [tab_size [insert_spaces]]");
     println!("            textDocument/formatting");
