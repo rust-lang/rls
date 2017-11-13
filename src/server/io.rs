@@ -19,13 +19,15 @@ use std::sync::atomic::{Ordering, AtomicU32};
 
 use jsonrpc_core::{self as jsonrpc, Id, response, version};
 
-
+/// A trait for anything that can read language server input messages.
 pub trait MessageReader {
+    /// Read the next input message.
     fn read_message(&self) -> Option<String> {
         None
     }
 }
 
+/// A message reader that gets messages from `stdin`.
 pub(super) struct StdioMsgReader;
 
 impl MessageReader for StdioMsgReader {
@@ -80,10 +82,16 @@ impl MessageReader for StdioMsgReader {
     }
 }
 
+/// Anything that can send notifications and responses to a language server
+/// client.
 pub trait Output: Sync + Send + Clone + 'static {
+    /// Send a response string along the output.
     fn response(&self, output: String);
+
+    /// Get a new unique ID.
     fn provide_id(&self) -> u32;
 
+    /// Notify the client of a failure.
     fn failure(&self, id: jsonrpc::Id, error: jsonrpc::Error) {
         let response = response::Failure {
             jsonrpc: Some(version::Version::V2),
@@ -94,6 +102,7 @@ pub trait Output: Sync + Send + Clone + 'static {
         self.response(serde_json::to_string(&response).unwrap());
     }
 
+    /// Notify the client of a failure with the given diagnostic message.
     fn failure_message<M: Into<String>>(&self, id: usize, code: jsonrpc::ErrorCode, msg: M) {
         let error = jsonrpc::Error {
             code: code,
@@ -103,6 +112,7 @@ pub trait Output: Sync + Send + Clone + 'static {
         self.failure(Id::Num(id as u64), error);
     }
 
+    /// Send a successful response or notification along the output.
     fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: usize, data: &D) {
         let data = match serde_json::to_string(data) {
             Ok(data) => data,
@@ -123,17 +133,20 @@ pub trait Output: Sync + Send + Clone + 'static {
         self.response(output);
     }
 
+    /// Send a notification along the output.
     fn notify(&self, notification: NotificationMessage) {
         self.response(serde_json::to_string(&notification).unwrap());
     }
 }
 
+/// An output that sends notifications and responses on `stdout`.
 #[derive(Clone)]
 pub(super) struct StdioOutput {
     next_id: Arc<AtomicU32>,
 }
 
 impl StdioOutput {
+    /// Construct a new `stdout` output.
     pub fn new() -> StdioOutput {
         StdioOutput {
             next_id: Arc::new(AtomicU32::new(1)),
