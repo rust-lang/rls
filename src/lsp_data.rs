@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Types, helpers, and conversions to and from LSP and `racer` types.
+
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::path::PathBuf;
@@ -23,13 +25,19 @@ use vfs::FileContents;
 pub use ls_types::*;
 use jsonrpc_core::version;
 
+/// Notification string for beginning diagnostics.
 pub const NOTIFICATION_DIAGNOSTICS_BEGIN: &'static str = "rustDocument/diagnosticsBegin";
+/// Notification string for ending diagnostics.
 pub const NOTIFICATION_DIAGNOSTICS_END:   &'static str = "rustDocument/diagnosticsEnd";
+/// Notification string for when a build begins.
 pub const NOTIFICATION_BUILD_BEGIN:       &'static str = "rustDocument/beginBuild";
 
+/// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
 pub enum UrlFileParseError {
+    /// The URI scheme is not `file`.
     InvalidScheme,
+    /// Invalid file path in the URI.
     InvalidFilePath
 }
 
@@ -48,6 +56,7 @@ impl fmt::Display for UrlFileParseError where UrlFileParseError: Error {
     }
 }
 
+/// Parse the given URI into a `PathBuf`.
 pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
     if uri.scheme() != "file" {
         Err(UrlFileParseError::InvalidScheme)
@@ -56,6 +65,7 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
     }
 }
 
+/// Create an edit for the given location and text.
 pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
     let mut edit = WorkspaceEdit {
         changes: HashMap::new(),
@@ -69,6 +79,7 @@ pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdi
     edit
 }
 
+/// Utilities for working with the language server protocol.
 pub mod ls_util {
     use super::*;
     use Span;
@@ -76,27 +87,32 @@ pub mod ls_util {
     use std::path::Path;
     use vfs::Vfs;
 
+    /// Convert a language server protocol range into an RLS range.
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {
         span::Range::from_positions(position_to_rls(r.start), position_to_rls(r.end))
     }
 
+    /// Convert a language server protocol position into an RLS position.
     pub fn position_to_rls(p: Position) -> span::Position<span::ZeroIndexed> {
         span::Position::new(span::Row::new_zero_indexed(p.line as u32),
                             span::Column::new_zero_indexed(p.character as u32))
     }
 
+    /// Convert a language server protocol location into an RLS span.
     pub fn location_to_rls(l: Location) -> Result<span::Span<span::ZeroIndexed>, UrlFileParseError> {
         parse_file_path(&l.uri).map(|path| Span::from_range(range_to_rls(l.range), path))
     }
 
-    // An RLS span has the same info as an LSP Location
+    /// Convert an RLS span into a language server protocol location.
     pub fn rls_to_location(span: &Span) -> Location {
+        // An RLS span has the same info as an LSP Location
         Location {
             uri: Url::from_file_path(&span.file).unwrap(),
             range: rls_to_range(span.range),
         }
     }
 
+    /// Convert an RLS location into a language server protocol location.
     pub fn rls_location_to_location(l: &span::Location<span::ZeroIndexed>) -> Location {
         Location {
             uri: Url::from_file_path(&l.file).unwrap(),
@@ -104,6 +120,7 @@ pub mod ls_util {
         }
     }
 
+    /// Convert an RLS range into a language server protocol range.
     pub fn rls_to_range(r: span::Range<span::ZeroIndexed>) -> Range {
         Range {
             start: rls_to_position(r.start()),
@@ -111,6 +128,7 @@ pub mod ls_util {
         }
     }
 
+    /// Convert an RLS position into a language server protocol range.
     pub fn rls_to_position(p: span::Position<span::ZeroIndexed>) -> Position {
         Position {
             line: p.row.0 as u64,
@@ -147,6 +165,7 @@ pub mod ls_util {
     }
 }
 
+/// Convert an RLS def-kind to a language server protocol symbol-kind.
 pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     match k {
         DefKind::Enum => SymbolKind::Enum,
@@ -169,6 +188,7 @@ pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     }
 }
 
+/// What kind of completion is this racer match type?
 pub fn completion_kind_from_match_type(m : racer::MatchType) -> CompletionItemKind {
     match m {
         racer::MatchType::Crate |
@@ -195,6 +215,7 @@ pub fn completion_kind_from_match_type(m : racer::MatchType) -> CompletionItemKi
     }
 }
 
+/// Convert a racer match into an RLS completion.
 pub fn completion_item_from_racer_match(m : racer::Match) -> CompletionItem {
     let mut item = CompletionItem::new_simple(m.matchstr.clone(), m.contextstr.clone());
     item.kind = Some(completion_kind_from_match_type(m.mtype));
@@ -226,11 +247,14 @@ impl Default for InitializationOptions {
 #[derive(Debug, Serialize)]
 pub struct NotificationMessage {
     jsonrpc: version::Version,
+    /// The well-known language server protocol notification method string.
     pub method: &'static str,
+    /// Extra notification parameters.
     pub params: Option<PublishDiagnosticsParams>,
 }
 
 impl NotificationMessage {
+    /// Construct a new notification message.
     pub fn new(method: &'static str, params: Option<PublishDiagnosticsParams>) -> Self {
         NotificationMessage {
             jsonrpc: version::Version::V2,
@@ -240,17 +264,22 @@ impl NotificationMessage {
     }
 }
 
+/// A JSON language server protocol request that will have a matching response.
 #[derive(Debug, Serialize)]
 pub struct RequestMessage<T>
     where T: Debug + Serialize
 {
     jsonrpc: &'static str,
+    /// The request id. The response will have a matching id.
     pub id: u32,
+    /// The well-known language server protocol request method string.
     pub method: String,
+    /// Extra request parameters.
     pub params: T,
 }
 
 impl <T> RequestMessage<T> where T: Debug + Serialize {
+    /// Construct a new request.
     pub fn new(id: u32, method: String, params: T) -> Self {
         RequestMessage {
             jsonrpc: "2.0",

@@ -53,7 +53,7 @@ pub mod actions;
 pub mod build;
 pub mod cmd;
 pub mod config;
-mod lsp_data;
+pub mod lsp_data;
 mod server;
 
 #[cfg(test)]
