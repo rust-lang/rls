@@ -524,6 +524,8 @@ fn prepare_cargo_rustflags(config: &Config) -> String {
     dedup_flags(&flags)
 }
 
+/// Construct a cargo configuration for the given build and target directories
+/// and shell.
 pub fn make_cargo_config(build_dir: &Path, target_dir: Option<&Path>, shell: Shell) -> CargoConfig {
     let config = CargoConfig::new(shell,
                                   // This is Cargo's cwd. We're using the actual cwd,

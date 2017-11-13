@@ -50,7 +50,7 @@ use std::env;
 use std::sync::Arc;
 
 pub mod actions;
-mod build;
+pub mod build;
 mod cmd;
 mod config;
 mod lsp_data;
