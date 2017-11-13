@@ -52,7 +52,7 @@ use std::sync::Arc;
 pub mod actions;
 pub mod build;
 pub mod cmd;
-mod config;
+pub mod config;
 mod lsp_data;
 mod server;
 
