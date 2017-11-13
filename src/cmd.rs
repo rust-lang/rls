@@ -18,8 +18,9 @@ use config::Config;
 use server::{self, Request, Notification, LsService, NoParams};
 use vfs::Vfs;
 
-use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams};
+use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, DocumentFormattingParams, FormattingOptions};
 
+use std::collections::HashMap;
 use std::fmt;
 use std::io::{stdin, stdout, Write};
 use std::marker::PhantomData;
@@ -80,6 +81,12 @@ pub fn run() {
                 let col = bits.next().expect("Expected column number");
                 hover(file_name, row, col).to_string()
             }
+            "format" => {
+                let file_name = bits.next().expect("Expected file name");
+                let tab_size : u64 = bits.next().unwrap_or("4").parse().expect("Tab size should be an unsigned integer");
+                let insert_spaces : bool = bits.next().unwrap_or("true").parse().expect("Insert spaces should be 'true' or 'false'");;
+                format(file_name, tab_size, insert_spaces).to_string()
+            }
             "h" | "help" => {
                 help();
                 continue;
@@ -134,6 +141,21 @@ fn hover<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Hov
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
                                 u64::from_str(col).expect("Bad column number")),
+    };
+    Request {
+        id: next_id(),
+        params,
+        _action: PhantomData,
+    }
+}
+
+fn format<'a>(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<'a, requests::Formatting> {
+    // no optional properties
+    let properties = HashMap::default();
+
+    let params = DocumentFormattingParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        options: FormattingOptions { tab_size, insert_spaces, properties },
     };
     Request {
         id: next_id(),
@@ -266,4 +288,8 @@ fn help() {
     println!("    hover   file_name line_number column_number");
     println!("            textDocument/hover");
     println!("            used for 'hover'");
+    println!("");
+    println!("    format  file_name [tab_size [insert_spaces]]");
+    println!("            textDocument/formatting");
+    println!("            tab_size defaults to 4 and insert_spaces to 'true'");
 }
