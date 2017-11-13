@@ -18,7 +18,7 @@ use config::Config;
 use server::{self, Request, Notification, LsService, NoParams};
 use vfs::Vfs;
 
-use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams};
+use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, WorkspaceSymbolParams};
 
 use std::fmt;
 use std::io::{stdin, stdout, Write};
@@ -80,6 +80,10 @@ pub fn run() {
                 let col = bits.next().expect("Expected column number");
                 hover(file_name, row, col).to_string()
             }
+            "symbol" => {
+                let query = bits.next().expect("Expected a query");
+                workspace_symbol(query).to_string()
+            }
             "h" | "help" => {
                 help();
                 continue;
@@ -134,6 +138,17 @@ fn hover<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Hov
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
                                 u64::from_str(col).expect("Bad column number")),
+    };
+    Request {
+        id: next_id(),
+        params,
+        _action: PhantomData,
+    }
+}
+
+fn workspace_symbol<'a>(query: &str) -> Request<'a, requests::WorkspaceSymbol> {
+    let params = WorkspaceSymbolParams {
+        query: query.to_owned()
     };
     Request {
         id: next_id(),
@@ -266,4 +281,7 @@ fn help() {
     println!("    hover   file_name line_number column_number");
     println!("            textDocument/hover");
     println!("            used for 'hover'");
+    println!("");
+    println!("    symbol  query");
+    println!("            workspace/symbol");
 }
