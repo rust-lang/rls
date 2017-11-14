@@ -8,9 +8,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-// This module presents the RLS as a command line interface, it takes simple
-// versions of commands, turns them into messages the RLS will understand, runs
-// the RLS as usual and prints the JSON result back on the command line.
+//! This module presents the RLS as a command line interface, it takes simple
+//! versions of commands, turns them into messages the RLS will understand, runs
+//! the RLS as usual and prints the JSON result back on the command line.
 
 use actions::requests;
 use analysis::{AnalysisHost, Target};
@@ -40,7 +40,7 @@ macro_rules! print_verb {
     }
 }
 
-// Run in command line mode.
+/// Run the RLS in command line mode.
 pub fn run() {
     let sender = init();
 

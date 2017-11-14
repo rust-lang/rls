@@ -8,6 +8,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Configuration for the workspace that RLS is operating within and options for
+//! tweaking the RLS's behavior itself.
+
 use build;
 
 use std::fmt::Debug;
@@ -60,6 +63,8 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Inferrable<T> {
 }
 
 impl<T: Clone + Debug> Inferrable<T> {
+    /// Combine these inferrable values, preferring our own specified values
+    /// when possible, and falling back the given default value.
     pub fn combine_with_default(&self, new: &Self, default: T) -> Self {
         match (self, new) {
             // Don't allow to update a Specified value with an Inferred one
@@ -71,6 +76,8 @@ impl<T: Clone + Debug> Inferrable<T> {
         }
     }
 
+    /// Infer the given value if we don't already have an explicitly specified
+    /// value.
     pub fn infer(&mut self, value: T) {
         if let &mut Inferrable::Specified(_) = self {
             trace!("Trying to infer {:?} on a {:?}", value, self);
@@ -94,7 +101,9 @@ impl<T> AsRef<T> for Inferrable<T> {
     }
 }
 
+/// RLS configuration options.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[allow(missing_docs)]
 #[serde(default)]
 pub struct Config {
     pub sysroot: Option<String>,
@@ -151,6 +160,7 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Join this configuration with the new config.
     pub fn update(&mut self, mut new: Config) {
         new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
@@ -179,6 +189,7 @@ impl Config {
         }
     }
 
+    /// Is this config incomplete, and needs additional values to be inferred?
     pub fn needs_inference(&self) -> bool {
         match (&self.build_lib, &self.build_bin) {
             (&Inferrable::None, _) |
@@ -187,6 +198,7 @@ impl Config {
         }
     }
 
+    /// Infer default values for the given project directory.
     pub fn infer_defaults(&mut self, project_dir: &Path) -> CargoResult<()> {
         // Note that this may not be equal build_dir when inside a workspace member
         let manifest_path = important_paths::find_root_manifest_for_wd(None, project_dir)?;

@@ -8,11 +8,19 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! The Rust Language Server.
+//!
+//! The RLS provides a server that runs in the background, providing IDEs,
+//! editors, and other tools with information about Rust programs. It supports
+//! functionality such as 'goto definition', symbol search, reformatting, and
+//! code completion, and enables renaming and refactorings.
+
 #![feature(rustc_private)]
 #![feature(concat_idents)]
 #![feature(type_ascription)]
 #![feature(integer_atomics)]
 #![feature(fnbox)]
+#![deny(missing_docs)]
 
 extern crate cargo;
 extern crate env_logger;
@@ -41,12 +49,12 @@ extern crate jsonrpc_core;
 use std::env;
 use std::sync::Arc;
 
-mod actions;
-mod build;
-mod cmd;
-mod config;
-mod lsp_data;
-mod server;
+pub mod actions;
+pub mod build;
+pub mod cmd;
+pub mod config;
+pub mod lsp_data;
+pub mod server;
 
 #[cfg(test)]
 mod test;
@@ -63,6 +71,8 @@ const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
 
 type Span = span::Span<span::ZeroIndexed>;
 
+/// The main entry point to the RLS. Parses CLI arguments and then runs the
+/// server.
 pub fn main() {
     env_logger::init().unwrap();
 
@@ -91,10 +101,10 @@ fn version() -> &'static str {
 }
 
 fn help() -> &'static str {
-    r#" 
+    r#"
     --version or -V to print the version and commit info
     --help or -h for this message
     Other input starts the RLS in command line mode
-    No input starts the RLS as a language server 
+    No input starts the RLS as a language server
     "#
 }

@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Requests that the RLS can respond to.
+
 use actions::ActionContext;
 use url::Url;
 use vfs::FileContents;
@@ -27,6 +29,7 @@ use std::panic;
 use std::thread;
 use std::time::Duration;
 
+/// A request for information about a symbol in this workspace.
 pub struct WorkspaceSymbol;
 
 impl<'a> Action<'a> for WorkspaceSymbol {
@@ -68,6 +71,7 @@ impl<'a> RequestAction<'a> for WorkspaceSymbol {
     }
 }
 
+/// A request for a flat list of all symbols found in a given text document.
 pub struct Symbols;
 
 impl<'a> Action<'a> for Symbols {
@@ -109,6 +113,7 @@ impl<'a> RequestAction<'a> for Symbols {
     }
 }
 
+/// Handles requests for hover information at a given point.
 pub struct Hover;
 
 impl<'a> Action<'a> for Hover {
@@ -163,7 +168,7 @@ impl<'a> RequestAction<'a> for Hover {
     }
 }
 
-
+/// Find all the implementations of a given trait.
 pub struct FindImpls;
 
 impl<'a> Action<'a> for FindImpls {
@@ -206,6 +211,7 @@ impl<'a> RequestAction<'a> for FindImpls {
     }
 }
 
+/// Get a list of definitions for item at the given point or identifier.
 pub struct Definition;
 
 impl<'a> Action<'a> for Definition {
@@ -283,6 +289,7 @@ impl<'a> RequestAction<'a> for Definition {
     }
 }
 
+/// Find references to the symbol at the given point throughout the project.
 pub struct References;
 
 impl<'a> Action<'a> for References {
@@ -319,6 +326,7 @@ impl<'a> RequestAction<'a> for References {
     }
 }
 
+/// Get a list of possible completions at the given location.
 pub struct Completion;
 
 impl<'a> Action<'a> for Completion {
@@ -351,6 +359,9 @@ impl<'a> RequestAction<'a> for Completion {
     }
 }
 
+/// Find all references to the thing at the given location within this document,
+/// so they can be highlighted in the editor. In practice, this is very similar
+/// to `References`.
 pub struct DocumentHighlight;
 
 impl<'a> Action<'a> for DocumentHighlight {
@@ -390,6 +401,7 @@ impl<'a> RequestAction<'a> for DocumentHighlight {
     }
 }
 
+/// Rename the given symbol within the whole project.
 pub struct Rename;
 
 impl<'a> Action<'a> for Rename {
@@ -454,6 +466,8 @@ impl<'a> RequestAction<'a> for Rename {
     }
 }
 
+/// Turn wildcard style glob imports (`use foo::*`) into an import of each item
+/// that is actually used (`use foo::{Bar, Quux}`).
 pub struct Deglob;
 
 impl<'a> Action<'a> for Deglob {
@@ -562,6 +576,12 @@ impl<'a> RequestAction<'a> for Deglob {
     }
 }
 
+/// Execute a command within the workspace.
+///
+/// These are *not* shell commands, but commands given by the client and
+/// performed by the RLS.
+///
+/// Currently, only the "rls.applySuggestion" command is supported.
 pub struct ExecuteCommand;
 
 impl<'a> Action<'a> for ExecuteCommand {
@@ -605,6 +625,8 @@ impl ExecuteCommand {
     }
 }
 
+/// Get a list of actions that can be performed on a specific document and range
+/// of text by the server.
 pub struct CodeAction;
 
 impl<'a> Action<'a> for CodeAction {
@@ -652,6 +674,7 @@ impl<'a> RequestAction<'a> for CodeAction {
     }
 }
 
+/// Pretty print the given document.
 pub struct Formatting;
 
 impl<'a> Action<'a> for Formatting {
@@ -670,6 +693,7 @@ impl<'a> RequestAction<'a> for Formatting {
     }
 }
 
+/// Pretty print the source within the given location range.
 pub struct RangeFormatting;
 
 impl<'a> Action<'a> for RangeFormatting {
@@ -755,6 +779,10 @@ fn reformat<O: Output>(id: usize, doc: TextDocumentIdentifier, selection: Option
     }
 }
 
+/// Resolve additional information about the given completion item
+/// suggestion. This allows completion items to be yielded as quickly as
+/// possible, with more details (which are presumably more expensive to compute)
+/// filled in after the initial completion's presentation.
 pub struct ResolveCompletion;
 
 impl<'a> Action<'a> for ResolveCompletion {

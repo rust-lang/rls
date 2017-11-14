@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Running builds as-needed for the server to answer questions.
+
 pub use self::cargo::make_cargo_config;
 
 use data::Analysis;
@@ -86,15 +88,16 @@ struct Internals {
     building: AtomicBool,
 }
 
+/// The result of a build request.
 #[derive(Debug)]
 pub enum BuildResult {
-    // Build was successful, argument is warnings.
+    /// Build was successful, argument is warnings.
     Success(Vec<String>, Vec<Analysis>),
-    // Build finished with errors, argument is errors and warnings.
+    /// Build finished with errors, argument is errors and warnings.
     Failure(Vec<String>, Vec<Analysis>),
-    // Build was coalesced with another build.
+    /// Build was coalesced with another build.
     Squashed,
-    // There was an error attempting to build.
+    /// There was an error attempting to build.
     Err,
 }
 
@@ -183,6 +186,7 @@ impl Build {
 }
 
 impl BuildQueue {
+    /// Construct a new build queue.
     pub fn new(vfs: Arc<Vfs>, config: Arc<Mutex<Config>>) -> BuildQueue {
         BuildQueue {
             internals: Arc::new(Internals::new(vfs, config)),
@@ -190,36 +194,41 @@ impl BuildQueue {
         }
     }
 
-    // Requests a build (see comments on BuildQueue for what that means).
-    //
-    // Now for the complicated bits. Not all builds are equal - they might have
-    // different arguments, build directory, etc. Lets call all such things the
-    // context for the build. We don't try and compare contexts but rely on some
-    // invariants:
-    // * context can only change if the build priority is `Cargo` or the build_dir
-    //   changes (in the latter case we upgrade the priority to `Cargo`).
-    // * If the context changes, all previous build requests can be ignored (even
-    //   if they change the context themselves).
-    // * If there are multiple requests with the same context, we can skip all
-    //   but the most recent.
-    // * A pending request is obsolete (and may be discarded) if a more recent
-    //   request has happened.
-    //
-    // ## implementation
-    //
-    // This layer of the build queue is single-threaded and we aim to return quickly.
-    // A single build thread is spawned to do any building (we never do parallel
-    // builds so that we don't hog the CPU, we might want to change that in the
-    // future).
-    //
-    // There is never any point in queuing more than one build of each priority
-    // (we might want to do a high priority build, then a low priority one). So
-    // our build queue is just a single slot (for each priority). We record if a
-    // build is waiting and if not, if a build is running.
-    //
-    // `and_then` is a closure to run after a build has completed or been squashed.
-    // It must return quickly and without blocking. If it has work to do, it should
-    // spawn a thread to do it.
+    /// Requests a build (see comments on `BuildQueue` for what that means).
+    ///
+    /// Now for the complicated bits. Not all builds are equal - they might have
+    /// different arguments, build directory, etc. Lets call all such things the
+    /// context for the build. We don't try and compare contexts but rely on
+    /// some invariants:
+    ///
+    /// * Context can only change if the build priority is `Cargo` or the
+    ///   `build_dir` changes (in the latter case we upgrade the priority to
+    ///   `Cargo`).
+    ///
+    /// * If the context changes, all previous build requests can be ignored
+    ///   (even if they change the context themselves).
+    ///
+    /// * If there are multiple requests with the same context, we can skip all
+    ///   but the most recent.
+    ///
+    /// * A pending request is obsolete (and may be discarded) if a more recent
+    ///   request has happened.
+    ///
+    /// ## Implementation
+    ///
+    /// This layer of the build queue is single-threaded and we aim to return
+    /// quickly.  A single build thread is spawned to do any building (we never
+    /// do parallel builds so that we don't hog the CPU, we might want to change
+    /// that in the future).
+    ///
+    /// There is never any point in queuing more than one build of each priority
+    /// (we might want to do a high priority build, then a low priority one). So
+    /// our build queue is just a single slot (for each priority). We record if
+    /// a build is waiting and if not, if a build is running.
+    ///
+    /// `and_then` is a closure to run after a build has completed or been
+    /// squashed.  It must return quickly and without blocking. If it has work
+    /// to do, it should spawn a thread to do it.
     pub fn request_build<F>(&self, new_build_dir: &Path, mut priority: BuildPriority, and_then: F)
         where F: FnOnce(BuildResult) + Send + 'static
     {
