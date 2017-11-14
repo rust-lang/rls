@@ -10,7 +10,7 @@
 
 //! Requests that the RLS can respond to.
 
-use actions::ActionContext;
+use actions::{ActionContext, InitActionContext};
 use data;
 use url::Url;
 use vfs::FileContents;
@@ -27,7 +27,8 @@ use server::{Output, Ack, Action, RequestAction, LsState};
 use jsonrpc_core::types::ErrorCode;
 
 use std::collections::HashMap;
-use std::time::{Duration};
+use std::path::Path;
+use std::time::Duration;
 use std::sync::{mpsc, Arc};
 
 #[derive(Debug)]
@@ -447,10 +448,14 @@ impl<'a> RequestAction<'a> for Rename {
 pub struct Deglob;
 
 impl Deglob {
-    fn calculate_workspace_edit(&mut self, location: &<Self as Action>::Params, ctx: &ActionContext) -> Result<DeglobResult, (ErrorCode, &'static str)> {
-        let ctx = ctx.inited();
+    fn calculate_workspace_edit(
+        &self,
+        location: &<Self as Action>::Params,
+        ctx: &InitActionContext,
+    ) -> Result<DeglobResult, (ErrorCode, &'static str)> {
         let span = ls_util::location_to_rls(location.clone());
-        let mut span = ignore_non_file_uri!(span, &location.uri, "deglob").map_err(|_| (ErrorCode::InvalidParams, "Not a file URL"))?;
+        let mut span = ignore_non_file_uri!(span, &location.uri, "deglob")
+            .map_err(|_| (ErrorCode::InvalidParams, "Not a file URL"))?;
 
         trace!("deglob {:?}", span);
 
@@ -458,12 +463,8 @@ impl Deglob {
         if span.range.start() == span.range.end() {
             // search for a glob in the line
             let vfs = ctx.vfs.clone();
-            let line = match vfs.load_line(&span.file, span.range.row_start) {
-                Ok(l) => l,
-                Err(_) => {
-                    return Err((ErrorCode::InvalidParams, "Could not retrieve line from VFS."));
-                }
-            };
+            let line = vfs.load_line(&span.file, span.range.row_start)
+                .map_err(|_| (ErrorCode::InvalidParams, "Could not retrieve line from VFS."))?;
 
             // search for exactly one "::*;" in the line. This should work fine for formatted text, but
             // multiple use statements could be in the same line, then it is not possible to find which
@@ -533,6 +534,7 @@ impl<'a> Action<'a> for Deglob {
 impl<'a> RequestAction<'a> for Deglob {
     type Response = Ack;
     fn handle<O: Output>(&mut self, id: usize, location: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()> {
+        let ctx = ctx.inited();
         match self.calculate_workspace_edit(&location, ctx) {
             Ok(DeglobResult {
                 location,
@@ -611,27 +613,18 @@ impl ExecuteCommand {
 /// of text by the server.
 pub struct CodeAction;
 
-impl<'a> Action<'a> for CodeAction {
-    type Params = CodeActionParams;
-    const METHOD: &'static str = "textDocument/codeAction";
-
-    fn new(_: &'a mut LsState) -> Self {
-        CodeAction
-    }
-}
-
-impl<'a> RequestAction<'a> for CodeAction {
-    type Response = Vec<Command>;
-    fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx_: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        trace!("code_action {:?}", params);
-
-        let ctx = ctx_.inited();
-        let file_path = parse_file_path!(&params.text_document.uri, "code_action")?;
-
-        let mut cmds = vec![];
-
+impl CodeAction {
+    /// Create CodeActions for fixes suggested by the compiler
+    /// the results are appended to `code_actions_result`
+    fn make_suggestion_fix_actions(
+        &self,
+        params: &<Self as Action>::Params,
+        file_path: &Path,
+        ctx: &InitActionContext,
+        code_actions_result: &mut <Self as RequestAction>::Response,
+    ) {
         // search for compiler suggestions
-        if let Some(diagnostics) = ctx.previous_build_results.lock().unwrap().get(&file_path) {
+        if let Some(diagnostics) = ctx.previous_build_results.lock().unwrap().get(file_path) {
             let suggestions = diagnostics.iter().filter(|&&(ref d, _)| d.range == params.range).flat_map(|&(_, ref ss)| ss.iter());
             for s in suggestions {
                 let span = Location {
@@ -645,18 +638,31 @@ impl<'a> RequestAction<'a> for CodeAction {
                     command: "rls.applySuggestion".to_owned(),
                     arguments: Some(vec![span, new_text]),
                 };
-                cmds.push(cmd);
+                code_actions_result.push(cmd);
             }
         }
+    }
 
+    /// Create CodeActions for performing deglobbing when a wildcard import is found
+    /// the results are appended to `code_actions_result`
+    fn make_deglob_actions(
+        &self,
+        params: &<Self as Action>::Params,
+        file_path: &Path,
+        ctx: &InitActionContext,
+        code_actions_result: &mut <Self as RequestAction>::Response,
+    ) {
         // search for glob imports
         // search for a glob in the line
-        let vfs = ctx.vfs.clone();
-        if let Ok(line) = vfs.load_line(&file_path, ls_util::range_to_rls(params.range).row_start) {
+        if let Ok(line) = ctx.vfs.load_line(file_path, ls_util::range_to_rls(params.range).row_start) {
             if line.contains("use ") && line.contains("::*") && !line.contains("prelude::*") {
                 let location = Location::new(params.text_document.uri.clone(), params.range);
                 // call Deglob implementation in order to avoid any false positive of the `contains()`
-                if let Ok(deglob) = Deglob.calculate_workspace_edit(&location, ctx_) {
+                // False positives could be doc comments, e.g.,
+                // ///```rust
+                // /// use std::mem::*;
+                // ///```
+                if let Ok(deglob) = Deglob.calculate_workspace_edit(&location, ctx) {
                     let location = serde_json::to_value(&deglob.location).unwrap();
                     let new_text = serde_json::to_value(&deglob.new_text).unwrap();
                     let cmd = Command {
@@ -664,11 +670,33 @@ impl<'a> RequestAction<'a> for CodeAction {
                         command: "rls.applySuggestion".to_owned(),
                         arguments: Some(vec![location, new_text]),
                     };
-                    cmds.push(cmd);
+                    code_actions_result.push(cmd);
                 }
             }
         };
+    }
+}
 
+impl<'a> Action<'a> for CodeAction {
+    type Params = CodeActionParams;
+    const METHOD: &'static str = "textDocument/codeAction";
+
+    fn new(_: &'a mut LsState) -> Self {
+        CodeAction
+    }
+}
+
+impl<'a> RequestAction<'a> for CodeAction {
+    type Response = Vec<Command>;
+    fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
+        trace!("code_action {:?}", params);
+
+        let ctx = ctx.inited();
+        let file_path = parse_file_path!(&params.text_document.uri, "code_action")?;
+
+        let mut cmds = vec![];
+        self.make_suggestion_fix_actions(&params, &file_path, ctx, &mut cmds);
+        self.make_deglob_actions(&params, &file_path, ctx, &mut cmds);
         Ok(cmds)
     }
 }
