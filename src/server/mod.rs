@@ -8,6 +8,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Implementation of the server loop, and traits for extending server
+//! interactions (for example, to add support for handling new types of
+//! requests).
+
 use jsonrpc_core::{self as jsonrpc, Id};
 use serde;
 use serde_json;
@@ -38,6 +42,7 @@ pub enum ServerMode {
     Cli,
 }
 
+/// Run the Rust Language Server.
 pub fn run_server(mode: ServerMode) {
     debug!("Language Server starting up. Version: {}", ::VERSION);
 
@@ -59,12 +64,15 @@ pub fn run_server(mode: ServerMode) {
     }
 }
 
+/// A response that just acknowledges receipt of its request.
 #[derive(Debug, Serialize)]
 pub struct Ack;
 
+/// The lack of a response to a request.
 #[derive(Debug)]
 pub struct NoResponse;
 
+/// Empty extra parameters to some request or notification.
 #[derive(Debug, Serialize, PartialEq)]
 pub struct NoParams;
 
@@ -76,7 +84,9 @@ impl<'de> Deserialize<'de> for NoParams {
     }
 }
 
+/// A response to some request.
 pub trait Response {
+    /// Send the response along the given output.
     fn send<O: Output>(&self, id: usize, out: O);
 }
 
@@ -91,33 +101,52 @@ impl<R: ::serde::Serialize + fmt::Debug> Response for R {
     }
 }
 
+/// An action taken by the Rust Language Server.
 pub trait Action<'a> {
+    /// Extra parameters that the action expects to receive.
     type Params: serde::Serialize + for<'de> ::serde::Deserialize<'de>;
+
+    /// The well-known language server method string that identifies this
+    /// action's kind of request or notification.
     const METHOD: &'static str;
 
+    /// Construct a new instance of this action from the given language server
+    /// state.
     fn new(state: &'a mut LsState) -> Self;
 }
 
+/// An action taken in response to some notification from the client.
 pub trait NotificationAction<'a>: Action<'a> {
+    /// Handle this notification.
     fn handle<O: Output>(&mut self, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()>;
 }
 
+/// An action that implements support for handling requests from the client and
+/// replying with a corresponding response.
 pub trait RequestAction<'a>: Action<'a> {
+    /// The kind of response for this request.
     type Response: Response + fmt::Debug;
 
+    /// Handle request and send its response back along the given output.
     fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()>;
 }
 
-
+/// A request that gets JSON serialized in the language server protocol.
 pub struct Request<'a, A: RequestAction<'a>> {
+    /// The unique request id.
     pub id: usize,
+    /// The extra action-specific parameters.
     pub params: A::Params,
+    /// This request's handler action.
     pub _action: PhantomData<A>,
 }
 
+/// A notification that gets JSON serialized in the language server protocol.
 #[derive(Debug, PartialEq)]
 pub struct Notification<'a, A: NotificationAction<'a>> {
+    /// The extra action-specific parameters.
     pub params: A::Params,
+    /// The action responsible for this notification.
     pub _action: PhantomData<A>,
 }
 
@@ -159,18 +188,25 @@ impl<'a, A: NotificationAction<'a>> fmt::Display for Notification<'a, A> {
     }
 }
 
+/// A service implementing a language server.
 pub struct LsService<O: Output> {
     msg_reader: Box<MessageReader + Send + Sync>,
     output: O,
     ctx: ActionContext,
+    /// The public shared state for this language server.
     pub state: LsState,
 }
 
+/// Public shared state for this language server.
 #[derive(Debug)]
 pub struct LsState {
     shut_down: AtomicBool,
 }
 
+/// A request to shutdown the language server and perform clean up, but not to
+/// exit the process. After receiving a response to this request, the client
+/// will send an `exit` notification, at which point we will actually exit the
+/// process.
 pub struct ShutdownRequest<'a> {
     state: &'a mut LsState,
 }
@@ -194,6 +230,7 @@ impl<'a> RequestAction<'a> for ShutdownRequest<'a> {
     }
 }
 
+/// Notification that it is time for the language server to exit its process.
 #[derive(Debug)]
 pub struct ExitNotification<'a> {
     state: &'a mut LsState,
@@ -217,6 +254,7 @@ impl<'a> NotificationAction<'a> for ExitNotification<'a> {
     }
 }
 
+/// A request to initialize this server.
 pub struct InitializeRequest;
 
 impl<'a> Action<'a> for InitializeRequest {
@@ -285,14 +323,18 @@ impl<'a> RequestAction<'a> for InitializeRequest {
     }
 }
 
-
+/// How should the server proceed?
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum ServerStateChange {
+    /// Continue serving responses to requests and sending notifications to the
+    /// client.
     Continue,
+    /// Stop the server.
     Break,
 }
 
 impl<O: Output> LsService<O> {
+    /// Construct a new language server service.
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
                config: Arc<Mutex<Config>>,
@@ -309,6 +351,7 @@ impl<O: Output> LsService<O> {
         }
     }
 
+    /// Run this language service.
     pub fn run(mut self) {
         while self.handle_message() == ServerStateChange::Continue {}
     }
@@ -407,6 +450,9 @@ impl<O: Output> LsService<O> {
         Ok(())
     }
 
+    /// Read a message from the language server reader input and handle it with
+    /// the appropriate action. Returns a `ServerStateChange` that describes how
+    /// the service should proceed now that the message has been handled.
     pub fn handle_message(&mut self) -> ServerStateChange {
         let msg_string = match self.msg_reader.read_message() {
             Some(m) => m,

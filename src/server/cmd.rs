@@ -8,13 +8,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-// This module presents the RLS as a command line interface, it takes simple
-// versions of commands, turns them into messages the RLS will understand, runs
-// the RLS as usual and prints the JSON result back on the command line.
+//! This module presents the RLS as a command line interface, it takes simple
+//! versions of commands, turns them into messages the RLS will understand, runs
+//! the RLS as usual and prints the JSON result back on the command line.
 use actions::requests;
 use server::{self, Request, Notification, NoParams};
-use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, WorkspaceSymbolParams};
+use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, WorkspaceSymbolParams, DocumentFormattingParams, DocumentRangeFormattingParams, Range, FormattingOptions};
 
+use std::collections::HashMap;
 use std::io::{stdin, stdout, Write};
 use std::marker::PhantomData;
 use std::path::Path;
@@ -33,7 +34,7 @@ macro_rules! print_verb {
     }
 }
 
-// Run in command line mode.
+/// Run the RLS in command line mode.
 pub fn run(tx: Sender<String>) {
     println!("Type 'init' to begin initialization process.\nThe process will finish when a `diagnosticEnd` message is printed.");
 
@@ -80,6 +81,22 @@ pub fn run(tx: Sender<String>) {
             "symbol" => {
                 let query = bits.next().expect("Expected a query");
                 workspace_symbol(query).to_string()
+            }
+            "format" => {
+                let file_name = bits.next().expect("Expected file name");
+                let tab_size : u64 = bits.next().unwrap_or("4").parse().expect("Tab size should be an unsigned integer");
+                let insert_spaces : bool = bits.next().unwrap_or("true").parse().expect("Insert spaces should be 'true' or 'false'");;
+                format(file_name, tab_size, insert_spaces).to_string()
+            }
+            "range_format" => {
+                let file_name = bits.next().expect("Expected file name");
+                let start_row : u64 = bits.next().expect("Expected start line").parse().expect("Bad start line");
+                let start_col : u64 = bits.next().expect("Expected start column").parse().expect("Bad start column");
+                let end_row : u64 = bits.next().expect("Expected end line").parse().expect("Bad end line");
+                let end_col : u64 = bits.next().expect("Expected end column").parse().expect("Bad end column");
+                let tab_size : u64 = bits.next().unwrap_or("4").parse().expect("Tab size should be an unsigned integer");
+                let insert_spaces : bool = bits.next().unwrap_or("true").parse().expect("Insert spaces should be 'true' or 'false'");;
+                range_format(file_name, start_row, start_col, end_row, end_col, tab_size, insert_spaces).to_string()
             }
             "h" | "help" => {
                 help();
@@ -157,6 +174,40 @@ fn workspace_symbol<'a>(query: &str) -> Request<'a, requests::WorkspaceSymbol> {
     }
 }
 
+fn format<'a>(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<'a, requests::Formatting> {
+    // no optional properties
+    let properties = HashMap::default();
+
+    let params = DocumentFormattingParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        options: FormattingOptions { tab_size, insert_spaces, properties },
+    };
+    Request {
+        id: next_id(),
+        params,
+        _action: PhantomData,
+    }
+}
+
+fn range_format<'a>(file_name: &str, start_row: u64, start_col: u64, end_row: u64, end_col: u64, tab_size: u64, insert_spaces: bool) -> Request<'a, requests::RangeFormatting> {
+    // no optional properties
+    let properties = HashMap::default();
+
+    let params = DocumentRangeFormattingParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        range: Range {
+            start: Position::new(start_row, start_col),
+            end: Position::new(end_row, end_col),
+        },
+        options: FormattingOptions { tab_size, insert_spaces, properties },
+    };
+    Request {
+        id: next_id(),
+        params,
+        _action: PhantomData,
+    }
+}
+
 fn shutdown<'a>() -> Request<'a, server::ShutdownRequest<'a>> {
     Request {
         id: next_id(),
@@ -210,21 +261,29 @@ fn help() {
     println!("RLS command line interface.");
     println!("\nLine and column numbers are zero indexed");
     println!("\nSupported commands:");
-    println!("    help    display this message");
-    println!("    quit    exit");
+    println!("    help          display this message");
+    println!("    quit          exit");
     println!("");
-    println!("    def     file_name line_number column_number");
-    println!("            textDocument/definition");
-    println!("            used for 'goto def'");
+    println!("    def           file_name line_number column_number");
+    println!("                  textDocument/definition");
+    println!("                  used for 'goto def'");
     println!("");
-    println!("    rename  file_name line_number column_number new_name");
-    println!("            textDocument/rename");
-    println!("            used for 'rename'");
+    println!("    rename        file_name line_number column_number new_name");
+    println!("                  textDocument/rename");
+    println!("                  used for 'rename'");
     println!("");
-    println!("    hover   file_name line_number column_number");
-    println!("            textDocument/hover");
-    println!("            used for 'hover'");
+    println!("    hover         file_name line_number column_number");
+    println!("                  textDocument/hover");
+    println!("                  used for 'hover'");
     println!("");
-    println!("    symbol  query");
-    println!("            workspace/symbol");
+    println!("    symbol        query");
+    println!("                  workspace/symbol");
+    println!("");
+    println!("    format        file_name [tab_size [insert_spaces]]");
+    println!("                  textDocument/formatting");
+    println!("                  tab_size defaults to 4 and insert_spaces to 'true'");
+    println!("");
+    println!("    range_format  file_name start_line start_col end_line end_col [tab_size [insert_spaces]]");
+    println!("                  textDocument/rangeFormatting");
+    println!("                  tab_size defaults to 4 and insert_spaces to 'true'");
 }

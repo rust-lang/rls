@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! One-way notifications that the RLS receives from the client.
+
 use actions::ActionContext;
 use actions::FileWatch;
 use vfs::Change;
@@ -23,6 +25,7 @@ use server::{Output, Action, NotificationAction, LsState, NoParams};
 
 use std::thread;
 
+/// Notification from the client that it has completed initialization.
 #[derive(Debug, PartialEq)]
 pub struct Initialized;
 
@@ -54,6 +57,8 @@ impl<'a> NotificationAction<'a> for Initialized {
     }
 }
 
+/// Notification from the client that the given text document has been
+/// opened. The client is responsible for managing its clean up.
 #[derive(Debug)]
 pub struct DidOpen;
 
@@ -77,6 +82,7 @@ impl<'a> NotificationAction<'a> for DidOpen {
     }
 }
 
+/// Notification from the client that the given document changed.
 #[derive(Debug)]
 pub struct DidChange;
 
@@ -123,6 +129,7 @@ impl<'a> NotificationAction<'a> for DidChange {
     }
 }
 
+/// Notification from the client that they've canceled their previous request.
 #[derive(Debug)]
 pub struct Cancel;
 
@@ -142,6 +149,8 @@ impl<'a> NotificationAction<'a> for Cancel {
     }
 }
 
+/// Notification from the client that the workspace's configuration settings
+/// changed.
 #[derive(Debug)]
 pub struct DidChangeConfiguration;
 
@@ -226,6 +235,7 @@ impl<'a> NotificationAction<'a> for DidChangeConfiguration {
     }
 }
 
+/// Notification from the client that the given text document was saved.
 #[derive(Debug)]
 pub struct DidSave;
 
@@ -253,6 +263,8 @@ impl<'a> NotificationAction<'a> for DidSave {
     }
 }
 
+/// Notification from the client that there were changes to files that are being
+/// watched.
 #[derive(Debug)]
 pub struct DidChangeWatchedFiles;
 

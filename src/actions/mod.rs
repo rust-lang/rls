@@ -8,6 +8,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Actions that the RLS can perform: responding to requests, watching files,
+//! etc.
+
 use analysis::AnalysisHost;
 use vfs::Vfs;
 use config::{Config, FmtConfig};
@@ -49,19 +52,23 @@ mod post_build;
 pub mod requests;
 pub mod notifications;
 
-
+/// Persistent context shared across all requests and notifications.
 pub enum ActionContext {
+    /// Context after server initialization.
     Init(InitActionContext),
+    /// Context before initialization.
     Uninit(UninitActionContext),
 }
 
 impl ActionContext {
+    /// Construct a new, uninitialized context.
     pub fn new(analysis: Arc<AnalysisHost>,
                vfs: Arc<Vfs>,
                config: Arc<Mutex<Config>>) -> ActionContext {
         ActionContext::Uninit(UninitActionContext::new(analysis, vfs, config))
     }
 
+    /// Initialize this context. Panics if it has already been initialized.
     pub fn init<O: Output>(&mut self, current_project: PathBuf, init_options: &InitializationOptions, out: O) {
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
@@ -82,6 +89,8 @@ impl ActionContext {
     }
 }
 
+/// Persistent context shared across all requests and actions after the RLS has
+/// been initialized.
 pub struct InitActionContext {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
@@ -95,6 +104,8 @@ pub struct InitActionContext {
     fmt_config: FmtConfig,
 }
 
+/// Persistent context shared across all requests and actions before the RLS has
+/// been initialized.
 pub struct UninitActionContext {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
@@ -194,6 +205,7 @@ impl InitActionContext {
 /// Represents a text cursor between characters, pointing at the next character
 /// in the buffer.
 type Column = span::Column<span::ZeroIndexed>;
+
 /// Returns a text cursor range for a found word inside `line` at which `pos`
 /// text cursor points to. Resulting type represents a (`start`, `end`) range
 /// between `start` and `end` cursors.
@@ -222,6 +234,7 @@ pub struct FileWatch<'ctx> {
 }
 
 impl<'ctx> FileWatch<'ctx> {
+    /// Construct a new `FileWatch`.
     pub fn new(ctx: &'ctx InitActionContext) -> Self {
         Self {
             project_str: ctx.current_project.to_str().unwrap(),

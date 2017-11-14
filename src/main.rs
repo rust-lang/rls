@@ -8,11 +8,19 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! The Rust Language Server.
+//!
+//! The RLS provides a server that runs in the background, providing IDEs,
+//! editors, and other tools with information about Rust programs. It supports
+//! functionality such as 'goto definition', symbol search, reformatting, and
+//! code completion, and enables renaming and refactorings.
+
 #![feature(rustc_private)]
 #![feature(concat_idents)]
 #![feature(type_ascription)]
 #![feature(integer_atomics)]
 #![feature(fnbox)]
+#![deny(missing_docs)]
 
 extern crate cargo;
 extern crate env_logger;
@@ -76,6 +84,8 @@ Usage: rls [options]
     "#
 ;
 
+/// The main entry point to the RLS. Parses CLI arguments and then runs the
+/// server.
 pub fn main() {
     env_logger::init().unwrap();
 
