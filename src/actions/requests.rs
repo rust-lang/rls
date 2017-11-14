@@ -51,7 +51,7 @@ impl<'a> RequestAction<'a> for WorkspaceSymbol {
         let analysis = ctx.analysis.clone();
 
         let rustw_handle: ::std::thread::JoinHandle<_> = thread::spawn(move || {
-            let defs = analysis.name_defs(&params.query).unwrap_or_else(|_| vec![]);
+            let defs = analysis.matching_defs(&params.query).unwrap_or_else(|_| vec![]);
             t.unpark();
 
             defs.into_iter().map(|d| {
