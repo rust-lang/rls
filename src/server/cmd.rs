@@ -36,7 +36,7 @@ macro_rules! print_verb {
 
 /// Run the RLS in command line mode.
 pub fn run(tx: Sender<String>) {
-    println!("Type 'init' to begin initialization process.\nThe process will finish when a `diagnosticEnd` message is printed.");
+    println!("\nType 'help' to see available actions.\n\nType 'init' to begin initialization process.\nThe process will finish when a `diagnosticEnd` message is printed.");
 
     loop {
         // Present a prompt and read from stdin.
@@ -262,6 +262,9 @@ fn help() {
     println!("\nLine and column numbers are zero indexed");
     println!("\nSupported commands:");
     println!("    help          display this message");
+    println!("");
+    println!("    init          begin rls initialization on codebase");
+    println!("");
     println!("    quit          exit");
     println!("");
     println!("    def           file_name line_number column_number");
