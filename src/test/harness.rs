@@ -130,34 +130,29 @@ type LsResultList = Arc<Mutex<Vec<String>>>;
 #[derive(Clone)]
 pub struct RecordOutput {
     pub output: LsResultList,
+    output_id: Arc<Mutex<u32>>,
 }
 
 impl RecordOutput {
     pub fn new() -> RecordOutput {
         RecordOutput {
             output: Arc::new(Mutex::new(vec![])),
+            // use some distinguishable value
+            output_id: Arc::new(Mutex::new(0x0100_0000)),
         }
     }
 }
 
 impl ls_server::Output for RecordOutput {
     fn response(&self, output: String) {
-        // Ignore server -> client requests
-        let value: serde_json::Value = serde_json::from_str(&output).unwrap();
-        if let Some(id) = value.get("id") {
-            if let Some(id) = id.as_u64() {
-                if id as u32 == 0xDEADBEEF {
-                    return;
-                }
-            }
-        }
-
         let mut records = self.output.lock().unwrap();
         records.push(output);
     }
 
     fn provide_id(&self) -> u32 {
-        0xDEADBEEF
+        let mut id = self.output_id.lock().unwrap();
+        *id += 1;
+        *id
     }
 }
 
@@ -184,7 +179,7 @@ impl ExpectedMessage {
 pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     let start_clock = SystemTime::now();
     let mut results_count = results.lock().unwrap().len();
-    while results_count != expected.len() {
+    while results_count < expected.len() {
         if start_clock.elapsed().unwrap().as_secs() >= TEST_TIMEOUT_IN_SEC {
             panic!("Hit timeout");
         }
