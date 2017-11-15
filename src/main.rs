@@ -111,6 +111,7 @@ pub fn main() {
         Err(f) => {
             reason_with_help(format!("{}", f.to_string()), &opts);
             return;
+        }
     };
 
     if matches.opt_present("h") {
