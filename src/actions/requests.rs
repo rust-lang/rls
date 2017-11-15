@@ -11,6 +11,7 @@
 //! Requests that the RLS can respond to.
 
 use actions::ActionContext;
+use data;
 use url::Url;
 use vfs::FileContents;
 use racer;
@@ -409,7 +410,9 @@ impl<'a> RequestAction<'a> for Rename {
 
             let id = unwrap_or_empty!(analysis.crate_local_id(&span));
             let def = unwrap_or_empty!(analysis.get_def(id));
-            if def.name == "self" || def.name == "Self" {
+            if def.name == "self" || def.name == "Self"
+                // FIXME(#578)
+                || def.kind == data::DefKind::Mod {
                 return vec![];
             }
 
