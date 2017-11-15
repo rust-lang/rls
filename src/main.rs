@@ -39,6 +39,7 @@ extern crate rustfmt_nightly as rustfmt;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate rayon;
 
 #[macro_use]
 extern crate serde_json;
@@ -62,7 +63,12 @@ mod test;
 type Span = span::Span<span::ZeroIndexed>;
 
 // Timeout = 1.5s (totally arbitrary).
+#[cfg(not(test))]
 const COMPILER_TIMEOUT: u64 = 1500;
+
+// Timeout for potenially very slow CPU CI boxes
+#[cfg(test)]
+const COMPILER_TIMEOUT: u64 = 3_600_000;
 
 const CRATE_BLACKLIST: [&'static str; 10] = [
     "libc", "typenum", "alloc", "idna", "openssl", "libunicode_normalization", "serde",
@@ -99,12 +105,12 @@ pub fn main() {
     configure_options(&mut opts);
 
     let args: Vec<String> = env::args().collect();
+    // verify options, error out if unknown
     let matches = match opts.parse(&args[1..]) {
         Ok(matches) => { matches },
         Err(f) => {
             reason_with_help(format!("{}", f.to_string()), &opts);
             return;
-        }
     };
 
     if matches.opt_present("h") {

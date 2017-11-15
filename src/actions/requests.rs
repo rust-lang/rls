@@ -11,6 +11,7 @@
 //! Requests that the RLS can respond to.
 
 use actions::ActionContext;
+use data;
 use url::Url;
 use vfs::FileContents;
 use racer;
@@ -18,6 +19,7 @@ use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
 use serde_json;
 use span;
+use rayon;
 
 use lsp_data;
 use lsp_data::*;
@@ -25,9 +27,8 @@ use server::{Output, Ack, Action, RequestAction, LsState};
 use jsonrpc_core::types::ErrorCode;
 
 use std::collections::HashMap;
-use std::panic;
-use std::thread;
-use std::time::Duration;
+use std::time::{Duration};
+use std::sync::{mpsc, Arc};
 
 /// A request for information about a symbol in this workspace.
 pub struct WorkspaceSymbol;
@@ -45,14 +46,11 @@ impl<'a> RequestAction<'a> for WorkspaceSymbol {
     type Response = Vec<SymbolInformation>;
 
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
-
         let analysis = ctx.analysis.clone();
 
-        let rustw_handle: ::std::thread::JoinHandle<_> = thread::spawn(move || {
+        let receiver = receive_from_thread(move || {
             let defs = analysis.name_defs(&params.query).unwrap_or_else(|_| vec![]);
-            t.unpark();
 
             defs.into_iter().map(|d| {
                 SymbolInformation {
@@ -64,10 +62,8 @@ impl<'a> RequestAction<'a> for WorkspaceSymbol {
             }).collect()
         });
 
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
-
-        let result = rustw_handle.join().unwrap_or_else(|_| vec![]);
-        Ok(result)
+        Ok(receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT))
+            .unwrap_or_else(|_| vec![]))
     }
 }
 
@@ -86,15 +82,13 @@ impl<'a> Action<'a> for Symbols {
 impl<'a> RequestAction<'a> for Symbols {
     type Response = Vec<SymbolInformation>;
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "symbols")?;
 
         let analysis = ctx.analysis.clone();
 
-        let rustw_handle = thread::spawn(move || {
+        let receiver = receive_from_thread(move || {
             let symbols = analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
-            t.unpark();
 
             symbols.into_iter().map(|s| {
                 SymbolInformation {
@@ -106,10 +100,8 @@ impl<'a> RequestAction<'a> for Symbols {
             }).collect()
         });
 
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
-
-        let result = rustw_handle.join().unwrap_or_else(|_| vec![]);
-        Ok(result)
+        Ok(receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT))
+            .unwrap_or_else(|_| vec![]))
     }
 }
 
@@ -128,7 +120,6 @@ impl<'a> Action<'a> for Hover {
 impl<'a> RequestAction<'a> for Hover {
     type Response = lsp_data::Hover;
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "hover")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
@@ -136,11 +127,10 @@ impl<'a> RequestAction<'a> for Hover {
         trace!("hover: {:?}", span);
 
         let analysis = ctx.analysis.clone();
-        let rustw_handle = thread::spawn(move || {
+        let receiver = receive_from_thread(move || {
             let ty = analysis.show_type(&span).unwrap_or_else(|_| String::new());
             let docs = analysis.docs(&span).unwrap_or_else(|_| String::new());
             let doc_url = analysis.doc_url(&span).unwrap_or_else(|_| String::new());
-            t.unpark();
 
             let mut contents = vec![];
             if !docs.is_empty() {
@@ -158,13 +148,11 @@ impl<'a> RequestAction<'a> for Hover {
             }
         });
 
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
-
-        let result = rustw_handle.join();
-        result.or_else(|_| Ok(lsp_data::Hover {
-            contents: vec![],
-            range: None,
-        }))
+        Ok(receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT))
+            .unwrap_or_else(|_| lsp_data::Hover {
+                contents: vec![],
+                range: None,
+            }))
     }
 }
 
@@ -183,28 +171,30 @@ impl<'a> Action<'a> for FindImpls {
 impl<'a> RequestAction<'a> for FindImpls {
     type Response = Vec<Location>;
     fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "find_impls")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
         let analysis = ctx.analysis.clone();
 
-        let handle = thread::spawn(move || {
+        let receiver = receive_from_thread(move || {
             let type_id = analysis.id(&span)?;
             let result = analysis.find_impls(type_id).map(|spans| {
                 spans.into_iter().map(|x| ls_util::rls_to_location(&x)).collect()
             });
-            t.unpark();
             result
         });
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
 
-        let result = handle.join();
+        let result = receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
         trace!("find_impls: {:?}", result);
+
         match result {
             Ok(Ok(r)) => Ok(r),
             _ => {
-                out.failure_message(id, ErrorCode::InternalError, "Find Implementations failed to complete successfully");
+                out.failure_message(
+                    id,
+                    ErrorCode::InternalError,
+                    "Find Implementations failed to complete successfully"
+                );
                 Err(())
             }
         }
@@ -226,66 +216,54 @@ impl<'a> Action<'a> for Definition {
 impl<'a> RequestAction<'a> for Definition {
     type Response = Vec<Location>;
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        // Save-analysis thread.
-        let t = thread::current();
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "goto_def")?;
         let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
-        let analysis = ctx.analysis.clone();
-        let vfs = ctx.vfs.clone();
+        let analysis = Arc::clone(&ctx.analysis);
+        let vfs = Arc::clone(&ctx.vfs);
+        let config = Arc::clone(&ctx.config);
 
-        let compiler_handle = thread::spawn(move || {
-            let result = analysis.goto_def(&span);
+        let receiver = receive_from_thread(move || {
+            // If configured start racer concurrently and fallback to racer result
+            let racer_receiver = {
+                if config.lock().unwrap().goto_def_racer_fallback {
+                    Some(receive_from_thread(move || {
+                        let cache = racer::FileCache::new(vfs);
+                        let session = racer::Session::new(&cache);
+                        let location = pos_to_racer_location(params.position);
 
-            t.unpark();
+                        racer::find_definition(file_path, location, &session)
+                            .and_then(location_from_racer_match)
+                    }))
+                }
+                else { None }
+            };
 
-            result
-        });
-
-        // Racer thread.
-        let racer_handle = if ctx.config.lock().unwrap().goto_def_racer_fallback {
-            Some(thread::spawn(move || {
-
-                let cache = racer::FileCache::new(vfs);
-                let session = racer::Session::new(&cache);
-                let location = pos_to_racer_location(params.position);
-
-                racer::find_definition(file_path, location, &session)
-                    .and_then(location_from_racer_match)
-            }))
-        } else {
-            None
-        };
-
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
-
-        let compiler_result = compiler_handle.join();
-        match compiler_result {
-            Ok(Ok(r)) => {
-                let result = vec![ls_util::rls_to_location(&r)];
-                trace!("goto_def (compiler): {:?}", result);
-                Ok(result)
-            }
-            _ => {
-                match racer_handle {
-                    Some(racer_handle) => match racer_handle.join() {
-                        Ok(Some(r)) => {
+            match analysis.goto_def(&span) {
+                Ok(out) => {
+                    let result = vec![ls_util::rls_to_location(&out)];
+                    trace!("goto_def (compiler): {:?}", result);
+                    return result
+                }
+                _ => match racer_receiver {
+                    Some(receiver) => match receiver.recv() {
+                        Ok(Some(r)) =>  {
                             trace!("goto_def (Racer): {:?}", r);
-                            Ok(vec![r])
+                            return vec![r]
                         }
                         Ok(None) => {
                             trace!("goto_def (Racer): None");
-                            Ok(vec![])
+                            return vec![]
                         }
-                        _ => {
-                            debug!("Error in Racer");
-                            Ok(vec![])
-                        }
-                    },
-                    None => Ok(vec![]),
+                        _ => vec![]
+                    }
+                    _ => vec![]
                 }
             }
-        }
+        });
+
+        Ok(receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT))
+            .unwrap_or_else(|_| vec![]))
     }
 }
 
@@ -304,25 +282,21 @@ impl<'a> Action<'a> for References {
 impl<'a> RequestAction<'a> for References {
     type Response = Vec<Location>;
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "find_all_refs")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
         let analysis = ctx.analysis.clone();
 
-        let handle = thread::spawn(move || {
-            let result = analysis.find_all_refs(&span, params.context.include_declaration);
-            t.unpark();
-
-            result
+        let receiver = receive_from_thread(move || {
+            analysis.find_all_refs(&span, params.context.include_declaration)
         });
 
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+        let result = match receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT)) {
+            Ok(Ok(t)) => t,
+            _ => vec![],
+        };
 
-        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or_else(Vec::new);
-        let refs: Vec<_> = result.iter().map(|item| ls_util::rls_to_location(item)).collect();
-
-        Ok(refs)
+        Ok(result.iter().map(|item| ls_util::rls_to_location(item)).collect())
     }
 }
 
@@ -345,7 +319,7 @@ impl<'a> RequestAction<'a> for Completion {
         let vfs = ctx.vfs.clone();
         let file_path = parse_file_path!(&params.text_document.uri, "complete")?;
 
-        let result: Vec<CompletionItem> = panic::catch_unwind(move || {
+        let receiver = receive_from_thread(move || {
             let cache = racer::FileCache::new(vfs);
             let session = racer::Session::new(&cache);
 
@@ -353,7 +327,10 @@ impl<'a> RequestAction<'a> for Completion {
             let results = racer::complete_from_file(file_path, location, &session);
 
             results.map(|comp| completion_item_from_racer_match(comp)).collect()
-        }).unwrap_or_else(|_| vec![]);
+        });
+
+        let result = receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT))
+            .unwrap_or_else(|_| vec![]);
 
         Ok(result)
     }
@@ -376,22 +353,20 @@ impl<'a> Action<'a> for DocumentHighlight {
 impl<'a> RequestAction<'a> for DocumentHighlight {
     type Response = Vec<lsp_data::DocumentHighlight>;
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "highlight")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
         let analysis = ctx.analysis.clone();
 
-        let handle = thread::spawn(move || {
-            let result = analysis.find_all_refs(&span, true);
-            t.unpark();
-
-            result
+        let receiver = receive_from_thread(move || {
+            analysis.find_all_refs(&span, true)
         });
 
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+        let result = match receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT)) {
+            Ok(Ok(t)) => t,
+            _ => vec![],
+        };
 
-        let result = handle.join().ok().and_then(|t| t.ok()).unwrap_or_else(Vec::new);
         let refs: Vec<_> = result.iter().map(|span| lsp_data::DocumentHighlight {
             range: ls_util::rls_to_range(span.range),
             kind: Some(DocumentHighlightKind::Text),
@@ -416,19 +391,17 @@ impl<'a> Action<'a> for Rename {
 impl<'a> RequestAction<'a> for Rename {
     type Response = WorkspaceEdit;
     fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "rename")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
         let analysis = ctx.analysis.clone();
-        let rustw_handle = thread::spawn(move || {
+        let receiver = receive_from_thread(move || {
             macro_rules! unwrap_or_empty {
                 ($e: expr) => {
                     match $e {
                         Ok(e) => e,
                         Err(_) => {
-                            t.unpark();
                             return vec![];
                         }
                     }
@@ -437,20 +410,17 @@ impl<'a> RequestAction<'a> for Rename {
 
             let id = unwrap_or_empty!(analysis.crate_local_id(&span));
             let def = unwrap_or_empty!(analysis.get_def(id));
-            if def.name == "self" || def.name == "Self" {
-                t.unpark();
+            if def.name == "self" || def.name == "Self"
+                // FIXME(#578)
+                || def.kind == data::DefKind::Mod {
                 return vec![];
             }
 
-            let result = analysis.find_all_refs(&span, true);
-
-            t.unpark();
-            unwrap_or_empty!(result)
+            analysis.find_all_refs(&span, true).unwrap_or_else(|_| vec![])
         });
 
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
-
-        let result = rustw_handle.join().unwrap_or_else(|_| Vec::new());
+        let result = receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT))
+            .unwrap_or_else(|_| vec![]);
 
         let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
@@ -482,7 +452,6 @@ impl<'a> Action<'a> for Deglob {
 impl<'a> RequestAction<'a> for Deglob {
     type Response = Ack;
     fn handle<O: Output>(&mut self, id: usize, location: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()> {
-        let t = thread::current();
         let ctx = ctx.inited();
         let span = ls_util::location_to_rls(location.clone());
         let mut span = ignore_non_file_uri!(span, &location.uri, "deglob")?;
@@ -522,34 +491,29 @@ impl<'a> RequestAction<'a> for Deglob {
         let analysis = ctx.analysis.clone();
         let out_clone = out.clone();
         let span_ = span.clone();
-        let rustw_handle = thread::spawn(move || {
+
+        let receiver = receive_from_thread(move || {
             match vfs.load_span(span_.clone()) {
                 Ok(ref s) if s != "*" => {
                     out_clone.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
-                    t.unpark();
                     return Err("Not a glob");
                 }
                 Err(e) => {
                     debug!("Deglob failed: {:?}", e);
                     out_clone.failure_message(id, ErrorCode::InternalError, "Couldn't open file");
-                    t.unpark();
                     return Err("Couldn't open file");
                 }
                 _ => {}
             }
 
             let ty = analysis.show_type(&span_);
-            t.unpark();
-
             ty.map_err(|_| {
                 out_clone.failure_message(id, ErrorCode::InternalError, "Couldn't get info from analysis");
                 "Couldn't get info from analysis"
             })
         });
 
-        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
-
-        let result = rustw_handle.join();
+        let result = receiver.recv_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
         let mut deglob_str = match result {
             Ok(Ok(s)) => s,
             _ => {
@@ -831,4 +795,25 @@ fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
         let loc = span::Location::new(row.zero_indexed(), col, source_path);
         ls_util::rls_location_to_location(&loc)
     })
+}
+
+lazy_static! {
+    static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
+        rayon::Configuration::default()
+            .thread_name(|num| format!("request-worker-{}", num))
+            .panic_handler(|err| warn!("{:?}", err))
+    ).unwrap();
+}
+
+/// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
+pub fn receive_from_thread<T, F>(work_fn: F) -> mpsc::Receiver<T>
+    where T: Send + 'static,
+          F: FnOnce() -> T + Send + 'static,
+{
+    let (sender, receiver) = mpsc::channel();
+    WORK_POOL.spawn(move || {
+        // an error here simply means the work took too long and the receiver has been dropped
+        let _ = sender.send(work_fn());
+    });
+    receiver
 }
