@@ -826,3 +826,158 @@ fn test_no_default_features() {
 //                                            .expect_contains("struct is never used: `Unused`"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 // }
+
+#[test]
+fn test_deglob() {
+    let mut env = Environment::new("deglob");
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
+    let text_doc = TextDocumentIdentifier::new(url.clone());
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        // request deglob for single wildcard
+        request::<requests::CodeAction>(100, CodeActionParams {
+            text_document: text_doc.clone(),
+            range: env.cache.mk_ls_range_from_line(12),
+            context: CodeActionContext {
+                diagnostics: vec![],
+            },
+        }).to_string(),
+        // deglob single
+        request::<requests::ExecuteCommand>(200, ExecuteCommandParams {
+            command: "rls.deglobImports".into(),
+            arguments: vec![
+                serde_json::to_value(&requests::DeglobResult {
+                    location: Location {
+                        uri: url.clone(),
+                        range: Range::new(
+                            Position::new(12, 13),
+                            Position::new(12, 14)
+                        ),
+                    },
+                    new_text: "{Stdout, Stdin}".into(),
+                }).unwrap(),
+            ],
+        }).to_string(),
+        // request deglob for double wildcard
+        request::<requests::CodeAction>(1100, CodeActionParams {
+            text_document: text_doc.clone(),
+            range: env.cache.mk_ls_range_from_line(15),
+            context: CodeActionContext {
+                diagnostics: vec![],
+            },
+        }).to_string(),
+        // deglob two wildcards
+        request::<requests::ExecuteCommand>(1200, ExecuteCommandParams {
+            command: "rls.deglobImports".into(),
+            arguments: vec![
+                serde_json::to_value(&requests::DeglobResult {
+                    location: Location {
+                        uri: url.clone(),
+                        range: Range::new(
+                            Position::new(15, 14),
+                            Position::new(15, 15)
+                        ),
+                    },
+                    new_text: "size_of".into(),
+                }).unwrap(),
+                serde_json::to_value(&requests::DeglobResult {
+                    location: Location {
+                        uri: url.clone(),
+                        range: Range::new(
+                            Position::new(15, 31),
+                            Position::new(15, 32)
+                        ),
+                    },
+                    new_text: "max".into(),
+                }).unwrap(),
+            ],
+        }).to_string(),
+    ];
+
+    let (mut server, results) = env.mock_server(messages);
+    // Initialize and build.
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports"),
+            ExpectedMessage::new(None).expect_contains("beginBuild"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
+        ],
+    );
+
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(100))
+                .expect_contains(r#""title":"Deglob Import""#)
+                .expect_contains(r#""command":"rls.deglobImports""#)
+                .expect_contains(r#"{"location":{"range":{"end":{"character":14,"line":12},"start":{"character":13,"line":12}},"uri":"#)
+                .expect_contains(r#"deglob/src/main.rs"}"#)
+                .expect_contains(r#""new_text":"{Stdout, Stdin}""#)
+        ],
+    );
+
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0x0100_0001))
+                .expect_contains(r#""method":"workspace/applyEdit""#)
+                .expect_contains(r#"deglob/src/main.rs""#)
+                .expect_contains(r#"{"range":{"start":{"line":12,"character":13},"end":{"line":12,"character":14}}"#)
+                .expect_contains(r#""newText":"{Stdout, Stdin}""#),
+            ExpectedMessage::new(Some(200)).expect_contains(r#"null"#),
+        ],
+    );
+
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(1100))
+                .expect_contains(r#""title":"Deglob Imports""#)
+                .expect_contains(r#""command":"rls.deglobImports""#)
+                .expect_contains(r#"{"location":{"range":{"end":{"character":15,"line":15},"start":{"character":14,"line":15}},"uri":"#)
+                .expect_contains(r#"deglob/src/main.rs"}"#)
+                .expect_contains(r#""new_text":"size_of""#)
+                .expect_contains(r#"{"location":{"range":{"end":{"character":32,"line":15},"start":{"character":31,"line":15}},"uri":"#)
+                .expect_contains(r#"deglob/src/main.rs"}"#)
+                .expect_contains(r#""new_text":"max""#)
+        ],
+    );
+
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0x0100_0002))
+                .expect_contains(r#""method":"workspace/applyEdit""#)
+                .expect_contains(r#"deglob/src/main.rs""#)
+                .expect_contains(r#"{"range":{"start":{"line":15,"character":14},"end":{"line":15,"character":15}},"newText":"size_of"}"#)
+                .expect_contains(r#"{"range":{"start":{"line":15,"character":31},"end":{"line":15,"character":32}},"newText":"max"}"#),
+            ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
+        ],
+    );
+}

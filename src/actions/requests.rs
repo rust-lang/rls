@@ -36,9 +36,11 @@ use std::sync::{mpsc, Arc};
 /// The `location` is the position of the wildcard.
 /// `new_text` is the text which should replace the wildcard.
 #[derive(Debug, Deserialize, Serialize)]
-struct DeglobResult {
-    location: Location,
-    new_text: String,
+pub struct DeglobResult {
+    /// Location of the "*" character in a wildcard import
+    pub location: Location,
+    /// Replacement text
+    pub new_text: String,
 }
 
 /// A request for information about a symbol in this workspace.
