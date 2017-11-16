@@ -100,6 +100,7 @@ pub trait Action {
 /// An action taken in response to some notification from the client.
 /// Blocks stdin whilst being handled.
 pub trait BlockingNotificationAction<'a>: Action {
+    ///
     fn new(state: &'a mut LsState) -> Self;
 
     /// Handle this notification.
@@ -113,8 +114,10 @@ pub trait BlockingNotificationAction<'a>: Action {
 
 /// A request that blocks stdin whilst being handled
 pub trait BlockingRequestAction<'a>: Action {
+    ///
     type Response: Response + fmt::Debug;
 
+    ///
     fn new(state: &'a mut LsState) -> Self;
 
     /// Handle request and send its response back along the given output.
@@ -131,6 +134,7 @@ pub trait BlockingRequestAction<'a>: Action {
 pub struct Request<A: Action> {
     /// The unique request id.
     pub id: usize,
+    /// The time the request was received / processed by the main stdin reading thread.
     pub received: Instant,
     /// The extra action-specific parameters.
     pub params: A::Params,
@@ -416,6 +420,10 @@ impl<O: Output> LsService<O> {
                 $(
                     if $method == <$br_action as Action>::METHOD {
                         let request = msg.parse_as_request::<$br_action>()?;
+
+                        // block until all nonblocking requests have been handled ensuring ordering
+                        self.dispatcher.await_all_dispatched();
+
                         if let Err(_) = request.blocking_dispatch(
                             &mut self.state,
                             &mut self.ctx,

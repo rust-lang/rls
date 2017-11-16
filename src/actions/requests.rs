@@ -838,10 +838,11 @@ fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
 }
 
 lazy_static! {
+    /// Thread pool for request execution allowing concurrent request processing.
     pub static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
         rayon::Configuration::default()
             .thread_name(|num| format!("request-worker-{}", num))
-            .panic_handler(|_| {})
+            .panic_handler(|err| warn!("{:?}", err))
     ).unwrap();
 }
 

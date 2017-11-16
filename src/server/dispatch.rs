@@ -85,26 +85,52 @@ define_dispatch_request_enum!(
 /// processing if have already timed out before starting.
 pub struct Dispatcher {
     sender: mpsc::Sender<DispatchRequest>,
+
+    request_handled_receiver: mpsc::Receiver<()>,
+    /// Number of as-yet-unhandled requests dispatched to the worker thread
+    in_flight_requests: usize,
 }
 
 impl Dispatcher {
     /// Creates a new `Dispatcher` starting a new thread and channel
     pub fn new<O: Output>(out: O) -> Self {
         let (sender, receiver) = mpsc::channel::<DispatchRequest>();
+        let (request_handled_sender, request_handled_receiver) = mpsc::channel::<()>();
 
         thread::Builder::new().name("dispatch-worker".into()).spawn(move || {
             while let Ok(request) = receiver.recv() {
-                request.handle(&out)
+                request.handle(&out);
+                let _ = request_handled_sender.send(());
             }
         }).unwrap();
 
-        Self { sender }
+        Self {
+            sender,
+            request_handled_receiver,
+            in_flight_requests: 0,
+        }
+    }
+
+    /// Blocks until all dispatched requests have been handled
+    pub fn await_all_dispatched(&mut self) {
+        while self.in_flight_requests != 0 {
+            self.request_handled_receiver.recv().unwrap();
+            self.in_flight_requests -= 1;
+        }
     }
 
     /// Sends a request to the dispatch-worker thread, does not block
-    pub fn dispatch<R: Into<DispatchRequest>>(&self, request: R) {
+    pub fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R) {
         if let Err(err) = self.sender.send(request.into()) {
             debug!("Failed to dispatch request: {:?}", err);
+        }
+        else {
+            self.in_flight_requests += 1;
+        }
+
+        // Clear the handled queue if possible in a non-blocking way
+        while self.request_handled_receiver.try_recv().is_ok() {
+            self.in_flight_requests -= 1;
         }
     }
 }
@@ -112,6 +138,7 @@ impl Dispatcher {
 /// Stdin-nonblocking request logic designed to be packed into a `DispatchRequest`
 /// and handled on the `WORK_POOL` via a `Dispatcher`.
 pub trait RequestAction: Action {
+    /// Serializable response type
     type Response: ::serde::Serialize + fmt::Debug + Send;
 
     /// Max duration this request should finish within, also see `fallback_response()`
@@ -119,6 +146,7 @@ pub trait RequestAction: Action {
         *TIMEOUT
     }
 
+    ///
     fn new() -> Self;
 
     /// Returns a response used in timeout scenarios
@@ -134,7 +162,9 @@ pub trait RequestAction: Action {
 
 /// Wrapper for a response error
 pub enum ResponseError {
+    /// Error with no special response to the client
     Empty,
+    /// Error with a response to the client
     Message(jsonrpc::ErrorCode, String),
 }
 

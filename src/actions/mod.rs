@@ -81,6 +81,7 @@ impl ActionContext {
         *self = ActionContext::Init(ctx);
     }
 
+    /// Returns an initialiased wrapped context, or panics if not initialised.
     pub fn inited(&self) -> InitActionContext {
         match *self {
             ActionContext::Uninit(_) => panic!("ActionContext not initialized"),
