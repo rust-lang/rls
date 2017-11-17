@@ -240,6 +240,16 @@ impl Cache {
         ls_types::Position::new( (src.line - 1) as u64,  char_of_byte_index(&line, col) as u64)
     }
 
+    /// Create a range convering the initial position on the line
+    ///
+    /// The line number uses a 0-based index.
+    pub fn mk_ls_range_from_line(&mut self, line: u64) -> ls_types::Range {
+        ls_types::Range::new(
+            ls_types::Position::new(line, 0),
+            ls_types::Position::new(line, 0),
+        )
+    }
+
     pub fn abs_path(&self, file_name: &Path) -> PathBuf {
         let result = self.base_path.join(file_name).canonicalize().expect("Couldn't canonicalise path");
         let result = if cfg!(windows) {

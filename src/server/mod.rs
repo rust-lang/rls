@@ -284,7 +284,10 @@ impl<'a> RequestAction<'a> for InitializeRequest {
                 code_action_provider: Some(true),
                 document_formatting_provider: Some(true),
                 execute_command_provider: Some(ExecuteCommandOptions {
-                    commands: vec!["rls.applySuggestion".to_owned()],
+                    commands: vec![
+                        "rls.applySuggestion".to_owned(),
+                        "rls.deglobImports".to_owned(),
+                    ],
                 }),
                 rename_provider: Some(true),
                 // These are supported if the `unstable_features` option is set.
@@ -422,7 +425,6 @@ impl<O: Output> LsService<O> {
                 requests::ExecuteCommand,
                 requests::CodeAction,
                 requests::FindImpls,
-                requests::Deglob,
                 requests::Symbols,
                 requests::WorkspaceSymbol,
                 requests::Formatting,
