@@ -862,7 +862,7 @@ fn test_deglob() {
             },
         }).to_string(),
         // deglob single
-        request::<requests::ExecuteCommand>(200, ExecuteCommandParams {
+        blocking_request::<requests::ExecuteCommand>(200, ExecuteCommandParams {
             command: "rls.deglobImports".into(),
             arguments: vec![
                 serde_json::to_value(&requests::DeglobResult {
@@ -886,7 +886,7 @@ fn test_deglob() {
             },
         }).to_string(),
         // deglob two wildcards
-        request::<requests::ExecuteCommand>(1200, ExecuteCommandParams {
+        blocking_request::<requests::ExecuteCommand>(1200, ExecuteCommandParams {
             command: "rls.deglobImports".into(),
             arguments: vec![
                 serde_json::to_value(&requests::DeglobResult {

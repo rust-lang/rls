@@ -463,7 +463,6 @@ impl<O: Output> LsService<O> {
                 InitializeRequest,
                 requests::ResolveCompletion,
                 requests::ExecuteCommand,
-                requests::Deglob,
                 requests::Formatting,
                 requests::RangeFormatting;
             requests:

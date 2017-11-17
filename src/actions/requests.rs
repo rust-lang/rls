@@ -24,13 +24,11 @@ use rayon;
 use lsp_data;
 use lsp_data::*;
 use server::{Output, Ack, Action, RequestAction, ResponseError, BlockingRequestAction, LsState};
-use super::InitActionContext;
 use jsonrpc_core::types::ErrorCode;
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::time::Duration;
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc;
 
 /// Represent the result of a deglob action for a single wildcard import.
 ///
@@ -643,7 +641,7 @@ impl CodeAction {
     }
 }
 
-impl<'a> Action<'a> for CodeAction {
+impl Action for CodeAction {
     type Params = CodeActionParams;
     const METHOD: &'static str = "textDocument/codeAction";
 }
@@ -669,8 +667,8 @@ impl RequestAction for CodeAction {
         let file_path = parse_file_path!(&params.text_document.uri, "code_action")?;
 
         let mut cmds = vec![];
-        Self::make_suggestion_fix_actions(&params, &file_path, ctx, &mut cmds);
-        Self::make_deglob_actions(&params, &file_path, ctx, &mut cmds);
+        Self::make_suggestion_fix_actions(&params, &file_path, &ctx, &mut cmds);
+        Self::make_deglob_actions(&params, &file_path, &ctx, &mut cmds);
         Ok(cmds)
     }
 }
