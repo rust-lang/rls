@@ -11,23 +11,16 @@
 //! This module presents the RLS as a command line interface, it takes simple
 //! versions of commands, turns them into messages the RLS will understand, runs
 //! the RLS as usual and prints the JSON result back on the command line.
-
 use actions::requests;
-use analysis::{AnalysisHost, Target};
-use config::Config;
-use server::{self, Request, Notification, LsService, NoParams};
-use vfs::Vfs;
-
+use server::{self, Request, Notification, NoParams};
 use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, WorkspaceSymbolParams, DocumentFormattingParams, DocumentRangeFormattingParams, Range, FormattingOptions};
 
 use std::collections::HashMap;
-use std::fmt;
 use std::io::{stdin, stdout, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 use url::Url;
@@ -42,8 +35,8 @@ macro_rules! print_verb {
 }
 
 /// Run the RLS in command line mode.
-pub fn run() {
-    let sender = init();
+pub fn run(tx: Sender<String>) {
+    println!("\nType 'help' to see available actions.\n\nType 'init' to begin initialization process.\nThe process will finish when a `diagnosticEnd` message is printed.");
 
     loop {
         // Present a prompt and read from stdin.
@@ -62,6 +55,10 @@ pub fn run() {
 
         // Switch on the action and build an appropriate message.
         let msg = match action {
+            "init" => {
+                tx.send(initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned()).to_string()).expect("Error sending init");
+                continue;
+            }
             "def" => {
                 let file_name = bits.next().expect("Expected file name");
                 let row = bits.next().expect("Expected line number");
@@ -106,8 +103,8 @@ pub fn run() {
                 continue;
             }
             "q" | "quit" => {
-                sender.send(shutdown().to_string()).expect("Error sending on channel");
-                sender.send(exit().to_string()).expect("Error sending on channel");
+                tx.send(shutdown().to_string()).expect("Error sending on channel");
+                tx.send(exit().to_string()).expect("Error sending on channel");
                 // Sometimes we don't quite exit in time and we get an error on the channel. Hack it.
                 thread::sleep(Duration::from_millis(100));
                 return;
@@ -120,7 +117,7 @@ pub fn run() {
 
         // Send the message to the server.
         print_verb!("message: {:?}", msg);
-        sender.send(msg).expect("Error sending on channel");
+        tx.send(msg).expect("Error sending on channel");
         // Give the result time to print before printing the prompt again.
         thread::sleep(Duration::from_millis(100));
     }
@@ -259,70 +256,15 @@ fn next_id() -> usize {
     }
 }
 
-// Custom reader and output for the RLS server.
-#[derive(Clone)]
-struct PrintlnOutput;
-
-impl server::Output for PrintlnOutput {
-    fn response(&self, output: String) {
-        println!("{}", output);
-    }
-
-    fn provide_id(&self) -> u32 {
-        0
-    }
-
-    fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: usize, data: &D) {
-        println!("{}: {:#?}", id, data);
-    }
-}
-
-struct ChannelMsgReader {
-    channel: Mutex<Receiver<String>>,
-}
-
-impl ChannelMsgReader {
-    fn new(rx: Receiver<String>) -> ChannelMsgReader {
-        ChannelMsgReader {
-            channel: Mutex::new(rx),
-        }
-    }
-}
-
-impl server::MessageReader for ChannelMsgReader {
-    fn read_message(&self) -> Option<String> {
-        let channel = self.channel.lock().unwrap();
-        let msg = channel.recv().expect("Error reading from channel");
-        Some(msg)
-    }
-}
-
-// Initialize a server, returns the sender end of a channel for posting messages.
-// The initialized server will live on its own thread and look after the receiver.
-fn init() -> Sender<String> {
-    let analysis = Arc::new(AnalysisHost::new(Target::Debug));
-    let vfs = Arc::new(Vfs::new());
-    let (sender, receiver) = channel();
-
-    let service = LsService::new(analysis,
-                                 vfs,
-                                 Arc::new(Mutex::new(Config::default())),
-                                 Box::new(ChannelMsgReader::new(receiver)),
-                                 PrintlnOutput);
-    thread::spawn(move || LsService::run(service));
-
-    sender.send(initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned()).to_string()).expect("Error sending init");
-    println!("Initializing (look for `diagnosticsEnd` message)...");
-
-    sender
-}
-
 // Display help message.
 fn help() {
     println!("RLS command line interface.");
     println!("\nLine and column numbers are zero indexed");
     println!("\nSupported commands:");
     println!("    help          display this message");
+    println!("");
+    println!("    init          begin rls initialization on codebase");
+    println!("");
     println!("    quit          exit");
     println!("");
     println!("    def           file_name line_number column_number");

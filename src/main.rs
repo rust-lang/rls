@@ -46,19 +46,21 @@ extern crate serde_json;
 
 extern crate url;
 extern crate jsonrpc_core;
+extern crate getopts;
 
 use std::env;
-use std::sync::Arc;
+use getopts::Options;
 
-pub mod actions;
-pub mod build;
-pub mod cmd;
-pub mod config;
-pub mod lsp_data;
-pub mod server;
+mod actions;
+mod build;
+mod config;
+mod lsp_data;
+mod server;
 
 #[cfg(test)]
 mod test;
+
+type Span = span::Span<span::ZeroIndexed>;
 
 // Timeout = 1.5s (totally arbitrary).
 #[cfg(not(test))]
@@ -74,8 +76,19 @@ const CRATE_BLACKLIST: [&'static str; 10] = [
 ];
 
 const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
+const VERSION: &'static str = concat!(env!("CARGO_PKG_VERSION"), "-", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")));
+const BRIEF_DESCRIPTION: &'static str =
+    r#"
+Usage: rls [options]
 
-type Span = span::Span<span::ZeroIndexed>;
+    The Rust Language Server is a server that runs in the background, providing
+    IDEs, editors, and other tools with information about Rust programs. It
+    supports functionality such as 'goto definition', symbol search,
+    reformatting, and code completion, and enables renaming and refactorings.
+
+    For more info, please visit https://github.com/rust-lang-nursery/rls.
+    "#
+;
 
 /// The main entry point to the RLS. Parses CLI arguments and then runs the
 /// server.
@@ -87,31 +100,53 @@ pub fn main() {
         return;
     }
 
-    if let Some(first_arg) = ::std::env::args().skip(1).next() {
-        match first_arg.as_str() {
-            "--version" | "-V" => println!("rls-preview {}", version()),
-            "--help" | "-h" => println!("{}", help()),
-            "--cli" => cmd::run(),
-            unknown => println!("Unknown argument '{}'. Supported arguments:\n{}", unknown, help()),
+    // apply parameters to the program
+    let mut opts = Options::new();
+    configure_options(&mut opts);
+
+    let args: Vec<String> = env::args().collect();
+    // verify options, error out if unknown
+    let matches = match opts.parse(&args[1..]) {
+        Ok(matches) => { matches },
+        Err(f) => {
+            reason_with_help(format!("{}", f.to_string()), &opts);
+            return;
         }
+    };
+
+    if matches.opt_present("h") {
+        help(&opts);
         return;
     }
 
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
+    if matches.opt_present("V") {
+        version();
+        return;
+    }
 
-    server::run_server(analysis, vfs);
+    // startup the server in the correct mode
+    if matches.opt_present("cli") {
+        server::run_server(server::ServerMode::Cli);
+    } else {
+        server::run_server(server::ServerMode::Stdio);
+    }
 }
 
-fn version() -> &'static str {
-    concat!(env!("CARGO_PKG_VERSION"), "-", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
+fn version() {
+    println!("{}", String::from(VERSION));
 }
 
-fn help() -> &'static str {
-    r#"
-    --version or -V to print the version and commit info
-    --help or -h for this message
-    --cli starts the RLS in command line mode
-    No input starts the RLS as a language server
-    "#
+fn configure_options(opts: &mut Options) {
+    opts.optflag("h", "help", "print this help menu");
+    opts.optflag("V", "version", "print the version and commit info");
+    opts.optflag("", "cli", "initialize in CLI mode");
+}
+
+fn help(opts: &Options) {
+    println!("{}", opts.usage(BRIEF_DESCRIPTION));
+}
+
+fn reason_with_help(reason: String, opts: &Options) {
+    println!("{}\n", reason);
+    help(&opts);
 }

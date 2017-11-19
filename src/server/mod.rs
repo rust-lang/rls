@@ -12,38 +12,56 @@
 //! interactions (for example, to add support for handling new types of
 //! requests).
 
-use analysis::AnalysisHost;
 use jsonrpc_core::{self as jsonrpc, Id};
-use vfs::Vfs;
 use serde;
 use serde_json;
 use serde::Deserialize;
 
-use version;
+use analysis::{self, AnalysisHost};
+use vfs::{self, Vfs};
 use lsp_data::*;
 use actions::{ActionContext, requests, notifications};
 use config::Config;
 pub use server::io::{MessageReader, Output};
-use server::io::{StdioMsgReader, StdioOutput};
+use server::io::{StdioMsgReader, StdioOutput, ChannelMsgReader, PrintlnOutput};
 
 use std::fmt;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use std::thread;
 
 mod io;
+mod cmd;
+
+#[derive(Debug)]
+pub enum ServerMode {
+    Stdio,
+    Cli,
+}
 
 /// Run the Rust Language Server.
-pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
-    debug!("Language Server starting up. Version: {}", version());
-    let service = LsService::new(analysis,
-                                 vfs,
-                                 Arc::new(Mutex::new(Config::default())),
-                                 Box::new(StdioMsgReader),
-                                 StdioOutput::new());
-    LsService::run(service);
-    debug!("Server shutting down");
+pub fn run_server(mode: ServerMode) {
+    debug!("Language Server starting up. Version: {}", ::VERSION);
+
+    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
+    let vfs = Arc::new(vfs::Vfs::new());
+    let config = Arc::new(Mutex::new(Config::default()));
+
+    match mode {
+        ServerMode::Cli => {
+            let (tx, rx) = mpsc::channel();
+            let service = LsService::new(analysis, vfs, config, Box::new(ChannelMsgReader::new(rx)), PrintlnOutput);
+            thread::spawn(move || LsService::run(service));
+            cmd::run(tx)
+        },
+        _ => {
+            let service = LsService::new(analysis, vfs, config, Box::new(StdioMsgReader), StdioOutput::new());
+            LsService::run(service);
+        }
+    }
 }
 
 /// A response that just acknowledges receipt of its request.

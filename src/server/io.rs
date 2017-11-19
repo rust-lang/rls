@@ -14,8 +14,9 @@ use lsp_data::*;
 
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{Ordering, AtomicU32};
+use std::sync::mpsc::Receiver;
 
 use jsonrpc_core::{self as jsonrpc, Id, response, version};
 
@@ -79,6 +80,26 @@ impl MessageReader for StdioMsgReader {
         let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
 
         Some(content)
+    }
+}
+
+pub(super) struct ChannelMsgReader {
+    channel: Mutex<Receiver<String>>,
+}
+
+impl ChannelMsgReader {
+    pub fn new(rx: Receiver<String>) -> ChannelMsgReader {
+        ChannelMsgReader {
+            channel: Mutex::new(rx),
+        }
+    }
+}
+
+impl MessageReader for ChannelMsgReader {
+    fn read_message(&self) -> Option<String> {
+        let channel = self.channel.lock().unwrap();
+        let msg = channel.recv().expect("Error reading from channel");
+        Some(msg)
     }
 }
 
@@ -166,5 +187,22 @@ impl Output for StdioOutput {
 
     fn provide_id(&self) -> u32 {
         self.next_id.fetch_add(1, Ordering::SeqCst)
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct PrintlnOutput;
+
+impl Output for PrintlnOutput {
+    fn response(&self, output: String) {
+        println!("{}", output);
+    }
+
+    fn provide_id(&self) -> u32 {
+        0
+    }
+
+    fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: usize, data: &D) {
+        println!("{}: {:#?}", id, data);
     }
 }
