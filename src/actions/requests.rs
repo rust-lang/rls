@@ -137,7 +137,7 @@ impl RequestAction for Hover {
 
     fn fallback_response(&self) -> Result<Self::Response, ResponseError> {
         Ok(lsp_data::Hover {
-            contents: vec![],
+            contents: HoverContents::Array(vec![]),
             range: None,
         })
     }
@@ -168,7 +168,7 @@ impl RequestAction for Hover {
             contents.push(MarkedString::from_language_code("rust".into(), ty.into()));
         }
         Ok(lsp_data::Hover {
-            contents: contents,
+            contents: HoverContents::Array(contents),
             range: None, // TODO: maybe add?
         })
     }
@@ -354,7 +354,15 @@ impl RequestAction for Completion {
         let location = pos_to_racer_location(params.position);
         let results = racer::complete_from_file(file_path, location, &session);
 
-        Ok(results.map(|comp| completion_item_from_racer_match(comp)).collect())
+        Ok(results.map(|comp| {
+            let snippet = racer::snippet_for_match(&comp, &session);
+            let mut item = completion_item_from_racer_match(comp);
+            if !snippet.is_empty() {
+                item.insert_text = Some(snippet);
+                item.insert_text_format = Some(InsertTextFormat::Snippet);
+            }
+            item
+        }).collect())
     }
 }
 

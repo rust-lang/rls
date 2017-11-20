@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "languageserver-types"
-version = "0.12.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "enum_primitive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -807,7 +807,7 @@ dependencies = [
  "cargo 0.24.0 (git+https://github.com/rust-lang/cargo)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 7.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "languageserver-types 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "languageserver-types 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "racer 2.0.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1351,7 +1351,7 @@ dependencies = [
 "checksum jobserver 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "931b04e5e57d88cc909528f0d701db36a870b72a052648ded8baf80f9f445e0f"
 "checksum jsonrpc-core 7.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b1acd0f9934da94466d2370f36832b9b19271b4abdfdb5e69f0bcd991ebcd515"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
-"checksum languageserver-types 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d52e477b23bf52cd3ca0f9fc6c5d14be954eec97e3b9cdfbd962d911bd533caf"
+"checksum languageserver-types 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c7878a264bff274f017fac3dff1fa17afb9e6320738f91331ebfde14ab2bc734"
 "checksum lazy_static 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)" = "c9e5e58fa1a4c3b915a561a78a22ee0cac6ab97dca2504428bc1cb074375f8d5"
 "checksum libc 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)" = "5ba3df4dcb460b9dfbd070d41c94c19209620c191b0340b929ce748a2bcd42d2"
 "checksum libgit2-sys 0.6.16 (registry+https://github.com/rust-lang/crates.io-index)" = "6f74b4959cef96898f5123148724fc7dee043b9a6b99f219d948851bfbe53cb2"
