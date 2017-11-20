@@ -62,6 +62,7 @@ use self::plan::{Plan as BuildPlan, WorkStatus};
 /// used from multiple threads. It will spawn threads itself as necessary.
 //
 // See comment on `request_build` for implementation notes.
+#[derive(Clone)]
 pub struct BuildQueue {
     internals: Arc<Internals>,
     // The build queue - we only have one low and one high priority build waiting.

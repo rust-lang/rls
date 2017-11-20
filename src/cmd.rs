@@ -29,7 +29,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use url::Url;
 
 const VERBOSE: bool = false;
@@ -126,7 +126,7 @@ pub fn run() {
     }
 }
 
-fn def<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Definition> {
+fn def(file_name: &str, row: &str, col: &str) -> Request<requests::Definition> {
     let params = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
@@ -135,11 +135,12 @@ fn def<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Defin
     Request {
         id: next_id(),
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn rename<'a>(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<'a, requests::Rename> {
+fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requests::Rename> {
     let params = RenameParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
@@ -149,11 +150,12 @@ fn rename<'a>(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<
     Request {
         id: next_id(),
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn hover<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Hover> {
+fn hover(file_name: &str, row: &str, col: &str) -> Request<requests::Hover> {
     let params = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
         position: Position::new(u64::from_str(row).expect("Bad line number"),
@@ -162,22 +164,24 @@ fn hover<'a>(file_name: &str, row: &str, col: &str) -> Request<'a, requests::Hov
     Request {
         id: next_id(),
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn workspace_symbol<'a>(query: &str) -> Request<'a, requests::WorkspaceSymbol> {
+fn workspace_symbol(query: &str) -> Request<requests::WorkspaceSymbol> {
     let params = WorkspaceSymbolParams {
         query: query.to_owned()
     };
     Request {
         id: next_id(),
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn format<'a>(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<'a, requests::Formatting> {
+fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<requests::Formatting> {
     // no optional properties
     let properties = HashMap::default();
 
@@ -188,11 +192,12 @@ fn format<'a>(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<'a
     Request {
         id: next_id(),
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn range_format<'a>(file_name: &str, start_row: u64, start_col: u64, end_row: u64, end_col: u64, tab_size: u64, insert_spaces: bool) -> Request<'a, requests::RangeFormatting> {
+fn range_format(file_name: &str, start_row: u64, start_col: u64, end_row: u64, end_col: u64, tab_size: u64, insert_spaces: bool) -> Request<requests::RangeFormatting> {
     // no optional properties
     let properties = HashMap::default();
 
@@ -207,26 +212,28 @@ fn range_format<'a>(file_name: &str, start_row: u64, start_col: u64, end_row: u6
     Request {
         id: next_id(),
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn shutdown<'a>() -> Request<'a, server::ShutdownRequest<'a>> {
+fn shutdown<'a>() -> Request<server::ShutdownRequest<'a>> {
     Request {
         id: next_id(),
         params: NoParams {},
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn exit<'a>() -> Notification<'a, server::ExitNotification<'a>> {
+fn exit<'a>() -> Notification<server::ExitNotification<'a>> {
     Notification {
         params: NoParams {},
         _action: PhantomData,
     }
 }
 
-fn initialize<'a>(root_path: String) -> Request<'a, server::InitializeRequest> {
+fn initialize(root_path: String) -> Request<server::InitializeRequest> {
     let params = InitializeParams {
         process_id: None,
         root_path: Some(root_path), // FIXME(#299): This property is deprecated. Instead Use `root_uri`.
@@ -242,6 +249,7 @@ fn initialize<'a>(root_path: String) -> Request<'a, server::InitializeRequest> {
     Request {
         id: next_id(),
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }

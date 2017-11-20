@@ -30,13 +30,14 @@ use serde_json;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use url::Url;
 
-pub fn initialize<'a>(id: usize, root_path: Option<String>) -> Request<'a, ls_server::InitializeRequest> {
+pub fn initialize<'a>(id: usize, root_path: Option<String>) -> Request<ls_server::InitializeRequest> {
      initialize_with_opts(id, root_path, None)
 }
 
-pub fn initialize_with_opts<'a>(id: usize, root_path: Option<String>, initialization_options: Option<InitializationOptions>) -> Request<'a, ls_server::InitializeRequest> {
+pub fn initialize_with_opts<'a>(id: usize, root_path: Option<String>, initialization_options: Option<InitializationOptions>) -> Request<ls_server::InitializeRequest> {
     let init_opts = initialization_options.map(|val| serde_json::to_value(val).unwrap());
     let params = InitializeParams {
         process_id: None,
@@ -53,14 +54,28 @@ pub fn initialize_with_opts<'a>(id: usize, root_path: Option<String>, initializa
     Request {
         id,
         params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-pub fn request<'a, T: ls_server::RequestAction<'a>>(id: usize, params: T::Params) -> Request<'a, T> {
+pub fn blocking_request<'a, T: ls_server::BlockingRequestAction<'a>>(id: usize, params: T::Params) -> Request<T> {
     Request {
         id,
         params,
+        received: Instant::now(),
+        _action: PhantomData,
+    }
+}
+
+pub fn request<'a, T: ls_server::RequestAction>(
+    id: usize,
+    params: T::Params
+) -> Request<T> {
+    Request {
+        id,
+        params,
+        received: Instant::now(),
         _action: PhantomData,
     }
 }
@@ -73,7 +88,7 @@ fn test_shutdown() {
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-        request::<ShutdownRequest>(1, NoParams).to_string(),
+        blocking_request::<ShutdownRequest>(1, NoParams).to_string(),
     ];
 
     let (mut server, results) = env.mock_server(messages);
@@ -360,7 +375,7 @@ fn test_reformat() {
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-        request::<requests::Formatting>(42, DocumentFormattingParams {
+        blocking_request::<requests::Formatting>(42, DocumentFormattingParams {
             text_document: text_doc,
             options: FormattingOptions {
                 tab_size: 4,
@@ -395,7 +410,7 @@ fn test_reformat_with_range() {
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-        request::<requests::RangeFormatting>(42, DocumentRangeFormattingParams {
+        blocking_request::<requests::RangeFormatting>(42, DocumentRangeFormattingParams {
             text_document: text_doc,
             range: Range {
                 start: Position { line: 12, character: 0 },
@@ -698,7 +713,7 @@ fn test_find_impls() {
             position: env.cache.mk_ls_position(src(&source_file_path, 16, "Super"))
         }).to_string(),
         // Does not work on Travis
-        // request::<requests::FindImpls>(3, TextDocumentPositionParams {
+        // blocking_request::<requests::FindImpls>(3, TextDocumentPositionParams {
         //     text_document: TextDocumentIdentifier::new(url),
         //     position: env.cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
         // })).to_string(),
@@ -847,7 +862,7 @@ fn test_deglob() {
             },
         }).to_string(),
         // deglob single
-        request::<requests::ExecuteCommand>(200, ExecuteCommandParams {
+        blocking_request::<requests::ExecuteCommand>(200, ExecuteCommandParams {
             command: "rls.deglobImports".into(),
             arguments: vec![
                 serde_json::to_value(&requests::DeglobResult {
@@ -871,7 +886,7 @@ fn test_deglob() {
             },
         }).to_string(),
         // deglob two wildcards
-        request::<requests::ExecuteCommand>(1200, ExecuteCommandParams {
+        blocking_request::<requests::ExecuteCommand>(1200, ExecuteCommandParams {
             command: "rls.deglobImports".into(),
             arguments: vec![
                 serde_json::to_value(&requests::DeglobResult {
