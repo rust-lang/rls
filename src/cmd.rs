@@ -15,10 +15,13 @@
 use actions::requests;
 use analysis::{AnalysisHost, Target};
 use config::Config;
-use server::{self, Request, Notification, LsService, NoParams};
+use server::{self, LsService, NoParams, Notification, Request};
 use vfs::Vfs;
 
-use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams, WorkspaceSymbolParams, DocumentFormattingParams, DocumentRangeFormattingParams, Range, FormattingOptions};
+use ls_types::{ClientCapabilities, DocumentFormattingParams, DocumentRangeFormattingParams,
+               FormattingOptions, InitializeParams, Position, Range, RenameParams,
+               TextDocumentIdentifier, TextDocumentPositionParams, TraceOption,
+               WorkspaceSymbolParams};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -27,7 +30,7 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 use url::Url;
@@ -50,7 +53,9 @@ pub fn run() {
         print!("> ");
         stdout().flush().unwrap();
         let mut input = String::new();
-        stdin().read_line(&mut input).expect("Could not read from stdin");
+        stdin()
+            .read_line(&mut input)
+            .expect("Could not read from stdin");
 
         // Split the input into an action command and args
         let mut bits = input.split_whitespace();
@@ -87,27 +92,63 @@ pub fn run() {
             }
             "format" => {
                 let file_name = bits.next().expect("Expected file name");
-                let tab_size : u64 = bits.next().unwrap_or("4").parse().expect("Tab size should be an unsigned integer");
-                let insert_spaces : bool = bits.next().unwrap_or("true").parse().expect("Insert spaces should be 'true' or 'false'");;
+                let tab_size: u64 = bits.next()
+                    .unwrap_or("4")
+                    .parse()
+                    .expect("Tab size should be an unsigned integer");
+                let insert_spaces: bool = bits.next()
+                    .unwrap_or("true")
+                    .parse()
+                    .expect("Insert spaces should be 'true' or 'false'");
                 format(file_name, tab_size, insert_spaces).to_string()
             }
             "range_format" => {
                 let file_name = bits.next().expect("Expected file name");
-                let start_row : u64 = bits.next().expect("Expected start line").parse().expect("Bad start line");
-                let start_col : u64 = bits.next().expect("Expected start column").parse().expect("Bad start column");
-                let end_row : u64 = bits.next().expect("Expected end line").parse().expect("Bad end line");
-                let end_col : u64 = bits.next().expect("Expected end column").parse().expect("Bad end column");
-                let tab_size : u64 = bits.next().unwrap_or("4").parse().expect("Tab size should be an unsigned integer");
-                let insert_spaces : bool = bits.next().unwrap_or("true").parse().expect("Insert spaces should be 'true' or 'false'");;
-                range_format(file_name, start_row, start_col, end_row, end_col, tab_size, insert_spaces).to_string()
+                let start_row: u64 = bits.next()
+                    .expect("Expected start line")
+                    .parse()
+                    .expect("Bad start line");
+                let start_col: u64 = bits.next()
+                    .expect("Expected start column")
+                    .parse()
+                    .expect("Bad start column");
+                let end_row: u64 = bits.next()
+                    .expect("Expected end line")
+                    .parse()
+                    .expect("Bad end line");
+                let end_col: u64 = bits.next()
+                    .expect("Expected end column")
+                    .parse()
+                    .expect("Bad end column");
+                let tab_size: u64 = bits.next()
+                    .unwrap_or("4")
+                    .parse()
+                    .expect("Tab size should be an unsigned integer");
+                let insert_spaces: bool = bits.next()
+                    .unwrap_or("true")
+                    .parse()
+                    .expect("Insert spaces should be 'true' or 'false'");
+                range_format(
+                    file_name,
+                    start_row,
+                    start_col,
+                    end_row,
+                    end_col,
+                    tab_size,
+                    insert_spaces,
+                ).to_string()
             }
             "h" | "help" => {
                 help();
                 continue;
             }
             "q" | "quit" => {
-                sender.send(shutdown().to_string()).expect("Error sending on channel");
-                sender.send(exit().to_string()).expect("Error sending on channel");
+                sender
+                    .send(shutdown().to_string())
+                    .expect("Error sending on channel");
+                sender
+                    .send(exit().to_string())
+                    .expect("Error sending on channel");
                 // Sometimes we don't quite exit in time and we get an error on the channel. Hack it.
                 thread::sleep(Duration::from_millis(100));
                 return;
@@ -129,8 +170,10 @@ pub fn run() {
 fn def(file_name: &str, row: &str, col: &str) -> Request<requests::Definition> {
     let params = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
-        position: Position::new(u64::from_str(row).expect("Bad line number"),
-                                u64::from_str(col).expect("Bad column number")),
+        position: Position::new(
+            u64::from_str(row).expect("Bad line number"),
+            u64::from_str(col).expect("Bad column number"),
+        ),
     };
     Request {
         id: next_id(),
@@ -143,8 +186,10 @@ fn def(file_name: &str, row: &str, col: &str) -> Request<requests::Definition> {
 fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requests::Rename> {
     let params = RenameParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
-        position: Position::new(u64::from_str(row).expect("Bad line number"),
-                                u64::from_str(col).expect("Bad column number")),
+        position: Position::new(
+            u64::from_str(row).expect("Bad line number"),
+            u64::from_str(col).expect("Bad column number"),
+        ),
         new_name: new_name.to_owned(),
     };
     Request {
@@ -158,8 +203,10 @@ fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requ
 fn hover(file_name: &str, row: &str, col: &str) -> Request<requests::Hover> {
     let params = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
-        position: Position::new(u64::from_str(row).expect("Bad line number"),
-                                u64::from_str(col).expect("Bad column number")),
+        position: Position::new(
+            u64::from_str(row).expect("Bad line number"),
+            u64::from_str(col).expect("Bad column number"),
+        ),
     };
     Request {
         id: next_id(),
@@ -171,7 +218,7 @@ fn hover(file_name: &str, row: &str, col: &str) -> Request<requests::Hover> {
 
 fn workspace_symbol(query: &str) -> Request<requests::WorkspaceSymbol> {
     let params = WorkspaceSymbolParams {
-        query: query.to_owned()
+        query: query.to_owned(),
     };
     Request {
         id: next_id(),
@@ -187,7 +234,11 @@ fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<reques
 
     let params = DocumentFormattingParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
-        options: FormattingOptions { tab_size, insert_spaces, properties },
+        options: FormattingOptions {
+            tab_size,
+            insert_spaces,
+            properties,
+        },
     };
     Request {
         id: next_id(),
@@ -197,7 +248,15 @@ fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<reques
     }
 }
 
-fn range_format(file_name: &str, start_row: u64, start_col: u64, end_row: u64, end_col: u64, tab_size: u64, insert_spaces: bool) -> Request<requests::RangeFormatting> {
+fn range_format(
+    file_name: &str,
+    start_row: u64,
+    start_col: u64,
+    end_row: u64,
+    end_col: u64,
+    tab_size: u64,
+    insert_spaces: bool,
+) -> Request<requests::RangeFormatting> {
     // no optional properties
     let properties = HashMap::default();
 
@@ -207,7 +266,11 @@ fn range_format(file_name: &str, start_row: u64, start_col: u64, end_row: u64, e
             start: Position::new(start_row, start_col),
             end: Position::new(end_row, end_col),
         },
-        options: FormattingOptions { tab_size, insert_spaces, properties },
+        options: FormattingOptions {
+            tab_size,
+            insert_spaces,
+            properties,
+        },
     };
     Request {
         id: next_id(),
@@ -255,7 +318,9 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
 }
 
 fn url(file_name: &str) -> Url {
-    let path = Path::new(file_name).canonicalize().expect("Could not canonicalize file name");
+    let path = Path::new(file_name)
+        .canonicalize()
+        .expect("Could not canonicalize file name");
     Url::parse(&format!("file://{}", path.to_str().unwrap())).expect("Bad file name")
 }
 
@@ -312,14 +377,26 @@ fn init() -> Sender<String> {
     let vfs = Arc::new(Vfs::new());
     let (sender, receiver) = channel();
 
-    let service = LsService::new(analysis,
-                                 vfs,
-                                 Arc::new(Mutex::new(Config::default())),
-                                 Box::new(ChannelMsgReader::new(receiver)),
-                                 PrintlnOutput);
+    let service = LsService::new(
+        analysis,
+        vfs,
+        Arc::new(Mutex::new(Config::default())),
+        Box::new(ChannelMsgReader::new(receiver)),
+        PrintlnOutput,
+    );
     thread::spawn(move || LsService::run(service));
 
-    sender.send(initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned()).to_string()).expect("Error sending init");
+    sender
+        .send(
+            initialize(
+                ::std::env::current_dir()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
+            ).to_string(),
+        )
+        .expect("Error sending init");
     println!("Initializing (look for `diagnosticsEnd` message)...");
 
     sender

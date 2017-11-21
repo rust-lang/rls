@@ -21,7 +21,7 @@ use Span;
 
 use build::*;
 use lsp_data::*;
-use server::{Output, Action, BlockingNotificationAction, LsState, NoParams};
+use server::{Action, BlockingNotificationAction, LsState, NoParams, Output};
 
 use std::thread;
 
@@ -41,17 +41,30 @@ impl<'a> BlockingNotificationAction<'a> for Initialized {
 
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
-    fn handle<O: Output>(&mut self, _params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        _params: Self::Params,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         const WATCH_ID: &'static str = "rls-watch";
 
         let ctx = ctx.inited();
 
         let options = FileWatch::new(&ctx).watchers_config();
-        let output = serde_json::to_string(
-            &RequestMessage::new(out.provide_id(),
-                                 NOTIFICATION__RegisterCapability.to_owned(),
-                                 RegistrationParams { registrations: vec![Registration { id: WATCH_ID.to_owned(), method: NOTIFICATION__DidChangeWatchedFiles.to_owned(), register_options: options } ]})
-        ).unwrap();
+        let output = serde_json::to_string(&RequestMessage::new(
+            out.provide_id(),
+            NOTIFICATION__RegisterCapability.to_owned(),
+            RegistrationParams {
+                registrations: vec![
+                    Registration {
+                        id: WATCH_ID.to_owned(),
+                        method: NOTIFICATION__DidChangeWatchedFiles.to_owned(),
+                        register_options: options,
+                    },
+                ],
+            },
+        )).unwrap();
         out.response(output);
         Ok(())
     }
@@ -72,7 +85,12 @@ impl<'a> BlockingNotificationAction<'a> for DidOpen {
         DidOpen
     }
 
-    fn handle<O: Output>(&mut self, params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        params: Self::Params,
+        ctx: &mut ActionContext,
+        _out: O,
+    ) -> Result<(), ()> {
         trace!("on_open: {:?}", params.text_document.uri);
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_open")?;
@@ -96,30 +114,46 @@ impl<'a> BlockingNotificationAction<'a> for DidChange {
         DidChange
     }
 
-    fn handle<O: Output>(&mut self, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
-        trace!("on_change: {:?}, thread: {:?}", params, thread::current().id());
+    fn handle<O: Output>(
+        &mut self,
+        params: Self::Params,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<(), ()> {
+        trace!(
+            "on_change: {:?}, thread: {:?}",
+            params,
+            thread::current().id()
+        );
 
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_change")?;
 
-        let changes: Vec<Change> = params.content_changes.iter().map(|i| {
-            if let Some(range) = i.range {
-                let range = ls_util::range_to_rls(range);
-                Change::ReplaceText {
-                    span: Span::from_range(range, file_path.clone()),
-                    len: i.range_length,
-                    text: i.text.clone()
+        let changes: Vec<Change> = params
+            .content_changes
+            .iter()
+            .map(|i| {
+                if let Some(range) = i.range {
+                    let range = ls_util::range_to_rls(range);
+                    Change::ReplaceText {
+                        span: Span::from_range(range, file_path.clone()),
+                        len: i.range_length,
+                        text: i.text.clone(),
+                    }
+                } else {
+                    Change::AddFile {
+                        file: file_path.clone(),
+                        text: i.text.clone(),
+                    }
                 }
-            } else {
-                Change::AddFile {
-                    file: file_path.clone(),
-                    text: i.text.clone(),
-                }
-            }
-        }).collect();
-        ctx.vfs.on_changes(&changes).expect("error committing to VFS");
+            })
+            .collect();
+        ctx.vfs
+            .on_changes(&changes)
+            .expect("error committing to VFS");
         if !changes.is_empty() {
-            ctx.build_queue.mark_file_dirty(file_path, params.text_document.version)
+            ctx.build_queue
+                .mark_file_dirty(file_path, params.text_document.version)
         }
 
         if !ctx.config.lock().unwrap().build_on_save {
@@ -143,7 +177,12 @@ impl<'a> BlockingNotificationAction<'a> for Cancel {
         Cancel
     }
 
-    fn handle<O: Output>(&mut self, _params: CancelParams, _ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        _params: CancelParams,
+        _ctx: &mut ActionContext,
+        _out: O,
+    ) -> Result<(), ()> {
         // Nothing to do.
         Ok(())
     }
@@ -157,7 +196,6 @@ pub struct DidChangeConfiguration;
 impl Action for DidChangeConfiguration {
     type Params = DidChangeConfigurationParams;
     const METHOD: &'static str = "workspace/didChangeConfiguration";
-
 }
 
 impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
@@ -165,12 +203,19 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
         DidChangeConfiguration
     }
 
-    fn handle<O: Output>(&mut self, params: DidChangeConfigurationParams, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        params: DidChangeConfigurationParams,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
         let ctx = ctx.inited();
-        let config = params.settings.get("rust")
-                         .ok_or(serde_json::Error::missing_field("rust"))
-                         .and_then(|value| Config::deserialize(value));
+        let config = params
+            .settings
+            .get("rust")
+            .ok_or(serde_json::Error::missing_field("rust"))
+            .and_then(|value| Config::deserialize(value));
 
         let new_config = match config {
             Ok(mut value) => {
@@ -178,7 +223,11 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
                 value
             }
             Err(err) => {
-                debug!("Received unactionable config: {:?} (error: {:?})", params.settings, err);
+                debug!(
+                    "Received unactionable config: {:?} (error: {:?})",
+                    params.settings,
+                    err
+                );
                 return Err(());
             }
         };
@@ -202,9 +251,12 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
                 // Will lock and access Config just outside the current scope
                 thread::spawn(move || {
                     let mut config = config.lock().unwrap();
-                    if let Err(e)  = config.infer_defaults(&project_dir) {
-                        debug!("Encountered an error while trying to infer config \
-                            defaults: {:?}", e);
+                    if let Err(e) = config.infer_defaults(&project_dir) {
+                        debug!(
+                            "Encountered an error while trying to infer config \
+                             defaults: {:?}",
+                            e
+                        );
                     }
                 });
             }
@@ -218,18 +270,33 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
         const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
         // FIXME should handle the response
         if unstable_features {
-            let output = serde_json::to_string(
-                &RequestMessage::new(out.provide_id(),
-                                        NOTIFICATION__RegisterCapability.to_owned(),
-                                        RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null }] })
-            ).unwrap();
+            let output = serde_json::to_string(&RequestMessage::new(
+                out.provide_id(),
+                NOTIFICATION__RegisterCapability.to_owned(),
+                RegistrationParams {
+                    registrations: vec![
+                        Registration {
+                            id: RANGE_FORMATTING_ID.to_owned(),
+                            method: REQUEST__RangeFormatting.to_owned(),
+                            register_options: serde_json::Value::Null,
+                        },
+                    ],
+                },
+            )).unwrap();
             out.response(output);
         } else {
-            let output = serde_json::to_string(
-                &RequestMessage::new(out.provide_id(),
-                                        NOTIFICATION__UnregisterCapability.to_owned(),
-                                        UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() }] })
-            ).unwrap();
+            let output = serde_json::to_string(&RequestMessage::new(
+                out.provide_id(),
+                NOTIFICATION__UnregisterCapability.to_owned(),
+                UnregistrationParams {
+                    unregisterations: vec![
+                        Unregistration {
+                            id: RANGE_FORMATTING_ID.to_owned(),
+                            method: REQUEST__RangeFormatting.to_owned(),
+                        },
+                    ],
+                },
+            )).unwrap();
             out.response(output);
         }
         Ok(())
@@ -250,7 +317,12 @@ impl<'a> BlockingNotificationAction<'a> for DidSave {
         DidSave
     }
 
-    fn handle<O: Output>(&mut self, params: DidSaveTextDocumentParams, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        params: DidSaveTextDocumentParams,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_save")?;
 

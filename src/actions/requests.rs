@@ -15,15 +15,15 @@ use data;
 use url::Url;
 use vfs::FileContents;
 use racer;
-use rustfmt::{Input as FmtInput, format_input};
-use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
+use rustfmt::{format_input, Input as FmtInput};
+use rustfmt::file_lines::{FileLines, Range as RustfmtRange};
 use serde_json;
 use span;
 use rayon;
 
 use lsp_data;
 use lsp_data::*;
-use server::{Output, Ack, Action, RequestAction, ResponseError, BlockingRequestAction, LsState};
+use server::{Ack, Action, BlockingRequestAction, LsState, Output, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
 
 use std::collections::HashMap;
@@ -70,14 +70,20 @@ impl RequestAction for WorkspaceSymbol {
 
         let defs = analysis.name_defs(&params.query).unwrap_or_else(|_| vec![]);
 
-        Ok(defs.into_iter().map(|d| {
-            SymbolInformation {
-                name: d.name,
-                kind:  source_kind_from_def_kind(d.kind),
-                location: ls_util::rls_to_location(&d.span),
-                container_name: d.parent.and_then(|id| analysis.get_def(id).ok()).map(|parent| parent.name)
-            }
-        }).collect())
+        Ok(
+            defs.into_iter()
+                .map(|d| {
+                    SymbolInformation {
+                        name: d.name,
+                        kind: source_kind_from_def_kind(d.kind),
+                        location: ls_util::rls_to_location(&d.span),
+                        container_name: d.parent
+                            .and_then(|id| analysis.get_def(id).ok())
+                            .map(|parent| parent.name),
+                    }
+                })
+                .collect(),
+        )
     }
 }
 
@@ -109,14 +115,19 @@ impl RequestAction for Symbols {
 
         let symbols = ctx.analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
 
-        Ok(symbols.into_iter().map(|s| {
-            SymbolInformation {
-                name: s.name,
-                kind: source_kind_from_def_kind(s.kind),
-                location: ls_util::rls_to_location(&s.span),
-                container_name: None // FIXME: more info could be added here
-            }
-        }).collect())
+        Ok(
+            symbols
+                .into_iter()
+                .map(|s| {
+                    SymbolInformation {
+                        name: s.name,
+                        kind: source_kind_from_def_kind(s.kind),
+                        location: ls_util::rls_to_location(&s.span),
+                        container_name: None, // FIXME: more info could be added here
+                    }
+                })
+                .collect(),
+        )
     }
 }
 
@@ -204,15 +215,20 @@ impl RequestAction for FindImpls {
 
         let type_id = analysis.id(&span).map_err(|_| ResponseError::Empty)?;
         let result = analysis.find_impls(type_id).map(|spans| {
-            spans.into_iter().map(|x| ls_util::rls_to_location(&x)).collect()
+            spans
+                .into_iter()
+                .map(|x| ls_util::rls_to_location(&x))
+                .collect()
         });
 
         trace!("find_impls: {:?}", result);
 
-        result.map_err(|_| ResponseError::Message(
-            ErrorCode::InternalError,
-            "Find Implementations failed to complete successfully".into(),
-        ))
+        result.map_err(|_| {
+            ResponseError::Message(
+                ErrorCode::InternalError,
+                "Find Implementations failed to complete successfully".into(),
+            )
+        })
     }
 }
 
@@ -257,30 +273,31 @@ impl RequestAction for Definition {
                     racer::find_definition(file_path, location, &session)
                         .and_then(location_from_racer_match)
                 }))
+            } else {
+                None
             }
-            else { None }
         };
 
         match analysis.goto_def(&span) {
             Ok(out) => {
                 let result = vec![ls_util::rls_to_location(&out)];
                 trace!("goto_def (compiler): {:?}", result);
-                return Ok(result)
+                return Ok(result);
             }
             _ => match racer_receiver {
                 Some(receiver) => match receiver.recv() {
-                    Ok(Some(r)) =>  {
+                    Ok(Some(r)) => {
                         trace!("goto_def (Racer): {:?}", r);
-                        return Ok(vec![r])
+                        return Ok(vec![r]);
                     }
                     Ok(None) => {
                         trace!("goto_def (Racer): None");
-                        return Ok(vec![])
+                        return Ok(vec![]);
                     }
-                    _ => self.fallback_response()
-                }
-                _ => self.fallback_response()
-            }
+                    _ => self.fallback_response(),
+                },
+                _ => self.fallback_response(),
+            },
         }
     }
 }
@@ -312,12 +329,19 @@ impl RequestAction for References {
         let file_path = parse_file_path!(&params.text_document.uri, "find_all_refs")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
-        let result = match ctx.analysis.find_all_refs(&span, params.context.include_declaration) {
+        let result = match ctx.analysis
+            .find_all_refs(&span, params.context.include_declaration)
+        {
             Ok(t) => t,
             _ => vec![],
         };
 
-        Ok(result.iter().map(|item| ls_util::rls_to_location(item)).collect())
+        Ok(
+            result
+                .iter()
+                .map(|item| ls_util::rls_to_location(item))
+                .collect(),
+        )
     }
 }
 
@@ -354,15 +378,19 @@ impl RequestAction for Completion {
         let location = pos_to_racer_location(params.position);
         let results = racer::complete_from_file(file_path, location, &session);
 
-        Ok(results.map(|comp| {
-            let snippet = racer::snippet_for_match(&comp, &session);
-            let mut item = completion_item_from_racer_match(comp);
-            if !snippet.is_empty() {
-                item.insert_text = Some(snippet);
-                item.insert_text_format = Some(InsertTextFormat::Snippet);
-            }
-            item
-        }).collect())
+        Ok(
+            results
+                .map(|comp| {
+                    let snippet = racer::snippet_for_match(&comp, &session);
+                    let mut item = completion_item_from_racer_match(comp);
+                    if !snippet.is_empty() {
+                        item.insert_text = Some(snippet);
+                        item.insert_text_format = Some(InsertTextFormat::Snippet);
+                    }
+                    item
+                })
+                .collect(),
+        )
     }
 }
 
@@ -395,12 +423,21 @@ impl RequestAction for DocumentHighlight {
         let file_path = parse_file_path!(&params.text_document.uri, "highlight")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
-        let result = ctx.analysis.find_all_refs(&span, true).unwrap_or_else(|_| vec![]);
+        let result = ctx.analysis
+            .find_all_refs(&span, true)
+            .unwrap_or_else(|_| vec![]);
 
-        Ok(result.iter().map(|span| lsp_data::DocumentHighlight {
-            range: ls_util::rls_to_range(span.range),
-            kind: Some(DocumentHighlightKind::Text),
-        }).collect())
+        Ok(
+            result
+                .iter()
+                .map(|span| {
+                    lsp_data::DocumentHighlight {
+                        range: ls_util::rls_to_range(span.range),
+                        kind: Some(DocumentHighlightKind::Text),
+                    }
+                })
+                .collect(),
+        )
     }
 }
 
@@ -420,7 +457,9 @@ impl RequestAction for Rename {
     }
 
     fn fallback_response(&self) -> Result<Self::Response, ResponseError> {
-        Ok(WorkspaceEdit { changes: HashMap::new() })
+        Ok(WorkspaceEdit {
+            changes: HashMap::new(),
+        })
     }
 
     fn handle(
@@ -448,7 +487,8 @@ impl RequestAction for Rename {
         let def = unwrap_or_fallback!(analysis.get_def(id));
         if def.name == "self" || def.name == "Self"
             // FIXME(#578)
-            || def.kind == data::DefKind::Mod {
+            || def.kind == data::DefKind::Mod
+        {
             return self.fallback_response();
         }
 
@@ -458,10 +498,13 @@ impl RequestAction for Rename {
 
         for item in result.iter() {
             let loc = ls_util::rls_to_location(item);
-            edits.entry(loc.uri).or_insert_with(Vec::new).push(TextEdit {
-                range: loc.range,
-                new_text: params.new_name.clone(),
-            });
+            edits
+                .entry(loc.uri)
+                .or_insert_with(Vec::new)
+                .push(TextEdit {
+                    range: loc.range,
+                    new_text: params.new_name.clone(),
+                });
         }
 
         Ok(WorkspaceEdit { changes: edits })
@@ -488,16 +531,28 @@ impl<'a> BlockingRequestAction<'a> for ExecuteCommand {
         ExecuteCommand
     }
 
-    fn handle<O: Output>(&mut self, id: usize, params: Self::Params, _ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()> {
+    fn handle<O: Output>(
+        &mut self,
+        id: usize,
+        params: Self::Params,
+        _ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<Self::Response, ()> {
         match &*params.command {
             "rls.applySuggestion" => {
-                let location = serde_json::from_value(params.arguments[0].clone()).expect("Bad argument");
-                let new_text = serde_json::from_value(params.arguments[1].clone()).expect("Bad argument");
+                let location =
+                    serde_json::from_value(params.arguments[0].clone()).expect("Bad argument");
+                let new_text =
+                    serde_json::from_value(params.arguments[1].clone()).expect("Bad argument");
                 Self::apply_suggestion(id, location, new_text, out)
             }
             "rls.deglobImports" => {
                 if !params.arguments.is_empty() {
-                    let deglob_results: Vec<DeglobResult> = params.arguments.into_iter().map(|res| serde_json::from_value(res).expect("Bad argument")).collect();
+                    let deglob_results: Vec<DeglobResult> = params
+                        .arguments
+                        .into_iter()
+                        .map(|res| serde_json::from_value(res).expect("Bad argument"))
+                        .collect();
                     Self::apply_deglobs(deglob_results, out)
                 } else {
                     // without changes always successful
@@ -514,14 +569,21 @@ impl<'a> BlockingRequestAction<'a> for ExecuteCommand {
 }
 
 impl ExecuteCommand {
-    fn apply_suggestion<O: Output>(_id: usize, location: Location, new_text: String, out: O) -> Result<Ack, ()> {
+    fn apply_suggestion<O: Output>(
+        _id: usize,
+        location: Location,
+        new_text: String,
+        out: O,
+    ) -> Result<Ack, ()> {
         trace!("apply_suggestion {:?} {}", location, new_text);
         // FIXME should handle the response
-        let output = serde_json::to_string(
-            &RequestMessage::new(out.provide_id(),
-                                 "workspace/applyEdit".to_owned(),
-                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(location, new_text) })
-        ).unwrap();
+        let output = serde_json::to_string(&RequestMessage::new(
+            out.provide_id(),
+            "workspace/applyEdit".to_owned(),
+            ApplyWorkspaceEditParams {
+                edit: make_workspace_edit(location, new_text),
+            },
+        )).unwrap();
         out.response(output);
         Ok(Ack)
     }
@@ -532,7 +594,8 @@ impl ExecuteCommand {
         assert!(!deglob_results.is_empty());
         let uri = deglob_results[0].location.uri.clone();
 
-        let text_edits: Vec<_> = deglob_results.into_iter()
+        let text_edits: Vec<_> = deglob_results
+            .into_iter()
             .map(|res| {
                 TextEdit {
                     range: res.location.range,
@@ -547,11 +610,11 @@ impl ExecuteCommand {
         edit.changes.insert(uri, text_edits);
 
         // FIXME should handle the response
-        let output = serde_json::to_string(
-            &RequestMessage::new(out.provide_id(),
-                                 "workspace/applyEdit".to_owned(),
-                                 ApplyWorkspaceEditParams {edit})
-        ).unwrap();
+        let output = serde_json::to_string(&RequestMessage::new(
+            out.provide_id(),
+            "workspace/applyEdit".to_owned(),
+            ApplyWorkspaceEditParams { edit },
+        )).unwrap();
         out.response(output);
         Ok(Ack)
     }
@@ -572,7 +635,10 @@ impl CodeAction {
     ) {
         // search for compiler suggestions
         if let Some(diagnostics) = ctx.previous_build_results.lock().unwrap().get(file_path) {
-            let suggestions = diagnostics.iter().filter(|&&(ref d, _)| d.range == params.range).flat_map(|&(_, ref ss)| ss.iter());
+            let suggestions = diagnostics
+                .iter()
+                .filter(|&&(ref d, _)| d.range == params.range)
+                .flat_map(|&(_, ref ss)| ss.iter());
             for s in suggestions {
                 let span = Location {
                     uri: params.text_document.uri.clone(),
@@ -599,7 +665,9 @@ impl CodeAction {
         code_actions_result: &mut <Self as RequestAction>::Response,
     ) {
         // search for a glob in the line
-        if let Ok(line) = ctx.vfs.load_line(file_path, ls_util::range_to_rls(params.range).row_start) {
+        if let Ok(line) = ctx.vfs
+            .load_line(file_path, ls_util::range_to_rls(params.range).row_start)
+        {
             let span = Location::new(params.text_document.uri.clone(), params.range);
 
             // for all indices which are a `*`
@@ -639,7 +707,10 @@ impl CodeAction {
             if !deglob_results.is_empty() {
                 // extend result list
                 let cmd = Command {
-                    title: format!("Deglob Import{}", if deglob_results.len() > 1 { "s" } else { "" }),
+                    title: format!(
+                        "Deglob Import{}",
+                        if deglob_results.len() > 1 { "s" } else { "" }
+                    ),
                     command: "rls.deglobImports".to_owned(),
                     arguments: Some(deglob_results),
                 };
@@ -696,7 +767,13 @@ impl<'a> BlockingRequestAction<'a> for Formatting {
         Formatting
     }
 
-    fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()> {
+    fn handle<O: Output>(
+        &mut self,
+        id: usize,
+        params: Self::Params,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<Self::Response, ()> {
         reformat(id, params.text_document, None, &params.options, ctx, out)
     }
 }
@@ -716,13 +793,40 @@ impl<'a> BlockingRequestAction<'a> for RangeFormatting {
         RangeFormatting
     }
 
-    fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<Self::Response, ()> {
-        reformat(id, params.text_document, Some(params.range), &params.options, ctx, out)
+    fn handle<O: Output>(
+        &mut self,
+        id: usize,
+        params: Self::Params,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<Self::Response, ()> {
+        reformat(
+            id,
+            params.text_document,
+            Some(params.range),
+            &params.options,
+            ctx,
+            out,
+        )
     }
 }
 
-fn reformat<O: Output>(id: usize, doc: TextDocumentIdentifier, selection: Option<Range>, opts: &FormattingOptions, ctx: &mut ActionContext, out: O) -> Result<[TextEdit; 1], ()> {
-    trace!("Reformat: {} {:?} {:?} {} {}", id, doc, selection, opts.tab_size, opts.insert_spaces);
+fn reformat<O: Output>(
+    id: usize,
+    doc: TextDocumentIdentifier,
+    selection: Option<Range>,
+    opts: &FormattingOptions,
+    ctx: &mut ActionContext,
+    out: O,
+) -> Result<[TextEdit; 1], ()> {
+    trace!(
+        "Reformat: {} {:?} {:?} {} {}",
+        id,
+        doc,
+        selection,
+        opts.tab_size,
+        opts.insert_spaces
+    );
     let ctx = ctx.inited();
     let path = parse_file_path!(&doc.uri, "reformat")?;
 
@@ -730,12 +834,20 @@ fn reformat<O: Output>(id: usize, doc: TextDocumentIdentifier, selection: Option
         Ok(FileContents::Text(s)) => FmtInput::Text(s),
         Ok(_) => {
             debug!("Reformat failed, found binary file");
-            out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
+            out.failure_message(
+                id,
+                ErrorCode::InternalError,
+                "Reformat failed to complete successfully",
+            );
             return Err(());
         }
         Err(e) => {
             debug!("Reformat failed: {:?}", e);
-            out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
+            out.failure_message(
+                id,
+                ErrorCode::InternalError,
+                "Reformat failed to complete successfully",
+            );
             return Err(());
         }
     };
@@ -751,7 +863,10 @@ fn reformat<O: Output>(id: usize, doc: TextDocumentIdentifier, selection: Option
 
     if let Some(r) = selection {
         let range_of_rls = ls_util::range_to_rls(r).one_indexed();
-        let range = RustfmtRange::new(range_of_rls.row_start.0 as usize, range_of_rls.row_end.0 as usize);
+        let range = RustfmtRange::new(
+            range_of_rls.row_start.0 as usize,
+            range_of_rls.row_end.0 as usize,
+        );
         let mut ranges = HashMap::new();
         ranges.insert("stdin".to_owned(), vec![range]);
         let file_lines = FileLines::from_ranges(ranges);
@@ -769,20 +884,33 @@ fn reformat<O: Output>(id: usize, doc: TextDocumentIdentifier, selection: Option
 
                 // If Rustfmt returns range of text that changed,
                 // we will be able to pass only range of changed text to the client.
-                Ok([TextEdit {
-                    range: range_whole_file,
-                    new_text: text,
-                }])
+                Ok([
+                    TextEdit {
+                        range: range_whole_file,
+                        new_text: text,
+                    },
+                ])
             } else {
-                debug!("reformat: format_input failed: has errors, summary = {:?}", summary);
+                debug!(
+                    "reformat: format_input failed: has errors, summary = {:?}",
+                    summary
+                );
 
-                out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
+                out.failure_message(
+                    id,
+                    ErrorCode::InternalError,
+                    "Reformat failed to complete successfully",
+                );
                 Err(())
             }
         }
         Err(e) => {
             debug!("Reformat failed: {:?}", e);
-            out.failure_message(id, ErrorCode::InternalError, "Reformat failed to complete successfully");
+            out.failure_message(
+                id,
+                ErrorCode::InternalError,
+                "Reformat failed to complete successfully",
+            );
             Err(())
         }
     }
@@ -806,7 +934,13 @@ impl<'a> BlockingRequestAction<'a> for ResolveCompletion {
         ResolveCompletion
     }
 
-    fn handle<O: Output>(&mut self, _id: usize, params: Self::Params, _ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
+    fn handle<O: Output>(
+        &mut self,
+        _id: usize,
+        params: Self::Params,
+        _ctx: &mut ActionContext,
+        _out: O,
+    ) -> Result<Self::Response, ()> {
         // currently, we safely ignore this as a pass-through since we fully handle
         // textDocument/completion.  In the future, we may want to use this method as a
         // way to more lazily fill out completion information
@@ -815,17 +949,23 @@ impl<'a> BlockingRequestAction<'a> for ResolveCompletion {
 }
 
 
-fn racer_coord(line: span::Row<span::OneIndexed>,
-               column: span::Column<span::ZeroIndexed>)
-               -> racer::Coordinate {
+fn racer_coord(
+    line: span::Row<span::OneIndexed>,
+    column: span::Column<span::ZeroIndexed>,
+) -> racer::Coordinate {
     racer::Coordinate {
         line: line.0 as usize,
         column: column.0 as usize,
     }
 }
 
-fn from_racer_coord(coord: racer::Coordinate) -> (span::Row<span::OneIndexed>,span::Column<span::ZeroIndexed>) {
-    (span::Row::new_one_indexed(coord.line as u32), span::Column::new_zero_indexed(coord.column as u32))
+fn from_racer_coord(
+    coord: racer::Coordinate,
+) -> (span::Row<span::OneIndexed>, span::Column<span::ZeroIndexed>) {
+    (
+        span::Row::new_one_indexed(coord.line as u32),
+        span::Column::new_zero_indexed(coord.column as u32),
+    )
 }
 
 fn pos_to_racer_location(pos: Position) -> racer::Location {
@@ -854,8 +994,9 @@ lazy_static! {
 
 /// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
 pub fn receive_from_thread<T, F>(work_fn: F) -> mpsc::Receiver<T>
-    where T: Send + 'static,
-          F: FnOnce() -> T + Send + 'static,
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
 {
     let (sender, receiver) = mpsc::channel();
     WORK_POOL.spawn(move || {

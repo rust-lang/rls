@@ -1,6 +1,6 @@
 use super::requests::*;
-use jsonrpc_core::{self as jsonrpc};
-use server::{Request, Response, Action};
+use jsonrpc_core as jsonrpc;
+use server::{Action, Request, Response};
 use server::io::Output;
 use actions::InitActionContext;
 use std::sync::mpsc;
@@ -97,12 +97,15 @@ impl Dispatcher {
         let (sender, receiver) = mpsc::channel::<DispatchRequest>();
         let (request_handled_sender, request_handled_receiver) = mpsc::channel::<()>();
 
-        thread::Builder::new().name("dispatch-worker".into()).spawn(move || {
-            while let Ok(request) = receiver.recv() {
-                request.handle(&out);
-                let _ = request_handled_sender.send(());
-            }
-        }).unwrap();
+        thread::Builder::new()
+            .name("dispatch-worker".into())
+            .spawn(move || {
+                while let Ok(request) = receiver.recv() {
+                    request.handle(&out);
+                    let _ = request_handled_sender.send(());
+                }
+            })
+            .unwrap();
 
         Self {
             sender,
@@ -123,8 +126,7 @@ impl Dispatcher {
     pub fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R) {
         if let Err(err) = self.sender.send(request.into()) {
             debug!("Failed to dispatch request: {:?}", err);
-        }
-        else {
+        } else {
             self.in_flight_requests += 1;
         }
 

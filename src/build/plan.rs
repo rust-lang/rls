@@ -29,7 +29,7 @@ use std::fmt;
 use std::path::Path;
 
 use cargo::core::{PackageId, Profile, Target, TargetKind};
-use cargo::ops::{Kind, Unit, Context};
+use cargo::ops::{Context, Kind, Unit};
 use cargo::util::{CargoResult, ProcessBuilder};
 
 use super::{BuildResult, Internals};
@@ -81,24 +81,32 @@ impl Plan {
     /// into the dependency graph.
     #[allow(dead_code)]
     pub fn emplace_dep(&mut self, unit: &Unit, cx: &Context) -> CargoResult<()> {
-        let null_filter = |_unit: &Unit| { true };
+        let null_filter = |_unit: &Unit| true;
         self.emplace_dep_with_filter(unit, cx, &null_filter)
     }
 
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
     /// into the dependency graph as long as the passed `Unit` isn't filtered
     /// out by the `filter` closure.
-    pub fn emplace_dep_with_filter<Filter>(&mut self,
-                                           unit: &Unit,
-                                           cx: &Context,
-                                           filter: &Filter) -> CargoResult<()>
-                                           where Filter: Fn(&Unit) -> bool {
-        if !filter(unit) { return Ok(()); }
+    pub fn emplace_dep_with_filter<Filter>(
+        &mut self,
+        unit: &Unit,
+        cx: &Context,
+        filter: &Filter,
+    ) -> CargoResult<()>
+    where
+        Filter: Fn(&Unit) -> bool,
+    {
+        if !filter(unit) {
+            return Ok(());
+        }
 
         let key = key_from_unit(unit);
         self.units.entry(key.clone()).or_insert(unit.into());
         // Process only those units, which are not yet in the dep graph.
-        if self.dep_graph.get(&key).is_some() { return Ok(()); }
+        if self.dep_graph.get(&key).is_some() {
+            return Ok(());
+        }
 
         // Keep all the additional Unit information for a given unit (It's
         // worth remembering, that the units are only discriminated by a
@@ -121,7 +129,9 @@ impl Plan {
 
         // We also need to track reverse dependencies here, as it's needed
         // to quickly construct a work sub-graph from a set of dirty units.
-        self.rev_dep_graph.entry(key.clone()).or_insert(HashSet::new());
+        self.rev_dep_graph
+            .entry(key.clone())
+            .or_insert(HashSet::new());
         for unit in dep_keys {
             let revs = self.rev_dep_graph.entry(unit).or_insert(HashSet::new());
             revs.insert(key.clone());
@@ -145,12 +155,18 @@ impl Plan {
     fn fetch_dirty_units<T: AsRef<Path> + fmt::Debug>(&self, files: &[T]) -> HashSet<UnitKey> {
         let mut result = HashSet::new();
 
-        let build_scripts: HashMap<&Path, UnitKey> = self.units.iter()
+        let build_scripts: HashMap<&Path, UnitKey> = self.units
+            .iter()
             .filter(|&(&(_, ref kind), _)| *kind == TargetKind::CustomBuild)
-            .map(|(key, ref unit)| (unit.target.src_path(), key.clone())).collect();
-        let other_targets: HashMap<UnitKey, &Path> = self.units.iter()
+            .map(|(key, ref unit)| (unit.target.src_path(), key.clone()))
+            .collect();
+        let other_targets: HashMap<UnitKey, &Path> = self.units
+            .iter()
             .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
-            .map(|(key, ref unit)| (key.clone(), unit.target.src_path().parent().unwrap())).collect();
+            .map(|(key, ref unit)| {
+                (key.clone(), unit.target.src_path().parent().unwrap())
+            })
+            .collect();
 
         for modified in files {
             if let Some(unit) = build_scripts.get(modified.as_ref()) {
@@ -159,13 +175,21 @@ impl Plan {
                 // Not a build script, so we associate a dirty package with a
                 // dirty file by finding longest (most specified) path prefix
                 let unit = other_targets.iter().max_by_key(|&(_, src_dir)| {
-                    modified.as_ref().components().zip(src_dir.components())
+                    modified
+                        .as_ref()
+                        .components()
+                        .zip(src_dir.components())
                         .take_while(|&(a, b)| a == b)
                         .count()
                 });
                 match unit {
-                    None => trace!("Modified file {:?} doesn't correspond to any package!", modified),
-                    Some(unit) => { result.insert(unit.0.clone()); },
+                    None => trace!(
+                        "Modified file {:?} doesn't correspond to any package!",
+                        modified
+                    ),
+                    Some(unit) => {
+                        result.insert(unit.0.clone());
+                    }
                 };
             }
         }
@@ -180,12 +204,18 @@ impl Plan {
         // transitively every dirty node
         let mut to_process: Vec<_> = dirties.iter().cloned().collect();
         while let Some(top) = to_process.pop() {
-            if transitive.get(&top).is_some() { continue; }
-            else { transitive.insert(top.clone()); }
+            if transitive.get(&top).is_some() {
+                continue;
+            } else {
+                transitive.insert(top.clone());
+            }
 
             // Process every dirty rev dep of the processed node
-            let dirty_rev_deps = self.rev_dep_graph.get(&top).unwrap()
-                .iter().filter(|dep| dirties.contains(dep));
+            let dirty_rev_deps = self.rev_dep_graph
+                .get(&top)
+                .unwrap()
+                .iter()
+                .filter(|dep| dirties.contains(dep));
             for rev_dep in dirty_rev_deps {
                 to_process.push(rev_dep.clone());
             }
@@ -194,7 +224,10 @@ impl Plan {
     }
 
     /// Creates a dirty reverse dependency graph using a set of given dirty units.
-    fn dirty_rev_dep_graph(&self, dirties: &HashSet<UnitKey>) -> HashMap<UnitKey, HashSet<UnitKey>> {
+    fn dirty_rev_dep_graph(
+        &self,
+        dirties: &HashSet<UnitKey>,
+    ) -> HashMap<UnitKey, HashSet<UnitKey>> {
         let dirties = self.transitive_dirty_units(dirties);
         trace!("transitive_dirty_units: {:?}", dirties);
 
@@ -223,10 +256,15 @@ impl Plan {
 
         // Process graph depth-first recursively. A node needs to be pushed
         // after processing every other before to ensure topological ordering.
-        fn dfs(unit: &UnitKey, graph: &HashMap<UnitKey, HashSet<UnitKey>>,
-               visited: &mut HashSet<UnitKey>, output: &mut Vec<UnitKey>) {
-            if visited.contains(&unit) { return; }
-            else {
+        fn dfs(
+            unit: &UnitKey,
+            graph: &HashMap<UnitKey, HashSet<UnitKey>>,
+            visited: &mut HashSet<UnitKey>,
+            output: &mut Vec<UnitKey>,
+        ) {
+            if visited.contains(&unit) {
+                return;
+            } else {
                 visited.insert(unit.clone());
                 for neighbour in graph.get(&unit).unwrap() {
                     dfs(neighbour, graph, visited, output);
@@ -237,12 +275,21 @@ impl Plan {
     }
 
     pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
-        if self.is_ready() == false { return WorkStatus::NeedsCargo; }
+        if self.is_ready() == false {
+            return WorkStatus::NeedsCargo;
+        }
 
         let dirties = self.fetch_dirty_units(modified);
-        trace!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties);
+        trace!(
+            "fetch_dirty_units: for files {:?}, these units are dirty: {:?}",
+            modified,
+            dirties
+        );
 
-        if dirties.iter().any(|&(_, ref kind)| *kind == TargetKind::CustomBuild) {
+        if dirties
+            .iter()
+            .any(|&(_, ref kind)| *kind == TargetKind::CustomBuild)
+        {
             WorkStatus::NeedsCargo
         } else {
             let graph = self.dirty_rev_dep_graph(&dirties);
@@ -250,7 +297,8 @@ impl Plan {
 
             let queue = self.topological_sort(&graph);
             trace!("Topologically sorted dirty graph: {:?}", queue);
-            let jobs: Vec<_> = queue.iter()
+            let jobs: Vec<_> = queue
+                .iter()
                 .map(|x| self.compiler_jobs.get(x).unwrap().clone())
                 .collect();
 
@@ -265,7 +313,7 @@ impl Plan {
 
 pub enum WorkStatus {
     NeedsCargo,
-    Execute(JobQueue)
+    Execute(JobQueue),
 }
 
 pub struct JobQueue(Vec<ProcessBuilder>);
@@ -283,7 +331,13 @@ impl JobQueue {
         // to Cargo (which we do currently) in `prepare_work`
         assert!(self.0.is_empty() == false);
 
-        let build_dir = internals.compilation_cx.lock().unwrap().build_dir.clone().unwrap();
+        let build_dir = internals
+            .compilation_cx
+            .lock()
+            .unwrap()
+            .build_dir
+            .clone()
+            .unwrap();
 
         let mut compiler_messages = vec![];
         let mut analyses = vec![];
@@ -291,20 +345,28 @@ impl JobQueue {
         // invocation's compiler messages for diagnostics and analysis data
         while let Some(job) = self.dequeue() {
             trace!("Executing: {:?}", job);
-            let mut args: Vec<_> = job.get_args().iter().cloned()
-                .map(|x| x.into_string().unwrap()).collect();
+            let mut args: Vec<_> = job.get_args()
+                .iter()
+                .cloned()
+                .map(|x| x.into_string().unwrap())
+                .collect();
 
             args.insert(0, job.get_program().clone().into_string().unwrap());
 
-            match super::rustc::rustc(&internals.vfs, &args, job.get_envs(),
-                                      &build_dir, internals.config.clone(),
-                                      internals.env_lock.as_facade()) {
-                BuildResult::Success(mut messages, mut analysis) |
-                BuildResult::Failure(mut messages, mut analysis) => {
+            match super::rustc::rustc(
+                &internals.vfs,
+                &args,
+                job.get_envs(),
+                &build_dir,
+                internals.config.clone(),
+                internals.env_lock.as_facade(),
+            ) {
+                BuildResult::Success(mut messages, mut analysis)
+                | BuildResult::Failure(mut messages, mut analysis) => {
                     compiler_messages.append(&mut messages);
                     analyses.append(&mut analysis);
-                },
-                BuildResult::Err => { return BuildResult:: Err },
+                }
+                BuildResult::Err => return BuildResult::Err,
                 _ => {}
             }
         }
@@ -345,7 +407,7 @@ pub struct OwnedUnit {
     pub id: PackageId,
     pub target: Target,
     pub profile: Profile,
-    pub kind: Kind
+    pub kind: Kind,
 }
 
 impl<'a> From<&'a Unit<'a>> for OwnedUnit {
@@ -354,7 +416,7 @@ impl<'a> From<&'a Unit<'a>> for OwnedUnit {
             id: unit.pkg.package_id().to_owned(),
             target: unit.target.clone(),
             profile: unit.profile.clone(),
-            kind: unit.kind
+            kind: unit.kind,
         }
     }
 }

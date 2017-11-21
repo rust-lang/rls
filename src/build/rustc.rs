@@ -18,8 +18,8 @@ extern crate syntax;
 
 use self::rustc::middle::cstore::CrateStore;
 use self::rustc::session::Session;
-use self::rustc::session::config::{self, Input, ErrorOutputType};
-use self::rustc_driver::{RustcDefaultCalls, run_compiler, run, Compilation, CompilerCalls};
+use self::rustc::session::config::{self, ErrorOutputType, Input};
+use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
 use self::rustc_driver::driver::CompileController;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
@@ -40,8 +40,20 @@ use std::sync::{Arc, Mutex};
 
 
 // Runs a single instance of rustc. Runs in-process.
-pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path, rls_config: Arc<Mutex<Config>>, env_lock: EnvironmentLockFacade) -> BuildResult {
-    trace!("rustc - args: `{:?}`, envs: {:?}, build dir: {:?}", args, envs, build_dir);
+pub fn rustc(
+    vfs: &Vfs,
+    args: &[String],
+    envs: &HashMap<String, Option<OsString>>,
+    build_dir: &Path,
+    rls_config: Arc<Mutex<Config>>,
+    env_lock: EnvironmentLockFacade,
+) -> BuildResult {
+    trace!(
+        "rustc - args: `{:?}`, envs: {:?}, build dir: {:?}",
+        args,
+        envs,
+        build_dir
+    );
 
     let changed = vfs.get_cached_files();
 
@@ -65,10 +77,12 @@ pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>
     let exit_code = ::std::panic::catch_unwind(|| {
         run(move || {
             // Replace stderr so we catch most errors.
-            run_compiler(&args,
-                         &mut controller,
-                         Some(Box::new(ReplacedFileLoader::new(changed))),
-                         Some(Box::new(BufWriter(buf))))
+            run_compiler(
+                &args,
+                &mut controller,
+                Some(Box::new(ReplacedFileLoader::new(changed))),
+                Some(Box::new(BufWriter(buf))),
+            )
         })
     });
 
@@ -104,42 +118,49 @@ impl RlsRustcCalls {
 }
 
 impl<'a> CompilerCalls<'a> for RlsRustcCalls {
-    fn early_callback(&mut self,
-                      matches: &getopts::Matches,
-                      sopts: &config::Options,
-                      cfg: &ast::CrateConfig,
-                      descriptions: &errors::registry::Registry,
-                      output: ErrorOutputType)
-                      -> Compilation {
-        self.default_calls.early_callback(matches, sopts, cfg, descriptions, output)
+    fn early_callback(
+        &mut self,
+        matches: &getopts::Matches,
+        sopts: &config::Options,
+        cfg: &ast::CrateConfig,
+        descriptions: &errors::registry::Registry,
+        output: ErrorOutputType,
+    ) -> Compilation {
+        self.default_calls
+            .early_callback(matches, sopts, cfg, descriptions, output)
     }
 
-    fn no_input(&mut self,
-                matches: &getopts::Matches,
-                sopts: &config::Options,
-                cfg: &ast::CrateConfig,
-                odir: &Option<PathBuf>,
-                ofile: &Option<PathBuf>,
-                descriptions: &errors::registry::Registry)
-                -> Option<(Input, Option<PathBuf>)> {
-        self.default_calls.no_input(matches, sopts, cfg, odir, ofile, descriptions)
+    fn no_input(
+        &mut self,
+        matches: &getopts::Matches,
+        sopts: &config::Options,
+        cfg: &ast::CrateConfig,
+        odir: &Option<PathBuf>,
+        ofile: &Option<PathBuf>,
+        descriptions: &errors::registry::Registry,
+    ) -> Option<(Input, Option<PathBuf>)> {
+        self.default_calls
+            .no_input(matches, sopts, cfg, odir, ofile, descriptions)
     }
 
-    fn late_callback(&mut self,
-                     matches: &getopts::Matches,
-                     sess: &Session,
-                     cstore: &CrateStore,
-                     input: &Input,
-                     odir: &Option<PathBuf>,
-                     ofile: &Option<PathBuf>)
-                     -> Compilation {
-        self.default_calls.late_callback(matches, sess, cstore, input, odir, ofile)
+    fn late_callback(
+        &mut self,
+        matches: &getopts::Matches,
+        sess: &Session,
+        cstore: &CrateStore,
+        input: &Input,
+        odir: &Option<PathBuf>,
+        ofile: &Option<PathBuf>,
+    ) -> Compilation {
+        self.default_calls
+            .late_callback(matches, sess, cstore, input, odir, ofile)
     }
 
-    fn build_controller(&mut self,
-                        sess: &Session,
-                        matches: &getopts::Matches)
-                        -> CompileController<'a> {
+    fn build_controller(
+        &mut self,
+        sess: &Session,
+        matches: &getopts::Matches,
+    ) -> CompileController<'a> {
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
         let analysis = self.analysis.clone();
@@ -158,20 +179,20 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             //                     save::DumpHandler::new(state.out_dir,
             //                                            state.crate_name.unwrap()));
             // This version passes directly, it is more efficient.
-            save::process_crate(state.tcx.expect("missing tcx"),
-                                state.expanded_crate.expect("missing crate"),
-                                state.analysis.expect("missing analysis"),
-                                state.crate_name.expect("missing crate name"),
-                                None,
-                                CallbackHandler {
-                                    callback: &mut |a| {
-                                        let mut analysis = analysis.lock().unwrap();
-                                        let a = unsafe {
-                                            ::std::mem::transmute(a.clone())
-                                        };
-                                        *analysis = Some(a);
-                                    }
-                                });
+            save::process_crate(
+                state.tcx.expect("missing tcx"),
+                state.expanded_crate.expect("missing crate"),
+                state.analysis.expect("missing analysis"),
+                state.crate_name.expect("missing crate name"),
+                None,
+                CallbackHandler {
+                    callback: &mut |a| {
+                        let mut analysis = analysis.lock().unwrap();
+                        let a = unsafe { ::std::mem::transmute(a.clone()) };
+                        *analysis = Some(a);
+                    },
+                },
+            );
         });
         result.after_analysis.run_callback_on_error = true;
         result.make_glob_map = rustc_resolve::MakeGlobMap::Yes;
@@ -214,4 +235,3 @@ impl FileLoader for ReplacedFileLoader {
         self.real_file_loader.read_file(path)
     }
 }
-

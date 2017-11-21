@@ -123,7 +123,7 @@ struct CompilationContext {
     build_dir: Option<PathBuf>,
     /// Build plan, which should know all the inter-package/target dependencies
     /// along with args/envs. Only contains inter-package dep-graph for now.
-    build_plan: BuildPlan
+    build_plan: BuildPlan,
 }
 
 impl CompilationContext {
@@ -231,7 +231,8 @@ impl BuildQueue {
     /// squashed.  It must return quickly and without blocking. If it has work
     /// to do, it should spawn a thread to do it.
     pub fn request_build<F>(&self, new_build_dir: &Path, mut priority: BuildPriority, and_then: F)
-        where F: FnOnce(BuildResult) + Send + 'static
+    where
+        F: FnOnce(BuildResult) + Send + 'static,
     {
         trace!("request_build {:?}", priority);
         let needs_compilation_ctx_from_cargo = {
@@ -322,7 +323,8 @@ impl BuildQueue {
 
             // Normal priority threads sleep before starting up.
             if build.priority == BuildPriority::Normal {
-                let wait_to_build = { // Release lock before we sleep
+                let wait_to_build = {
+                    // Release lock before we sleep
                     let config = internals.config.lock().unwrap();
                     config.wait_to_build
                 };
@@ -341,8 +343,7 @@ impl BuildQueue {
             }
 
             // Run the build.
-            let result = internals.run_build(&build.build_dir, build.priority,
-                                             &build.built_files);
+            let result = internals.run_build(&build.build_dir, build.priority, &build.built_files);
             // Assert that the build was not squashed.
             if let BuildResult::Squashed = result {
                 unreachable!();
@@ -364,7 +365,11 @@ impl BuildQueue {
     /// version of this file.
     pub fn mark_file_dirty(&self, file: PathBuf, version: FileVersion) {
         trace!("Marking file as dirty: {:?} ({})", file, version);
-        self.internals.dirty_files.lock().unwrap().insert(file, version);
+        self.internals
+            .dirty_files
+            .lock()
+            .unwrap()
+            .insert(file, version);
     }
 }
 
@@ -394,7 +399,11 @@ impl Internals {
         // Check if the build directory changed and update it.
         {
             let mut compilation_cx = self.compilation_cx.lock().unwrap();
-            if compilation_cx.build_dir.as_ref().map_or(true, |dir| dir != new_build_dir) {
+            if compilation_cx
+                .build_dir
+                .as_ref()
+                .map_or(true, |dir| dir != new_build_dir)
+            {
                 // We'll need to re-run cargo in this case.
                 assert!(priority == BuildPriority::Cargo);
                 (*compilation_cx).build_dir = Some(new_build_dir.to_owned());
@@ -415,12 +424,13 @@ impl Internals {
             BuildResult::Success(_, _) | BuildResult::Failure(_, _) => {
                 let mut dirty_files = self.dirty_files.lock().unwrap();
                 dirty_files.retain(|file, dirty_version| {
-                    built_files.get(file)
-                    .map(|built_version| built_version < dirty_version)
-                    .unwrap_or(false)
+                    built_files
+                        .get(file)
+                        .map(|built_version| built_version < dirty_version)
+                        .unwrap_or(false)
                 });
                 trace!("Files still dirty after the build: {:?}", *dirty_files);
-            },
+            }
             _ => {}
         };
         result
@@ -453,8 +463,7 @@ impl Internals {
             // If the build plan has already been cached, use it, unless Cargo
             // has to be specifically rerun (e.g. when build scripts changed)
             let work = {
-                let modified: Vec<_> = self.dirty_files.lock().unwrap()
-                                           .keys().cloned().collect();
+                let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
                 let cx = self.compilation_cx.lock().unwrap();
                 cx.build_plan.prepare_work(&modified)
             };
@@ -478,7 +487,14 @@ impl Internals {
         let envs = &compile_cx.envs;
         let build_dir = compile_cx.build_dir.as_ref().unwrap();
         let env_lock = self.env_lock.as_facade();
-        rustc::rustc(&self.vfs, args, envs, build_dir, self.config.clone(), env_lock)
+        rustc::rustc(
+            &self.vfs,
+            args,
+            envs,
+            build_dir,
+            self.config.clone(),
+            env_lock,
+        )
     }
 }
 

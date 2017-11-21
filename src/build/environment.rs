@@ -27,7 +27,10 @@ pub struct Environment<'a> {
 }
 
 impl<'a> Environment<'a> {
-    pub fn push_with_lock(envs: &HashMap<String, Option<OsString>>, lock: MutexGuard<'a, ()>) -> Environment<'a> {
+    pub fn push_with_lock(
+        envs: &HashMap<String, Option<OsString>>,
+        lock: MutexGuard<'a, ()>,
+    ) -> Environment<'a> {
         let mut result = Environment {
             old_vars: HashMap::new(),
             _guard: lock,
@@ -94,7 +97,7 @@ impl<'a> EnvironmentLockFacade {
             EnvironmentLockFacade::Outer(ref lock) => {
                 let (guard, inner) = lock.lock();
                 (guard, Some(inner))
-            },
+            }
             EnvironmentLockFacade::Inner(ref lock) => (lock.lock(), None),
         }
     }
@@ -109,14 +112,16 @@ impl<'a> EnvironmentLock {
     }
 
     /// Retrieves a pointer to the single, static instance of an `EnvironmentLock`.
-    pub fn get() -> Arc<EnvironmentLock> { ENV_LOCK.clone() }
+    pub fn get() -> Arc<EnvironmentLock> {
+        ENV_LOCK.clone()
+    }
 
 
     /// Acquires the first, outer lock and additionally return `InnerLock` interface, through which
     /// user can access the second, inner lock. Does not enforce any guarantees regarding order of
     /// locking, since `InnerLock` can be copied outside 'a lifetime and locked there.
     pub fn lock(&self) -> (MutexGuard<'a, ()>, InnerLock) {
-        (ENV_LOCK.outer.lock().unwrap(), InnerLock{ })
+        (ENV_LOCK.outer.lock().unwrap(), InnerLock {})
     }
 
     /// Constructs a corresponding `EnvironmentLockFacade` value, erasing specific type of the lock.
@@ -136,6 +141,6 @@ impl<'a> InnerLock {
 
     /// Constructs a corresponding `EnvironmentLockFacade` value, erasing specific type of the lock.
     pub fn as_facade(&self) -> EnvironmentLockFacade {
-        EnvironmentLockFacade::Inner(Self { })
+        EnvironmentLockFacade::Inner(Self {})
     }
 }

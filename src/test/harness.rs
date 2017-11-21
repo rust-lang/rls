@@ -48,8 +48,10 @@ impl Environment {
 
         let cur_dir = env::current_dir().expect("Could not find current working directory");
         let project_path = cur_dir.join("test_data").join(project_dir);
-        let target_path = cur_dir.join("target").join("tests")
-                .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
+        let target_path = cur_dir
+            .join("target")
+            .join("tests")
+            .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
 
         let mut config = Config::default();
         config.target_dir = Some(target_path.clone());
@@ -66,20 +68,29 @@ impl Environment {
 }
 
 impl Environment {
-    pub fn with_config<F>(&mut self, f: F) where F: FnOnce(&mut Config) {
+    pub fn with_config<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut Config),
+    {
         let config = self.config.as_mut().unwrap();
         f(config);
     }
 
     // Initialize and run the internals of an LS protocol RLS server.
-    pub fn mock_server(&mut self, messages: Vec<String>) -> (ls_server::LsService<RecordOutput>, LsResultList) {
+    pub fn mock_server(
+        &mut self,
+        messages: Vec<String>,
+    ) -> (ls_server::LsService<RecordOutput>, LsResultList) {
         let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
         let vfs = Arc::new(vfs::Vfs::new());
         let config = Arc::new(Mutex::new(self.config.take().unwrap()));
         let reader = Box::new(MockMsgReader::new(messages));
         let output = RecordOutput::new();
         let results = output.output.clone();
-        (ls_server::LsService::new(analysis, vfs, config, reader, output), results)
+        (
+            ls_server::LsService::new(analysis, vfs, config, reader, output),
+            results,
+        )
     }
 }
 
@@ -189,16 +200,37 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
 
     let mut results = results.lock().unwrap();
 
-    println!("expect_messages:\n  results: {:#?},\n  expected: {:#?}", *results, expected);
+    println!(
+        "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
+        *results,
+        expected
+    );
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
         let values: serde_json::Value = serde_json::from_str(found).unwrap();
-        assert!(values.get("jsonrpc").expect("Missing jsonrpc field").as_str().unwrap() == "2.0", "Bad jsonrpc field");
+        assert!(
+            values
+                .get("jsonrpc")
+                .expect("Missing jsonrpc field")
+                .as_str()
+                .unwrap() == "2.0",
+            "Bad jsonrpc field"
+        );
         if let Some(id) = expected.id {
-            assert_eq!(values.get("id").expect("Missing id field").as_u64().unwrap(), id, "Unexpected id");
+            assert_eq!(
+                values
+                    .get("id")
+                    .expect("Missing id field")
+                    .as_u64()
+                    .unwrap(),
+                id,
+                "Unexpected id"
+            );
         }
         for c in expected.contains.iter() {
-            found.find(c).expect(&format!("Could not find `{}` in `{}`", c, found));
+            found
+                .find(c)
+                .expect(&format!("Could not find `{}` in `{}`", c, found));
         }
     }
 
@@ -236,8 +268,9 @@ impl Cache {
 
     pub fn mk_ls_position(&mut self, src: Src) -> ls_types::Position {
         let line = self.get_line(src);
-        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
-        ls_types::Position::new( (src.line - 1) as u64,  char_of_byte_index(&line, col) as u64)
+        let col = line.find(src.name)
+            .expect(&format!("Line does not contain name {}", src.name));
+        ls_types::Position::new((src.line - 1) as u64, char_of_byte_index(&line, col) as u64)
     }
 
     /// Create a range convering the initial position on the line
@@ -251,7 +284,10 @@ impl Cache {
     }
 
     pub fn abs_path(&self, file_name: &Path) -> PathBuf {
-        let result = self.base_path.join(file_name).canonicalize().expect("Couldn't canonicalise path");
+        let result = self.base_path
+            .join(file_name)
+            .canonicalize()
+            .expect("Couldn't canonicalise path");
         let result = if cfg!(windows) {
             // FIXME: If the \\?\ prefix is not stripped from the canonical path, the HTTP server tests fail. Why?
             let result_string = result.to_str().expect("Path contains non-utf8 characters.");
@@ -264,12 +300,15 @@ impl Cache {
 
     fn get_line(&mut self, src: Src) -> String {
         let base_path = &self.base_path;
-        let lines = self.files.entry(src.file_name.to_owned()).or_insert_with(|| {
-            let file_name = &base_path.join(src.file_name);
-            let file = File::open(file_name).expect(&format!("Couldn't find file: {:?}", file_name));
-            let lines = BufReader::new(file).lines();
-            lines.collect::<Result<Vec<_>, _>>().unwrap()
-        });
+        let lines = self.files
+            .entry(src.file_name.to_owned())
+            .or_insert_with(|| {
+                let file_name = &base_path.join(src.file_name);
+                let file =
+                    File::open(file_name).expect(&format!("Couldn't find file: {:?}", file_name));
+                let lines = BufReader::new(file).lines();
+                lines.collect::<Result<Vec<_>, _>>().unwrap()
+            });
 
         if src.line - 1 >= lines.len() {
             panic!("Line {} not in file, found {} lines", src.line, lines.len());

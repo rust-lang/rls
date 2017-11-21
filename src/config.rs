@@ -45,14 +45,15 @@ pub enum Inferrable<T> {
     /// Marker value that's retrieved when deserializing a user-specified `null`
     /// value. Can't be used alone and has to be replaced by server-`Inferred`
     /// or user-`Specified` value.
-    None
+    None,
 }
 
 // Deserialize as if it's `Option<T>` and use `None` variant if it's `None`,
 // otherwise use `Specified` variant for deserialized value.
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Inferrable<T> {
     fn deserialize<D>(deserializer: D) -> Result<Inferrable<T>, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         let value = Option::<T>::deserialize(deserializer)?;
         Ok(match value {
@@ -91,8 +92,7 @@ impl<T: Clone + Debug> Inferrable<T> {
 impl<T> AsRef<T> for Inferrable<T> {
     fn as_ref(&self) -> &T {
         match *self {
-            Inferrable::Inferred(ref value) |
-            Inferrable::Specified(ref value) => value,
+            Inferrable::Inferred(ref value) | Inferrable::Specified(ref value) => value,
             // Default values should always be initialized as `Inferred` even
             // before actual inference takes place, `None` variant is only used
             // when deserializing and should not be read directly (via `as_ref`)
@@ -171,7 +171,9 @@ impl Config {
     /// Ensures that unstable options are only allowed if `unstable_features` is
     /// true and that is not allowed on stable release channels.
     pub fn normalise(&mut self) {
-        let allow_unstable = option_env!("CFG_RELEASE_CHANNEL").map(|c| c == "nightly").unwrap_or(true);
+        let allow_unstable = option_env!("CFG_RELEASE_CHANNEL")
+            .map(|c| c == "nightly")
+            .unwrap_or(true);
 
         if !allow_unstable {
             if self.unstable_features {
@@ -192,8 +194,7 @@ impl Config {
     /// Is this config incomplete, and needs additional values to be inferred?
     pub fn needs_inference(&self) -> bool {
         match (&self.build_lib, &self.build_bin) {
-            (&Inferrable::None, _) |
-            (_, &Inferrable::None) => true,
+            (&Inferrable::None, _) | (_, &Inferrable::None) => true,
             _ => false,
         }
     }
@@ -217,21 +218,27 @@ impl Config {
             true => {
                 let package_name = match self.analyze_package {
                     // No package specified, nothing to do
-                    None => { return Ok(()); },
+                    None => {
+                        return Ok(());
+                    }
                     Some(ref package) => package,
                 };
 
                 ws.members()
-                  .find(move |x| x.name() == package_name)
-                  .ok_or(
-                      format!("Couldn't find specified `{}` package via \
-                          `analyze_package` in the workspace", package_name)
-                  )?
-            },
+                    .find(move |x| x.name() == package_name)
+                    .ok_or(format!(
+                        "Couldn't find specified `{}` package via \
+                         `analyze_package` in the workspace",
+                        package_name
+                    ))?
+            }
             false => ws.current()?,
         };
 
-        trace!("infer_config_defaults: Auto-detected `{}` package", package.name());
+        trace!(
+            "infer_config_defaults: Auto-detected `{}` package",
+            package.name()
+        );
 
         let targets = package.targets();
         let (lib, bin) = if targets.iter().any(|x| x.is_lib()) {
@@ -252,7 +259,11 @@ impl Config {
             (false, Some(target.name().to_owned()))
         };
 
-        trace!("infer_config_defaults: build_lib: {:?}, build_bin: {:?}", lib, bin);
+        trace!(
+            "infer_config_defaults: build_lib: {:?}, build_bin: {:?}",
+            lib,
+            bin
+        );
 
         // Unless crate target is explicitly specified, mark the values as
         // inferred, so they're not simply ovewritten on config change without

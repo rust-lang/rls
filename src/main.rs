@@ -30,6 +30,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate racer;
+extern crate rayon;
 extern crate rls_analysis as analysis;
 extern crate rls_data as data;
 extern crate rls_rustc as rustc_shim;
@@ -39,13 +40,12 @@ extern crate rustfmt_nightly as rustfmt;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate rayon;
 
 #[macro_use]
 extern crate serde_json;
 
-extern crate url;
 extern crate jsonrpc_core;
+extern crate url;
 
 use std::env;
 use std::sync::Arc;
@@ -69,8 +69,16 @@ const COMPILER_TIMEOUT: u64 = 1500;
 const COMPILER_TIMEOUT: u64 = 3_600_000;
 
 const CRATE_BLACKLIST: [&'static str; 10] = [
-    "libc", "typenum", "alloc", "idna", "openssl", "libunicode_normalization", "serde",
-    "serde_json", "librustc_serialize", "libunicode_segmentation",
+    "libc",
+    "typenum",
+    "alloc",
+    "idna",
+    "openssl",
+    "libunicode_normalization",
+    "serde",
+    "serde_json",
+    "librustc_serialize",
+    "libunicode_segmentation",
 ];
 
 const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
@@ -82,7 +90,10 @@ type Span = span::Span<span::ZeroIndexed>;
 pub fn main() {
     env_logger::init().unwrap();
 
-    if env::var(RUSTC_SHIM_ENV_VAR_NAME).map(|v| v != "0").unwrap_or(false) {
+    if env::var(RUSTC_SHIM_ENV_VAR_NAME)
+        .map(|v| v != "0")
+        .unwrap_or(false)
+    {
         rustc_shim::run();
         return;
     }
@@ -92,7 +103,11 @@ pub fn main() {
             "--version" | "-V" => println!("rls-preview {}", version()),
             "--help" | "-h" => println!("{}", help()),
             "--cli" => cmd::run(),
-            unknown => println!("Unknown argument '{}'. Supported arguments:\n{}", unknown, help()),
+            unknown => println!(
+                "Unknown argument '{}'. Supported arguments:\n{}",
+                unknown,
+                help()
+            ),
         }
         return;
     }
@@ -104,7 +119,11 @@ pub fn main() {
 }
 
 fn version() -> &'static str {
-    concat!(env!("CARGO_PKG_VERSION"), "-", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
+    concat!(
+        env!("CARGO_PKG_VERSION"),
+        "-",
+        include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt"))
+    )
 }
 
 fn help() -> &'static str {

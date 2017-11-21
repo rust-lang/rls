@@ -21,7 +21,7 @@ use serde::Deserialize;
 
 use version;
 use lsp_data::*;
-use actions::{ActionContext, requests, notifications};
+use actions::{notifications, requests, ActionContext};
 use config::Config;
 pub use server::io::{MessageReader, Output};
 use server::io::{StdioMsgReader, StdioOutput};
@@ -41,11 +41,13 @@ mod dispatch;
 /// Run the Rust Language Server.
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
     debug!("Language Server starting up. Version: {}", version());
-    let service = LsService::new(analysis,
-                                 vfs,
-                                 Arc::new(Mutex::new(Config::default())),
-                                 Box::new(StdioMsgReader),
-                                 StdioOutput::new());
+    let service = LsService::new(
+        analysis,
+        vfs,
+        Arc::new(Mutex::new(Config::default())),
+        Box::new(StdioMsgReader),
+        StdioOutput::new(),
+    );
     LsService::run(service);
     debug!("Server shutting down");
 }
@@ -64,7 +66,8 @@ pub struct NoParams;
 
 impl<'de> Deserialize<'de> for NoParams {
     fn deserialize<D>(_deserializer: D) -> Result<NoParams, D::Error>
-        where D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         Ok(NoParams)
     }
@@ -77,8 +80,7 @@ pub trait Response {
 }
 
 impl Response for NoResponse {
-    fn send<O: Output>(&self, _id: usize, _out: &O) {
-    }
+    fn send<O: Output>(&self, _id: usize, _out: &O) {}
 }
 
 impl<R: ::serde::Serialize + fmt::Debug> Response for R {
@@ -152,7 +154,12 @@ pub struct Notification<A: Action> {
 }
 
 impl<'a, A: BlockingRequestAction<'a>> Request<A> {
-    fn blocking_dispatch<O: Output>(self, state: &'a mut LsState, ctx: &mut ActionContext, out: &O) -> Result<A::Response, ()> {
+    fn blocking_dispatch<O: Output>(
+        self,
+        state: &'a mut LsState,
+        ctx: &mut ActionContext,
+        out: &O,
+    ) -> Result<A::Response, ()> {
         let mut action = A::new(state);
         let result = action.handle(self.id, self.params, ctx, out.clone())?;
         result.send(self.id, out);
@@ -161,7 +168,12 @@ impl<'a, A: BlockingRequestAction<'a>> Request<A> {
 }
 
 impl<'a, A: BlockingNotificationAction<'a>> Notification<A> {
-    fn dispatch<O: Output>(self, state: &'a mut LsState, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn dispatch<O: Output>(
+        self,
+        state: &'a mut LsState,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         let mut action = A::new(state);
         action.handle(self.params, ctx, out)?;
         Ok(())
@@ -222,12 +234,16 @@ impl<'a> BlockingRequestAction<'a> for ShutdownRequest<'a> {
     type Response = Ack;
 
     fn new(state: &'a mut LsState) -> Self {
-        ShutdownRequest {
-            state
-        }
+        ShutdownRequest { state }
     }
 
-    fn handle<O: Output>(&mut self, _id: usize, _params: Self::Params, _ctx: &mut ActionContext, _out: O) -> Result<Self::Response, ()> {
+    fn handle<O: Output>(
+        &mut self,
+        _id: usize,
+        _params: Self::Params,
+        _ctx: &mut ActionContext,
+        _out: O,
+    ) -> Result<Self::Response, ()> {
         self.state.shut_down.store(true, Ordering::SeqCst);
         Ok(Ack)
     }
@@ -246,24 +262,35 @@ impl<'a> Action for ExitNotification<'a> {
 
 impl<'a> BlockingNotificationAction<'a> for ExitNotification<'a> {
     fn new(state: &'a mut LsState) -> Self {
-        ExitNotification {
-            state
-        }
+        ExitNotification { state }
     }
 
-    fn handle<O: Output>(&mut self, _params: Self::Params, _ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        &mut self,
+        _params: Self::Params,
+        _ctx: &mut ActionContext,
+        _out: O,
+    ) -> Result<(), ()> {
         let shut_down = self.state.shut_down.load(Ordering::SeqCst);
         ::std::process::exit(if shut_down { 0 } else { 1 });
     }
 }
 
 fn get_root_path(params: &InitializeParams) -> PathBuf {
-    params.root_uri.as_ref().map(|uri| {
-        assert!(uri.scheme() == "file");
-        uri.to_file_path().expect("Could not convert URI to path")
-    }).unwrap_or_else(|| {
-        params.root_path.as_ref().map(PathBuf::from).expect("No root path or URI")
-    })
+    params
+        .root_uri
+        .as_ref()
+        .map(|uri| {
+            assert!(uri.scheme() == "file");
+            uri.to_file_path().expect("Could not convert URI to path")
+        })
+        .unwrap_or_else(|| {
+            params
+                .root_path
+                .as_ref()
+                .map(PathBuf::from)
+                .expect("No root path or URI")
+        })
 }
 
 /// A request to initialize this server.
@@ -281,7 +308,13 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
         InitializeRequest
     }
 
-    fn handle<O: Output>(&mut self, id: usize, params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<NoResponse, ()> {
+    fn handle<O: Output>(
+        &mut self,
+        id: usize,
+        params: Self::Params,
+        ctx: &mut ActionContext,
+        out: O,
+    ) -> Result<NoResponse, ()> {
         let init_options: InitializationOptions = params
             .initialization_options
             .as_ref()
@@ -320,7 +353,7 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
                 code_lens_provider: None,
                 document_on_type_formatting_provider: None,
                 signature_help_provider: None,
-            }
+            },
         };
         out.success(id, &result);
 
@@ -342,12 +375,13 @@ pub enum ServerStateChange {
 
 impl<O: Output> LsService<O> {
     /// Construct a new language server service.
-    pub fn new(analysis: Arc<AnalysisHost>,
-               vfs: Arc<Vfs>,
-               config: Arc<Mutex<Config>>,
-               reader: Box<MessageReader + Send + Sync>,
-               output: O)
-               -> LsService<O> {
+    pub fn new(
+        analysis: Arc<AnalysisHost>,
+        vfs: Arc<Vfs>,
+        config: Arc<Mutex<Config>>,
+        reader: Box<MessageReader + Send + Sync>,
+        output: O,
+    ) -> LsService<O> {
         let dispatcher = Dispatcher::new(output.clone());
 
         LsService {
@@ -368,10 +402,13 @@ impl<O: Output> LsService<O> {
 
     fn parse_message(&mut self, msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
         // Parse the message.
-        let ls_command: serde_json::Value = serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
+        let ls_command: serde_json::Value =
+            serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
 
         // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
-        let id = ls_command.get("id").map(|id| serde_json::from_value(id.to_owned()).unwrap());
+        let id = ls_command
+            .get("id")
+            .map(|id| serde_json::from_value(id.to_owned()).unwrap());
 
         let method = match ls_command.get("method") {
             Some(method) => method,
@@ -380,7 +417,10 @@ impl<O: Output> LsService<O> {
             None => return Ok(None),
         };
 
-        let method = method.as_str().ok_or_else(|| jsonrpc::Error::invalid_request())?.to_owned();
+        let method = method
+            .as_str()
+            .ok_or_else(|| jsonrpc::Error::invalid_request())?
+            .to_owned();
 
         // Representing internally a missing parameter as Null instead of None,
         // (Null being unused value of param by the JSON-RPC 2.0 spec)
@@ -490,7 +530,7 @@ impl<O: Output> LsService<O> {
                 debug!("Can't read message");
                 self.output.failure(Id::Null, jsonrpc::Error::parse_error());
                 return ServerStateChange::Break;
-            },
+            }
         };
 
         trace!("Read message `{}`", msg_string);
@@ -545,21 +585,18 @@ impl RawMessage {
             _ => None,
         };
 
-        let params = T::Params::deserialize(&self.params)
-            .map_err(|e| {
-                debug!("error when parsing as request: {}", e);
-                jsonrpc::Error::invalid_request()
-            })?;
+        let params = T::Params::deserialize(&self.params).map_err(|e| {
+            debug!("error when parsing as request: {}", e);
+            jsonrpc::Error::invalid_request()
+        })?;
 
         match parsed_numeric_id {
-            Some(id) => {
-                Ok(Request {
-                    id,
-                    params,
-                    received: Instant::now(),
-                    _action: PhantomData,
-                })
-            }
+            Some(id) => Ok(Request {
+                id,
+                params,
+                received: Instant::now(),
+                _action: PhantomData,
+            }),
             None => return Err(jsonrpc::Error::invalid_request()),
         }
     }
@@ -567,11 +604,10 @@ impl RawMessage {
     fn parse_as_notification<T: Action>(&self) -> Result<Notification<T>, jsonrpc::Error> {
         use serde::Deserialize;
 
-        let params = T::Params::deserialize(&self.params)
-            .map_err(|e| {
-                debug!("error when parsing as notification: {}", e);
-                jsonrpc::Error::invalid_request()
-            })?;
+        let params = T::Params::deserialize(&self.params).map_err(|e| {
+            debug!("error when parsing as notification: {}", e);
+            jsonrpc::Error::invalid_request()
+        })?;
 
         Ok(Notification {
             params,
@@ -640,9 +676,12 @@ mod test {
         };
         let notification = raw.parse_as_notification::<notifications::Initialized>();
 
-        assert_eq!(notification, Ok(Notification::<notifications::Initialized> {
-            params: NoParams {},
-            _action: PhantomData,
-        }));
+        assert_eq!(
+            notification,
+            Ok(Notification::<notifications::Initialized> {
+                params: NoParams {},
+                _action: PhantomData,
+            })
+        );
     }
 }
