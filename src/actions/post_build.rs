@@ -92,15 +92,16 @@ impl<O: Output> PostBuildHandler<O> {
             v.clear();
         }
 
+        let cwd = ::std::env::current_dir().unwrap();
+
         for msg in &messages {
             if let Some(FileDiagnostic {
                 file_path,
                 diagnostic,
                 suggestions,
-            }) = parse_diagnostics(msg)
-            {
+            }) = parse_diagnostics(msg) {
                 results
-                    .entry(file_path)
+                    .entry(cwd.join(file_path))
                     .or_insert_with(Vec::new)
                     .push((diagnostic, suggestions));
             }
@@ -237,11 +238,9 @@ fn primary_span(message: &CompilerMessage) -> Span {
 }
 
 fn emit_notifications<O: Output>(build_results: &BuildResults, show_warnings: bool, out: &O) {
-    let cwd = ::std::env::current_dir().unwrap();
-
     for (path, diagnostics) in build_results {
         let params = PublishDiagnosticsParams {
-            uri: Url::from_file_path(cwd.join(path)).unwrap(),
+            uri: Url::from_file_path(path).unwrap(),
             diagnostics: diagnostics
                 .iter()
                 .filter_map(|&(ref d, _)| {
