@@ -330,7 +330,7 @@ impl RequestAction for References {
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
         let result = match ctx.analysis
-            .find_all_refs(&span, params.context.include_declaration)
+            .find_all_refs(&span, params.context.include_declaration, false)
         {
             Ok(t) => t,
             _ => vec![],
@@ -424,7 +424,7 @@ impl RequestAction for DocumentHighlight {
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
         let result = ctx.analysis
-            .find_all_refs(&span, true)
+            .find_all_refs(&span, true, false)
             .unwrap_or_else(|_| vec![]);
 
         Ok(
@@ -492,7 +492,7 @@ impl RequestAction for Rename {
             return self.fallback_response();
         }
 
-        let result = unwrap_or_fallback!(analysis.find_all_refs(&span, true));
+        let result = unwrap_or_fallback!(analysis.find_all_refs(&span, true, true));
 
         let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
