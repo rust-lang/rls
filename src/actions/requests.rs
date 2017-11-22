@@ -421,7 +421,7 @@ impl RequestAction for DocumentHighlight {
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
         let file_path = parse_file_path!(&params.text_document.uri, "highlight")?;
-        let span = ctx.convert_pos_to_span(file_path, params.position);
+        let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
 
         let result = ctx.analysis
             .find_all_refs(&span, true, false)
@@ -430,13 +430,17 @@ impl RequestAction for DocumentHighlight {
         Ok(
             result
                 .iter()
-                .map(|span| {
-                    lsp_data::DocumentHighlight {
-                        range: ls_util::rls_to_range(span.range),
-                        kind: Some(DocumentHighlightKind::Text),
+                .filter_map(|span| {
+                    if span.file == file_path {
+                        Some(lsp_data::DocumentHighlight {
+                            range: ls_util::rls_to_range(span.range),
+                            kind: Some(DocumentHighlightKind::Text),
+                        })
+                    } else {
+                        None
                     }
                 })
-                .collect(),
+                .collect()
         )
     }
 }
