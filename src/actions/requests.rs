@@ -760,21 +760,26 @@ impl Action for Formatting {
     const METHOD: &'static str = "textDocument/formatting";
 }
 
-impl<'a> BlockingRequestAction<'a> for Formatting {
+impl RequestAction for Formatting {
     type Response = [TextEdit; 1];
 
-    fn new(_: &'a mut LsState) -> Self {
+    fn new() -> Self {
         Formatting
     }
 
-    fn handle<O: Output>(
+    fn fallback_response(&self) -> Result<Self::Response, ResponseError> {
+        Err(ResponseError::Message(
+            ErrorCode::InternalError,
+            "Reformat failed to complete successfully".into(),
+        ))
+    }
+
+    fn handle(
         &mut self,
-        id: usize,
+        ctx: InitActionContext,
         params: Self::Params,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<Self::Response, ()> {
-        reformat(id, params.text_document, None, &params.options, ctx, out)
+    ) -> Result<Self::Response, ResponseError> {
+        reformat(params.text_document, None, &params.options, ctx)
     }
 }
 
@@ -786,69 +791,64 @@ impl Action for RangeFormatting {
     const METHOD: &'static str = "textDocument/rangeFormatting";
 }
 
-impl<'a> BlockingRequestAction<'a> for RangeFormatting {
+impl RequestAction for RangeFormatting {
     type Response = [TextEdit; 1];
 
-    fn new(_: &'a mut LsState) -> Self {
+    fn new() -> Self {
         RangeFormatting
     }
 
-    fn handle<O: Output>(
+    fn fallback_response(&self) -> Result<Self::Response, ResponseError> {
+        Err(ResponseError::Message(
+            ErrorCode::InternalError,
+            "Reformat failed to complete successfully".into(),
+        ))
+    }
+
+    fn handle(
         &mut self,
-        id: usize,
+        ctx: InitActionContext,
         params: Self::Params,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<Self::Response, ()> {
+    ) -> Result<Self::Response, ResponseError> {
         reformat(
-            id,
             params.text_document,
             Some(params.range),
             &params.options,
             ctx,
-            out,
         )
     }
 }
 
-fn reformat<O: Output>(
-    id: usize,
+fn reformat(
     doc: TextDocumentIdentifier,
     selection: Option<Range>,
     opts: &FormattingOptions,
-    ctx: &mut ActionContext,
-    out: O,
-) -> Result<[TextEdit; 1], ()> {
+    ctx: InitActionContext,
+) -> Result<[TextEdit; 1], ResponseError> {
     trace!(
-        "Reformat: {} {:?} {:?} {} {}",
-        id,
+        "Reformat: {:?} {:?} {} {}",
         doc,
         selection,
         opts.tab_size,
         opts.insert_spaces
     );
-    let ctx = ctx.inited();
     let path = parse_file_path!(&doc.uri, "reformat")?;
 
     let input = match ctx.vfs.load_file(&path) {
         Ok(FileContents::Text(s)) => FmtInput::Text(s),
         Ok(_) => {
             debug!("Reformat failed, found binary file");
-            out.failure_message(
-                id,
+            return Err(ResponseError::Message(
                 ErrorCode::InternalError,
-                "Reformat failed to complete successfully",
-            );
-            return Err(());
+                "Reformat failed to complete successfully".into(),
+            ));
         }
         Err(e) => {
             debug!("Reformat failed: {:?}", e);
-            out.failure_message(
-                id,
+            return Err(ResponseError::Message(
                 ErrorCode::InternalError,
-                "Reformat failed to complete successfully",
-            );
-            return Err(());
+                "Reformat failed to complete successfully".into(),
+            ));
         }
     };
 
@@ -896,22 +896,19 @@ fn reformat<O: Output>(
                     summary
                 );
 
-                out.failure_message(
-                    id,
+                return Err(ResponseError::Message(
                     ErrorCode::InternalError,
-                    "Reformat failed to complete successfully",
-                );
-                Err(())
+                    "Reformat failed to complete successfully".into(),
+                ));
             }
         }
         Err(e) => {
             debug!("Reformat failed: {:?}", e);
-            out.failure_message(
-                id,
+
+            return Err(ResponseError::Message(
                 ErrorCode::InternalError,
-                "Reformat failed to complete successfully",
-            );
-            Err(())
+                "Reformat failed to complete successfully".into(),
+            ));
         }
     }
 }
@@ -927,24 +924,26 @@ impl Action for ResolveCompletion {
     const METHOD: &'static str = "completionItem/resolve";
 }
 
-impl<'a> BlockingRequestAction<'a> for ResolveCompletion {
+impl RequestAction for ResolveCompletion {
     type Response = CompletionItem;
 
-    fn new(_: &'a mut LsState) -> Self {
+    fn new() -> Self {
         ResolveCompletion
     }
 
-    fn handle<O: Output>(
+    fn fallback_response(&self) -> Result<Self::Response, ResponseError> {
+        Err(ResponseError::Empty)
+    }
+
+    fn handle(
         &mut self,
-        _id: usize,
+        _: InitActionContext,
         params: Self::Params,
-        _ctx: &mut ActionContext,
-        _out: O,
-    ) -> Result<Self::Response, ()> {
+    ) -> Result<Self::Response, ResponseError> {
         // currently, we safely ignore this as a pass-through since we fully handle
         // textDocument/completion.  In the future, we may want to use this method as a
         // way to more lazily fill out completion information
-        Ok(params)
+        Ok(params.into())
     }
 }
 

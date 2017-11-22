@@ -501,11 +501,11 @@ impl<O: Output> LsService<O> {
             blocking_requests:
                 ShutdownRequest,
                 InitializeRequest,
-                requests::ResolveCompletion,
-                requests::ExecuteCommand,
-                requests::Formatting,
-                requests::RangeFormatting;
+                requests::ExecuteCommand;
             requests:
+                requests::Formatting,
+                requests::RangeFormatting,
+                requests::ResolveCompletion,
                 requests::Rename,
                 requests::CodeAction,
                 requests::DocumentHighlight,
