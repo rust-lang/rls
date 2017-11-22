@@ -328,6 +328,3 @@ The following request is to support Rust specific features.
 
 [`TextDocumentPositionParams`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#textdocumentpositionparams)
 [`Location`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#location)
-* `rustWorkspace/deglob`: message sent from the client to the RLS to initiate a
-  deglob refactoring.
-
