@@ -552,7 +552,7 @@ fn test_reformat() {
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-        blocking_request::<requests::Formatting>(
+        request::<requests::Formatting>(
             42,
             DocumentFormattingParams {
                 text_document: text_doc,
@@ -600,7 +600,7 @@ fn test_reformat_with_range() {
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-        blocking_request::<requests::RangeFormatting>(
+        request::<requests::RangeFormatting>(
             42,
             DocumentRangeFormattingParams {
                 text_document: text_doc,

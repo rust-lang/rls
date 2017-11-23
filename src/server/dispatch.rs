@@ -76,7 +76,10 @@ define_dispatch_request_enum!(
     FindImpls,
     DocumentHighlight,
     Rename,
-    CodeAction
+    CodeAction,
+    ResolveCompletion,
+    Formatting,
+    RangeFormatting
 );
 
 /// Provides ability to dispatch requests to a worker thread that will
@@ -163,6 +166,7 @@ pub trait RequestAction: Action {
 }
 
 /// Wrapper for a response error
+#[derive(Debug)]
 pub enum ResponseError {
     /// Error with no special response to the client
     Empty,
