@@ -382,6 +382,7 @@ impl Executor for RlsExecutor {
             // Only include public symbols in externally compiled deps data
             let mut save_config = ::data::config::Config::default();
             save_config.pub_only = true;
+            save_config.reachable_only = true;
             let save_config = serde_json::to_string(&save_config)?;
             cmd.env("RUST_SAVE_ANALYSIS_CONFIG", &OsString::from(save_config));
 
