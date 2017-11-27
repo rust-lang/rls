@@ -142,7 +142,7 @@ fn run_cargo(
             // Warn about invalid specified bin target or package depending on current mode
             // TODO: Return client notifications along with diagnostics to inform the user
             if !rls_config.workspace_mode {
-                let cur_pkg_targets = ws.current().unwrap().targets();
+                let cur_pkg_targets = ws.current()?.targets();
 
                 if let &Some(ref build_bin) = rls_config.build_bin.as_ref() {
                     let mut bins = cur_pkg_targets.iter().filter(|x| x.is_bin());
