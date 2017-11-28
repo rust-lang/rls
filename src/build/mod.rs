@@ -92,10 +92,9 @@ struct Internals {
 /// The result of a build request.
 #[derive(Debug)]
 pub enum BuildResult {
-    /// Build was successful, argument is warnings.
+    /// Build was performed without any internal errors. The payload
+    /// contains emitted raw diagnostics and Analysis data.
     Success(Vec<String>, Vec<Analysis>),
-    /// Build finished with errors, argument is errors and warnings.
-    Failure(Vec<String>, Vec<Analysis>),
     /// Build was coalesced with another build.
     Squashed,
     /// There was an error attempting to build.
@@ -421,7 +420,7 @@ impl Internals {
         // now. It's possible that a build was scheduled with given files, but
         // user later changed them. These should still be left as dirty (not built).
         match *&result {
-            BuildResult::Success(_, _) | BuildResult::Failure(_, _) => {
+            BuildResult::Success(_, _) => {
                 let mut dirty_files = self.dirty_files.lock().unwrap();
                 dirty_files.retain(|file, dirty_version| {
                     built_files

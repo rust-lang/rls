@@ -74,7 +74,11 @@ pub fn rustc(
 
     let mut controller = RlsRustcCalls::new(analysis.clone());
 
-    let exit_code = ::std::panic::catch_unwind(|| {
+    // rustc explicitly panics in run_compiler() on compile failure, regardless
+    // if it encounters an ICE (internal compiler error) or not.
+    // TODO: Change librustc_driver behaviour to distinguish between ICEs and
+    // regular compilation failure with errors?
+    let _ = ::std::panic::catch_unwind(|| {
         run(move || {
             // Replace stderr so we catch most errors.
             run_compiler(
@@ -94,10 +98,8 @@ pub fn rustc(
 
     let analysis = analysis.lock().unwrap().clone();
     let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or(vec![]);
-    match exit_code {
-        Ok(0) => BuildResult::Success(stderr_json_msgs, analysis),
-        _ => BuildResult::Failure(stderr_json_msgs, analysis),
-    }
+
+    BuildResult::Success(stderr_json_msgs, analysis)
 }
 
 // Our compiler controller. We mostly delegate to the default rustc

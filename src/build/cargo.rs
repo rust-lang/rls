@@ -476,8 +476,7 @@ impl Executor for RlsExecutor {
                 self.config.clone(),
                 env_lock,
             ) {
-                BuildResult::Success(mut messages, mut analysis)
-                | BuildResult::Failure(mut messages, mut analysis) => {
+                BuildResult::Success(mut messages, mut analysis) => {
                     self.compiler_messages.lock().unwrap().append(&mut messages);
                     self.analysis.lock().unwrap().append(&mut analysis);
                 }

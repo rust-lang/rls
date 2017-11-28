@@ -49,8 +49,7 @@ impl<O: Output> PostBuildHandler<O> {
         ));
 
         match result {
-            BuildResult::Success(messages, new_analysis)
-            | BuildResult::Failure(messages, new_analysis) => {
+            BuildResult::Success(messages, new_analysis) => {
                 thread::spawn(move || {
                     trace!("build - Success");
 
