@@ -637,7 +637,7 @@ impl CodeAction {
         if let Some(diagnostics) = ctx.previous_build_results.lock().unwrap().get(file_path) {
             let suggestions = diagnostics
                 .iter()
-                .filter(|&&(ref d, _)| d.range == params.range)
+                .filter(|&&(ref d, _)| d.range.overlaps(&params.range))
                 .flat_map(|&(_, ref ss)| ss.iter());
             for s in suggestions {
                 let span = Location {
