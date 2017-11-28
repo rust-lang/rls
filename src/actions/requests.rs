@@ -881,7 +881,7 @@ fn reformat(
     match format_input(input, &config, Some(&mut buf)) {
         Ok((summary, ..)) => {
             // format_input returns Ok even if there are any errors, i.e., parsing errors.
-            if summary.has_no_errors() {
+            if !summary.has_operational_errors() && !summary.has_parsing_errors() {
                 // Note that we don't need to update the VFS, the client
                 // echos back the change to us.
                 let text = String::from_utf8(buf).unwrap();
