@@ -29,7 +29,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::marker::PhantomData;
 
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
@@ -196,10 +195,7 @@ impl InitActionContext {
             }
         };
 
-        out.notify(Notification::<BeginBuild> {
-                        params: NoParams {},
-                        _action: PhantomData,
-        });
+        out.notify(Notification::<BeginBuild>::new(NoParams {}));
         self.build_queue
             .request_build(project_path, priority, move |result| pbh.handle(result));
     }

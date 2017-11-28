@@ -153,6 +153,16 @@ pub struct Notification<A: Action> {
     pub _action: PhantomData<A>,
 }
 
+impl<A: Action> Notification<A> {
+    /// Creates a `Notification` structure with given `params`.
+    pub fn new(params: A::Params) -> Notification<A> {
+        Notification {
+            params,
+            _action: PhantomData
+        }
+    }
+}
+
 impl<'a, A: BlockingRequestAction<'a>> Request<A> {
     fn blocking_dispatch<O: Output>(
         self,
@@ -678,10 +688,7 @@ mod test {
 
         assert_eq!(
             notification,
-            Ok(Notification::<notifications::Initialized> {
-                params: NoParams {},
-                _action: PhantomData,
-            })
+            Ok(Notification::<notifications::Initialized>::new(NoParams {}))
         );
     }
 }
