@@ -191,7 +191,7 @@ impl<'a, A: Action> fmt::Display for Request<A> {
     }
 }
 
-impl<'a, A: BlockingNotificationAction<'a>> fmt::Display for Notification<A> {
+impl<'a, A: Action> fmt::Display for Notification<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         json!({
             "jsonrpc": "2.0",

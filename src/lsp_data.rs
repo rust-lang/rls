@@ -25,13 +25,6 @@ use vfs::FileContents;
 pub use ls_types::*;
 use jsonrpc_core::version;
 
-/// Notification string for beginning diagnostics.
-pub const NOTIFICATION_DIAGNOSTICS_BEGIN: &'static str = "rustDocument/diagnosticsBegin";
-/// Notification string for ending diagnostics.
-pub const NOTIFICATION_DIAGNOSTICS_END: &'static str = "rustDocument/diagnosticsEnd";
-/// Notification string for when a build begins.
-pub const NOTIFICATION_BUILD_BEGIN: &'static str = "rustDocument/beginBuild";
-
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
 pub enum UrlFileParseError {

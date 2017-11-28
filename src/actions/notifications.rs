@@ -369,3 +369,54 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeWatchedFiles {
         Ok(())
     }
 }
+
+/// Notification sent to client, used to publish file diagnostics
+/// (warnings, errors) from the server.
+#[derive(Debug)]
+pub struct PublishDiagnostics;
+
+impl Action for PublishDiagnostics {
+    type Params = PublishDiagnosticsParams;
+    const METHOD: &'static str = NOTIFICATION__PublishDiagnostics;
+}
+
+/// Notification sent to client, asking to show a specified message with a given type.
+#[derive(Debug)]
+pub struct ShowMessage;
+
+impl Action for ShowMessage {
+    type Params = ShowMessageParams;
+    const METHOD: &'static str = NOTIFICATION__ShowMessage;
+}
+
+/// Custom LSP notification sent to client indicating that the server is currently
+/// processing data and may publish new diagnostics on `rustDocument/diagnosticsEnd`.
+#[derive(Debug)]
+pub struct DiagnosticsBegin;
+
+impl Action for DiagnosticsBegin {
+    type Params = NoParams;
+    const METHOD: &'static str = "rustDocument/diagnosticsBegin";
+}
+
+/// Custom LSP notification sent to client indicating that data processing started
+/// by a `rustDocument`/diagnosticsBegin` has ended.
+/// For each `diagnosticsBegin` message, there is a single `diagnosticsEnd` message.
+/// This means that for multiple active `diagnosticsBegin` messages, there will
+/// be sent multiple `diagnosticsEnd` notifications.
+#[derive(Debug)]
+pub struct DiagnosticsEnd;
+
+impl Action for DiagnosticsEnd {
+    type Params = NoParams;
+    const METHOD: &'static str = "rustDocument/diagnosticsEnd";
+}
+
+/// Custom LSP notification sent to client indicating that a build process has begun.
+#[derive(Debug)]
+pub struct BeginBuild;
+
+impl Action for BeginBuild {
+    type Params = NoParams;
+    const METHOD: &'static str = "rustDocument/beginBuild";
+}
