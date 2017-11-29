@@ -236,6 +236,20 @@ pub fn completion_item_from_racer_match(m: racer::Match) -> CompletionItem {
     item
 }
 
+/* ------  Extension methods for JSON-RPC protocol types ------ */
+
+/// Provide additional methods for the remote `Range` type
+pub trait RangeExt {
+    /// Do both Ranges overlap?
+    fn overlaps(&self, other: &Self) -> bool;
+}
+
+impl RangeExt for Range {
+    fn overlaps(&self, other: &Self) -> bool {
+        self.start <= other.end && other.start <= self.end
+    }
+}
+
 /* -----------------  JSON-RPC protocol types ----------------- */
 
 /// Supported initilization options that can be passed in the `initialize`
