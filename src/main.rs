@@ -68,7 +68,7 @@ const COMPILER_TIMEOUT: u64 = 1500;
 #[cfg(test)]
 const COMPILER_TIMEOUT: u64 = 3_600_000;
 
-const CRATE_BLACKLIST: [&'static str; 10] = [
+const CRATE_BLACKLIST: [&'static str; 12] = [
     "libc",
     "typenum",
     "alloc",
