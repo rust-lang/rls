@@ -14,15 +14,15 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use build::BuildResult;
-use lsp_data::{ls_util, NotificationMessage, PublishDiagnosticsParams};
-use lsp_data::{NOTIFICATION_DIAGNOSTICS_BEGIN, NOTIFICATION_DIAGNOSTICS_END};
-use server::Output;
+use lsp_data::{ls_util, PublishDiagnosticsParams};
+use actions::notifications::{DiagnosticsBegin, DiagnosticsEnd, PublishDiagnostics};
+use server::{Notification, Output, NoParams};
 use CRATE_BLACKLIST;
 use Span;
 
 use analysis::AnalysisHost;
 use data::Analysis;
-use ls_types::{self, Diagnostic, DiagnosticSeverity, NumberOrString, Range};
+use ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range};
 use serde_json;
 use span::compiler::DiagnosticSpan;
 use url::Url;
@@ -41,21 +41,17 @@ pub struct PostBuildHandler<O: Output> {
 
 impl<O: Output> PostBuildHandler<O> {
     pub fn handle(self, result: BuildResult) {
-        // We use `rustDocument` document here since these notifications are
-        // custom to the RLS and not part of the LS protocol.
-        self.out.notify(NotificationMessage::new(
-            NOTIFICATION_DIAGNOSTICS_BEGIN,
-            None,
-        ));
+        self.out.notify(Notification::<DiagnosticsBegin>::new(NoParams {}));
 
         match result {
             BuildResult::Success(messages, new_analysis) => {
                 thread::spawn(move || {
                     trace!("build - Success");
 
+                    // Emit appropriate diagnostics using the ones from build.
                     self.handle_messages(messages);
 
-                    // Handle the analysis data.
+                    // Reload the analysis data.
                     debug!("reload analysis: {:?}", self.project_path);
                     if new_analysis.is_empty() {
                         self.reload_analysis_from_disk();
@@ -63,19 +59,16 @@ impl<O: Output> PostBuildHandler<O> {
                         self.reload_analysis_from_memory(new_analysis);
                     }
 
-                    self.out
-                        .notify(NotificationMessage::new(NOTIFICATION_DIAGNOSTICS_END, None));
+                    self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams{}));
                 });
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                self.out
-                    .notify(NotificationMessage::new(NOTIFICATION_DIAGNOSTICS_END, None));
+                self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams{}));
             }
             BuildResult::Err => {
                 trace!("build - Error");
-                self.out
-                    .notify(NotificationMessage::new(NOTIFICATION_DIAGNOSTICS_END, None));
+                self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams{}));
             }
         }
     }
@@ -252,9 +245,6 @@ fn emit_notifications<O: Output>(build_results: &BuildResults, show_warnings: bo
                 .collect(),
         };
 
-        out.notify(NotificationMessage::new(
-            ls_types::NOTIFICATION__PublishDiagnostics,
-            Some(params),
-        ));
+        out.notify(Notification::<PublishDiagnostics>::new(params));
     }
 }

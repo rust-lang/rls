@@ -10,7 +10,7 @@
 
 use serde_json;
 
-use lsp_data::*;
+use super::{Action, Notification};
 
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -143,8 +143,8 @@ pub trait Output: Sync + Send + Clone + 'static {
     }
 
     /// Send a notification along the output.
-    fn notify(&self, notification: NotificationMessage) {
-        self.response(serde_json::to_string(&notification).unwrap());
+    fn notify<A: Action>(&self, notification: Notification<A>) {
+        self.response(format!("{}", notification));
     }
 }
 

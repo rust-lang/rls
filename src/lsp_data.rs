@@ -23,14 +23,6 @@ use racer;
 use vfs::FileContents;
 
 pub use ls_types::*;
-use jsonrpc_core::version;
-
-/// Notification string for beginning diagnostics.
-pub const NOTIFICATION_DIAGNOSTICS_BEGIN: &'static str = "rustDocument/diagnosticsBegin";
-/// Notification string for ending diagnostics.
-pub const NOTIFICATION_DIAGNOSTICS_END: &'static str = "rustDocument/diagnosticsEnd";
-/// Notification string for when a build begins.
-pub const NOTIFICATION_BUILD_BEGIN: &'static str = "rustDocument/beginBuild";
 
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
@@ -266,27 +258,6 @@ impl Default for InitializationOptions {
     fn default() -> Self {
         InitializationOptions {
             omit_init_build: false,
-        }
-    }
-}
-
-/// An event-like (no response needed) notification message.
-#[derive(Debug, Serialize)]
-pub struct NotificationMessage {
-    jsonrpc: version::Version,
-    /// The well-known language server protocol notification method string.
-    pub method: &'static str,
-    /// Extra notification parameters.
-    pub params: Option<PublishDiagnosticsParams>,
-}
-
-impl NotificationMessage {
-    /// Construct a new notification message.
-    pub fn new(method: &'static str, params: Option<PublishDiagnosticsParams>) -> Self {
-        NotificationMessage {
-            jsonrpc: version::Version::V2,
-            method,
-            params,
         }
     }
 }

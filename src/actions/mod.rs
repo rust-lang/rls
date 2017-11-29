@@ -20,9 +20,10 @@ use span;
 use Span;
 
 use actions::post_build::{BuildResults, PostBuildHandler};
+use actions::notifications::BeginBuild;
 use build::*;
 use lsp_data::*;
-use server::Output;
+use server::{Output, Notification, NoParams};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -194,7 +195,7 @@ impl InitActionContext {
             }
         };
 
-        out.notify(NotificationMessage::new(NOTIFICATION_BUILD_BEGIN, None));
+        out.notify(Notification::<BeginBuild>::new(NoParams {}));
         self.build_queue
             .request_build(project_path, priority, move |result| pbh.handle(result));
     }
