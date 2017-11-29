@@ -74,11 +74,13 @@ const CRATE_BLACKLIST: [&'static str; 10] = [
     "alloc",
     "idna",
     "openssl",
-    "libunicode_normalization",
+    "unicode_normalization",
     "serde",
     "serde_json",
-    "librustc_serialize",
-    "libunicode_segmentation",
+    "rustc_serialize",
+    "unicode_segmentation",
+    "cocoa",
+    "gleam",
 ];
 
 const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
