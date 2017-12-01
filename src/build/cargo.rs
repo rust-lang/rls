@@ -386,8 +386,10 @@ impl Executor for RlsExecutor {
             let save_config = serde_json::to_string(&save_config)?;
             cmd.env("RUST_SAVE_ANALYSIS_CONFIG", &OsString::from(save_config));
 
-            cmd.arg("--sysroot");
-            cmd.arg(&sysroot);
+            if self.config.lock().unwrap().sysroot.is_none() {
+                cmd.arg("--sysroot");
+                cmd.arg(&sysroot);
+            }
             return cmd.exec();
         }
 
