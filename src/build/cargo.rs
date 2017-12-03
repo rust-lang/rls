@@ -161,7 +161,7 @@ fn run_cargo(
             (opts, rustflags, rls_config.clear_env_rust_log)
         };
 
-    let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)?;
+    let spec = Packages::from_flags(opts.all, &opts.exclude, &opts.package)?;
 
     let compile_opts = CompileOptions {
         target: opts.target.as_ref().map(|t| &t[..]),
