@@ -22,9 +22,13 @@ rls-data = { version = "0.13", features = ["serialize-serde"] }
 rls-rustc = "0.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4", features = ["racer-impls"] }
-rustfmt-nightly = "0.2.17"
+rustfmt-nightly = { version = "0.2.17", optional = true }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
 url = "1.1.0"
 rayon = "0.9"
+
+[features]
+default = ["rustfmt"]
+rustfmt = ["rustfmt-nightly"]

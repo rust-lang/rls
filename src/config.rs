@@ -23,7 +23,9 @@ use cargo::core::{Shell, Workspace};
 
 use serde::de::{Deserialize, Deserializer};
 
+#[cfg(feature = "rustfmt")]
 use rustfmt::config::Config as RustfmtConfig;
+#[cfg(feature = "rustfmt")]
 use rustfmt::config::WriteMode;
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 500;
@@ -282,8 +284,10 @@ impl Config {
 /// rustfmt generates from the user's toml file, since when
 /// using rustfmt with rls certain configuration options are
 /// always used. See `FmtConfig::set_rls_options`
+#[cfg(feature = "rustfmt")]
 pub struct FmtConfig(RustfmtConfig);
 
+#[cfg(feature = "rustfmt")]
 impl FmtConfig {
     /// Look for `.rustmt.toml` or `rustfmt.toml` in `path`, falling back
     /// to the default config if neither exist
@@ -309,6 +313,7 @@ impl FmtConfig {
     }
 }
 
+#[cfg(feature = "rustfmt")]
 impl Default for FmtConfig {
     fn default() -> FmtConfig {
         let config = RustfmtConfig::default();

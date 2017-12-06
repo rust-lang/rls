@@ -7,10 +7,23 @@ os:
   - osx
 rust:
   - nightly
+env:
+  - RUSTFMT=true
+matrix:
+  include:
+    rust: nightly
+    env: RUSTFMT=false
+    os: linux
 install:
     # Required for Racer autoconfiguration
     rustup component add rust-src
-script:
+script: |
+  #!/bin/bash
   # compile #[cfg(not(test))] code
-  - cargo build --verbose
-  - cargo test --verbose
+  if [ "$RUSTFMT" == "false" ] ; then
+    cargo build --verbose --no-default-features
+    cargo test --verbose --no-default-features
+  else
+    cargo build --verbose
+    cargo test --verbose
+  fi
