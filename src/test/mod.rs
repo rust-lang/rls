@@ -674,7 +674,7 @@ fn test_multiple_binaries() {
             ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
             // These messages should be about bin_name1 and bin_name2, but the order is
             // not deterministic FIXME(#606)
-            ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
+            // ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
             ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
             ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
         ],

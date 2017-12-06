@@ -144,7 +144,7 @@ impl Default for Config {
             wait_to_build: DEFAULT_WAIT_TO_BUILD,
             show_warnings: true,
             goto_def_racer_fallback: false,
-            workspace_mode: true,
+            workspace_mode: false,
             analyze_package: None,
             clear_env_rust_log: true,
             build_on_save: false,
@@ -183,10 +183,7 @@ impl Config {
         }
 
         if !self.unstable_features {
-            if self.analyze_package.is_some() {
-                eprintln!("`analyze_package` setting is unstable; ignored");
-            }
-            self.analyze_package = None;
+            // Force-set any unstable features here.
         }
     }
 
