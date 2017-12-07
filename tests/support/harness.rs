@@ -64,7 +64,8 @@ pub fn read_message<R: Read>(reader: &mut BufReader<R>) -> io::Result<String> {
 pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&ExpectedMessage]) {
     let mut results: Vec<String> = Vec::new();
     while results.len() < expected.len() {
-        results.push(read_message(reader).unwrap());
+        let msg = read_message(reader).unwrap();
+        results.push(msg);
     }
 
     println!(
