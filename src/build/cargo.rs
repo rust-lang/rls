@@ -182,6 +182,7 @@ fn run_cargo(
         features: &opts.features,
         all_features: opts.all_features,
         no_default_features: opts.no_default_features,
+        jobs: opts.jobs,
         ..CompileOptions::default(&config, CompileMode::Check { test: false })
     };
 
@@ -509,6 +510,7 @@ struct CargoOptions {
     all_features: bool,
     no_default_features: bool,
     features: Vec<String>,
+    jobs: Option<u32>,
 }
 
 impl Default for CargoOptions {
@@ -524,6 +526,7 @@ impl Default for CargoOptions {
             all_features: false,
             no_default_features: false,
             features: vec![],
+            jobs: None,
         }
     }
 }
@@ -543,6 +546,7 @@ impl CargoOptions {
                 features: config.features.clone(),
                 all_features: config.all_features,
                 no_default_features: config.no_default_features,
+                jobs: config.jobs,
                 ..CargoOptions::default()
             }
         } else {
@@ -566,6 +570,7 @@ impl CargoOptions {
                 features: config.features.clone(),
                 all_features: config.all_features,
                 no_default_features: config.no_default_features,
+                jobs: config.jobs,
                 ..CargoOptions::default()
             }
         }
