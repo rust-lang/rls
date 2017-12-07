@@ -13,7 +13,9 @@
 
 use analysis::AnalysisHost;
 use vfs::Vfs;
-use config::{Config, FmtConfig};
+#[cfg(feature = "rustfmt")]
+use config::FmtConfig;
+use config::Config;
 use serde_json;
 use url::Url;
 use span;
@@ -158,6 +160,7 @@ impl InitActionContext {
         }
     }
 
+    #[cfg(feature = "rustfmt")]
     fn fmt_config(&self) -> FmtConfig {
         FmtConfig::from(&self.current_project)
     }
