@@ -17,7 +17,7 @@ use url::Url;
 use vfs::FileContents;
 use racer;
 #[cfg(feature = "rustfmt")]
-use rustfmt::{format_input, Input as FmtInput};
+use rustfmt::{FileName, format_input, Input as FmtInput};
 #[cfg(feature = "rustfmt")]
 use rustfmt::file_lines::{FileLines, Range as RustfmtRange};
 use serde_json;
@@ -901,7 +901,7 @@ fn reformat(
             range_of_rls.row_end.0 as usize,
         );
         let mut ranges = HashMap::new();
-        ranges.insert("stdin".to_owned(), vec![range]);
+        ranges.insert(FileName::Custom("stdin".to_owned()), vec![range]);
         let file_lines = FileLines::from_ranges(ranges);
         config.set().file_lines(file_lines);
     };
