@@ -71,7 +71,7 @@ impl RequestAction for WorkspaceSymbol {
     ) -> Result<Self::Response, ResponseError> {
         let analysis = ctx.analysis;
 
-        let defs = analysis.name_defs(&params.query).unwrap_or_else(|_| vec![]);
+        let defs = analysis.matching_defs(&params.query).unwrap_or_else(|_| vec![]);
 
         Ok(
             defs.into_iter()
