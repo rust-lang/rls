@@ -114,6 +114,7 @@ Requests:
 * `textDocument/formatting`
 * `textDocument/rangeFormatting`
 * `textDocument/hover`
+* `workspace/symbol`
 
 From Server to client:
 
