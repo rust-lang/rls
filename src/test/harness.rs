@@ -14,8 +14,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::{Duration, SystemTime};
 
 use analysis;
 use config::Config;
@@ -24,8 +22,6 @@ use ls_types;
 use serde_json;
 use server as ls_server;
 use vfs;
-
-const TEST_TIMEOUT_IN_SEC: u64 = 320;
 
 pub struct Environment {
     pub config: Option<Config>,
@@ -187,16 +183,26 @@ impl ExpectedMessage {
     }
 }
 
-pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
-    let start_clock = SystemTime::now();
-    let mut results_count = results.lock().unwrap().len();
-    while results_count < expected.len() {
-        if start_clock.elapsed().unwrap().as_secs() >= TEST_TIMEOUT_IN_SEC {
-            panic!("Hit timeout");
+macro_rules! wait_for_n_results {
+    ($n:expr, $results:expr) => {{
+        use std::time::{Duration, SystemTime};
+        use std::thread;
+
+        let timeout = Duration::from_secs(320);
+        let start_clock = SystemTime::now();
+        let mut results_count = $results.lock().unwrap().len();
+        while results_count < $n {
+            if start_clock.elapsed().unwrap() >= timeout {
+                panic!("Timeout waiting for a result");
+            }
+            thread::sleep(Duration::from_millis(100));
+            results_count = $results.lock().unwrap().len();
         }
-        thread::sleep(Duration::from_millis(100));
-        results_count = results.lock().unwrap().len();
-    }
+    }};
+}
+
+pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
+    wait_for_n_results!(expected.len(), results);
 
     let mut results = results.lock().unwrap();
 

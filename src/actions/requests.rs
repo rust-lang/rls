@@ -10,7 +10,8 @@
 
 //! Requests that the RLS can respond to.
 
-use actions::{ActionContext, InitActionContext};
+pub use super::execute_command::*;
+use actions::InitActionContext;
 use data;
 use url::Url;
 #[cfg(feature = "rustfmt")]
@@ -26,7 +27,7 @@ use rayon;
 
 use lsp_data;
 use lsp_data::*;
-use server::{Ack, Action, BlockingRequestAction, LsState, Output, RequestAction, ResponseError};
+use server::{Action, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
 
 use std::collections::HashMap;
@@ -515,115 +516,6 @@ impl RequestAction for Rename {
         }
 
         Ok(WorkspaceEdit { changes: edits })
-    }
-}
-
-/// Execute a command within the workspace.
-///
-/// These are *not* shell commands, but commands given by the client and
-/// performed by the RLS.
-///
-/// Currently, only the "rls.applySuggestion" command is supported.
-pub struct ExecuteCommand;
-
-impl Action for ExecuteCommand {
-    type Params = ExecuteCommandParams;
-    const METHOD: &'static str = "workspace/executeCommand";
-}
-
-impl<'a> BlockingRequestAction<'a> for ExecuteCommand {
-    type Response = Ack;
-
-    fn new(_: &'a mut LsState) -> Self {
-        ExecuteCommand
-    }
-
-    fn handle<O: Output>(
-        &mut self,
-        id: usize,
-        params: Self::Params,
-        _ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<Self::Response, ()> {
-        match &*params.command {
-            "rls.applySuggestion" => {
-                let location =
-                    serde_json::from_value(params.arguments[0].clone()).expect("Bad argument");
-                let new_text =
-                    serde_json::from_value(params.arguments[1].clone()).expect("Bad argument");
-                Self::apply_suggestion(id, location, new_text, out)
-            }
-            "rls.deglobImports" => {
-                if !params.arguments.is_empty() {
-                    let deglob_results: Vec<DeglobResult> = params
-                        .arguments
-                        .into_iter()
-                        .map(|res| serde_json::from_value(res).expect("Bad argument"))
-                        .collect();
-                    Self::apply_deglobs(deglob_results, out)
-                } else {
-                    // without changes always successful
-                    Ok(Ack)
-                }
-            }
-            c => {
-                debug!("Unknown command: {}", c);
-                out.failure_message(id, ErrorCode::MethodNotFound, "Unknown command");
-                Err(())
-            }
-        }
-    }
-}
-
-impl ExecuteCommand {
-    fn apply_suggestion<O: Output>(
-        _id: usize,
-        location: Location,
-        new_text: String,
-        out: O,
-    ) -> Result<Ack, ()> {
-        trace!("apply_suggestion {:?} {}", location, new_text);
-        // FIXME should handle the response
-        let output = serde_json::to_string(&RequestMessage::new(
-            out.provide_id(),
-            "workspace/applyEdit".to_owned(),
-            ApplyWorkspaceEditParams {
-                edit: make_workspace_edit(location, new_text),
-            },
-        )).unwrap();
-        out.response(output);
-        Ok(Ack)
-    }
-
-    fn apply_deglobs<O: Output>(deglob_results: Vec<DeglobResult>, out: O) -> Result<Ack, ()> {
-        trace!("apply_deglob {:?}", deglob_results);
-
-        assert!(!deglob_results.is_empty());
-        let uri = deglob_results[0].location.uri.clone();
-
-        let text_edits: Vec<_> = deglob_results
-            .into_iter()
-            .map(|res| {
-                TextEdit {
-                    range: res.location.range,
-                    new_text: res.new_text,
-                }
-            })
-            .collect();
-        let mut edit = WorkspaceEdit {
-            changes: HashMap::new(),
-        };
-        // all deglob results will share the same URI
-        edit.changes.insert(uri, text_edits);
-
-        // FIXME should handle the response
-        let output = serde_json::to_string(&RequestMessage::new(
-            out.provide_id(),
-            "workspace/applyEdit".to_owned(),
-            ApplyWorkspaceEditParams { edit },
-        )).unwrap();
-        out.response(output);
-        Ok(Ack)
     }
 }
 
