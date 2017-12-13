@@ -13,44 +13,16 @@ extern crate cargo;
 #[macro_use]
 extern crate serde_json;
 
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread;
 use std::time::Duration;
 
 mod support;
-use support::{basic_bin_manifest, project};
-use support::harness::{ExpectedMessage, RlsHandle};
+use support::{ExpectedMessage, RlsHandle, basic_bin_manifest, project, timeout};
 
-fn timeout<F>(dur: Duration, func: F)
-    where F: FnOnce() + Send + 'static {
-    let pair = Arc::new((Mutex::new(false), Condvar::new()));
-    let pair2 = pair.clone();
-
-    thread::spawn(move|| {
-        let &(ref lock, ref cvar) = &*pair2;
-        func();
-        let mut finished = lock.lock().unwrap();
-        *finished = true;
-        // We notify the condvar that the value has changed.
-        cvar.notify_one();
-    });
-
-    // Wait for the test to finish.
-    let &(ref lock, ref cvar) = &*pair;
-    let mut finished = lock.lock().unwrap();
-    // As long as the value inside the `Mutex` is false, we wait.
-    while !*finished {
-        let result = cvar.wait_timeout(finished, dur).unwrap();
-        if result.1.timed_out() {
-            panic!("Timed out")
-        }
-        finished = result.0
-    }
-}
+const TIME_LIMIT_SECS: u64 = 300;
 
 #[test]
 fn test_infer_bin() {
-    timeout(Duration::from_secs(300), ||{
+    timeout(Duration::from_secs(TIME_LIMIT_SECS), ||{
         let p = project("simple_workspace")
             .file("Cargo.toml", &basic_bin_manifest("foo"))
             .file("src/main.rs", r#"

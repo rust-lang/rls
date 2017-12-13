@@ -8,17 +8,200 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use serde_json;
 use std::env;
 use std::fs;
-use std::io::prelude::*;
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::mem;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::str;
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread;
+use std::time::Duration;
+
 
 use support::paths::TestPathExt;
 
-pub mod harness;
 pub mod paths;
+
+/// Executes `func` and panics if it takes longer than `dur`.
+pub fn timeout<F>(dur: Duration, func: F)
+    where F: FnOnce() + Send + 'static {
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+    let pair2 = pair.clone();
+
+    thread::spawn(move|| {
+        let &(ref lock, ref cvar) = &*pair2;
+        func();
+        let mut finished = lock.lock().unwrap();
+        *finished = true;
+        // We notify the condvar that the value has changed.
+        cvar.notify_one();
+    });
+
+    // Wait for the test to finish.
+    let &(ref lock, ref cvar) = &*pair;
+    let mut finished = lock.lock().unwrap();
+    // As long as the value inside the `Mutex` is false, we wait.
+    while !*finished {
+        let result = cvar.wait_timeout(finished, dur).unwrap();
+        if result.1.timed_out() {
+            panic!("Timed out")
+        }
+        finished = result.0
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ExpectedMessage {
+    id: Option<u64>,
+    contains: Vec<String>,
+}
+
+impl ExpectedMessage {
+    pub fn new(id: Option<u64>) -> ExpectedMessage {
+        ExpectedMessage {
+            id: id,
+            contains: vec![],
+        }
+    }
+
+    pub fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
+        self.contains.push(s.to_owned());
+        self
+    }
+}
+
+pub fn read_message<R: Read>(reader: &mut BufReader<R>) -> io::Result<String> {
+    let mut content_length = None;
+    // Read the headers
+    loop {
+        let mut header = String::new();
+        reader.read_line(&mut header)?;
+        if header.len() == 0 {
+            panic!("eof")
+        }
+        if header == "\r\n" {
+            // This is the end of the headers
+            break;
+        }
+        let parts: Vec<&str> = header.splitn(2, ": ").collect();
+        if parts[0] == "Content-Length" {
+            content_length = Some(parts[1].trim().parse::<usize>().unwrap())
+        }
+    }
+
+    // Read the actual message
+    let content_length = content_length.expect("did not receive Content-Length header");
+    let mut msg = vec![0; content_length];
+    reader.read_exact(&mut msg)?;
+    let result = String::from_utf8_lossy(&msg).into_owned();
+    Ok(result)
+}
+
+pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&ExpectedMessage]) {
+    let mut results: Vec<String> = Vec::new();
+    while results.len() < expected.len() {
+        let msg = read_message(reader).unwrap();
+        results.push(msg);
+    }
+
+    println!(
+        "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
+        results,
+        expected
+    );
+    assert_eq!(results.len(), expected.len());
+    for (found, expected) in results.iter().zip(expected.iter()) {
+        let values: serde_json::Value = serde_json::from_str(found).unwrap();
+        assert!(
+            values
+                .get("jsonrpc")
+                .expect("Missing jsonrpc field")
+                .as_str()
+                .unwrap() == "2.0",
+            "Bad jsonrpc field"
+        );
+        if let Some(id) = expected.id {
+            assert_eq!(
+                values
+                    .get("id")
+                    .expect("Missing id field")
+                    .as_u64()
+                    .unwrap(),
+                id,
+                "Unexpected id"
+            );
+        }
+        for c in expected.contains.iter() {
+            found
+                .find(c)
+                .expect(&format!("Could not find `{}` in `{}`", c, found));
+        }
+    }
+}
+
+pub struct RlsHandle {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
+impl RlsHandle {
+    pub fn new(mut child: Child) -> RlsHandle {
+        let stdin = mem::replace(&mut child.stdin, None).unwrap();
+        let stdout = mem::replace(&mut child.stdout, None).unwrap();
+        let stdout = BufReader::new(stdout);
+
+        RlsHandle {
+            child,
+            stdin,
+            stdout,
+        }
+    }
+
+    pub fn send_string(&mut self, s: &str) -> io::Result<usize> {
+        let full_msg = format!("Content-Length: {}\r\n\r\n{}", s.len(), s);
+        self.stdin.write(full_msg.as_bytes())
+    }
+    pub fn send(&mut self, j: serde_json::Value) -> io::Result<usize> {
+        self.send_string(&j.to_string())
+    }
+    pub fn notify(&mut self, method: &str, params: serde_json::Value) -> io::Result<usize> {
+        self.send(json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+        }))
+    }
+    pub fn request(&mut self, id: u64, method: &str, params: serde_json::Value) -> io::Result<usize> {
+        self.send(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params,
+        }))
+    }
+    pub fn shutdown_exit(&mut self) {
+        self.request(99999, "shutdown", json!({})).unwrap();
+
+        self.expect_messages(&[
+            &ExpectedMessage::new(Some(99999)),
+        ]);
+
+        self.notify("exit", json!({})).unwrap();
+
+        let ecode = self.child.wait()
+            .expect("failed to wait on child rls process");
+        
+        assert!(ecode.success());
+    }
+
+    pub fn expect_messages(&mut self, expected: &[&ExpectedMessage]) {
+        expect_messages(&mut self.stdout, expected);
+    }
+}
 
 #[derive(PartialEq,Clone)]
 struct FileBuilder {
