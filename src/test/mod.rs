@@ -543,6 +543,7 @@ fn test_rename() {
     );
 }
 
+#[cfg(feature = "rustfmt")]
 #[test]
 fn test_reformat() {
     let mut env = Environment::new("reformat");
@@ -592,6 +593,7 @@ fn test_reformat() {
                                             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)]);
 }
 
+#[cfg(feature = "rustfmt")]
 #[test]
 fn test_reformat_with_range() {
     let mut env = Environment::new("reformat_with_range");
