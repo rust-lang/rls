@@ -21,8 +21,8 @@ use url::Url;
 use span;
 use Span;
 
-use actions::post_build::{BuildResults, PostBuildHandler};
-use actions::notifications::BeginBuild;
+use actions::post_build::{BuildResults, PostBuildHandler, Notifier};
+use actions::notifications::{BeginBuild, DiagnosticsBegin, DiagnosticsEnd, PublishDiagnostics};
 use build::*;
 use lsp_data::*;
 use server::{Output, Notification, NoParams};
@@ -51,7 +51,7 @@ macro_rules! parse_file_path {
     }
 }
 
-mod post_build;
+pub mod post_build;
 pub mod requests;
 pub mod notifications;
 
@@ -186,21 +186,37 @@ impl InitActionContext {
     }
 
     fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
+        struct BuildNotifier<O: Output> {
+            out: O,
+        }
+
+        impl<O: Output> Notifier for BuildNotifier<O> {
+            fn notify_begin(&self) {
+                self.out.notify(Notification::<DiagnosticsBegin>::new(NoParams {}));
+            }
+            fn notify_end(&self) {
+                self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams {}));
+            }
+            fn notify_publish(&self, params: PublishDiagnosticsParams) {
+                self.out.notify(Notification::<PublishDiagnostics>::new(params));
+            }
+        }
+
         let pbh = {
             let config = self.config.lock().unwrap();
             PostBuildHandler {
                 analysis: self.analysis.clone(),
                 previous_build_results: self.previous_build_results.clone(),
                 project_path: project_path.to_owned(),
-                out: out.clone(),
                 show_warnings: config.show_warnings,
                 use_black_list: config.use_crate_blacklist,
+                notifier: Box::new(BuildNotifier { out: out.clone() }),
             }
         };
 
         out.notify(Notification::<BeginBuild>::new(NoParams {}));
         self.build_queue
-            .request_build(project_path, priority, move |result| pbh.handle(result));
+            .request_build(project_path, priority, pbh);
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {

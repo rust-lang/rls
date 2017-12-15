@@ -12,13 +12,13 @@
 
 pub use self::cargo::make_cargo_config;
 
+use actions::post_build::PostBuildHandler;
 use data::Analysis;
 use vfs::Vfs;
 use config::Config;
 
 use self::environment::EnvironmentLock;
 
-use std::boxed::FnBox;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -158,8 +158,7 @@ struct PendingBuild {
     build_dir: PathBuf,
     priority: BuildPriority,
     built_files: HashMap<PathBuf, FileVersion>,
-    // Closure to execute once the build is complete.
-    and_then: Box<FnBox(BuildResult) + Send + 'static>,
+    pbh: PostBuildHandler,
 }
 
 impl Build {
@@ -228,14 +227,7 @@ impl BuildQueue {
     /// (we might want to do a high priority build, then a low priority one). So
     /// our build queue is just a single slot (for each priority). We record if
     /// a build is waiting and if not, if a build is running.
-    ///
-    /// `and_then` is a closure to run after a build has completed or been
-    /// squashed.  It must return quickly and without blocking. If it has work
-    /// to do, it should spawn a thread to do it.
-    pub fn request_build<F>(&self, new_build_dir: &Path, mut priority: BuildPriority, and_then: F)
-    where
-        F: FnOnce(BuildResult) + Send + 'static,
-    {
+    pub fn request_build(&self, new_build_dir: &Path, mut priority: BuildPriority, pbh: PostBuildHandler) {
         trace!("request_build {:?}", priority);
         let needs_compilation_ctx_from_cargo = {
             let context = self.internals.compilation_cx.lock().unwrap();
@@ -249,7 +241,7 @@ impl BuildQueue {
             build_dir: new_build_dir.to_owned(),
             built_files: self.internals.dirty_files.lock().unwrap().clone(),
             priority,
-            and_then: Box::new(and_then),
+            pbh,
         };
 
         let queued_clone = self.queued.clone();
@@ -327,8 +319,7 @@ impl BuildQueue {
         let mut old_build = Build::None;
         mem::swap(build, &mut old_build);
         if let Build::Pending(build) = old_build {
-            let and_then = build.and_then;
-            and_then(BuildResult::Squashed);
+            build.pbh.handle(BuildResult::Squashed);
         }
     }
 
@@ -352,8 +343,6 @@ impl BuildQueue {
                 }
             };
 
-            let and_then = build.and_then;
-
             // Normal priority threads sleep before starting up.
             if build.priority == BuildPriority::Normal {
                 let wait_to_build = {
@@ -370,7 +359,7 @@ impl BuildQueue {
                     queued.0.is_pending() || queued.1.is_pending()
                 };
                 if interrupt {
-                    and_then(BuildResult::Squashed);
+                    build.pbh.handle(BuildResult::Squashed);
                     continue;
                 }
             }
@@ -381,7 +370,7 @@ impl BuildQueue {
             if let BuildResult::Squashed = result {
                 unreachable!();
             }
-            and_then(result);
+            build.pbh.handle(result);
 
             // Remove the in-progress marker from the build queue.
             let mut queued = queued.lock().unwrap();

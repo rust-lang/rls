@@ -8,6 +8,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Post-build processing of data.
+
+#![allow(missing_docs)]
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -15,8 +19,6 @@ use std::thread;
 
 use build::BuildResult;
 use lsp_data::{ls_util, PublishDiagnosticsParams};
-use actions::notifications::{DiagnosticsBegin, DiagnosticsEnd, PublishDiagnostics};
-use server::{Notification, Output, NoParams};
 use CRATE_BLACKLIST;
 use Span;
 
@@ -30,18 +32,25 @@ use url::Url;
 
 pub type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
-pub struct PostBuildHandler<O: Output> {
+pub struct PostBuildHandler {
     pub analysis: Arc<AnalysisHost>,
     pub previous_build_results: Arc<Mutex<BuildResults>>,
     pub project_path: PathBuf,
-    pub out: O,
     pub show_warnings: bool,
     pub use_black_list: bool,
+    pub notifier: Box<Notifier>,
 }
 
-impl<O: Output> PostBuildHandler<O> {
+/// Trait for communication back to the rest of the RLS (and on to the client).
+pub trait Notifier: Send {
+    fn notify_begin(&self);
+    fn notify_end(&self);
+    fn notify_publish(&self, PublishDiagnosticsParams);
+}
+
+impl PostBuildHandler {
     pub fn handle(self, result: BuildResult) {
-        self.out.notify(Notification::<DiagnosticsBegin>::new(NoParams {}));
+        self.notifier.notify_begin();
 
         match result {
             BuildResult::Success(messages, new_analysis) => {
@@ -59,16 +68,16 @@ impl<O: Output> PostBuildHandler<O> {
                         self.reload_analysis_from_memory(new_analysis);
                     }
 
-                    self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams{}));
+                    self.notifier.notify_end();
                 });
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams{}));
+                self.notifier.notify_end();
             }
             BuildResult::Err => {
                 trace!("build - Error");
-                self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams{}));
+                self.notifier.notify_end();
             }
         }
     }
@@ -99,7 +108,7 @@ impl<O: Output> PostBuildHandler<O> {
             }
         }
 
-        emit_notifications(&results, self.show_warnings, &self.out);
+        self.emit_notifications(&results);
     }
 
     fn reload_analysis_from_disk(&self) {
@@ -123,6 +132,26 @@ impl<O: Output> PostBuildHandler<O> {
             self.analysis
                 .reload_from_analysis(analysis, &self.project_path, &cwd, &[])
                 .unwrap();
+        }
+    }
+
+    fn emit_notifications(&self, build_results: &BuildResults) {
+        for (path, diagnostics) in build_results {
+            let params = PublishDiagnosticsParams {
+                uri: Url::from_file_path(path).unwrap(),
+                diagnostics: diagnostics
+                    .iter()
+                    .filter_map(|&(ref d, _)| {
+                        if self.show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
+                            Some(d.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+            };
+
+            self.notifier.notify_publish(params);
         }
     }
 }
@@ -229,22 +258,3 @@ fn primary_span(message: &CompilerMessage) -> Span {
     primary.rls_span().zero_indexed()
 }
 
-fn emit_notifications<O: Output>(build_results: &BuildResults, show_warnings: bool, out: &O) {
-    for (path, diagnostics) in build_results {
-        let params = PublishDiagnosticsParams {
-            uri: Url::from_file_path(path).unwrap(),
-            diagnostics: diagnostics
-                .iter()
-                .filter_map(|&(ref d, _)| {
-                    if show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
-                        Some(d.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-        };
-
-        out.notify(Notification::<PublishDiagnostics>::new(params));
-    }
-}
