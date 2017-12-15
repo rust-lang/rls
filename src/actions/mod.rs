@@ -207,6 +207,14 @@ impl InitActionContext {
         self.build(&self.current_project, priority, out);
     }
 
+    fn block_on_build(&self) {
+        self.build_queue.block_on_build();
+    }
+
+    fn build_ready(&self) -> bool {
+        self.build_queue.build_ready()
+    }
+
     fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {
         trace!("convert_pos_to_span: {:?} {:?}", file_path, pos);
 

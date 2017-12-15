@@ -87,6 +87,9 @@ struct Internals {
     // This lock should only be held transiently.
     config: Arc<Mutex<Config>>,
     building: AtomicBool,
+    /// A list of threads blocked on the current build queue. They should be
+    /// resumed when there are no builds to run.
+    blocked: Mutex<Vec<thread::Thread>>,
 }
 
 /// The result of a build request.
@@ -261,8 +264,39 @@ impl BuildQueue {
                 BuildQueue::run_thread(queued_clone, &internals_clone);
                 let building = internals_clone.building.swap(false, Ordering::SeqCst);
                 assert!(building);
+                let mut blocked = internals_clone.blocked.lock().unwrap();
+                for t in blocked.drain(..) {
+                    t.unpark();
+                }
             });
         }
+    }
+
+    /// Block until any currently queued builds are complete.
+    ///
+    /// Since an incoming build can squash a pending or executing one, we wait
+    /// for all builds to complete, i.e., if any build is running when called,
+    /// this function will not return until that build or a more recent one has
+    /// completed. This means that if build requests keep coming, this function
+    /// will never return. The caller should therefore block the dispatching
+    /// thread (i.e., should be called from the same thread as `request_build`).
+    pub fn block_on_build(&self) {
+        loop {
+            if !self.internals.building.load(Ordering::SeqCst) {
+                eprintln!("unblocking");
+                return;
+            }
+            eprintln!("blocking");
+            let mut blocked = self.internals.blocked.lock().unwrap();
+            blocked.push(thread::current());
+            thread::park();
+        }
+    }
+
+    /// Essentially this is !'would_block' (see `block_on_build`). If this is
+    /// true, then it is safe to rely on data from the build.
+    pub fn build_ready(&self) -> bool {
+        !self.internals.building.load(Ordering::SeqCst)
     }
 
     // Takes the unlocked build queue and pushes an incoming build onto it.
@@ -383,6 +417,7 @@ impl Internals {
             // instances, be sure to use a global lock to ensure env var consistency
             env_lock: EnvironmentLock::get(),
             building: AtomicBool::new(false),
+            blocked: Mutex::new(vec![]),
         }
     }
 

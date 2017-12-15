@@ -475,6 +475,8 @@ impl RequestAction for Rename {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
+        ctx.block_on_build();
+
         let file_path = parse_file_path!(&params.text_document.uri, "rename")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
@@ -762,8 +764,14 @@ impl RequestAction for CodeAction {
         let file_path = parse_file_path!(&params.text_document.uri, "code_action")?;
 
         let mut cmds = vec![];
-        Self::make_suggestion_fix_actions(&params, &file_path, &ctx, &mut cmds);
-        Self::make_deglob_actions(&params, &file_path, &ctx, &mut cmds);
+        if ctx.build_ready() {
+            eprintln!("build ready");
+            Self::make_suggestion_fix_actions(&params, &file_path, &ctx, &mut cmds);
+            Self::make_deglob_actions(&params, &file_path, &ctx, &mut cmds);
+        } else {
+                        eprintln!("not ready");
+
+        }
         Ok(cmds)
     }
 }
