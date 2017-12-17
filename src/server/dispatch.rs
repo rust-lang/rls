@@ -1,12 +1,12 @@
 use super::requests::*;
 use jsonrpc_core as jsonrpc;
+use server;
 use server::{Action, Request, Response};
 use server::io::Output;
 use actions::InitActionContext;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-use std::fmt;
 
 lazy_static! {
     static ref TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
@@ -79,7 +79,8 @@ define_dispatch_request_enum!(
     CodeAction,
     ResolveCompletion,
     Formatting,
-    RangeFormatting
+    RangeFormatting,
+    ExecuteCommand
 );
 
 /// Provides ability to dispatch requests to a worker thread that will
@@ -144,7 +145,7 @@ impl Dispatcher {
 /// and handled on the `WORK_POOL` via a `Dispatcher`.
 pub trait RequestAction: Action {
     /// Serializable response type
-    type Response: ::serde::Serialize + fmt::Debug + Send;
+    type Response: server::Response + Send;
 
     /// Max duration this request should finish within, also see `fallback_response()`
     fn timeout(&self) -> Duration {

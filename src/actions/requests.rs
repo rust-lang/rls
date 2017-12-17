@@ -10,7 +10,7 @@
 
 //! Requests that the RLS can respond to.
 
-use actions::{ActionContext, InitActionContext};
+use actions::InitActionContext;
 use data;
 use url::Url;
 #[cfg(feature = "rustfmt")]
@@ -26,7 +26,8 @@ use rayon;
 
 use lsp_data;
 use lsp_data::*;
-use server::{Ack, Action, BlockingRequestAction, LsState, Output, RequestAction, ResponseError};
+use server;
+use server::{Ack, Action, Output, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
 
 use std::collections::HashMap;
@@ -523,108 +524,116 @@ impl RequestAction for Rename {
 /// These are *not* shell commands, but commands given by the client and
 /// performed by the RLS.
 ///
-/// Currently, only the "rls.applySuggestion" command is supported.
+/// Currently supports "rls.applySuggestion", "rls.deglobImports".
 pub struct ExecuteCommand;
+
+///
+#[derive(Debug)]
+pub enum ExecuteCommandResponse {
+    /// Response/client request containing workspace edits.
+    ApplyEdit(ApplyWorkspaceEditParams),
+}
+
+
+impl server::Response for ExecuteCommandResponse {
+    fn send<O: Output>(&self, id: usize, out: &O) {
+        // FIXME should handle the client's responses
+        match *self {
+            ExecuteCommandResponse::ApplyEdit(ref params) => {
+                let output = serde_json::to_string(&RequestMessage::new(
+                    out.provide_id(),
+                    "workspace/applyEdit".to_owned(),
+                    ApplyWorkspaceEditParams {
+                        edit: params.edit.clone(),
+                    },
+                )).unwrap();
+                out.response(output);
+            }
+        }
+
+        // The formal request response is a simple ACK, though the objective
+        // is the preceeding client requests.
+        Ack.send(id, out);
+    }
+}
 
 impl Action for ExecuteCommand {
     type Params = ExecuteCommandParams;
     const METHOD: &'static str = "workspace/executeCommand";
 }
 
-impl<'a> BlockingRequestAction<'a> for ExecuteCommand {
-    type Response = Ack;
+impl RequestAction for ExecuteCommand {
+    type Response = ExecuteCommandResponse;
 
-    fn new(_: &'a mut LsState) -> Self {
+    fn new() -> Self {
         ExecuteCommand
     }
 
-    fn handle<O: Output>(
+    fn fallback_response(&self) -> Result<Self::Response, ResponseError> {
+        Err(ResponseError::Empty)
+    }
+
+    fn handle(
         &mut self,
-        id: usize,
-        params: Self::Params,
-        _ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<Self::Response, ()> {
+        _: InitActionContext,
+        params: ExecuteCommandParams,
+    ) -> Result<Self::Response, ResponseError> {
         match &*params.command {
             "rls.applySuggestion" => {
-                let location =
-                    serde_json::from_value(params.arguments[0].clone()).expect("Bad argument");
-                let new_text =
-                    serde_json::from_value(params.arguments[1].clone()).expect("Bad argument");
-                Self::apply_suggestion(id, location, new_text, out)
+                apply_suggestion(params.arguments).map(ExecuteCommandResponse::ApplyEdit)
             }
             "rls.deglobImports" => {
-                if !params.arguments.is_empty() {
-                    let deglob_results: Vec<DeglobResult> = params
-                        .arguments
-                        .into_iter()
-                        .map(|res| serde_json::from_value(res).expect("Bad argument"))
-                        .collect();
-                    Self::apply_deglobs(deglob_results, out)
-                } else {
-                    // without changes always successful
-                    Ok(Ack)
-                }
+                apply_deglobs(params.arguments).map(ExecuteCommandResponse::ApplyEdit)
             }
             c => {
                 debug!("Unknown command: {}", c);
-                out.failure_message(id, ErrorCode::MethodNotFound, "Unknown command");
-                Err(())
+                Err(ResponseError::Message(
+                    ErrorCode::MethodNotFound,
+                    "Unknown command".to_owned(),
+                ))
             }
         }
     }
 }
 
-impl ExecuteCommand {
-    fn apply_suggestion<O: Output>(
-        _id: usize,
-        location: Location,
-        new_text: String,
-        out: O,
-    ) -> Result<Ack, ()> {
-        trace!("apply_suggestion {:?} {}", location, new_text);
-        // FIXME should handle the response
-        let output = serde_json::to_string(&RequestMessage::new(
-            out.provide_id(),
-            "workspace/applyEdit".to_owned(),
-            ApplyWorkspaceEditParams {
-                edit: make_workspace_edit(location, new_text),
-            },
-        )).unwrap();
-        out.response(output);
-        Ok(Ack)
-    }
+fn apply_suggestion(
+    args: Vec<serde_json::Value>,
+) -> Result<ApplyWorkspaceEditParams, ResponseError> {
+    let location = serde_json::from_value(args[0].clone()).expect("Bad argument");
+    let new_text = serde_json::from_value(args[1].clone()).expect("Bad argument");
 
-    fn apply_deglobs<O: Output>(deglob_results: Vec<DeglobResult>, out: O) -> Result<Ack, ()> {
-        trace!("apply_deglob {:?}", deglob_results);
+    trace!("apply_suggestion {:?} {}", location, new_text);
+    Ok(ApplyWorkspaceEditParams {
+        edit: make_workspace_edit(location, new_text),
+    })
+}
 
-        assert!(!deglob_results.is_empty());
-        let uri = deglob_results[0].location.uri.clone();
+fn apply_deglobs(args: Vec<serde_json::Value>) -> Result<ApplyWorkspaceEditParams, ResponseError> {
+    let deglob_results: Vec<DeglobResult> = args.into_iter()
+        .map(|res| serde_json::from_value(res).expect("Bad argument"))
+        .collect();
 
-        let text_edits: Vec<_> = deglob_results
-            .into_iter()
-            .map(|res| {
-                TextEdit {
-                    range: res.location.range,
-                    new_text: res.new_text,
-                }
-            })
-            .collect();
-        let mut edit = WorkspaceEdit {
-            changes: HashMap::new(),
-        };
-        // all deglob results will share the same URI
-        edit.changes.insert(uri, text_edits);
+    trace!("apply_deglob {:?}", deglob_results);
 
-        // FIXME should handle the response
-        let output = serde_json::to_string(&RequestMessage::new(
-            out.provide_id(),
-            "workspace/applyEdit".to_owned(),
-            ApplyWorkspaceEditParams { edit },
-        )).unwrap();
-        out.response(output);
-        Ok(Ack)
-    }
+    assert!(!deglob_results.is_empty());
+    let uri = deglob_results[0].location.uri.clone();
+
+    let text_edits: Vec<_> = deglob_results
+        .into_iter()
+        .map(|res| {
+            TextEdit {
+                range: res.location.range,
+                new_text: res.new_text,
+            }
+        })
+        .collect();
+    let mut edit = WorkspaceEdit {
+        changes: HashMap::new(),
+    };
+    // all deglob results will share the same URI
+    edit.changes.insert(uri, text_edits);
+
+    Ok(ApplyWorkspaceEditParams { edit })
 }
 
 /// Get a list of actions that can be performed on a specific document and range

@@ -510,9 +510,9 @@ impl<O: Output> LsService<O> {
                 notifications::Cancel;
             blocking_requests:
                 ShutdownRequest,
-                InitializeRequest,
-                requests::ExecuteCommand;
+                InitializeRequest;
             requests:
+                requests::ExecuteCommand,
                 requests::Formatting,
                 requests::RangeFormatting,
                 requests::ResolveCompletion,

@@ -11,6 +11,9 @@
 // Utilities and infrastructure for testing. Tests in this module test the
 // testing infrastructure *not* the RLS.
 
+extern crate json;
+
+#[macro_use]
 mod harness;
 
 use analysis;
@@ -540,6 +543,7 @@ fn test_rename() {
     );
 }
 
+#[cfg(feature = "rustfmt")]
 #[test]
 fn test_reformat() {
     let mut env = Environment::new("reformat");
@@ -589,6 +593,7 @@ fn test_reformat() {
                                             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)]);
 }
 
+#[cfg(feature = "rustfmt")]
 #[test]
 fn test_reformat_with_range() {
     let mut env = Environment::new("reformat_with_range");
@@ -1147,162 +1152,196 @@ fn test_no_default_features() {
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 // }
 
-// FIXME(#585) re-enable
-// #[test]
-// fn test_deglob() {
-//     let mut env = Environment::new("deglob");
+#[test]
+fn test_deglob() {
+    let mut env = Environment::new("deglob");
 
-//     let source_file_path = Path::new("src").join("main.rs");
+    let source_file_path = Path::new("src").join("main.rs");
 
-//     let root_path = env.cache.abs_path(Path::new("."));
-//     let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
-//         .expect("couldn't convert file path to URL");
-//     let text_doc = TextDocumentIdentifier::new(url.clone());
-//     let messages = vec![
-//         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-//         // request deglob for single wildcard
-//         request::<requests::CodeAction>(
-//             100,
-//             CodeActionParams {
-//                 text_document: text_doc.clone(),
-//                 range: env.cache.mk_ls_range_from_line(12),
-//                 context: CodeActionContext {
-//                     diagnostics: vec![],
-//                 },
-//             },
-//         ).to_string(),
-//         // deglob single
-//         blocking_request::<requests::ExecuteCommand>(
-//             200,
-//             ExecuteCommandParams {
-//                 command: "rls.deglobImports".into(),
-//                 arguments: vec![
-//                     serde_json::to_value(&requests::DeglobResult {
-//                         location: Location {
-//                             uri: url.clone(),
-//                             range: Range::new(Position::new(12, 13), Position::new(12, 14)),
-//                         },
-//                         new_text: "{Stdout, Stdin}".into(),
-//                     }).unwrap(),
-//                 ],
-//             },
-//         ).to_string(),
-//         // request deglob for double wildcard
-//         request::<requests::CodeAction>(
-//             1100,
-//             CodeActionParams {
-//                 text_document: text_doc.clone(),
-//                 range: env.cache.mk_ls_range_from_line(15),
-//                 context: CodeActionContext {
-//                     diagnostics: vec![],
-//                 },
-//             },
-//         ).to_string(),
-//         // deglob two wildcards
-//         blocking_request::<requests::ExecuteCommand>(
-//             1200,
-//             ExecuteCommandParams {
-//                 command: "rls.deglobImports".into(),
-//                 arguments: vec![
-//                     serde_json::to_value(&requests::DeglobResult {
-//                         location: Location {
-//                             uri: url.clone(),
-//                             range: Range::new(Position::new(15, 14), Position::new(15, 15)),
-//                         },
-//                         new_text: "size_of".into(),
-//                     }).unwrap(),
-//                     serde_json::to_value(&requests::DeglobResult {
-//                         location: Location {
-//                             uri: url.clone(),
-//                             range: Range::new(Position::new(15, 31), Position::new(15, 32)),
-//                         },
-//                         new_text: "max".into(),
-//                     }).unwrap(),
-//                 ],
-//             },
-//         ).to_string(),
-//     ];
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
+        .expect("couldn't convert file path to URL");
+    let text_doc = TextDocumentIdentifier::new(url.clone());
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        // request deglob for single wildcard
+        request::<requests::CodeAction>(
+            100,
+            CodeActionParams {
+                text_document: text_doc.clone(),
+                range: env.cache.mk_ls_range_from_line(12),
+                context: CodeActionContext {
+                    diagnostics: vec![],
+                },
+            },
+        ).to_string(),
+        // deglob single
+        request::<requests::ExecuteCommand>(
+            200,
+            ExecuteCommandParams {
+                command: "rls.deglobImports".into(),
+                arguments: vec![
+                    serde_json::to_value(&requests::DeglobResult {
+                        location: Location {
+                            uri: url.clone(),
+                            range: Range::new(Position::new(12, 13), Position::new(12, 14)),
+                        },
+                        new_text: "{Stdout, Stdin}".into(),
+                    }).unwrap(),
+                ],
+            },
+        ).to_string(),
+        // request deglob for double wildcard
+        request::<requests::CodeAction>(
+            1100,
+            CodeActionParams {
+                text_document: text_doc.clone(),
+                range: env.cache.mk_ls_range_from_line(15),
+                context: CodeActionContext {
+                    diagnostics: vec![],
+                },
+            },
+        ).to_string(),
+        // deglob two wildcards
+        request::<requests::ExecuteCommand>(
+            1200,
+            ExecuteCommandParams {
+                command: "rls.deglobImports".into(),
+                arguments: vec![
+                    serde_json::to_value(&requests::DeglobResult {
+                        location: Location {
+                            uri: url.clone(),
+                            range: Range::new(Position::new(15, 14), Position::new(15, 15)),
+                        },
+                        new_text: "size_of".into(),
+                    }).unwrap(),
+                    serde_json::to_value(&requests::DeglobResult {
+                        location: Location {
+                            uri: url.clone(),
+                            range: Range::new(Position::new(15, 31), Position::new(15, 32)),
+                        },
+                        new_text: "max".into(),
+                    }).unwrap(),
+                ],
+            },
+        ).to_string(),
+    ];
 
-//     let (mut server, results) = env.mock_server(messages);
-//     // Initialize and build.
-//     assert_eq!(
-//         ls_server::LsService::handle_message(&mut server),
-//         ls_server::ServerStateChange::Continue
-//     );
-//     expect_messages(
-//         results.clone(),
-//         &[
-//             ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports"),
-//             ExpectedMessage::new(None).expect_contains("beginBuild"),
-//             ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-//             ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
-//         ],
-//     );
+    let (mut server, results) = env.mock_server(messages);
+    // Initialize and build.
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports"),
+            ExpectedMessage::new(None).expect_contains("beginBuild"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
+        ],
+    );
 
-//     assert_eq!(
-//         ls_server::LsService::handle_message(&mut server),
-//         ls_server::ServerStateChange::Continue
-//     );
-//     expect_messages(
-//         results.clone(),
-//         &[
-//             ExpectedMessage::new(Some(100))
-//                 .expect_contains(r#""title":"Deglob Import""#)
-//                 .expect_contains(r#""command":"rls.deglobImports""#)
-//                 .expect_contains(r#"{"location":{"range":{"end":{"character":14,"line":12},"start":{"character":13,"line":12}},"uri":"#)
-//                 .expect_contains(r#"deglob/src/main.rs"}"#)
-//                 .expect_contains(r#""new_text":"{Stdout, Stdin}""#)
-//         ],
-//     );
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    {
+        wait_for_n_results!(1, results);
+        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        println!("{}", response.pretty(2));
+        assert_eq!(response["id"], 100);
+        assert_eq!(response["result"][0]["title"], "Deglob Import");
+        assert_eq!(response["result"][0]["command"], "rls.deglobImports");
+        let deglob = &response["result"][0]["arguments"][0];
+        assert!(
+            deglob["location"]["uri"]
+                .as_str()
+                .unwrap()
+                .ends_with("deglob/src/main.rs")
+        );
+        let deglob_loc = &deglob["location"]["range"];
+        assert_eq!(deglob_loc["start"]["line"], 12);
+        assert_eq!(deglob_loc["start"]["character"], 13);
+        assert_eq!(deglob_loc["end"]["line"], 12);
+        assert_eq!(deglob_loc["end"]["character"], 14);
+        let mut imports: Vec<_> = deglob["new_text"]
+            .as_str()
+            .unwrap()
+            .trim_matches('{')
+            .trim_matches('}')
+            .split(", ")
+            .collect();
+        imports.sort();
+        assert_eq!(imports, vec!["Stdin", "Stdout"]);
+    }
 
-//     assert_eq!(
-//         ls_server::LsService::handle_message(&mut server),
-//         ls_server::ServerStateChange::Continue
-//     );
-//     expect_messages(
-//         results.clone(),
-//         &[
-//             ExpectedMessage::new(Some(0x0100_0001))
-//                 .expect_contains(r#""method":"workspace/applyEdit""#)
-//                 .expect_contains(r#"deglob/src/main.rs""#)
-//                 .expect_contains(r#"{"range":{"start":{"line":12,"character":13},"end":{"line":12,"character":14}}"#)
-//                 .expect_contains(r#""newText":"{Stdout, Stdin}""#),
-//             ExpectedMessage::new(Some(200)).expect_contains(r#"null"#),
-//         ],
-//     );
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    {
+        wait_for_n_results!(2, results);
+        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        println!("{}", response.pretty(2));
+        assert_eq!(response["id"], 0x0100_0001);
+        assert_eq!(response["method"], "workspace/applyEdit");
+        let (key, changes) = response["params"]["edit"]["changes"].entries().next().unwrap();
+        assert!(key.ends_with("deglob/src/main.rs"));
+        let change = &changes[0];
+        assert_eq!(change["range"]["start"]["line"], 12);
+        assert_eq!(change["range"]["start"]["character"], 13);
+        assert_eq!(change["range"]["end"]["line"], 12);
+        assert_eq!(change["range"]["end"]["character"], 14);
+        let mut imports: Vec<_> = change["newText"]
+            .as_str()
+            .expect("newText missing")
+            .trim_matches('{')
+            .trim_matches('}')
+            .split(", ")
+            .collect();
+        imports.sort();
+        assert_eq!(imports, vec!["Stdin", "Stdout"]);
 
-//     assert_eq!(
-//         ls_server::LsService::handle_message(&mut server),
-//         ls_server::ServerStateChange::Continue
-//     );
-//     expect_messages(
-//         results.clone(),
-//         &[
-//             ExpectedMessage::new(Some(1100))
-//                 .expect_contains(r#""title":"Deglob Imports""#)
-//                 .expect_contains(r#""command":"rls.deglobImports""#)
-//                 .expect_contains(r#"{"location":{"range":{"end":{"character":15,"line":15},"start":{"character":14,"line":15}},"uri":"#)
-//                 .expect_contains(r#"deglob/src/main.rs"}"#)
-//                 .expect_contains(r#""new_text":"size_of""#)
-//                 .expect_contains(r#"{"location":{"range":{"end":{"character":32,"line":15},"start":{"character":31,"line":15}},"uri":"#)
-//                 .expect_contains(r#"deglob/src/main.rs"}"#)
-//                 .expect_contains(r#""new_text":"max""#)
-//         ],
-//     );
+        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        println!("{}", response.pretty(2));
+        assert_eq!(response["id"], 200);
+        assert!(response["result"].is_null());
+    }
 
-//     assert_eq!(
-//         ls_server::LsService::handle_message(&mut server),
-//         ls_server::ServerStateChange::Continue
-//     );
-//     expect_messages(
-//         results.clone(),
-//         &[
-//             ExpectedMessage::new(Some(0x0100_0002))
-//                 .expect_contains(r#""method":"workspace/applyEdit""#)
-//                 .expect_contains(r#"deglob/src/main.rs""#)
-//                 .expect_contains(r#"{"range":{"start":{"line":15,"character":14},"end":{"line":15,"character":15}},"newText":"size_of"}"#)
-//                 .expect_contains(r#"{"range":{"start":{"line":15,"character":31},"end":{"line":15,"character":32}},"newText":"max"}"#),
-//             ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
-//         ],
-//     );
-// }
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(1100))
+                .expect_contains(r#""title":"Deglob Imports""#)
+                .expect_contains(r#""command":"rls.deglobImports""#)
+                .expect_contains(r#"{"location":{"range":{"end":{"character":15,"line":15},"start":{"character":14,"line":15}},"uri":"#)
+                .expect_contains(r#"deglob/src/main.rs"}"#)
+                .expect_contains(r#""new_text":"size_of""#)
+                .expect_contains(r#"{"location":{"range":{"end":{"character":32,"line":15},"start":{"character":31,"line":15}},"uri":"#)
+                .expect_contains(r#"deglob/src/main.rs"}"#)
+                .expect_contains(r#""new_text":"max""#)
+        ],
+    );
+
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0x0100_0002))
+                .expect_contains(r#""method":"workspace/applyEdit""#)
+                .expect_contains(r#"deglob/src/main.rs""#)
+                .expect_contains(r#"{"range":{"start":{"line":15,"character":14},"end":{"line":15,"character":15}},"newText":"size_of"}"#)
+                .expect_contains(r#"{"range":{"start":{"line":15,"character":31},"end":{"line":15,"character":32}},"newText":"max"}"#),
+            ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
+        ],
+    );
+}
