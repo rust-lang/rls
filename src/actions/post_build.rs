@@ -39,6 +39,7 @@ pub struct PostBuildHandler {
     pub show_warnings: bool,
     pub use_black_list: bool,
     pub notifier: Box<Notifier>,
+    pub blocked_threads: Vec<thread::Thread>,
 }
 
 /// Trait for communication back to the rest of the RLS (and on to the client).
@@ -49,7 +50,7 @@ pub trait Notifier: Send {
 }
 
 impl PostBuildHandler {
-    pub fn handle(self, result: BuildResult) {
+    pub fn handle(mut self, result: BuildResult) {
         self.notifier.notify_begin();
 
         match result {
@@ -66,6 +67,11 @@ impl PostBuildHandler {
                         self.reload_analysis_from_disk();
                     } else {
                         self.reload_analysis_from_memory(new_analysis);
+                    }
+
+                    // Wake up any threads blocked on this analysis.
+                    for t in self.blocked_threads.drain(..) {
+                        t.unpark();
                     }
 
                     self.notifier.notify_end();

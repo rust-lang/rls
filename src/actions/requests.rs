@@ -475,6 +475,8 @@ impl RequestAction for Rename {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
+        // We're going to mutate based on our data so we should block until the
+        // data is ready.
         ctx.block_on_build();
 
         let file_path = parse_file_path!(&params.text_document.uri, "rename")?;
@@ -765,12 +767,10 @@ impl RequestAction for CodeAction {
 
         let mut cmds = vec![];
         if ctx.build_ready() {
-            eprintln!("build ready");
             Self::make_suggestion_fix_actions(&params, &file_path, &ctx, &mut cmds);
+        }
+        if ctx.analysis_ready() {
             Self::make_deglob_actions(&params, &file_path, &ctx, &mut cmds);
-        } else {
-                        eprintln!("not ready");
-
         }
         Ok(cmds)
     }

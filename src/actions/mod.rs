@@ -30,6 +30,7 @@ use server::{Output, Notification, NoParams};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 
@@ -116,6 +117,7 @@ pub struct InitActionContext {
 
     previous_build_results: Arc<Mutex<BuildResults>>,
     build_queue: BuildQueue,
+    active_build_count: Arc<AtomicUsize>,
 
     config: Arc<Mutex<Config>>,
 }
@@ -157,6 +159,7 @@ impl InitActionContext {
             current_project,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
+            active_build_count: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -188,6 +191,7 @@ impl InitActionContext {
     fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
         struct BuildNotifier<O: Output> {
             out: O,
+            active_build_count: Arc<AtomicUsize>,
         }
 
         impl<O: Output> Notifier for BuildNotifier<O> {
@@ -195,6 +199,7 @@ impl InitActionContext {
                 self.out.notify(Notification::<DiagnosticsBegin>::new(NoParams {}));
             }
             fn notify_end(&self) {
+                self.active_build_count.fetch_sub(1, Ordering::SeqCst);
                 self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams {}));
             }
             fn notify_publish(&self, params: PublishDiagnosticsParams) {
@@ -210,11 +215,16 @@ impl InitActionContext {
                 project_path: project_path.to_owned(),
                 show_warnings: config.show_warnings,
                 use_black_list: config.use_crate_blacklist,
-                notifier: Box::new(BuildNotifier { out: out.clone() }),
+                notifier: Box::new(BuildNotifier {
+                    out: out.clone(),
+                    active_build_count: self.active_build_count.clone(),
+                }),
+                blocked_threads: vec![],
             }
         };
 
         out.notify(Notification::<BeginBuild>::new(NoParams {}));
+        self.active_build_count.fetch_add(1, Ordering::SeqCst);
         self.build_queue
             .request_build(project_path, priority, pbh);
     }
@@ -229,6 +239,10 @@ impl InitActionContext {
 
     fn build_ready(&self) -> bool {
         self.build_queue.build_ready()
+    }
+
+    fn analysis_ready(&self) -> bool {
+        self.active_build_count.load(Ordering::SeqCst) == 0
     }
 
     fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {

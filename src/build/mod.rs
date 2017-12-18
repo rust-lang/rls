@@ -256,10 +256,6 @@ impl BuildQueue {
                 BuildQueue::run_thread(queued_clone, &internals_clone);
                 let building = internals_clone.building.swap(false, Ordering::SeqCst);
                 assert!(building);
-                let mut blocked = internals_clone.blocked.lock().unwrap();
-                for t in blocked.drain(..) {
-                    t.unpark();
-                }
             });
         }
     }
@@ -275,12 +271,12 @@ impl BuildQueue {
     pub fn block_on_build(&self) {
         loop {
             if !self.internals.building.load(Ordering::SeqCst) {
-                eprintln!("unblocking");
                 return;
             }
-            eprintln!("blocking");
-            let mut blocked = self.internals.blocked.lock().unwrap();
-            blocked.push(thread::current());
+            {
+                let mut blocked = self.internals.blocked.lock().unwrap();
+                blocked.push(thread::current());
+            }
             thread::park();
         }
     }
@@ -352,6 +348,7 @@ impl BuildQueue {
                 };
                 trace!("sleeping");
                 thread::sleep(Duration::from_millis(wait_to_build));
+                trace!("waking");
 
                 // Check if a new build arrived while we were sleeping.
                 let interrupt = {
@@ -370,7 +367,13 @@ impl BuildQueue {
             if let BuildResult::Squashed = result {
                 unreachable!();
             }
-            build.pbh.handle(result);
+
+            let mut pbh = build.pbh;
+            {
+                let mut blocked = internals.blocked.lock().unwrap();
+                pbh.blocked_threads.extend(blocked.drain(..));
+            }
+            pbh.handle(result);
 
             // Remove the in-progress marker from the build queue.
             let mut queued = queued.lock().unwrap();
