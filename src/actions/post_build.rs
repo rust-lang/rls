@@ -43,6 +43,8 @@ pub struct PostBuildHandler {
 }
 
 /// Trait for communication back to the rest of the RLS (and on to the client).
+// This trait only really exists to work around the object safety rules (Output
+// is not object-safe).
 pub trait Notifier: Send {
     fn notify_begin(&self);
     fn notify_end(&self);

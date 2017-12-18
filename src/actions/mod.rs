@@ -117,6 +117,8 @@ pub struct InitActionContext {
 
     previous_build_results: Arc<Mutex<BuildResults>>,
     build_queue: BuildQueue,
+    // Keep a record of builds/post-build tasks currently in flight so that
+    // mutating actions can block until the data is ready.
     active_build_count: Arc<AtomicUsize>,
 
     config: Arc<Mutex<Config>>,
@@ -233,14 +235,18 @@ impl InitActionContext {
         self.build(&self.current_project, priority, out);
     }
 
+    /// Block until any builds and analysis tasks are complete.
     fn block_on_build(&self) {
         self.build_queue.block_on_build();
     }
 
+    /// Returns true if there are no builds pending or in progress.
     fn build_ready(&self) -> bool {
         self.build_queue.build_ready()
     }
 
+    /// Returns true if there are no builds or post-build (analysis) tasks pending
+    /// or in progress.
     fn analysis_ready(&self) -> bool {
         self.active_build_count.load(Ordering::SeqCst) == 0
     }
