@@ -17,8 +17,8 @@ languageserver-types = "0.16"
 lazy_static = "0.2"
 log = "0.3"
 racer = "2.0.12"
-rls-analysis = "0.9.3"
-rls-data = { version = "0.13", features = ["serialize-serde"] }
+rls-analysis = "0.10"
+rls-data = { version = "0.14", features = ["serialize-serde"] }
 rls-rustc = "0.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4", features = ["racer-impls"] }
