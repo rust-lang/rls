@@ -24,6 +24,8 @@
 
 extern crate cargo;
 extern crate env_logger;
+#[macro_use]
+extern crate failure;
 extern crate languageserver_types as ls_types;
 #[macro_use]
 extern crate lazy_static;

@@ -64,7 +64,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
 
     match handle
         .join()
-        .map_err(|_| "thread panicked".into())
+        .map_err(|_| format_err!("thread panicked"))
         .and_then(|res| res)
     {
         Ok(_) if workspace_mode => {

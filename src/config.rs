@@ -226,7 +226,7 @@ impl Config {
 
                 ws.members()
                     .find(move |x| x.name() == package_name)
-                    .ok_or(format!(
+                    .ok_or(format_err!(
                         "Couldn't find specified `{}` package via \
                          `analyze_package` in the workspace",
                         package_name
@@ -248,7 +248,7 @@ impl Config {
             // No `lib` detected, but also can't find any `bin` target - there's
             // no sensible target here, so just Err out
             let first = bins.nth(0)
-                .ok_or("No `bin` or `lib` targets in the package")?;
+                .ok_or(format_err!("No `bin` or `lib` targets in the package"))?;
 
             let mut bins = targets.iter().filter(|x| x.is_bin());
             let target = match bins.find(|x| x.src_path().ends_with("main.rs")) {
