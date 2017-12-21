@@ -8,9 +8,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
-use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 // Ensures we don't race on the env vars. This is only also important in tests,
@@ -23,18 +24,25 @@ lazy_static! {
 /// Requires supplying an external lock guard to guarantee env var consistency across multiple threads.
 pub struct Environment<'a> {
     old_vars: HashMap<String, Option<OsString>>,
+    old_cwd: PathBuf,
     _guard: MutexGuard<'a, ()>,
 }
 
 impl<'a> Environment<'a> {
     pub fn push_with_lock(
         envs: &HashMap<String, Option<OsString>>,
+        cwd: Option<&Path>,
         lock: MutexGuard<'a, ()>,
     ) -> Environment<'a> {
         let mut result = Environment {
             old_vars: HashMap::new(),
+            old_cwd: env::current_dir().expect("failed to read cwd"),
             _guard: lock,
         };
+
+        if let Some(cwd) = cwd {
+            env::set_current_dir(cwd).expect("failed to change cwd");
+        }
 
         for (k, v) in envs {
             result.push_var(k, v);
@@ -53,6 +61,7 @@ impl<'a> Environment<'a> {
 
 impl<'a> Drop for Environment<'a> {
     fn drop(&mut self) {
+        drop(env::set_current_dir(&self.old_cwd));
         for (k, v) in &self.old_vars {
             match *v {
                 Some(ref v) => env::set_var(k, v),

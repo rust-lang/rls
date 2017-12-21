@@ -121,6 +121,7 @@ struct CompilationContext {
     /// args and envs are saved from Cargo and passed to rustc.
     args: Vec<String>,
     envs: HashMap<String, Option<OsString>>,
+    cwd: Option<PathBuf>,
     /// The build directory is supplied by the client and passed to Cargo.
     build_dir: Option<PathBuf>,
     /// Build plan, which should know all the inter-package/target dependencies
@@ -135,6 +136,7 @@ impl CompilationContext {
             envs: HashMap::new(),
             build_dir: None,
             build_plan: BuildPlan::new(),
+            cwd: None,
         }
     }
 }
@@ -517,6 +519,7 @@ impl Internals {
             &self.vfs,
             args,
             envs,
+            compile_cx.cwd.as_ref().map(|x| &**x),
             build_dir,
             self.config.clone(),
             env_lock,

@@ -194,7 +194,7 @@ fn run_cargo(
         env.insert("RUST_LOG".to_owned(), None);
     }
 
-    let _restore_env = Environment::push_with_lock(&env, lock_guard);
+    let _restore_env = Environment::push_with_lock(&env, None, lock_guard);
 
     let exec = RlsExecutor::new(
         &ws,
@@ -475,6 +475,7 @@ impl Executor for RlsExecutor {
                 &self.vfs,
                 &args,
                 &envs,
+                cargo_cmd.get_cwd(),
                 &build_dir,
                 self.config.clone(),
                 env_lock,
@@ -493,6 +494,7 @@ impl Executor for RlsExecutor {
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
         compilation_cx.args = args;
         compilation_cx.envs = envs;
+        compilation_cx.cwd = cargo_cmd.get_cwd().map(|p| p.to_path_buf());
 
         Ok(())
     }

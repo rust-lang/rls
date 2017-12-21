@@ -44,6 +44,7 @@ pub fn rustc(
     vfs: &Vfs,
     args: &[String],
     envs: &HashMap<String, Option<OsString>>,
+    cwd: Option<&Path>,
     build_dir: &Path,
     rls_config: Arc<Mutex<Config>>,
     env_lock: EnvironmentLockFacade,
@@ -64,7 +65,7 @@ pub fn rustc(
     }
 
     let (guard, _) = env_lock.lock();
-    let _restore_env = Environment::push_with_lock(&local_envs, guard);
+    let _restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
 
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();

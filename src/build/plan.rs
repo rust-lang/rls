@@ -357,6 +357,7 @@ impl JobQueue {
                 &internals.vfs,
                 &args,
                 job.get_envs(),
+                None,
                 &build_dir,
                 internals.config.clone(),
                 internals.env_lock.as_facade(),
