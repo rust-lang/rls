@@ -69,7 +69,7 @@ const COMPILER_TIMEOUT: u64 = 1500;
 #[cfg(test)]
 const COMPILER_TIMEOUT: u64 = 3_600_000;
 
-const CRATE_BLACKLIST: [&'static str; 12] = [
+const CRATE_BLACKLIST: [&'static str; 13] = [
     "libc",
     "typenum",
     "alloc",
@@ -82,6 +82,7 @@ const CRATE_BLACKLIST: [&'static str; 12] = [
     "unicode_segmentation",
     "cocoa",
     "gleam",
+    "winapi",
 ];
 
 const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
