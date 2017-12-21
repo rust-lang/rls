@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::fs::{read_dir, remove_file};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -67,7 +67,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
         .map_err(|_| format_err!("thread panicked"))
         .and_then(|res| res)
     {
-        Ok(_) if workspace_mode => {
+        Ok(ref cwd) if workspace_mode => {
             let diagnostics = Arc::try_unwrap(diagnostics_clone)
                 .unwrap()
                 .into_inner()
@@ -76,9 +76,9 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
                 .unwrap()
                 .into_inner()
                 .unwrap();
-            BuildResult::Success(diagnostics, analysis)
+            BuildResult::Success(cwd.clone(), diagnostics, analysis)
         }
-        Ok(_) => BuildResult::Success(vec![], vec![]),
+        Ok(cwd) => BuildResult::Success(cwd, vec![], vec![]),
         Err(err) => {
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
             info!("cargo failed\ncause: {}\nstdout: {}", err, stdout);
@@ -95,12 +95,14 @@ fn run_cargo(
     compiler_messages: Arc<Mutex<Vec<String>>>,
     analysis: Arc<Mutex<Vec<Analysis>>>,
     out: Arc<Mutex<Vec<u8>>>,
-) -> CargoResult<()> {
+) -> CargoResult<PathBuf> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
     // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
     // during exec() callback when calling linked compiler in parallel, for which we need to
     // guarantee consistent environment variables.
     let (lock_guard, inner_lock) = env_lock.lock();
+
+    let mut restore_env = Environment::push_with_lock(&HashMap::new(), None, lock_guard);
 
     let build_dir = {
         let mut compilation_cx = compilation_cx.lock().unwrap();
@@ -123,7 +125,7 @@ fn run_cargo(
         let rls_config = rls_config.lock().unwrap();
 
         let target_dir = rls_config.target_dir.as_ref().map(|p| p as &Path);
-        make_cargo_config(manifest_dir, target_dir, shell)
+        make_cargo_config(manifest_dir, target_dir, restore_env.get_old_cwd(), shell)
     };
 
     let ws = Workspace::new(&manifest_path, &config)?;
@@ -186,15 +188,13 @@ fn run_cargo(
         ..CompileOptions::default(&config, CompileMode::Check { test: false })
     };
 
-    // Create a custom environment for running cargo, the environment is reset afterwards automatically
-    let mut env: HashMap<String, Option<OsString>> = HashMap::new();
-    env.insert("RUSTFLAGS".to_owned(), Some(rustflags.into()));
+    // Create a custom environment for running cargo, the environment is reset
+    // afterwards automatically
+    restore_env.push_var("RUSTFLAGS", &Some(rustflags.into()));
 
     if clear_env_rust_log {
-        env.insert("RUST_LOG".to_owned(), None);
+        restore_env.push_var("RUST_LOG", &None);
     }
-
-    let _restore_env = Environment::push_with_lock(&env, None, lock_guard);
 
     let exec = RlsExecutor::new(
         &ws,
@@ -213,7 +213,9 @@ fn run_cargo(
         compilation_cx.lock().unwrap().build_plan
     );
 
-    Ok(())
+    Ok(compilation_cx.lock().unwrap().cwd.clone().unwrap_or_else(|| {
+        restore_env.get_old_cwd().to_path_buf()
+    }))
 }
 
 struct RlsExecutor {
@@ -480,7 +482,7 @@ impl Executor for RlsExecutor {
                 self.config.clone(),
                 env_lock,
             ) {
-                BuildResult::Success(mut messages, mut analysis) => {
+                BuildResult::Success(_, mut messages, mut analysis) => {
                     self.compiler_messages.lock().unwrap().append(&mut messages);
                     self.analysis.lock().unwrap().append(&mut analysis);
                 }
@@ -598,13 +600,13 @@ fn prepare_cargo_rustflags(config: &Config) -> String {
 
 /// Construct a cargo configuration for the given build and target directories
 /// and shell.
-pub fn make_cargo_config(build_dir: &Path, target_dir: Option<&Path>, shell: Shell) -> CargoConfig {
+pub fn make_cargo_config(build_dir: &Path,
+                         target_dir: Option<&Path>,
+                         cwd: &Path,
+                         shell: Shell) -> CargoConfig {
     let config = CargoConfig::new(
         shell,
-        // This is Cargo's cwd. We're using the actual cwd,
-        // because Cargo will generate relative paths based
-        // on this to source files it wants to compile
-        env::current_dir().unwrap(),
+        cwd.to_path_buf(),
         homedir(&build_dir).unwrap(),
     );
 

@@ -38,7 +38,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-
 // Runs a single instance of rustc. Runs in-process.
 pub fn rustc(
     vfs: &Vfs,
@@ -65,7 +64,7 @@ pub fn rustc(
     }
 
     let (guard, _) = env_lock.lock();
-    let _restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
+    let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
 
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();
@@ -100,7 +99,8 @@ pub fn rustc(
     let analysis = analysis.lock().unwrap().clone();
     let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or(vec![]);
 
-    BuildResult::Success(stderr_json_msgs, analysis)
+    let cwd = cwd.unwrap_or(restore_env.get_old_cwd()).to_path_buf();
+    BuildResult::Success(cwd, stderr_json_msgs, analysis)
 }
 
 // Our compiler controller. We mostly delegate to the default rustc

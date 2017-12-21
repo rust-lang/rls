@@ -26,7 +26,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use cargo::core::{PackageId, Profile, Target, TargetKind};
 use cargo::ops::{Context, Kind, Unit};
@@ -341,6 +341,7 @@ impl JobQueue {
 
         let mut compiler_messages = vec![];
         let mut analyses = vec![];
+        let mut cwd = PathBuf::from(".");
         // Go through cached compiler invocations sequentially, collecting each
         // invocation's compiler messages for diagnostics and analysis data
         while let Some(job) = self.dequeue() {
@@ -362,16 +363,17 @@ impl JobQueue {
                 internals.config.clone(),
                 internals.env_lock.as_facade(),
             ) {
-                BuildResult::Success(mut messages, mut analysis) => {
+                BuildResult::Success(c, mut messages, mut analysis) => {
                     compiler_messages.append(&mut messages);
                     analyses.append(&mut analysis);
+                    cwd = c;
                 }
                 BuildResult::Err => return BuildResult::Err,
                 _ => {}
             }
         }
 
-        BuildResult::Success(compiler_messages, analyses)
+        BuildResult::Success(cwd, compiler_messages, analyses)
     }
 }
 

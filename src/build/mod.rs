@@ -29,7 +29,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-mod environment;
+pub mod environment;
 mod cargo;
 mod rustc;
 mod plan;
@@ -96,8 +96,9 @@ struct Internals {
 #[derive(Debug)]
 pub enum BuildResult {
     /// Build was performed without any internal errors. The payload
-    /// contains emitted raw diagnostics and Analysis data.
-    Success(Vec<String>, Vec<Analysis>),
+    /// contains current directory at the time, emitted raw diagnostics, and
+    /// Analysis data.
+    Success(PathBuf, Vec<String>, Vec<Analysis>),
     /// Build was coalesced with another build.
     Squashed,
     /// There was an error attempting to build.
@@ -449,7 +450,7 @@ impl Internals {
         // now. It's possible that a build was scheduled with given files, but
         // user later changed them. These should still be left as dirty (not built).
         match *&result {
-            BuildResult::Success(_, _) => {
+            BuildResult::Success(..) => {
                 let mut dirty_files = self.dirty_files.lock().unwrap();
                 dirty_files.retain(|file, dirty_version| {
                     built_files

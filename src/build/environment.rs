@@ -57,6 +57,10 @@ impl<'a> Environment<'a> {
             None => env::remove_var(key),
         }
     }
+
+    pub fn get_old_cwd(&self) -> &Path {
+        &self.old_cwd
+    }
 }
 
 impl<'a> Drop for Environment<'a> {

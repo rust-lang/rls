@@ -56,19 +56,19 @@ impl PostBuildHandler {
         self.notifier.notify_begin();
 
         match result {
-            BuildResult::Success(messages, new_analysis) => {
+            BuildResult::Success(cwd, messages, new_analysis) => {
                 thread::spawn(move || {
                     trace!("build - Success");
 
                     // Emit appropriate diagnostics using the ones from build.
-                    self.handle_messages(messages);
+                    self.handle_messages(&cwd, messages);
 
                     // Reload the analysis data.
                     debug!("reload analysis: {:?}", self.project_path);
                     if new_analysis.is_empty() {
-                        self.reload_analysis_from_disk();
+                        self.reload_analysis_from_disk(&cwd);
                     } else {
-                        self.reload_analysis_from_memory(new_analysis);
+                        self.reload_analysis_from_memory(&cwd, new_analysis);
                     }
 
                     // Wake up any threads blocked on this analysis.
@@ -90,7 +90,7 @@ impl PostBuildHandler {
         }
     }
 
-    fn handle_messages(&self, messages: Vec<String>) {
+    fn handle_messages(&self, cwd: &Path, messages: Vec<String>) {
         // These notifications will include empty sets of errors for files
         // which had errors, but now don't. This instructs the IDE to clear
         // errors for those files.
@@ -100,8 +100,6 @@ impl PostBuildHandler {
         for v in &mut results.values_mut() {
             v.clear();
         }
-
-        let cwd = ::std::env::current_dir().unwrap();
 
         for msg in &messages {
             if let Some(FileDiagnostic {
@@ -119,8 +117,7 @@ impl PostBuildHandler {
         self.emit_notifications(&results);
     }
 
-    fn reload_analysis_from_disk(&self) {
-        let cwd = ::std::env::current_dir().unwrap();
+    fn reload_analysis_from_disk(&self, cwd: &Path) {
         if self.use_black_list {
             self.analysis
                 .reload_with_blacklist(&self.project_path, &cwd, &CRATE_BLACKLIST)
@@ -130,8 +127,7 @@ impl PostBuildHandler {
         }
     }
 
-    fn reload_analysis_from_memory(&self, analysis: Vec<Analysis>) {
-        let cwd = ::std::env::current_dir().unwrap();
+    fn reload_analysis_from_memory(&self, cwd: &Path, analysis: Vec<Analysis>) {
         if self.use_black_list {
             self.analysis
                 .reload_from_analysis(analysis, &self.project_path, &cwd, &CRATE_BLACKLIST)
