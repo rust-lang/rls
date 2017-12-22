@@ -13,7 +13,7 @@ build = "build.rs"
 cargo = { git = "https://github.com/rust-lang/cargo" }
 env_logger = "0.4"
 failure = "0.1.1"
-jsonrpc-core = "7.0.1"
+jsonrpc-core = "8.0.1"
 languageserver-types = "0.16"
 lazy_static = "0.2"
 log = "0.3"
