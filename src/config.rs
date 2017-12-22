@@ -13,6 +13,7 @@
 
 use build;
 
+use std::env;
 use std::fmt::Debug;
 use std::io::sink;
 use std::path::{Path, PathBuf};
@@ -208,7 +209,8 @@ impl Config {
         // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
         let manifest_dir = manifest_path.parent().unwrap();
         let shell = Shell::from_write(Box::new(sink()));
-        let cargo_config = build::make_cargo_config(manifest_dir, None, shell);
+        let cwd = env::current_dir().expect("failed to get cwd");
+        let cargo_config = build::make_cargo_config(manifest_dir, None, &cwd, shell);
 
         let ws = Workspace::new(&manifest_path, &cargo_config)?;
 
@@ -226,7 +228,7 @@ impl Config {
 
                 ws.members()
                     .find(move |x| x.name() == package_name)
-                    .ok_or(format!(
+                    .ok_or(format_err!(
                         "Couldn't find specified `{}` package via \
                          `analyze_package` in the workspace",
                         package_name
@@ -248,7 +250,7 @@ impl Config {
             // No `lib` detected, but also can't find any `bin` target - there's
             // no sensible target here, so just Err out
             let first = bins.nth(0)
-                .ok_or("No `bin` or `lib` targets in the package")?;
+                .ok_or(format_err!("No `bin` or `lib` targets in the package"))?;
 
             let mut bins = targets.iter().filter(|x| x.is_bin());
             let target = match bins.find(|x| x.src_path().ends_with("main.rs")) {

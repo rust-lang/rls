@@ -42,7 +42,16 @@ impl Environment {
             env::set_var("RUSTC", "rustc");
         }
 
-        let cur_dir = env::current_dir().expect("Could not find current working directory");
+        // Acquire the current directory, but this is changing when tests are
+        // running so we need to be sure to access it in a synchronized fashion.
+        let cur_dir = {
+            use build::environment::{EnvironmentLock, Environment};
+            let env = EnvironmentLock::get();
+            let (guard, _other) = env.lock();
+            Environment::push_with_lock(&HashMap::new(), None, guard)
+                .get_old_cwd()
+                .to_path_buf()
+        };
         let project_path = cur_dir.join("test_data").join(project_dir);
         let target_path = cur_dir
             .join("target")

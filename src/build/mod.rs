@@ -29,7 +29,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-mod environment;
+pub mod environment;
 mod cargo;
 mod rustc;
 mod plan;
@@ -96,8 +96,9 @@ struct Internals {
 #[derive(Debug)]
 pub enum BuildResult {
     /// Build was performed without any internal errors. The payload
-    /// contains emitted raw diagnostics and Analysis data.
-    Success(Vec<String>, Vec<Analysis>),
+    /// contains current directory at the time, emitted raw diagnostics, and
+    /// Analysis data.
+    Success(PathBuf, Vec<String>, Vec<Analysis>),
     /// Build was coalesced with another build.
     Squashed,
     /// There was an error attempting to build.
@@ -121,6 +122,7 @@ struct CompilationContext {
     /// args and envs are saved from Cargo and passed to rustc.
     args: Vec<String>,
     envs: HashMap<String, Option<OsString>>,
+    cwd: Option<PathBuf>,
     /// The build directory is supplied by the client and passed to Cargo.
     build_dir: Option<PathBuf>,
     /// Build plan, which should know all the inter-package/target dependencies
@@ -135,6 +137,7 @@ impl CompilationContext {
             envs: HashMap::new(),
             build_dir: None,
             build_plan: BuildPlan::new(),
+            cwd: None,
         }
     }
 }
@@ -447,7 +450,7 @@ impl Internals {
         // now. It's possible that a build was scheduled with given files, but
         // user later changed them. These should still be left as dirty (not built).
         match *&result {
-            BuildResult::Success(_, _) => {
+            BuildResult::Success(..) => {
                 let mut dirty_files = self.dirty_files.lock().unwrap();
                 dirty_files.retain(|file, dirty_version| {
                     built_files
@@ -517,6 +520,7 @@ impl Internals {
             &self.vfs,
             args,
             envs,
+            compile_cx.cwd.as_ref().map(|x| &**x),
             build_dir,
             self.config.clone(),
             env_lock,
