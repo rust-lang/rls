@@ -141,9 +141,9 @@ fn run_cargo(
             trace!("Cargo compilation options:\n{:?}", opts);
             let rustflags = prepare_cargo_rustflags(&rls_config);
 
-            // Warn about invalid specified bin target or package depending on current mode
-            // TODO: Return client notifications along with diagnostics to inform the user
             if !rls_config.workspace_mode {
+                // Warn about invalid specified bin target or package depending on current mode
+                // TODO: Return client notifications along with diagnostics to inform the user
                 let cur_pkg_targets = ws.current()?.targets();
 
                 if let &Some(ref build_bin) = rls_config.build_bin.as_ref() {
@@ -152,22 +152,16 @@ fn run_cargo(
                         warn!("cargo - couldn't find binary `{}` specified in `build_bin` configuration", build_bin);
                     }
                 }
-            } else {
-                for package in &opts.package {
-                    if let None = ws.members().find(|x| x.name() == package) {
-                        warn!("cargo - couldn't find member package `{}` specified in `analyze_package` configuration", package);
-                    }
-                }
             }
 
             (opts, rustflags, rls_config.clear_env_rust_log)
         };
 
-    let spec = Packages::from_flags(opts.all, &opts.exclude, &opts.package)?;
+    let spec = Packages::from_flags(false, &[], &[])?;
 
     let compile_opts = CompileOptions {
         target: opts.target.as_ref().map(|t| &t[..]),
-        spec: spec,
+        spec,
         filter: CompileFilter::new(
             opts.lib,
             &opts.bin,
@@ -504,13 +498,10 @@ impl Executor for RlsExecutor {
 
 #[derive(Debug)]
 struct CargoOptions {
-    package: Vec<String>,
     target: Option<String>,
     lib: bool,
     bin: Vec<String>,
     bins: bool,
-    all: bool,
-    exclude: Vec<String>,
     all_features: bool,
     no_default_features: bool,
     features: Vec<String>,
@@ -520,13 +511,10 @@ struct CargoOptions {
 impl Default for CargoOptions {
     fn default() -> CargoOptions {
         CargoOptions {
-            package: vec![],
             target: None,
             lib: false,
             bin: vec![],
             bins: false,
-            all: false,
-            exclude: vec![],
             all_features: false,
             no_default_features: false,
             features: vec![],
@@ -538,14 +526,7 @@ impl Default for CargoOptions {
 impl CargoOptions {
     fn new(config: &Config) -> CargoOptions {
         if config.workspace_mode {
-            let (package, all) = match config.analyze_package {
-                Some(ref pkg_name) => (vec![pkg_name.clone()], false),
-                None => (vec![], true),
-            };
-
             CargoOptions {
-                package,
-                all,
                 target: config.target.clone(),
                 features: config.features.clone(),
                 all_features: config.all_features,

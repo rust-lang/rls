@@ -20,7 +20,6 @@
 #![feature(type_ascription)]
 #![feature(integer_atomics)]
 #![feature(fnbox)]
-#![deny(missing_docs)]
 
 extern crate cargo;
 extern crate env_logger;
