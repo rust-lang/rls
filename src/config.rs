@@ -148,7 +148,7 @@ impl Default for Config {
             wait_to_build: DEFAULT_WAIT_TO_BUILD,
             show_warnings: true,
             goto_def_racer_fallback: false,
-            workspace_mode: false,
+            workspace_mode: true,
             analyze_package: None,
             clear_env_rust_log: true,
             build_on_save: false,
