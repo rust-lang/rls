@@ -120,7 +120,6 @@ pub struct Config {
     pub show_warnings: bool,
     pub goto_def_racer_fallback: bool,
     pub workspace_mode: bool,
-    pub analyze_package: Option<String>,
     /// Clear the RUST_LOG env variable before calling rustc/cargo? Default: true
     pub clear_env_rust_log: bool,
     /// Build the project only when a file got saved and not on file change. Default: false
@@ -149,7 +148,6 @@ impl Default for Config {
             show_warnings: true,
             goto_def_racer_fallback: false,
             workspace_mode: true,
-            analyze_package: None,
             clear_env_rust_log: true,
             build_on_save: false,
             use_crate_blacklist: true,
@@ -214,26 +212,9 @@ impl Config {
 
         let ws = Workspace::new(&manifest_path, &cargo_config)?;
 
-        // Auto-detect --lib/--bin switch if working under single package mode
-        // or under workspace mode with `analyze_package` specified
+        // Auto-detect --lib/--bin switch if working under single package mode.
         let package = match self.workspace_mode {
-            true => {
-                let package_name = match self.analyze_package {
-                    // No package specified, nothing to do
-                    None => {
-                        return Ok(());
-                    }
-                    Some(ref package) => package,
-                };
-
-                ws.members()
-                    .find(move |x| x.name() == package_name)
-                    .ok_or(format_err!(
-                        "Couldn't find specified `{}` package via \
-                         `analyze_package` in the workspace",
-                        package_name
-                    ))?
-            }
+            true => return Ok(()),
             false => ws.current()?,
         };
 
