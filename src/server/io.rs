@@ -8,9 +8,11 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use serde;
 use serde_json;
 
-use super::{Action, Notification};
+use super::{Notification};
+use ls_types;
 
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -143,7 +145,10 @@ pub trait Output: Sync + Send + Clone + 'static {
     }
 
     /// Send a notification along the output.
-    fn notify<A: Action>(&self, notification: Notification<A>) {
+    fn notify<A, P>(&self, notification: Notification<A>)
+    where
+        A: ls_types::notification::Notification<Params=P>,
+        P: serde::Serialize {
         self.response(format!("{}", notification));
     }
 }

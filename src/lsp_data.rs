@@ -323,3 +323,49 @@ where
         }
     }
 }
+
+/* --------------- Custom JSON-RPC notifications -------------- */
+
+/// Custom LSP notification sent to client indicating that the server is currently
+/// processing data and may publish new diagnostics on `rustDocument/diagnosticsEnd`.
+#[derive(Debug)]
+pub enum DiagnosticsBegin { }
+
+impl notification::Notification for DiagnosticsBegin {
+    type Params = ();
+    const METHOD: &'static str = "rustDocument/diagnosticsBegin";
+}
+
+/// Custom LSP notification sent to client indicating that data processing started
+/// by a `rustDocument`/diagnosticsBegin` has ended.
+/// For each `diagnosticsBegin` message, there is a single `diagnosticsEnd` message.
+/// This means that for multiple active `diagnosticsBegin` messages, there will
+/// be sent multiple `diagnosticsEnd` notifications.
+#[derive(Debug)]
+pub enum DiagnosticsEnd { }
+
+impl notification::Notification for DiagnosticsEnd {
+    type Params = ();
+    const METHOD: &'static str = "rustDocument/diagnosticsEnd";
+}
+
+/// Custom LSP notification sent to client indicating that a build process has begun.
+#[derive(Debug)]
+pub enum BeginBuild { }
+
+impl notification::Notification for BeginBuild {
+    type Params = ();
+    const METHOD: &'static str = "rustDocument/beginBuild";
+}
+
+/* ------------------ Custom JSON-RPC requests ---------------- */
+
+/// Find all the implementations of a given trait.
+#[derive(Debug)]
+pub enum FindImpls { }
+
+impl request::Request for FindImpls {
+    type Params = TextDocumentPositionParams;
+    type Result = Vec<Location>;
+    const METHOD: &'static str = "rustDocument/implementations";
+}

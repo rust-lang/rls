@@ -11,12 +11,13 @@
 use super::requests::*;
 use jsonrpc_core as jsonrpc;
 use server;
-use server::{Action, Request, Response};
+use server::{Request, Response};
 use server::io::Output;
 use actions::InitActionContext;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use ls_types;
 
 lazy_static! {
     static ref TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
@@ -27,14 +28,14 @@ macro_rules! define_dispatch_request_enum {
     ($($request_type:ident),*) => {
         pub enum DispatchRequest {
             $(
-                $request_type($request_type, Request<$request_type>, InitActionContext),
+                $request_type(::std::marker::PhantomData<$request_type>, Request<$request_type>, InitActionContext),
             )*
         }
 
         $(
             impl From<(Request<$request_type>, InitActionContext)> for DispatchRequest {
                 fn from((req, ctx): (Request<$request_type>, InitActionContext)) -> Self {
-                    DispatchRequest::$request_type($request_type::new(), req, ctx)
+                    DispatchRequest::$request_type(::std::marker::PhantomData, req, ctx)
                 }
             }
         )*
@@ -43,10 +44,9 @@ macro_rules! define_dispatch_request_enum {
             fn handle<O: Output>(self, out: &O) {
                 match self {
                 $(
-                    DispatchRequest::$request_type(mut var, req, ctx) => {
+                    DispatchRequest::$request_type(_, req, ctx) => {
                         let Request { id, params, received, .. } = req;
-                        let fallback = var.fallback_response();
-                        let timeout = var.timeout();
+                        let timeout = $request_type::timeout();
 
                         let receiver = receive_from_thread(move || {
                             // checking timeout here can prevent starting expensive work that has
@@ -54,14 +54,15 @@ macro_rules! define_dispatch_request_enum {
                             // Note: done here on the threadpool as pool scheduling may incur
                             // a further delay
                             if received.elapsed() >= timeout {
-                                var.fallback_response()
+                                $request_type::fallback_response()
                             }
                             else {
-                                var.handle(ctx, params)
+                                $request_type::handle(ctx, params)
                             }
                         });
 
-                        match receiver.recv_timeout(timeout).unwrap_or(fallback) {
+                        match receiver.recv_timeout(timeout)
+                            .unwrap_or_else(|_| $request_type::fallback_response()) {
                             Ok(response) => response.send(id, out),
                             Err(ResponseError::Empty) => debug!("Error handling request"),
                             Err(ResponseError::Message(code, msg)) => {
@@ -153,24 +154,20 @@ impl Dispatcher {
 
 /// Stdin-nonblocking request logic designed to be packed into a `DispatchRequest`
 /// and handled on the `WORK_POOL` via a `Dispatcher`.
-pub trait RequestAction: Action {
+pub trait RequestAction: ls_types::request::Request {
     /// Serializable response type
     type Response: server::Response + Send;
 
     /// Max duration this request should finish within, also see `fallback_response()`
-    fn timeout(&self) -> Duration {
+    fn timeout() -> Duration {
         *TIMEOUT
     }
 
-    ///
-    fn new() -> Self;
-
     /// Returns a response used in timeout scenarios
-    fn fallback_response(&self) -> Result<Self::Response, ResponseError>;
+    fn fallback_response() -> Result<Self::Response, ResponseError>;
 
     /// Request processing logic
     fn handle(
-        &mut self,
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError>;

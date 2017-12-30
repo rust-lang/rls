@@ -17,7 +17,6 @@ use jsonrpc_core::{self as jsonrpc, Id};
 use vfs::Vfs;
 use serde;
 use serde_json;
-use serde::Deserialize;
 
 use version;
 use lsp_data;
@@ -29,11 +28,16 @@ use server::io::{StdioMsgReader, StdioOutput};
 use server::dispatch::Dispatcher;
 pub use server::dispatch::{RequestAction, ResponseError};
 
+use ls_types;
+pub use ls_types::request::Shutdown as ShutdownRequest;
+pub use ls_types::request::Initialize as InitializeRequest;
+pub use ls_types::notification::Exit as ExitNotification;
+
 use std::fmt;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 mod io;
@@ -61,19 +65,6 @@ pub struct Ack;
 #[derive(Debug)]
 pub struct NoResponse;
 
-/// Empty extra parameters to some request or notification.
-#[derive(Debug, Serialize, PartialEq)]
-pub struct NoParams;
-
-impl<'de> Deserialize<'de> for NoParams {
-    fn deserialize<D>(_deserializer: D) -> Result<NoParams, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(NoParams)
-    }
-}
-
 /// A response to some request.
 pub trait Response {
     /// Send the response along the given output.
@@ -90,25 +81,11 @@ impl<R: ::serde::Serialize + fmt::Debug> Response for R {
     }
 }
 
-/// An action taken by the Rust Language Server.
-pub trait Action {
-    /// Extra parameters that the action expects to receive.
-    type Params: serde::Serialize + for<'de> serde::Deserialize<'de> + Send;
-
-    /// The well-known language server method string that identifies this
-    /// action's kind of request or notification.
-    const METHOD: &'static str;
-}
-
 /// An action taken in response to some notification from the client.
 /// Blocks stdin whilst being handled.
-pub trait BlockingNotificationAction<'a>: Action {
-    ///
-    fn new(state: &'a mut LsState) -> Self;
-
+pub trait BlockingNotificationAction: ls_types::notification::Notification {
     /// Handle this notification.
     fn handle<O: Output>(
-        &mut self,
         params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
@@ -116,16 +93,11 @@ pub trait BlockingNotificationAction<'a>: Action {
 }
 
 /// A request that blocks stdin whilst being handled
-pub trait BlockingRequestAction<'a>: Action {
-    ///
+pub trait BlockingRequestAction: ls_types::request::Request {
     type Response: Response + fmt::Debug;
-
-    ///
-    fn new(state: &'a mut LsState) -> Self;
 
     /// Handle request and send its response back along the given output.
     fn handle<O: Output>(
-        &mut self,
         id: usize,
         params: Self::Params,
         ctx: &mut ActionContext,
@@ -134,7 +106,7 @@ pub trait BlockingRequestAction<'a>: Action {
 }
 
 /// A request that gets JSON serialized in the language server protocol.
-pub struct Request<A: Action> {
+pub struct Request<A: ls_types::request::Request> {
     /// The unique request id.
     pub id: usize,
     /// The time the request was received / processed by the main stdin reading thread.
@@ -147,14 +119,14 @@ pub struct Request<A: Action> {
 
 /// A notification that gets JSON serialized in the language server protocol.
 #[derive(Debug, PartialEq)]
-pub struct Notification<A: Action> {
+pub struct Notification<A: ls_types::notification::Notification> {
     /// The extra action-specific parameters.
     pub params: A::Params,
     /// The action responsible for this notification.
     pub _action: PhantomData<A>,
 }
 
-impl<A: Action> Notification<A> {
+impl<A: ls_types::notification::Notification> Notification<A> {
     /// Creates a `Notification` structure with given `params`.
     pub fn new(params: A::Params) -> Notification<A> {
         Notification {
@@ -164,34 +136,33 @@ impl<A: Action> Notification<A> {
     }
 }
 
-impl<'a, A: BlockingRequestAction<'a>> Request<A> {
+impl<A: BlockingRequestAction> Request<A> {
     fn blocking_dispatch<O: Output>(
         self,
-        state: &'a mut LsState,
         ctx: &mut ActionContext,
         out: &O,
     ) -> Result<A::Response, ()> {
-        let mut action = A::new(state);
-        let result = action.handle(self.id, self.params, ctx, out.clone())?;
+        let result = A::handle(self.id, self.params, ctx, out.clone())?;
         result.send(self.id, out);
         Ok(result)
     }
 }
 
-impl<'a, A: BlockingNotificationAction<'a>> Notification<A> {
+impl<A: BlockingNotificationAction> Notification<A> {
     fn dispatch<O: Output>(
         self,
-        state: &'a mut LsState,
         ctx: &mut ActionContext,
         out: O,
     ) -> Result<(), ()> {
-        let mut action = A::new(state);
-        action.handle(self.params, ctx, out)?;
+        A::handle(self.params, ctx, out)?;
         Ok(())
     }
 }
 
-impl<'a, A: Action> fmt::Display for Request<A> {
+impl<'a, A, P> fmt::Display for Request<A>
+where
+    A: ls_types::request::Request<Params=P>,
+    P: serde::Serialize {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         json!({
             "jsonrpc": "2.0",
@@ -202,7 +173,10 @@ impl<'a, A: Action> fmt::Display for Request<A> {
     }
 }
 
-impl<'a, A: Action> fmt::Display for Notification<A> {
+impl<'a, A, P> fmt::Display for Notification<A>
+where
+    A: ls_types::notification::Notification<Params=P>,
+    P: serde::Serialize {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         json!({
             "jsonrpc": "2.0",
@@ -217,72 +191,32 @@ pub struct LsService<O: Output> {
     msg_reader: Box<MessageReader + Send + Sync>,
     output: O,
     ctx: ActionContext,
-    /// The public shared state for this language server.
-    pub state: LsState,
     dispatcher: Dispatcher,
 }
 
-/// Public shared state for this language server.
-#[derive(Debug)]
-pub struct LsState {
-    shut_down: AtomicBool,
-}
-
-/// A request to shutdown the language server and perform clean up, but not to
-/// exit the process. After receiving a response to this request, the client
-/// will send an `exit` notification, at which point we will actually exit the
-/// process.
-pub struct ShutdownRequest<'a> {
-    state: &'a mut LsState,
-}
-
-impl<'a> Action for ShutdownRequest<'a> {
-    type Params = NoParams;
-    const METHOD: &'static str = "shutdown";
-}
-
-impl<'a> BlockingRequestAction<'a> for ShutdownRequest<'a> {
+impl BlockingRequestAction for ShutdownRequest {
     type Response = Ack;
 
-    fn new(state: &'a mut LsState) -> Self {
-        ShutdownRequest { state }
-    }
-
     fn handle<O: Output>(
-        &mut self,
         _id: usize,
         _params: Self::Params,
-        _ctx: &mut ActionContext,
+        ctx: &mut ActionContext,
         _out: O,
     ) -> Result<Self::Response, ()> {
-        self.state.shut_down.store(true, Ordering::SeqCst);
+        // Currently we don't perform an explicit cleanup, other than storing state
+        ctx.inited().shut_down.store(true, Ordering::SeqCst);
+
         Ok(Ack)
     }
 }
 
-/// Notification that it is time for the language server to exit its process.
-#[derive(Debug)]
-pub struct ExitNotification<'a> {
-    state: &'a mut LsState,
-}
-
-impl<'a> Action for ExitNotification<'a> {
-    type Params = NoParams;
-    const METHOD: &'static str = "exit";
-}
-
-impl<'a> BlockingNotificationAction<'a> for ExitNotification<'a> {
-    fn new(state: &'a mut LsState) -> Self {
-        ExitNotification { state }
-    }
-
+impl BlockingNotificationAction for ExitNotification {
     fn handle<O: Output>(
-        &mut self,
         _params: Self::Params,
-        _ctx: &mut ActionContext,
+        ctx: &mut ActionContext,
         _out: O,
     ) -> Result<(), ()> {
-        let shut_down = self.state.shut_down.load(Ordering::SeqCst);
+        let shut_down = ctx.inited().shut_down.load(Ordering::SeqCst);
         ::std::process::exit(if shut_down { 0 } else { 1 });
     }
 }
@@ -304,23 +238,10 @@ fn get_root_path(params: &InitializeParams) -> PathBuf {
         })
 }
 
-/// A request to initialize this server.
-pub struct InitializeRequest;
-
-impl<'a> Action for InitializeRequest {
-    const METHOD: &'static str = "initialize";
-    type Params = InitializeParams;
-}
-
-impl<'a> BlockingRequestAction<'a> for InitializeRequest {
+impl BlockingRequestAction for InitializeRequest {
     type Response = NoResponse;
 
-    fn new(_: &'a mut LsState) -> Self {
-        InitializeRequest
-    }
-
     fn handle<O: Output>(
-        &mut self,
         id: usize,
         params: Self::Params,
         ctx: &mut ActionContext,
@@ -401,9 +322,6 @@ impl<O: Output> LsService<O> {
             msg_reader: reader,
             output: output,
             ctx: ActionContext::new(analysis, vfs, config),
-            state: LsState {
-                shut_down: AtomicBool::new(false),
-            },
             dispatcher,
         }
     }
@@ -462,23 +380,22 @@ impl<O: Output> LsService<O> {
                 let mut handled = false;
                 trace!("Handling `{}`", $method);
                 $(
-                    if $method == <$n_action as Action>::METHOD {
-                        let notification = msg.parse_as_notification::<$n_action>()?;
-                        if let Err(_) = notification.dispatch(&mut self.state, &mut self.ctx, self.output.clone()) {
+                    if $method == <$n_action as ls_types::notification::Notification>::METHOD {
+                        let notification: Notification<$n_action> = msg.parse_as_notification()?;
+                        if let Err(_) = notification.dispatch(&mut self.ctx, self.output.clone()) {
                             debug!("Error handling notification: {:?}", msg);
                         }
                         handled = true;
                     }
                 )*
                 $(
-                    if $method == <$br_action as Action>::METHOD {
-                        let request = msg.parse_as_request::<$br_action>()?;
+                    if $method == <$br_action as ls_types::request::Request>::METHOD {
+                        let request: Request<$br_action> = msg.parse_as_request()?;
 
                         // block until all nonblocking requests have been handled ensuring ordering
                         self.dispatcher.await_all_dispatched();
 
                         if let Err(_) = request.blocking_dispatch(
-                            &mut self.state,
                             &mut self.ctx,
                             &self.output
                         ) {
@@ -488,9 +405,10 @@ impl<O: Output> LsService<O> {
                     }
                 )*
                 $(
-                    if $method == <$request as Action>::METHOD {
-                        let request = (msg.parse_as_request::<$request>()?, self.ctx.inited());
-                        self.dispatcher.dispatch(request);
+                    if $method == <$request as ls_types::request::Request>::METHOD {
+                        let request: Request<$request> = msg.parse_as_request()?;
+                        let request = (request, self.ctx.inited());
+                        self.dispatcher.dispatch((request));
                         handled = true;
                     }
                 )*
@@ -505,9 +423,9 @@ impl<O: Output> LsService<O> {
             notifications:
                 ExitNotification,
                 notifications::Initialized,
-                notifications::DidOpen,
-                notifications::DidChange,
-                notifications::DidSave,
+                notifications::DidOpenTextDocument,
+                notifications::DidChangeTextDocument,
+                notifications::DidSaveTextDocument,
                 notifications::DidChangeConfiguration,
                 notifications::DidChangeWatchedFiles,
                 notifications::Cancel;
@@ -564,8 +482,12 @@ impl<O: Output> LsService<O> {
         // This is not actually in the spec, I'm not sure we should do this,
         // but it kinda makes sense.
         {
-            let shut_down = self.state.shut_down.load(Ordering::SeqCst);
-            if shut_down && raw_message.method != ExitNotification::METHOD {
+            let shutdown_mode = match self.ctx {
+                ActionContext::Init(ref ctx) => ctx.shut_down.load(Ordering::SeqCst),
+                _ => false,
+            };
+
+            if shutdown_mode && raw_message.method != <ExitNotification as ls_types::notification::Notification>::METHOD {
                 trace!("In shutdown mode, ignoring {:?}!", raw_message);
                 return ServerStateChange::Continue;
             }
@@ -589,7 +511,11 @@ struct RawMessage {
 }
 
 impl RawMessage {
-    fn parse_as_request<T: Action>(&self) -> Result<Request<T>, jsonrpc::Error> {
+    fn parse_as_request<'de, R, P>(&'de self) -> Result<Request<R>, jsonrpc::Error>
+    where
+        R: ls_types::request::Request<Params=P>,
+        P: serde::Deserialize<'de>
+         {
         // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
         // to using jsonrpc_core::Id
         let parsed_numeric_id = match &self.id {
@@ -598,7 +524,7 @@ impl RawMessage {
             _ => None,
         };
 
-        let params = T::Params::deserialize(&self.params).map_err(|e| {
+        let params = P::deserialize(&self.params).map_err(|e| {
             debug!("error when parsing as request: {}", e);
             jsonrpc::Error::invalid_request()
         })?;
@@ -614,8 +540,11 @@ impl RawMessage {
         }
     }
 
-    fn parse_as_notification<T: Action>(&self) -> Result<Notification<T>, jsonrpc::Error> {
-        use serde::Deserialize;
+    fn parse_as_notification<'de, T, P>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
+        where
+            T: ls_types::notification::Notification<Params=P>,
+            P: serde::Deserialize<'de>
+        {
 
         let params = T::Params::deserialize(&self.params).map_err(|e| {
             debug!("error when parsing as notification: {}", e);
@@ -687,11 +616,12 @@ mod test {
             id: None,
             params: serde_json::Value::Null,
         };
-        let notification = raw.parse_as_notification::<notifications::Initialized>();
+        let notification: Notification<notifications::Initialized> =
+            raw.parse_as_notification().unwrap();
 
-        assert_eq!(
-            notification,
-            Ok(Notification::<notifications::Initialized>::new(NoParams {}))
-        );
+        let expected = Notification::<notifications::Initialized>::new(());
+
+        assert_eq!(notification.params, expected.params);
+        assert_eq!(notification._action, expected._action);
     }
 }

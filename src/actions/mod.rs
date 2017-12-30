@@ -22,16 +22,16 @@ use span;
 use Span;
 
 use actions::post_build::{BuildResults, PostBuildHandler, Notifier};
-use actions::notifications::{BeginBuild, DiagnosticsBegin, DiagnosticsEnd, PublishDiagnostics};
 use build::*;
 use lsp_data;
 use lsp_data::*;
-use server::{Output, Notification, NoParams};
+use lsp_data::notification::PublishDiagnostics;
+use server::{Output, Notification};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use std::thread;
 
 
@@ -126,6 +126,9 @@ pub struct InitActionContext {
 
     config: Arc<Mutex<Config>>,
     client_capabilities: Arc<lsp_data::ClientCapabilities>,
+    /// Whether the server is performing cleanup (after having received
+    /// 'shutdown' request), just before final 'exit' request.
+    pub shut_down: Arc<AtomicBool>,
 }
 
 /// Persistent context shared across all requests and actions before the RLS has
@@ -168,6 +171,7 @@ impl InitActionContext {
             build_queue,
             active_build_count: Arc::new(AtomicUsize::new(0)),
             client_capabilities: Arc::new(client_capabilities),
+            shut_down: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -204,11 +208,11 @@ impl InitActionContext {
 
         impl<O: Output> Notifier for BuildNotifier<O> {
             fn notify_begin(&self) {
-                self.out.notify(Notification::<DiagnosticsBegin>::new(NoParams {}));
+                self.out.notify(Notification::<DiagnosticsBegin>::new(()));
             }
             fn notify_end(&self) {
                 self.active_build_count.fetch_sub(1, Ordering::SeqCst);
-                self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams {}));
+                self.out.notify(Notification::<DiagnosticsEnd>::new(()));
             }
             fn notify_publish(&self, params: PublishDiagnosticsParams) {
                 self.out.notify(Notification::<PublishDiagnostics>::new(params));
@@ -231,7 +235,7 @@ impl InitActionContext {
             }
         };
 
-        out.notify(Notification::<BeginBuild>::new(NoParams {}));
+        out.notify(Notification::<BeginBuild>::new(()));
         self.active_build_count.fetch_add(1, Ordering::SeqCst);
         self.build_queue
             .request_build(project_path, priority, pbh);
