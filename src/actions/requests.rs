@@ -30,20 +30,21 @@ use server;
 use server::{Ack, Output, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
 
-use ls_types;
-pub use ls_types::request::WorkspaceSymbol;
-pub use ls_types::request::DocumentSymbol as Symbols;
-pub use ls_types::request::HoverRequest as Hover;
-pub use ls_types::request::GotoDefinition as Definition;
-pub use ls_types::request::References;
-pub use ls_types::request::Completion;
-pub use ls_types::request::DocumentHighlightRequest as DocumentHighlight;
-pub use ls_types::request::Rename;
-pub use ls_types::request::ExecuteCommand;
-pub use ls_types::request::CodeActionRequest as CodeAction;
-pub use ls_types::request::Formatting;
-pub use ls_types::request::RangeFormatting;
-pub use ls_types::request::ResolveCompletionItem as ResolveCompletion;
+pub use lsp_data::request::{
+    WorkspaceSymbol,
+    DocumentSymbol as Symbols,
+    HoverRequest as Hover,
+    GotoDefinition as Definition,
+    References,
+    Completion,
+    DocumentHighlightRequest as DocumentHighlight,
+    Rename,
+    ExecuteCommand,
+    CodeActionRequest as CodeAction,
+    Formatting,
+    RangeFormatting,
+    ResolveCompletionItem as ResolveCompletion,
+};
 pub use lsp_data::FindImpls;
 
 use std::collections::HashMap;
@@ -453,7 +454,6 @@ impl server::Response for ExecuteCommandResponse {
     }
 }
 
-
 impl RequestAction for ExecuteCommand {
     type Response = ExecuteCommandResponse;
 
@@ -527,7 +527,7 @@ fn apply_deglobs(args: Vec<serde_json::Value>) -> Result<ApplyWorkspaceEditParam
 /// Create CodeActions for fixes suggested by the compiler
 /// the results are appended to `code_actions_result`
 fn make_suggestion_fix_actions(
-    params: &<CodeAction as ls_types::request::Request>::Params,
+    params: &<CodeAction as lsp_data::request::Request>::Params,
     file_path: &Path,
     ctx: &InitActionContext,
     code_actions_result: &mut <CodeAction as RequestAction>::Response,
@@ -558,7 +558,7 @@ fn make_suggestion_fix_actions(
 /// Create CodeActions for performing deglobbing when a wildcard import is found
 /// the results are appended to `code_actions_result`
 fn make_deglob_actions(
-    params: &<CodeAction as ls_types::request::Request>::Params,
+    params: &<CodeAction as lsp_data::request::Request>::Params,
     file_path: &Path,
     ctx: &InitActionContext,
     code_actions_result: &mut <CodeAction as RequestAction>::Response,
@@ -663,10 +663,7 @@ impl RequestAction for Formatting {
     }
 
     #[cfg(not(feature = "rustfmt"))]
-    fn handle(
-        _: InitActionContext,
-        _: Self::Params,
-    ) -> Result<Self::Response, ResponseError> {
+    fn handle(_: InitActionContext, _: Self::Params) -> Result<Self::Response, ResponseError> {
         Err(ResponseError::Message(
             ErrorCode::InternalError,
             "rustfmt was not distributed with this rls release".into(),
@@ -697,10 +694,7 @@ impl RequestAction for RangeFormatting {
         )
     }
     #[cfg(not(feature = "rustfmt"))]
-    fn handle(
-        _: InitActionContext,
-        _: Self::Params,
-    ) -> Result<Self::Response, ResponseError> {
+    fn handle(_: InitActionContext, _: Self::Params) -> Result<Self::Response, ResponseError> {
         Err(ResponseError::Message(
             ErrorCode::InternalError,
             "rustfmt was not distributed with this rls release".into(),
@@ -810,17 +804,13 @@ impl RequestAction for ResolveCompletion {
         Err(ResponseError::Empty)
     }
 
-    fn handle(
-        _: InitActionContext,
-        params: Self::Params,
-    ) -> Result<Self::Response, ResponseError> {
+    fn handle(_: InitActionContext, params: Self::Params) -> Result<Self::Response, ResponseError> {
         // currently, we safely ignore this as a pass-through since we fully handle
         // textDocument/completion.  In the future, we may want to use this method as a
         // way to more lazily fill out completion information
         Ok(params.into())
     }
 }
-
 
 fn racer_coord(
     line: span::Row<span::OneIndexed>,

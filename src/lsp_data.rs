@@ -369,3 +369,4 @@ impl request::Request for FindImpls {
     type Result = Vec<Location>;
     const METHOD: &'static str = "rustDocument/implementations";
 }
+

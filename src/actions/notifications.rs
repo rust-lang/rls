@@ -41,11 +41,7 @@ use std::thread;
 impl BlockingNotificationAction for Initialized {
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
-    fn handle<O: Output>(
-        _params: Self::Params,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<(), ()> {
+    fn handle<O: Output>(_params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         const WATCH_ID: &'static str = "rls-watch";
 
         let ctx = ctx.inited();
@@ -70,11 +66,7 @@ impl BlockingNotificationAction for Initialized {
 }
 
 impl BlockingNotificationAction for DidOpenTextDocument {
-    fn handle<O: Output>(
-        params: Self::Params,
-        ctx: &mut ActionContext,
-        _out: O,
-    ) -> Result<(), ()> {
+    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
         trace!("on_open: {:?}", params.text_document.uri);
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_open")?;
@@ -85,11 +77,7 @@ impl BlockingNotificationAction for DidOpenTextDocument {
 }
 
 impl BlockingNotificationAction for DidChangeTextDocument {
-    fn handle<O: Output>(
-        params: Self::Params,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<(), ()> {
+    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         trace!(
             "on_change: {:?}, thread: {:?}",
             params,

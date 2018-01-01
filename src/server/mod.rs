@@ -28,7 +28,8 @@ use server::io::{StdioMsgReader, StdioOutput};
 use server::dispatch::Dispatcher;
 pub use server::dispatch::{RequestAction, ResponseError};
 
-use ls_types;
+use ls_types::notification::Notification as LSPNotification;
+use ls_types::request::Request as LSPRequest;
 pub use ls_types::request::Shutdown as ShutdownRequest;
 pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::notification::Exit as ExitNotification;
@@ -83,17 +84,13 @@ impl<R: ::serde::Serialize + fmt::Debug> Response for R {
 
 /// An action taken in response to some notification from the client.
 /// Blocks stdin whilst being handled.
-pub trait BlockingNotificationAction: ls_types::notification::Notification {
+pub trait BlockingNotificationAction: LSPNotification {
     /// Handle this notification.
-    fn handle<O: Output>(
-        params: Self::Params,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<(), ()>;
+    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()>;
 }
 
 /// A request that blocks stdin whilst being handled
-pub trait BlockingRequestAction: ls_types::request::Request {
+pub trait BlockingRequestAction: LSPRequest {
     type Response: Response + fmt::Debug;
 
     /// Handle request and send its response back along the given output.
@@ -106,7 +103,7 @@ pub trait BlockingRequestAction: ls_types::request::Request {
 }
 
 /// A request that gets JSON serialized in the language server protocol.
-pub struct Request<A: ls_types::request::Request> {
+pub struct Request<A: LSPRequest> {
     /// The unique request id.
     pub id: usize,
     /// The time the request was received / processed by the main stdin reading thread.
@@ -119,19 +116,19 @@ pub struct Request<A: ls_types::request::Request> {
 
 /// A notification that gets JSON serialized in the language server protocol.
 #[derive(Debug, PartialEq)]
-pub struct Notification<A: ls_types::notification::Notification> {
+pub struct Notification<A: LSPNotification> {
     /// The extra action-specific parameters.
     pub params: A::Params,
     /// The action responsible for this notification.
     pub _action: PhantomData<A>,
 }
 
-impl<A: ls_types::notification::Notification> Notification<A> {
+impl<A: LSPNotification> Notification<A> {
     /// Creates a `Notification` structure with given `params`.
     pub fn new(params: A::Params) -> Notification<A> {
         Notification {
             params,
-            _action: PhantomData
+            _action: PhantomData,
         }
     }
 }
@@ -149,11 +146,7 @@ impl<A: BlockingRequestAction> Request<A> {
 }
 
 impl<A: BlockingNotificationAction> Notification<A> {
-    fn dispatch<O: Output>(
-        self,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<(), ()> {
+    fn dispatch<O: Output>(self, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         A::handle(self.params, ctx, out)?;
         Ok(())
     }
@@ -161,8 +154,9 @@ impl<A: BlockingNotificationAction> Notification<A> {
 
 impl<'a, A, P> fmt::Display for Request<A>
 where
-    A: ls_types::request::Request<Params=P>,
-    P: serde::Serialize {
+    A: LSPRequest<Params = P>,
+    P: serde::Serialize,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         json!({
             "jsonrpc": "2.0",
@@ -175,8 +169,9 @@ where
 
 impl<'a, A, P> fmt::Display for Notification<A>
 where
-    A: ls_types::notification::Notification<Params=P>,
-    P: serde::Serialize {
+    A: LSPNotification<Params = P>,
+    P: serde::Serialize,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         json!({
             "jsonrpc": "2.0",
@@ -380,7 +375,7 @@ impl<O: Output> LsService<O> {
                 let mut handled = false;
                 trace!("Handling `{}`", $method);
                 $(
-                    if $method == <$n_action as ls_types::notification::Notification>::METHOD {
+                    if $method == <$n_action as LSPNotification>::METHOD {
                         let notification: Notification<$n_action> = msg.parse_as_notification()?;
                         if let Err(_) = notification.dispatch(&mut self.ctx, self.output.clone()) {
                             debug!("Error handling notification: {:?}", msg);
@@ -389,7 +384,7 @@ impl<O: Output> LsService<O> {
                     }
                 )*
                 $(
-                    if $method == <$br_action as ls_types::request::Request>::METHOD {
+                    if $method == <$br_action as LSPRequest>::METHOD {
                         let request: Request<$br_action> = msg.parse_as_request()?;
 
                         // block until all nonblocking requests have been handled ensuring ordering
@@ -405,7 +400,7 @@ impl<O: Output> LsService<O> {
                     }
                 )*
                 $(
-                    if $method == <$request as ls_types::request::Request>::METHOD {
+                    if $method == <$request as LSPRequest>::METHOD {
                         let request: Request<$request> = msg.parse_as_request()?;
                         let request = (request, self.ctx.inited());
                         self.dispatcher.dispatch((request));
@@ -487,7 +482,7 @@ impl<O: Output> LsService<O> {
                 _ => false,
             };
 
-            if shutdown_mode && raw_message.method != <ExitNotification as ls_types::notification::Notification>::METHOD {
+            if shutdown_mode && raw_message.method != <ExitNotification as LSPNotification>::METHOD {
                 trace!("In shutdown mode, ignoring {:?}!", raw_message);
                 return ServerStateChange::Continue;
             }
@@ -513,9 +508,9 @@ struct RawMessage {
 impl RawMessage {
     fn parse_as_request<'de, R, P>(&'de self) -> Result<Request<R>, jsonrpc::Error>
     where
-        R: ls_types::request::Request<Params=P>,
-        P: serde::Deserialize<'de>
-         {
+        R: LSPRequest<Params = P>,
+        P: serde::Deserialize<'de>,
+    {
         // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
         // to using jsonrpc_core::Id
         let parsed_numeric_id = match &self.id {
@@ -541,11 +536,10 @@ impl RawMessage {
     }
 
     fn parse_as_notification<'de, T, P>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
-        where
-            T: ls_types::notification::Notification<Params=P>,
-            P: serde::Deserialize<'de>
-        {
-
+    where
+        T: LSPNotification<Params = P>,
+        P: serde::Deserialize<'de>,
+    {
         let params = T::Params::deserialize(&self.params).map_err(|e| {
             debug!("error when parsing as notification: {}", e);
             jsonrpc::Error::invalid_request()

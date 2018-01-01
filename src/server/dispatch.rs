@@ -14,10 +14,11 @@ use server;
 use server::{Request, Response};
 use server::io::Output;
 use actions::InitActionContext;
+use ls_types::request::Request as LSPRequest;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-use ls_types;
+use std::marker::PhantomData;
 
 lazy_static! {
     static ref TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
@@ -28,14 +29,14 @@ macro_rules! define_dispatch_request_enum {
     ($($request_type:ident),*) => {
         pub enum DispatchRequest {
             $(
-                $request_type(::std::marker::PhantomData<$request_type>, Request<$request_type>, InitActionContext),
+                $request_type(PhantomData<$request_type>, Request<$request_type>, InitActionContext),
             )*
         }
 
         $(
             impl From<(Request<$request_type>, InitActionContext)> for DispatchRequest {
                 fn from((req, ctx): (Request<$request_type>, InitActionContext)) -> Self {
-                    DispatchRequest::$request_type(::std::marker::PhantomData, req, ctx)
+                    DispatchRequest::$request_type(PhantomData, req, ctx)
                 }
             }
         )*
@@ -154,7 +155,7 @@ impl Dispatcher {
 
 /// Stdin-nonblocking request logic designed to be packed into a `DispatchRequest`
 /// and handled on the `WORK_POOL` via a `Dispatcher`.
-pub trait RequestAction: ls_types::request::Request {
+pub trait RequestAction: LSPRequest {
     /// Serializable response type
     type Response: server::Response + Send;
 

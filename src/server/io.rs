@@ -11,8 +11,8 @@
 use serde;
 use serde_json;
 
-use super::{Notification};
-use ls_types;
+use super::Notification;
+use ls_types::notification::Notification as LSPNotification;
 
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -147,8 +147,9 @@ pub trait Output: Sync + Send + Clone + 'static {
     /// Send a notification along the output.
     fn notify<A, P>(&self, notification: Notification<A>)
     where
-        A: ls_types::notification::Notification<Params=P>,
-        P: serde::Serialize {
+        A: LSPNotification<Params = P>,
+        P: serde::Serialize,
+    {
         self.response(format!("{}", notification));
     }
 }
