@@ -64,6 +64,9 @@ rustup component add rust-analysis
 rustup component add rust-src
 ```
 
+#### Note (nightly only)
+Sometimes the `rls-preview` component is not included in a nightly build due to certain issues. To see if the component is included in a particular build and what to do if it's not, check [#641](https://github.com/rust-lang-nursery/rls/issues/641).
+
 ## Running
 
 Though the RLS is built to work with many IDEs and editors, we currently use
