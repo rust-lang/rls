@@ -46,12 +46,12 @@ rustup self update
 
 If you're going to use the VSCode extension, you can skip steps 2 and 3.
 
-### Step 2: Update nightly
+### Step 2: Update stable
 
-Update the nightly compiler. You don't have to use it as your default compiler, but it needs to be on your system:
+Update the stable compiler. If you require features from nightly you can also update nightly too:
 
 ```
-rustup update nightly
+rustup update
 ```
 
 ### Step 3: Install the RLS
@@ -59,9 +59,9 @@ rustup update nightly
 Once you have rustup installed, run the following commands:
 
 ```
-rustup component add rls-preview --toolchain nightly
-rustup component add rust-analysis --toolchain nightly
-rustup component add rust-src --toolchain nightly
+rustup component add rls-preview
+rustup component add rust-analysis
+rustup component add rust-src
 ```
 
 ## Running
