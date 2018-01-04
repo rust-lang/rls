@@ -326,44 +326,6 @@ impl<O: Output> LsService<O> {
         while self.handle_message() == ServerStateChange::Continue {}
     }
 
-    fn parse_message(&mut self, msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
-        // Parse the message.
-        let ls_command: serde_json::Value =
-            serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
-
-        // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
-        let id = ls_command
-            .get("id")
-            .map(|id| serde_json::from_value(id.to_owned()).unwrap());
-
-        let method = match ls_command.get("method") {
-            Some(method) => method,
-            // No method means this is a response to one of our requests. FIXME: we should
-            // confirm these, but currently just ignore them.
-            None => return Ok(None),
-        };
-
-        let method = method
-            .as_str()
-            .ok_or_else(|| jsonrpc::Error::invalid_request())?
-            .to_owned();
-
-        // Representing internally a missing parameter as Null instead of None,
-        // (Null being unused value of param by the JSON-RPC 2.0 spec)
-        // to unify the type handling – now the parameter type implements Deserialize.
-        let params = match ls_command.get("params").map(|p| p.to_owned()) {
-            Some(params @ serde_json::Value::Object(..)) => params,
-            Some(params @ serde_json::Value::Array(..)) => params,
-            None => serde_json::Value::Null,
-            // Null as input value is not allowed by JSON-RPC 2.0,
-            //but including it for robustness
-            Some(serde_json::Value::Null) => serde_json::Value::Null,
-            _ => return Err(jsonrpc::Error::invalid_request()),
-        };
-
-        Ok(Some(RawMessage { method, id, params }))
-    }
-
     fn dispatch_message(&mut self, msg: &RawMessage) -> Result<(), jsonrpc::Error> {
         macro_rules! match_action {
             (
@@ -461,7 +423,7 @@ impl<O: Output> LsService<O> {
 
         trace!("Read message `{}`", msg_string);
 
-        let raw_message = match self.parse_message(&msg_string) {
+        let raw_message = match RawMessage::try_parse(&msg_string) {
             Ok(Some(rm)) => rm,
             Ok(None) => return ServerStateChange::Continue,
             Err(e) => {
@@ -498,7 +460,7 @@ impl<O: Output> LsService<O> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct RawMessage {
     method: String,
     id: Option<Id>,
@@ -549,6 +511,44 @@ impl RawMessage {
             params,
             _action: PhantomData,
         })
+    }
+
+    fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
+        // Parse the message.
+        let ls_command: serde_json::Value =
+            serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
+
+        // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
+        let id = ls_command
+            .get("id")
+            .map(|id| serde_json::from_value(id.to_owned()).unwrap());
+
+        let method = match ls_command.get("method") {
+            Some(method) => method,
+            // No method means this is a response to one of our requests. FIXME: we should
+            // confirm these, but currently just ignore them.
+            None => return Ok(None),
+        };
+
+        let method = method
+            .as_str()
+            .ok_or_else(|| jsonrpc::Error::invalid_request())?
+            .to_owned();
+
+        // Representing internally a missing parameter as Null instead of None,
+        // (Null being unused value of param by the JSON-RPC 2.0 spec)
+        // to unify the type handling – now the parameter type implements Deserialize.
+        let params = match ls_command.get("params").map(|p| p.to_owned()) {
+            Some(params @ serde_json::Value::Object(..)) => params,
+            Some(params @ serde_json::Value::Array(..)) => params,
+            None => serde_json::Value::Null,
+            // Null as input value is not allowed by JSON-RPC 2.0,
+            // but including it for robustness
+            Some(serde_json::Value::Null) => serde_json::Value::Null,
+            _ => return Err(jsonrpc::Error::invalid_request()),
+        };
+
+        Ok(Some(RawMessage { method, id, params }))
     }
 }
 
@@ -617,5 +617,60 @@ mod test {
 
         assert_eq!(notification.params, expected.params);
         assert_eq!(notification._action, expected._action);
+    }
+
+    // http://www.jsonrpc.org/specification#request_object
+    #[test]
+    fn parse_raw_message() {
+        let raw_msg = json!({
+            "jsonrpc": "2.0",
+            "id": "1",
+            "method": "someRpcCall",
+        }).to_string();
+
+        let str_msg = RawMessage {
+            method: "someRpcCall".to_owned(),
+            // FIXME: for now we support only numeric ids
+            id: Some(Id::Num(1)),
+            // Internally missing parameters are represented as null
+            params: serde_json::Value::Null,
+        };
+        assert_eq!(str_msg, RawMessage::try_parse(&raw_msg).unwrap().unwrap());
+    }
+
+    #[test]
+    fn serialize_message_no_params() {
+        #[derive(Debug)]
+        pub enum DummyNotification { }
+
+        impl notification::Notification for DummyNotification {
+            type Params = ();
+            const METHOD: &'static str = "dummyNotification";
+        }
+
+        let notif = Notification::<DummyNotification>::new(());
+        let raw = format!("{}", notif);
+        let deser: serde_json::Value = serde_json::from_str(&raw).unwrap();
+
+        assert!(deser.get("params").is_none());
+    }
+
+    #[test]
+    fn serialize_message_empty_params() {
+        #[derive(Debug)]
+        pub enum DummyNotification { }
+        #[derive(Serialize)]
+        pub struct EmptyParams {}
+
+        impl notification::Notification for DummyNotification {
+            type Params = EmptyParams;
+            const METHOD: &'static str = "dummyNotification";
+        }
+
+        let notif = Notification::<DummyNotification>::new(EmptyParams {});
+        let raw = format!("{}", notif);
+        let deser: serde_json::Value = serde_json::from_str(&raw).unwrap();
+
+        assert_eq!(*deser.get("params").unwrap(), json!({}));
     }
 }
