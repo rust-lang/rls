@@ -17,7 +17,7 @@ use url::Url;
 use vfs::FileContents;
 use racer;
 #[cfg(feature = "rustfmt")]
-use rustfmt::{FileName, format_input, Input as FmtInput};
+use rustfmt::{format_input, FileName, Input as FmtInput};
 #[cfg(feature = "rustfmt")]
 use rustfmt::file_lines::{FileLines, Range as RustfmtRange};
 use serde_json;
@@ -72,22 +72,20 @@ impl RequestAction for WorkspaceSymbol {
     ) -> Result<Self::Response, ResponseError> {
         let analysis = ctx.analysis;
 
-        let defs = analysis.matching_defs(&params.query).unwrap_or_else(|_| vec![]);
+        let defs = analysis
+            .matching_defs(&params.query)
+            .unwrap_or_else(|_| vec![]);
 
-        Ok(
-            defs.into_iter()
-                .map(|d| {
-                    SymbolInformation {
-                        name: d.name,
-                        kind: source_kind_from_def_kind(d.kind),
-                        location: ls_util::rls_to_location(&d.span),
-                        container_name: d.parent
-                            .and_then(|id| analysis.get_def(id).ok())
-                            .map(|parent| parent.name),
-                    }
-                })
-                .collect(),
-        )
+        Ok(defs.into_iter()
+            .map(|d| SymbolInformation {
+                name: d.name,
+                kind: source_kind_from_def_kind(d.kind),
+                location: ls_util::rls_to_location(&d.span),
+                container_name: d.parent
+                    .and_then(|id| analysis.get_def(id).ok())
+                    .map(|parent| parent.name),
+            })
+            .collect())
     }
 }
 
@@ -119,19 +117,17 @@ impl RequestAction for Symbols {
 
         let symbols = ctx.analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
 
-        Ok(
-            symbols
-                .into_iter()
-                .map(|s| {
-                    SymbolInformation {
-                        name: s.name,
-                        kind: source_kind_from_def_kind(s.kind),
-                        location: ls_util::rls_to_location(&s.span),
-                        container_name: None, // FIXME: more info could be added here
-                    }
-                })
-                .collect(),
-        )
+        Ok(symbols
+            .into_iter()
+            .map(|s| {
+                SymbolInformation {
+                    name: s.name,
+                    kind: source_kind_from_def_kind(s.kind),
+                    location: ls_util::rls_to_location(&s.span),
+                    container_name: None, // FIXME: more info could be added here
+                }
+            })
+            .collect())
     }
 }
 
@@ -333,19 +329,18 @@ impl RequestAction for References {
         let file_path = parse_file_path!(&params.text_document.uri, "find_all_refs")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
-        let result = match ctx.analysis
-            .find_all_refs(&span, params.context.include_declaration, false)
-        {
-            Ok(t) => t,
-            _ => vec![],
-        };
+        let result =
+            match ctx.analysis
+                .find_all_refs(&span, params.context.include_declaration, false)
+            {
+                Ok(t) => t,
+                _ => vec![],
+            };
 
-        Ok(
-            result
-                .iter()
-                .map(|item| ls_util::rls_to_location(item))
-                .collect(),
-        )
+        Ok(result
+            .iter()
+            .map(|item| ls_util::rls_to_location(item))
+            .collect())
     }
 }
 
@@ -382,9 +377,14 @@ impl RequestAction for Completion {
         let location = pos_to_racer_location(params.position);
         let results = racer::complete_from_file(file_path, location, &session);
 
-        Ok(
-            results
-                .map(|comp| {
+        let has_snippet_support = {
+            let config = ctx.config.clone();
+            let config_lock = config.lock().unwrap();
+            config_lock.has_snippet_support
+        };
+        Ok(results
+            .map(|comp| {
+                if has_snippet_support {
                     let snippet = racer::snippet_for_match(&comp, &session);
                     let mut item = completion_item_from_racer_match(comp);
                     if !snippet.is_empty() {
@@ -392,9 +392,11 @@ impl RequestAction for Completion {
                         item.insert_text_format = Some(InsertTextFormat::Snippet);
                     }
                     item
-                })
-                .collect(),
-        )
+                } else {
+                    completion_item_from_racer_match(comp)
+                }
+            })
+            .collect())
     }
 }
 
@@ -431,21 +433,19 @@ impl RequestAction for DocumentHighlight {
             .find_all_refs(&span, true, false)
             .unwrap_or_else(|_| vec![]);
 
-        Ok(
-            result
-                .iter()
-                .filter_map(|span| {
-                    if span.file == file_path {
-                        Some(lsp_data::DocumentHighlight {
-                            range: ls_util::rls_to_range(span.range),
-                            kind: Some(DocumentHighlightKind::Text),
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        )
+        Ok(result
+            .iter()
+            .filter_map(|span| {
+                if span.file == file_path {
+                    Some(lsp_data::DocumentHighlight {
+                        range: ls_util::rls_to_range(span.range),
+                        kind: Some(DocumentHighlightKind::Text),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect())
     }
 }
 
@@ -538,7 +538,6 @@ pub enum ExecuteCommandResponse {
     ApplyEdit(ApplyWorkspaceEditParams),
 }
 
-
 impl server::Response for ExecuteCommandResponse {
     fn send<O: Output>(&self, id: usize, out: &O) {
         // FIXME should handle the client's responses
@@ -624,11 +623,9 @@ fn apply_deglobs(args: Vec<serde_json::Value>) -> Result<ApplyWorkspaceEditParam
 
     let text_edits: Vec<_> = deglob_results
         .into_iter()
-        .map(|res| {
-            TextEdit {
-                range: res.location.range,
-                new_text: res.new_text,
-            }
+        .map(|res| TextEdit {
+            range: res.location.range,
+            new_text: res.new_text,
         })
         .collect();
     let mut edit = WorkspaceEdit {
@@ -996,7 +993,6 @@ impl RequestAction for ResolveCompletion {
         Ok(params.into())
     }
 }
-
 
 fn racer_coord(
     line: span::Row<span::OneIndexed>,
