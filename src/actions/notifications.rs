@@ -225,8 +225,7 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
             Err(err) => {
                 debug!(
                     "Received unactionable config: {:?} (error: {:?})",
-                    params.settings,
-                    err
+                    params.settings, err
                 );
                 return Err(());
             }

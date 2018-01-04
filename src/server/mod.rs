@@ -158,7 +158,7 @@ impl<A: Action> Notification<A> {
     pub fn new(params: A::Params) -> Notification<A> {
         Notification {
             params,
-            _action: PhantomData
+            _action: PhantomData,
         }
     }
 }
@@ -367,7 +367,21 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
         };
         out.success(id, &result);
 
-        ctx.init(get_root_path(&params), &init_options, out);
+        let has_snippet_support = params
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|doc| doc.completion.as_ref())
+            .and_then(|comp| comp.completion_item.as_ref())
+            .and_then(|item| item.snippet_support.as_ref())
+            .map(|support| support.to_owned())
+            .unwrap_or(false);
+        ctx.init(
+            get_root_path(&params),
+            &init_options,
+            has_snippet_support,
+            out,
+        );
 
         Ok(NoResponse)
     }

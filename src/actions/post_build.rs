@@ -29,7 +29,6 @@ use serde_json;
 use span::compiler::DiagnosticSpan;
 use url::Url;
 
-
 pub type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
 pub struct PostBuildHandler {
@@ -106,7 +105,8 @@ impl PostBuildHandler {
                 file_path,
                 diagnostic,
                 suggestions,
-            }) = parse_diagnostics(msg) {
+            }) = parse_diagnostics(msg)
+            {
                 results
                     .entry(cwd.join(file_path))
                     .or_insert_with(Vec::new)
@@ -261,4 +261,3 @@ fn primary_span(message: &CompilerMessage) -> Span {
         .clone();
     primary.rls_span().zero_indexed()
 }
-

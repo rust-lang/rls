@@ -21,18 +21,17 @@ use url::Url;
 use span;
 use Span;
 
-use actions::post_build::{BuildResults, PostBuildHandler, Notifier};
+use actions::post_build::{BuildResults, Notifier, PostBuildHandler};
 use actions::notifications::{BeginBuild, DiagnosticsBegin, DiagnosticsEnd, PublishDiagnostics};
 use build::*;
 use lsp_data::*;
-use server::{Output, Notification, NoParams};
+use server::{NoParams, Notification, Output};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
-
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
 // we don't want to crash the RLS in case a client opens a file under different URI scheme
@@ -79,6 +78,7 @@ impl ActionContext {
         &mut self,
         current_project: PathBuf,
         init_options: &InitializationOptions,
+        has_snippet_support: bool,
         out: O,
     ) {
         let ctx = match *self {
@@ -89,7 +89,7 @@ impl ActionContext {
                     uninit.config.clone(),
                     current_project,
                 );
-                ctx.init(init_options, out);
+                ctx.init(init_options, has_snippet_support, out);
                 ctx
             }
             ActionContext::Init(_) => panic!("ActionContext already initialized"),
@@ -170,13 +170,19 @@ impl InitActionContext {
         FmtConfig::from(&self.current_project)
     }
 
-    fn init<O: Output>(&self, init_options: &InitializationOptions, out: O) {
+    fn init<O: Output>(
+        &self,
+        init_options: &InitializationOptions,
+        has_snippet_support: bool,
+        out: O,
+    ) {
         let current_project = self.current_project.clone();
         let config = self.config.clone();
         // Spawn another thread since we're shelling out to Cargo and this can
         // cause a non-trivial amount of time due to disk access
         thread::spawn(move || {
             let mut config = config.lock().unwrap();
+            config.has_snippet_support = has_snippet_support;
             if let Err(e) = config.infer_defaults(&current_project) {
                 debug!(
                     "Encountered an error while trying to infer config defaults: {:?}",
@@ -198,14 +204,17 @@ impl InitActionContext {
 
         impl<O: Output> Notifier for BuildNotifier<O> {
             fn notify_begin(&self) {
-                self.out.notify(Notification::<DiagnosticsBegin>::new(NoParams {}));
+                self.out
+                    .notify(Notification::<DiagnosticsBegin>::new(NoParams {}));
             }
             fn notify_end(&self) {
                 self.active_build_count.fetch_sub(1, Ordering::SeqCst);
-                self.out.notify(Notification::<DiagnosticsEnd>::new(NoParams {}));
+                self.out
+                    .notify(Notification::<DiagnosticsEnd>::new(NoParams {}));
             }
             fn notify_publish(&self, params: PublishDiagnosticsParams) {
-                self.out.notify(Notification::<PublishDiagnostics>::new(params));
+                self.out
+                    .notify(Notification::<PublishDiagnostics>::new(params));
             }
         }
 
@@ -227,8 +236,7 @@ impl InitActionContext {
 
         out.notify(Notification::<BeginBuild>::new(NoParams {}));
         self.active_build_count.fetch_add(1, Ordering::SeqCst);
-        self.build_queue
-            .request_build(project_path, priority, pbh);
+        self.build_queue.request_build(project_path, priority, pbh);
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
@@ -349,7 +357,6 @@ impl<'ctx> FileWatch<'ctx> {
             || local == "/target" && change.typ == FileChangeType::Deleted
     }
 }
-
 
 #[cfg(test)]
 mod test {
