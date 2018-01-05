@@ -59,9 +59,7 @@ rustup update
 Once you have rustup installed, run the following commands:
 
 ```
-rustup component add rls-preview
-rustup component add rust-analysis
-rustup component add rust-src
+rustup component add rls-preview rust-analysis rust-src --toolchain stable
 ```
 
 #### Note (nightly only)
