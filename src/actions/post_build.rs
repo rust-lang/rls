@@ -15,11 +15,12 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 
 use build::BuildResult;
 use lsp_data::{ls_util, PublishDiagnosticsParams};
+use actions::progress::DiagnosticsNotifier;
 
 use analysis::AnalysisHost;
 use data::Analysis;
@@ -37,28 +38,20 @@ pub struct PostBuildHandler {
     pub show_warnings: bool,
     pub use_black_list: bool,
     pub shown_cargo_error: Arc<AtomicBool>,
-    pub notifier: Box<Notifier>,
+    pub active_build_count: Arc<AtomicUsize>,
+    pub notifier: Box<DiagnosticsNotifier>,
     pub blocked_threads: Vec<thread::Thread>,
 }
 
-/// Trait for communication back to the rest of the RLS (and on to the client).
-// This trait only really exists to work around the object safety rules (Output
-// is not object-safe).
-pub trait Notifier: Send {
-    fn notify_begin(&self);
-    fn notify_end(&self);
-    fn notify_publish(&self, PublishDiagnosticsParams);
-    fn notify_error(&self, &str);
-}
 
 impl PostBuildHandler {
     pub fn handle(mut self, result: BuildResult) {
-        self.notifier.notify_begin();
 
         match result {
             BuildResult::Success(cwd, messages, new_analysis, _) => {
                 thread::spawn(move || {
                     trace!("build - Success");
+                    self.notifier.notify_begin_diagnostics();
 
                     // Emit appropriate diagnostics using the ones from build.
                     self.handle_messages(&cwd, &messages);
@@ -71,26 +64,33 @@ impl PostBuildHandler {
                         self.reload_analysis_from_memory(&cwd, new_analysis);
                     }
 
+                    // the end message must be dispatched before waking up
+                    // the blocked threads, or we might see "done":true message
+                    // first in the next action invocation.
+                    self.notifier.notify_end_diagnostics();
+
                     // Wake up any threads blocked on this analysis.
                     for t in self.blocked_threads.drain(..) {
                         t.unpark();
                     }
 
-                    self.notifier.notify_end();
                     self.shown_cargo_error.store(false, Ordering::SeqCst);
+                    self.active_build_count.fetch_sub(1, Ordering::SeqCst);
                 });
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                self.notifier.notify_end();
+                self.active_build_count.fetch_sub(1, Ordering::SeqCst);
             }
             BuildResult::Err(cause, cmd) => {
                 trace!("build - Error {} when running {:?}", cause, cmd);
+                self.notifier.notify_begin_diagnostics();
                 if !self.shown_cargo_error.swap(true, Ordering::SeqCst) {
                     let msg = format!("There was an error trying to build, RLS features will be limited: {}", cause);
-                    self.notifier.notify_error(&msg);
+                    self.notifier.notify_error_diagnostics(&msg);
                 }
-                self.notifier.notify_end();
+                self.notifier.notify_end_diagnostics();
+                self.active_build_count.fetch_sub(1, Ordering::SeqCst);
             }
         }
     }
@@ -165,7 +165,7 @@ impl PostBuildHandler {
                     .collect(),
             };
 
-            self.notifier.notify_publish(params);
+            self.notifier.notify_publish_diagnostics(params);
         }
     }
 }

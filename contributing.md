@@ -306,14 +306,14 @@ The RLS uses some custom extensions to the Language Server Protocol.
 These are all sent from the RLS to an LSP client and are only used to improve
 the user experience by showing progress indicators.
 
-
-* `rustDocument/beginBuild`: notification, no arguments. Sent before a
-  build starts.
-* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent before
-  indexing or any diagnostics from a build are sent (build is likely in progress).
-* `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
-  is complete (successfully or not, or even skipped) and all post-build analysis
-  by the RLS is complete.
+* `window/progress`: notification, `title: "Build"`. Sent before build starts.
+* `window/progress`: notification with `title: "Build"`, repeated for each compile target.
+  * When total amount of work is not known, has field `message` set to the current crate name.
+  * When total amount of work is known, has field `percentage` set to how much of build has started.
+* `window/progress`: notification, `title: "Build"`, `"done": true`. Sent when build ends.
+* `window/progress`: notification, `title: "Diagnostics"`. Sent before analysis of build starts.
+* ... standard LSP `publishDiagnostics`
+* `window/progress`: notification, `title: "Diagnostics"`, `"done": true`. Sent when analysis ends.
 
 #### LSP Client to RLS
 

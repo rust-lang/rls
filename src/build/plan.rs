@@ -28,6 +28,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Sender;
 
 use build::PackageArg;
 use cargo::core::{PackageId, Profile, Target, TargetKind};
@@ -37,6 +38,7 @@ use cargo_metadata;
 use lsp_data::parse_file_path;
 use url::Url;
 
+use actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
@@ -412,12 +414,16 @@ impl JobQueue {
     }
 
     /// Performs a rustc build using cached compiler invocations.
-    pub(super) fn execute(mut self, internals: &Internals) -> BuildResult {
+    pub(super) fn execute(
+        mut self,
+        internals: &Internals,
+        progress_sender: Sender<ProgressUpdate>
+    ) -> BuildResult {
         // TODO: In case of an empty job queue we shouldn't be here, since the
         // returned results will replace currently held diagnostics/analyses.
         // Either allow to return a BuildResult::Squashed here or just delegate
         // to Cargo (which we do currently) in `prepare_work`
-        assert!(!self.0.is_empty());
+        assert!(self.0.len() > 0);
 
         let mut compiler_messages = vec![];
         let mut analyses = vec![];
@@ -438,6 +444,18 @@ impl JobQueue {
 
             let program = job.get_program().clone().into_string().expect("cannot stringify job program");
             args.insert(0, program.clone());
+
+            // Send a window/progress notification. At this point we know the percentage
+            // started out of the entire cached build.
+            // FIXME. We could communicate the "program" being built here, but
+            // it seems window/progress notification should have message OR percentage.
+            {
+                // divide by zero is avoided by earlier assert!
+                let percentage = compiler_messages.len() as f64 / self.0.len() as f64;
+                progress_sender.send(ProgressUpdate::Percentage(percentage))
+                    .expect("Failed to send progress update");
+            }
+
 
             match super::rustc::rustc(
                 &internals.vfs,

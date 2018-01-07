@@ -16,6 +16,7 @@ use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, 
 use failure;
 use serde_json;
 
+use actions::progress::ProgressUpdate;
 use data::Analysis;
 use build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
 use build::environment::{self, Environment, EnvironmentLock};
@@ -29,10 +30,11 @@ use std::fs::{read_dir, remove_file};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Sender;
 use std::thread;
 
 // Runs an in-process instance of Cargo.
-pub(super) fn cargo(internals: &Internals, package_arg: PackageArg) -> BuildResult {
+pub(super) fn cargo(internals: &Internals, package_arg: PackageArg, progress_sender: Sender<ProgressUpdate>) -> BuildResult {
     let workspace_mode = internals.config.lock().unwrap().workspace_mode;
 
     let compilation_cx = internals.compilation_cx.clone();
@@ -61,6 +63,7 @@ pub(super) fn cargo(internals: &Internals, package_arg: PackageArg) -> BuildResu
             diagnostics,
             analysis,
             out,
+            progress_sender,
         )
     });
 
@@ -98,6 +101,7 @@ fn run_cargo(
     compiler_messages: Arc<Mutex<Vec<String>>>,
     analysis: Arc<Mutex<Vec<Analysis>>>,
     out: Arc<Mutex<Vec<u8>>>,
+    progress_sender: Sender<ProgressUpdate>,
 ) -> CargoResult<PathBuf> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
     // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
@@ -214,6 +218,7 @@ fn run_cargo(
         vfs,
         compiler_messages,
         analysis,
+        progress_sender,
     );
 
     match compile_with_exec(&ws, &compile_opts, Arc::new(exec)) {
@@ -249,6 +254,7 @@ struct RlsExecutor {
     member_packages: Mutex<HashSet<PackageId>>,
     /// JSON compiler messages emitted for each primary compiled crate
     compiler_messages: Arc<Mutex<Vec<String>>>,
+    progress_sender: Mutex<Sender<ProgressUpdate>>,
 }
 
 impl RlsExecutor {
@@ -260,6 +266,7 @@ impl RlsExecutor {
         vfs: Arc<Vfs>,
         compiler_messages: Arc<Mutex<Vec<String>>>,
         analysis: Arc<Mutex<Vec<Analysis>>>,
+        progress_sender: Sender<ProgressUpdate>,
     ) -> RlsExecutor {
         let workspace_mode = config.lock().unwrap().workspace_mode;
         let (cur_package_id, member_packages) = if workspace_mode {
@@ -283,6 +290,7 @@ impl RlsExecutor {
             workspace_mode,
             member_packages: Mutex::new(member_packages),
             compiler_messages,
+            progress_sender: Mutex::new(progress_sender),
         }
     }
 
@@ -339,6 +347,15 @@ impl Executor for RlsExecutor {
         let crate_name =
             parse_arg(cargo_args, "--crate-name").expect("no crate-name in rustc command line");
         trace!("exec: {}", crate_name);
+
+        // Send off a window/progress notification for this compile target.
+        // At the moment, we don't know the number of things cargo is going to compile,
+        // so we just send the name of each thing we find.
+        {
+            let progress_sender = self.progress_sender.lock().unwrap();
+            progress_sender.send(ProgressUpdate::Message(crate_name.clone()))
+                .expect("Failed to send progress update");
+        }
 
         let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
         let analysis_dir = Path::new(&out_dir).join("save-analysis");
