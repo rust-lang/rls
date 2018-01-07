@@ -333,6 +333,27 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
 
         trace!("init: {:?}", init_options);
 
+        // ls_types::ClientCapabilities is a rather awkward object to use internally
+        // (for instance it doesn't Clone). Instead we pick out the bits of it that we
+        // are going to handle into HandledClientCapabilities. The upside of
+        // using this very simple struct is that it can be kept thread safe
+        // without mutex locking it on every request.
+        let capabilities = {
+            let has_snippet_support = params
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|doc| doc.completion.as_ref())
+            .and_then(|comp| comp.completion_item.as_ref())
+            .and_then(|item| item.snippet_support.as_ref())
+            .unwrap_or(&false)
+            .to_owned();
+
+            HandledClientCapabilities {
+                has_snippet_support,
+            }
+        };
+
         let result = InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncKind::Incremental),
@@ -367,7 +388,7 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
         };
         out.success(id, &result);
 
-        ctx.init(get_root_path(&params), &init_options, out);
+        ctx.init(get_root_path(&params), &init_options, capabilities, out);
 
         Ok(NoResponse)
     }

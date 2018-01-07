@@ -221,7 +221,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
 }
 
 /// Convert a racer match into an RLS completion.
-pub fn completion_item_from_racer_match(m: racer::Match) -> CompletionItem {
+pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
     let mut item = CompletionItem::new_simple(m.matchstr.clone(), m.contextstr.clone());
     item.kind = Some(completion_kind_from_match_type(m.mtype));
 
@@ -258,6 +258,22 @@ impl Default for InitializationOptions {
     fn default() -> Self {
         InitializationOptions {
             omit_init_build: false,
+        }
+    }
+}
+
+// Subset of flags from ls_types::ClientCapabilities that affects this RLS.
+// Passed in the `initialize` request under `capabilities`.
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone, Copy)]
+#[serde(default)]
+pub struct HandledClientCapabilities {
+    pub has_snippet_support: bool,
+}
+
+impl Default for HandledClientCapabilities {
+    fn default() -> Self {
+        HandledClientCapabilities {
+            has_snippet_support: false,
         }
     }
 }

@@ -79,6 +79,7 @@ impl ActionContext {
         &mut self,
         current_project: PathBuf,
         init_options: &InitializationOptions,
+        client_capabilities: HandledClientCapabilities,
         out: O,
     ) {
         let ctx = match *self {
@@ -87,6 +88,7 @@ impl ActionContext {
                     uninit.analysis.clone(),
                     uninit.vfs.clone(),
                     uninit.config.clone(),
+                    client_capabilities,
                     current_project,
                 );
                 ctx.init(init_options, out);
@@ -122,6 +124,7 @@ pub struct InitActionContext {
     active_build_count: Arc<AtomicUsize>,
 
     config: Arc<Mutex<Config>>,
+    client_capabilities: Arc<HandledClientCapabilities>,
 }
 
 /// Persistent context shared across all requests and actions before the RLS has
@@ -151,6 +154,7 @@ impl InitActionContext {
         analysis: Arc<AnalysisHost>,
         vfs: Arc<Vfs>,
         config: Arc<Mutex<Config>>,
+        client_capabilities: HandledClientCapabilities,
         current_project: PathBuf,
     ) -> InitActionContext {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
@@ -162,6 +166,7 @@ impl InitActionContext {
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
             active_build_count: Arc::new(AtomicUsize::new(0)),
+            client_capabilities: Arc::new(client_capabilities),
         }
     }
 
