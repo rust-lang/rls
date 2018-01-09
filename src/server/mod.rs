@@ -16,6 +16,7 @@ use analysis::AnalysisHost;
 use jsonrpc_core::{self as jsonrpc, Id};
 use vfs::Vfs;
 use serde;
+use serde::ser::{Serialize, Serializer, SerializeStruct};
 use serde_json;
 
 use version;
@@ -133,6 +134,55 @@ impl<A: LSPNotification> Notification<A> {
     }
 }
 
+impl<'a, A> From<&'a Request<A>> for RawMessage
+where
+    A: LSPRequest,
+    <A as LSPRequest>::Params: serde::Serialize
+{
+    fn from(request: &Request<A>) -> RawMessage {
+        let method = <A as LSPRequest>::METHOD.to_owned();
+
+        let params = match serde_json::to_value(&request.params).unwrap() {
+            params @ serde_json::Value::Array(_) |
+            params @ serde_json::Value::Object(_) |
+            // Internally we represent missing params by Null
+            params @ serde_json::Value::Null => params,
+            _ => unreachable!("Bad parameter type found for {:?} request", method),
+        };
+
+        RawMessage {
+            method,
+            // FIXME: for now we support only numeric ids
+            id: Some(Id::Num(request.id as u64)),
+            params
+        }
+    }
+}
+
+impl<'a, A> From<&'a Notification<A>> for RawMessage
+where
+    A: LSPNotification,
+    <A as LSPNotification>::Params: serde::Serialize
+{
+    fn from(notification: &Notification<A>) -> RawMessage {
+        let method = <A as LSPNotification>::METHOD.to_owned();
+
+        let params = match serde_json::to_value(&notification.params).unwrap() {
+            params @ serde_json::Value::Array(_) |
+            params @ serde_json::Value::Object(_) |
+            // Internally we represent missing params by Null
+            params @ serde_json::Value::Null => params,
+            _ => unreachable!("Bad parameter type found for {:?} request", method),
+        };
+
+        RawMessage {
+            method,
+            id: None,
+            params
+        }
+    }
+}
+
 impl<A: BlockingRequestAction> Request<A> {
     fn blocking_dispatch<O: Output>(
         self,
@@ -152,32 +202,31 @@ impl<A: BlockingNotificationAction> Notification<A> {
     }
 }
 
-impl<'a, A, P> fmt::Display for Request<A>
+impl<'a, A> fmt::Display for Request<A>
 where
-    A: LSPRequest<Params = P>,
-    P: serde::Serialize,
+    A: LSPRequest,
+    <A as LSPRequest>::Params: serde::Serialize,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        json!({
-            "jsonrpc": "2.0",
-            "id": self.id,
-            "method": A::METHOD,
-            "params": self.params,
-        }).fmt(f)
+        let raw: RawMessage = self.into();
+        match serde_json::to_string(&raw) {
+            Ok(val) => val.fmt(f),
+            Err(_) => Err(fmt::Error)
+        }
     }
 }
 
-impl<'a, A, P> fmt::Display for Notification<A>
+impl<'a, A> fmt::Display for Notification<A>
 where
-    A: LSPNotification<Params = P>,
-    P: serde::Serialize,
+    A: LSPNotification,
+    <A as LSPNotification>::Params: serde::Serialize,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        json!({
-            "jsonrpc": "2.0",
-            "method": A::METHOD,
-            "params": self.params,
-        }).fmt(f)
+        let raw: RawMessage = self.into();
+        match serde_json::to_string(&raw) {
+            Ok(val) => val.fmt(f),
+            Err(_) => Err(fmt::Error)
+        }
     }
 }
 
@@ -552,6 +601,29 @@ impl RawMessage {
     }
 }
 
+// Added so we can prepend with extra constant "jsonrpc": "2.0" key.
+// Should be resolved once https://github.com/serde-rs/serde/issues/760 is fixed.
+impl Serialize for RawMessage {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let serialize_id = self.id.is_some();
+        let serialize_params = self.params.is_array() || self.params.is_object();
+
+        let len = 2 + if serialize_id { 1 } else { 0 }
+                    + if serialize_params { 1 } else { 0 };
+        let mut msg = serializer.serialize_struct("RawMessage", len)?;
+        msg.serialize_field("jsonrpc", "2.0")?;
+        msg.serialize_field("method", &self.method)?;
+        // Notifications don't have Id specified
+        if serialize_id {
+            msg.serialize_field("id", &self.id)?;
+        }
+        if serialize_params {
+            msg.serialize_field("params", &self.params)?;
+        }
+        msg.end()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -650,9 +722,16 @@ mod test {
 
         let notif = Notification::<DummyNotification>::new(());
         let raw = format!("{}", notif);
+        eprintln!("raw: {:?}", raw);
         let deser: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        eprintln!("deser: {:?}", deser);
 
-        assert!(deser.get("params").is_none());
+        assert!(match deser.get("params") {
+            Some(&serde_json::Value::Array(ref arr)) if arr.len() == 0 => true,
+            Some(&serde_json::Value::Object(ref map)) if map.len() == 0 => true,
+            None => true,
+            _ => false,
+        });
     }
 
     #[test]
