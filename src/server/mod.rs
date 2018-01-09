@@ -20,6 +20,7 @@ use serde_json;
 use serde::Deserialize;
 
 use version;
+use lsp_data;
 use lsp_data::*;
 use actions::{notifications, requests, ActionContext};
 use config::Config;
@@ -333,26 +334,7 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
 
         trace!("init: {:?}", init_options);
 
-        // ls_types::ClientCapabilities is a rather awkward object to use internally
-        // (for instance it doesn't Clone). Instead we pick out the bits of it that we
-        // are going to handle into HandledClientCapabilities. The upside of
-        // using this very simple struct is that it can be kept thread safe
-        // without mutex locking it on every request.
-        let capabilities = {
-            let has_snippet_support = params
-            .capabilities
-            .text_document
-            .as_ref()
-            .and_then(|doc| doc.completion.as_ref())
-            .and_then(|comp| comp.completion_item.as_ref())
-            .and_then(|item| item.snippet_support.as_ref())
-            .unwrap_or(&false)
-            .to_owned();
-
-            HandledClientCapabilities {
-                has_snippet_support,
-            }
-        };
+        let capabilities = lsp_data::ClientCapabilities::new(&params);
 
         let result = InitializeResult {
             capabilities: ServerCapabilities {
@@ -658,7 +640,7 @@ mod test {
             root_path: None,
             root_uri: None,
             initialization_options: None,
-            capabilities: ClientCapabilities {
+            capabilities: ::ls_types::ClientCapabilities {
                 workspace: None,
                 text_document: None,
                 experimental: None,
