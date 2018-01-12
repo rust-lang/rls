@@ -313,6 +313,7 @@ pub fn rls_exe() -> PathBuf {
     target_conf_dir().join(format!("rls{}", env::consts::EXE_SUFFIX))
 }
 
+#[allow(dead_code)]
 pub fn main_file(println: &str, deps: &[&str]) -> String {
     let mut buf = String::new();
 
@@ -338,6 +339,7 @@ pub fn basic_bin_manifest(name: &str) -> String {
     "#, name, name)
 }
 
+#[allow(dead_code)]
 pub fn basic_lib_manifest(name: &str) -> String {
     format!(r#"
         [package]
