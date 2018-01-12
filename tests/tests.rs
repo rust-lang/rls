@@ -69,7 +69,7 @@ fn test_simple_workspace() {
                 [root]
                 name = "member_lib"
                 version = "0.1.0"
-                        
+
                 [[package]]
                 name = "member_bin"
                 version = "0.1.0"
@@ -125,35 +125,9 @@ fn test_simple_workspace() {
         })).unwrap();
 
         // This is the expected behavior is workspace_mode is on by default
-        // rls.expect_messages(&[
-        //     ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-        //     ExpectedMessage::new(None).expect_contains("beginBuild"),
-        //     ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-        //     ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
-        //     ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
-        //     ExpectedMessage::new(None).expect_contains("diagnosticsEnd")
-        // ]);
-
-        // This is the expected behavior is workspace_mode is off by default
         rls.expect_messages(&[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
             ExpectedMessage::new(None).expect_contains("beginBuild"),
-            ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
-            ExpectedMessage::new(None).expect_contains("diagnosticsEnd")
-        ]);
-
-        // Turn on workspace mode
-        rls.notify("workspace/didChangeConfiguration", json!({
-            "settings": {
-                "rust": {
-                    "workspace_mode": true
-                }
-            }
-        })).unwrap();
-
-        rls.expect_messages(&[
-            ExpectedMessage::new(None).expect_contains("beginBuild"),
-            ExpectedMessage::new(Some(1)).expect_contains("unregisterCapability"),
             ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
             ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
             ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
