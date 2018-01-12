@@ -18,10 +18,10 @@ use config::Config;
 use server::{self, LsService, NoParams, Notification, Request};
 use vfs::Vfs;
 
-use ls_types::{ClientCapabilities, DocumentFormattingParams, DocumentRangeFormattingParams,
-               FormattingOptions, InitializeParams, Position, Range, RenameParams,
-               TextDocumentIdentifier, TextDocumentPositionParams, TraceOption,
-               WorkspaceSymbolParams};
+use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
+               DocumentRangeFormattingParams, FormattingOptions, InitializeParams, Position,
+               Range, RenameParams, TextDocumentIdentifier, TextDocumentPositionParams,
+               TraceOption, WorkspaceSymbolParams};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -137,6 +137,26 @@ pub fn run() {
                     tab_size,
                     insert_spaces,
                 ).to_string()
+            }
+            "code_action" => {
+                let file_name = bits.next().expect("Expect file name");
+                let start_row: u64 = bits.next()
+                    .expect("Expect start line")
+                    .parse()
+                    .expect("Bad start line");
+                let start_col: u64 = bits.next()
+                    .expect("Expect start column")
+                    .parse()
+                    .expect("Bad start column");
+                let end_row: u64 = bits.next()
+                    .expect("Expect end line")
+                    .parse()
+                    .expect("Bad end line");
+                let end_col: u64 = bits.next()
+                    .expect("Expect end column")
+                    .parse()
+                    .expect("Bad end column");
+                code_action(file_name, start_row, start_col, end_row, end_col).to_string()
             }
             "h" | "help" => {
                 help();
@@ -270,6 +290,31 @@ fn range_format(
             tab_size,
             insert_spaces,
             properties,
+        },
+    };
+    Request {
+        id: next_id(),
+        params,
+        received: Instant::now(),
+        _action: PhantomData,
+    }
+}
+
+fn code_action(
+    file_name: &str,
+    start_row: u64,
+    start_col: u64,
+    end_row: u64,
+    end_col: u64,
+) -> Request<requests::CodeAction> {
+    let params = CodeActionParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        range: Range {
+            start: Position::new(start_row, start_col),
+            end: Position::new(end_row, end_col),
+        },
+        context: CodeActionContext {
+            diagnostics: Vec::new(),
         },
     };
     Request {
@@ -432,4 +477,7 @@ fn help() {
     println!("    range_format  file_name start_line start_col end_line end_col [tab_size [insert_spaces]]");
     println!("                  textDocument/rangeFormatting");
     println!("                  tab_size defaults to 4 and insert_spaces to 'true'");
+    println!("");
+    println!("    code_action   file_name start_line start_col end_line end_col");
+    println!("                  textDocument/codeAction");
 }
