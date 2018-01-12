@@ -4,11 +4,6 @@
 
 # Rust Language Server (RLS)
 
-[impl period](https://blog.rust-lang.org/2017/09/18/impl-future-for-rust.html) has been started! Join us at [Gitter.im](https://gitter.im/rust-impl-period/WG-dev-tools-rls).
-
-**This project is in the alpha stage of development. It is likely to be buggy in
-some situations; proceed with caution.**
-
 The RLS provides a server that runs in the background, providing IDEs,
 editors, and other tools with information about Rust programs. It supports
 functionality such as 'goto definition', symbol search, reformatting, and code
@@ -38,57 +33,35 @@ for [Visual Studio Code](https://code.visualstudio.com/).
 You can install [rustup](http://rustup.rs/) on many platforms. This will help us quickly install the
 rls and its dependencies.
 
-If you already have rustup installed, be sure to run self update to ensure you have the latest rustup:
-
-```
-rustup self update
-```
-
-If you're going to use the VSCode extension, you can skip steps 2 and 3.
-
-### Step 2: Update stable
-
-Update the stable compiler. If you require features from nightly you can also update nightly too:
+If you already have rustup installed, update to ensure you have the latest
+rustup and compiler:
 
 ```
 rustup update
 ```
 
-### Step 3: Install the RLS
+
+If you're going to use the VSCode extension, you can skip step 2.
+
+
+### Step 2: Install the RLS
 
 Once you have rustup installed, run the following commands:
 
 ```
-rustup component add rls-preview rust-analysis rust-src --toolchain stable
+rustup component add rls-preview rust-analysis rust-src
 ```
 
 #### Note (nightly only)
-Sometimes the `rls-preview` component is not included in a nightly build due to certain issues. To see if the component is included in a particular build and what to do if it's not, check [#641](https://github.com/rust-lang-nursery/rls/issues/641).
+Sometimes the `rls-preview` component is not included in a nightly build due to
+certain issues. To see if the component is included in a particular build and
+what to do if it's not, check [#641](https://github.com/rust-lang-nursery/rls/issues/641).
+
 
 ## Running
 
-Though the RLS is built to work with many IDEs and editors, we currently use
-VSCode to test the RLS.
-
-To run with VSCode, you'll need a 
-[recent VSCode version](https://code.visualstudio.com/download) installed.
-
-Next, you'll need to run the VSCode extension (for this step, you'll need a
-recent [node](https://nodejs.org/en/) installed:
-
-```
-git clone https://github.com/rust-lang-nursery/rls-vscode
-cd rls-vscode
-npm install
-code .
-```
-
-VSCode will open into the `rls-vscode` project.  From here, click the Debug
-button on the left-hand side (a bug with a line through it). Next, click the
-green triangle at the top.  This will launch a new instance of VSCode with the
-`rls-vscode` plugin enabled. VSCode setting `"window.openFoldersInNewWindow"`
-cannot be set to `"on"`. From there, you can open your Rust projects using
-the RLS.
+The RLS is built to work with many IDEs and editors, we mostly use
+VSCode to test the RLS. The easiest way is to use the [published extension](https://github.com/rust-lang-nursery/rls-vscode).
 
 You'll know it's working when you see this in the status bar at the bottom, with
 a spinning indicator:
@@ -107,7 +80,7 @@ squiggles to see the text of the error.
 
 ## Configuration
 
-The RLS can be configured on a per-project basis, using the official Visual
+The RLS can be configured on a per-project basis, using the Visual
 Studio Code extension this will be done via the workspace settings file
 `settings.json`.
 
@@ -145,9 +118,11 @@ Currently we accept the following options:
   enabled, analysis will be only provided for the specified package (runs as
   if `-p <analyze_package>` was passed).
 
+
 ## Troubleshooting
 
 For tips on debugging and troubleshooting, see [debugging.md](debugging.md).
+
 
 ## Contributing
 
