@@ -24,6 +24,7 @@ use Span;
 use actions::post_build::{BuildResults, PostBuildHandler, Notifier};
 use actions::notifications::{BeginBuild, DiagnosticsBegin, DiagnosticsEnd, PublishDiagnostics};
 use build::*;
+use lsp_data;
 use lsp_data::*;
 use server::{Output, Notification, NoParams};
 
@@ -79,6 +80,7 @@ impl ActionContext {
         &mut self,
         current_project: PathBuf,
         init_options: &InitializationOptions,
+        client_capabilities: lsp_data::ClientCapabilities,
         out: O,
     ) {
         let ctx = match *self {
@@ -87,6 +89,7 @@ impl ActionContext {
                     uninit.analysis.clone(),
                     uninit.vfs.clone(),
                     uninit.config.clone(),
+                    client_capabilities,
                     current_project,
                 );
                 ctx.init(init_options, out);
@@ -122,6 +125,7 @@ pub struct InitActionContext {
     active_build_count: Arc<AtomicUsize>,
 
     config: Arc<Mutex<Config>>,
+    client_capabilities: Arc<lsp_data::ClientCapabilities>,
 }
 
 /// Persistent context shared across all requests and actions before the RLS has
@@ -151,6 +155,7 @@ impl InitActionContext {
         analysis: Arc<AnalysisHost>,
         vfs: Arc<Vfs>,
         config: Arc<Mutex<Config>>,
+        client_capabilities: lsp_data::ClientCapabilities,
         current_project: PathBuf,
     ) -> InitActionContext {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
@@ -162,6 +167,7 @@ impl InitActionContext {
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
             active_build_count: Arc::new(AtomicUsize::new(0)),
+            client_capabilities: Arc::new(client_capabilities),
         }
     }
 

@@ -20,6 +20,7 @@ use serde_json;
 use serde::Deserialize;
 
 use version;
+use lsp_data;
 use lsp_data::*;
 use actions::{notifications, requests, ActionContext};
 use config::Config;
@@ -333,6 +334,8 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
 
         trace!("init: {:?}", init_options);
 
+        let capabilities = lsp_data::ClientCapabilities::new(&params);
+
         let result = InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncKind::Incremental),
@@ -367,7 +370,7 @@ impl<'a> BlockingRequestAction<'a> for InitializeRequest {
         };
         out.success(id, &result);
 
-        ctx.init(get_root_path(&params), &init_options, out);
+        ctx.init(get_root_path(&params), &init_options, capabilities, out);
 
         Ok(NoResponse)
     }
@@ -637,7 +640,7 @@ mod test {
             root_path: None,
             root_uri: None,
             initialization_options: None,
-            capabilities: ClientCapabilities {
+            capabilities: ::ls_types::ClientCapabilities {
                 workspace: None,
                 text_document: None,
                 experimental: None,

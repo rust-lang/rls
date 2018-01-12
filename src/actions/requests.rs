@@ -382,14 +382,19 @@ impl RequestAction for Completion {
         let location = pos_to_racer_location(params.position);
         let results = racer::complete_from_file(file_path, location, &session);
 
+        let code_completion_has_snippet_support =
+            ctx.client_capabilities.code_completion_has_snippet_support;
+
         Ok(
             results
                 .map(|comp| {
-                    let snippet = racer::snippet_for_match(&comp, &session);
-                    let mut item = completion_item_from_racer_match(comp);
-                    if !snippet.is_empty() {
-                        item.insert_text = Some(snippet);
-                        item.insert_text_format = Some(InsertTextFormat::Snippet);
+                    let mut item = completion_item_from_racer_match(&comp);
+                    if code_completion_has_snippet_support {
+                        let snippet = racer::snippet_for_match(&comp, &session);
+                        if !snippet.is_empty() {
+                            item.insert_text = Some(snippet);
+                            item.insert_text_format = Some(InsertTextFormat::Snippet);
+                        }
                     }
                     item
                 })

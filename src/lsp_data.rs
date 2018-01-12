@@ -21,6 +21,7 @@ use serde::Serialize;
 use span;
 use racer;
 use vfs::FileContents;
+use ls_types;
 
 pub use ls_types::*;
 
@@ -221,7 +222,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
 }
 
 /// Convert a racer match into an RLS completion.
-pub fn completion_item_from_racer_match(m: racer::Match) -> CompletionItem {
+pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
     let mut item = CompletionItem::new_simple(m.matchstr.clone(), m.contextstr.clone());
     item.kind = Some(completion_kind_from_match_type(m.mtype));
 
@@ -258,6 +259,37 @@ impl Default for InitializationOptions {
     fn default() -> Self {
         InitializationOptions {
             omit_init_build: false,
+        }
+    }
+}
+
+// Subset of flags from ls_types::ClientCapabilities that affects this RLS.
+// Passed in the `initialize` request under `capabilities`.
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone, Copy, Default)]
+#[serde(default)]
+pub struct ClientCapabilities {
+    pub code_completion_has_snippet_support: bool,
+}
+
+impl ClientCapabilities {
+    pub fn new(params: &ls_types::InitializeParams) -> ClientCapabilities {
+        // ls_types::ClientCapabilities is a rather awkward object to use internally
+        // (for instance it doesn't Clone). Instead we pick out the bits of it that we
+        // are going to handle into ClientCapabilities. The upside of
+        // using this very simple struct is that it can be kept thread safe
+        // without mutex locking it on every request.
+        let code_completion_has_snippet_support = params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|doc| doc.completion.as_ref())
+        .and_then(|comp| comp.completion_item.as_ref())
+        .and_then(|item| item.snippet_support.as_ref())
+        .unwrap_or(&false)
+        .to_owned();
+
+        ClientCapabilities {
+            code_completion_has_snippet_support,
         }
     }
 }
