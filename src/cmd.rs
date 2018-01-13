@@ -21,7 +21,7 @@ use vfs::Vfs;
 use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
                DocumentRangeFormattingParams, FormattingOptions, InitializeParams, Position,
                Range, RenameParams, TextDocumentIdentifier, TextDocumentPositionParams,
-               TraceOption, WorkspaceSymbolParams};
+               TraceOption, WorkspaceSymbolParams, CompletionItem};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -157,6 +157,11 @@ pub fn run() {
                     .parse()
                     .expect("Bad end column");
                 code_action(file_name, start_row, start_col, end_row, end_col).to_string()
+            }
+            "resolve" => {
+                let label = bits.next().expect("Expect label");
+                let detail = bits.next().expect("Expect detail");
+                resolve_completion(label, detail).to_string()
             }
             "h" | "help" => {
                 help();
@@ -325,7 +330,21 @@ fn code_action(
     }
 }
 
-fn shutdown() -> Request<server::ShutdownRequest> {
+fn resolve_completion(
+    label: &str,
+    detail: &str,
+) -> Request<requests::ResolveCompletion> {
+    let params = CompletionItem::new_simple(label.to_owned(), detail.to_owned());
+
+    Request {
+        id: next_id(),
+        params,
+        received: Instant::now(),
+        _action: PhantomData,
+    }
+}
+
+fn shutdown<'a>() -> Request<server::ShutdownRequest<'a>> {
     Request {
         id: next_id(),
         params: (),
@@ -480,4 +499,7 @@ fn help() {
     println!("");
     println!("    code_action   file_name start_line start_col end_line end_col");
     println!("                  textDocument/codeAction");
+    println!("");
+    println!("    resolve       label detail");
+    println!("                  completionItem/resolve");
 }
