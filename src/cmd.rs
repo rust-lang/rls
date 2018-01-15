@@ -15,7 +15,7 @@
 use actions::requests;
 use analysis::{AnalysisHost, Target};
 use config::Config;
-use server::{self, LsService, NoParams, Notification, Request};
+use server::{self, LsService, Notification, Request};
 use vfs::Vfs;
 
 use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
@@ -325,18 +325,18 @@ fn code_action(
     }
 }
 
-fn shutdown<'a>() -> Request<server::ShutdownRequest<'a>> {
+fn shutdown() -> Request<server::ShutdownRequest> {
     Request {
         id: next_id(),
-        params: NoParams {},
+        params: (),
         received: Instant::now(),
         _action: PhantomData,
     }
 }
 
-fn exit<'a>() -> Notification<server::ExitNotification<'a>> {
+fn exit() -> Notification<server::ExitNotification> {
     Notification {
-        params: NoParams {},
+        params: (),
         _action: PhantomData,
     }
 }

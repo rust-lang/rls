@@ -21,32 +21,27 @@ use Span;
 
 use build::*;
 use lsp_data::*;
-use server::{Action, BlockingNotificationAction, LsState, NoParams, Output};
+use lsp_data::request::{Request, RangeFormatting};
+use lsp_data::notification::{Notification, RegisterCapability, UnregisterCapability};
+
+pub use lsp_data::notification::{
+    Initialized,
+    DidOpenTextDocument,
+    DidChangeTextDocument,
+    DidSaveTextDocument,
+    DidChangeConfiguration,
+    DidChangeWatchedFiles,
+    Cancel,
+};
+
+use server::{BlockingNotificationAction, Output};
 
 use std::thread;
 
-/// Notification from the client that it has completed initialization.
-#[derive(Debug, PartialEq)]
-pub struct Initialized;
-
-impl Action for Initialized {
-    type Params = NoParams;
-    const METHOD: &'static str = "initialized";
-}
-
-impl<'a> BlockingNotificationAction<'a> for Initialized {
-    fn new(_: &'a mut LsState) -> Self {
-        Initialized
-    }
-
+impl BlockingNotificationAction for Initialized {
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
-    fn handle<O: Output>(
-        &mut self,
-        _params: Self::Params,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<(), ()> {
+    fn handle<O: Output>(_params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         const WATCH_ID: &'static str = "rls-watch";
 
         let ctx = ctx.inited();
@@ -54,12 +49,12 @@ impl<'a> BlockingNotificationAction<'a> for Initialized {
         let options = FileWatch::new(&ctx).watchers_config();
         let output = serde_json::to_string(&RequestMessage::new(
             out.provide_id(),
-            NOTIFICATION__RegisterCapability.to_owned(),
+            <RegisterCapability as Notification>::METHOD.to_owned(),
             RegistrationParams {
                 registrations: vec![
                     Registration {
                         id: WATCH_ID.to_owned(),
-                        method: NOTIFICATION__DidChangeWatchedFiles.to_owned(),
+                        method: <DidChangeWatchedFiles as Notification>::METHOD.to_owned(),
                         register_options: options,
                     },
                 ],
@@ -70,27 +65,8 @@ impl<'a> BlockingNotificationAction<'a> for Initialized {
     }
 }
 
-/// Notification from the client that the given text document has been
-/// opened. The client is responsible for managing its clean up.
-#[derive(Debug)]
-pub struct DidOpen;
-
-impl Action for DidOpen {
-    type Params = DidOpenTextDocumentParams;
-    const METHOD: &'static str = "textDocument/didOpen";
-}
-
-impl<'a> BlockingNotificationAction<'a> for DidOpen {
-    fn new(_: &'a mut LsState) -> Self {
-        DidOpen
-    }
-
-    fn handle<O: Output>(
-        &mut self,
-        params: Self::Params,
-        ctx: &mut ActionContext,
-        _out: O,
-    ) -> Result<(), ()> {
+impl BlockingNotificationAction for DidOpenTextDocument {
+    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
         trace!("on_open: {:?}", params.text_document.uri);
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_open")?;
@@ -100,26 +76,8 @@ impl<'a> BlockingNotificationAction<'a> for DidOpen {
     }
 }
 
-/// Notification from the client that the given document changed.
-#[derive(Debug)]
-pub struct DidChange;
-
-impl Action for DidChange {
-    type Params = DidChangeTextDocumentParams;
-    const METHOD: &'static str = "textDocument/didChange";
-}
-
-impl<'a> BlockingNotificationAction<'a> for DidChange {
-    fn new(_: &'a mut LsState) -> Self {
-        DidChange
-    }
-
-    fn handle<O: Output>(
-        &mut self,
-        params: Self::Params,
-        ctx: &mut ActionContext,
-        out: O,
-    ) -> Result<(), ()> {
+impl BlockingNotificationAction for DidChangeTextDocument {
+    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
         trace!(
             "on_change: {:?}, thread: {:?}",
             params,
@@ -163,22 +121,8 @@ impl<'a> BlockingNotificationAction<'a> for DidChange {
     }
 }
 
-/// Notification from the client that they've canceled their previous request.
-#[derive(Debug)]
-pub struct Cancel;
-
-impl Action for Cancel {
-    type Params = CancelParams;
-    const METHOD: &'static str = "$/cancelRequest";
-}
-
-impl<'a> BlockingNotificationAction<'a> for Cancel {
-    fn new(_: &'a mut LsState) -> Self {
-        Cancel
-    }
-
+impl BlockingNotificationAction for Cancel {
     fn handle<O: Output>(
-        &mut self,
         _params: CancelParams,
         _ctx: &mut ActionContext,
         _out: O,
@@ -188,23 +132,8 @@ impl<'a> BlockingNotificationAction<'a> for Cancel {
     }
 }
 
-/// Notification from the client that the workspace's configuration settings
-/// changed.
-#[derive(Debug)]
-pub struct DidChangeConfiguration;
-
-impl Action for DidChangeConfiguration {
-    type Params = DidChangeConfigurationParams;
-    const METHOD: &'static str = "workspace/didChangeConfiguration";
-}
-
-impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
-    fn new(_: &'a mut LsState) -> Self {
-        DidChangeConfiguration
-    }
-
+impl BlockingNotificationAction for DidChangeConfiguration {
     fn handle<O: Output>(
-        &mut self,
         params: DidChangeConfigurationParams,
         ctx: &mut ActionContext,
         out: O,
@@ -272,12 +201,12 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
         if unstable_features {
             let output = serde_json::to_string(&RequestMessage::new(
                 out.provide_id(),
-                NOTIFICATION__RegisterCapability.to_owned(),
+                <RegisterCapability as Notification>::METHOD.to_owned(),
                 RegistrationParams {
                     registrations: vec![
                         Registration {
                             id: RANGE_FORMATTING_ID.to_owned(),
-                            method: REQUEST__RangeFormatting.to_owned(),
+                            method: <RangeFormatting as Request>::METHOD.to_owned(),
                             register_options: serde_json::Value::Null,
                         },
                     ],
@@ -287,12 +216,12 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
         } else {
             let output = serde_json::to_string(&RequestMessage::new(
                 out.provide_id(),
-                NOTIFICATION__UnregisterCapability.to_owned(),
+                <UnregisterCapability as Notification>::METHOD.to_owned(),
                 UnregistrationParams {
                     unregisterations: vec![
                         Unregistration {
                             id: RANGE_FORMATTING_ID.to_owned(),
-                            method: REQUEST__RangeFormatting.to_owned(),
+                            method: <RangeFormatting as Request>::METHOD.to_owned(),
                         },
                     ],
                 },
@@ -303,22 +232,8 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeConfiguration {
     }
 }
 
-/// Notification from the client that the given text document was saved.
-#[derive(Debug)]
-pub struct DidSave;
-
-impl Action for DidSave {
-    type Params = DidSaveTextDocumentParams;
-    const METHOD: &'static str = "textDocument/didSave";
-}
-
-impl<'a> BlockingNotificationAction<'a> for DidSave {
-    fn new(_: &'a mut LsState) -> Self {
-        DidSave
-    }
-
+impl BlockingNotificationAction for DidSaveTextDocument {
     fn handle<O: Output>(
-        &mut self,
         params: DidSaveTextDocumentParams,
         ctx: &mut ActionContext,
         out: O,
@@ -336,23 +251,8 @@ impl<'a> BlockingNotificationAction<'a> for DidSave {
     }
 }
 
-/// Notification from the client that there were changes to files that are being
-/// watched.
-#[derive(Debug)]
-pub struct DidChangeWatchedFiles;
-
-impl Action for DidChangeWatchedFiles {
-    type Params = DidChangeWatchedFilesParams;
-    const METHOD: &'static str = "workspace/didChangeWatchedFiles";
-}
-
-impl<'a> BlockingNotificationAction<'a> for DidChangeWatchedFiles {
-    fn new(_: &'a mut LsState) -> Self {
-        DidChangeWatchedFiles
-    }
-
+impl BlockingNotificationAction for DidChangeWatchedFiles {
     fn handle<O: Output>(
-        &mut self,
         params: DidChangeWatchedFilesParams,
         ctx: &mut ActionContext,
         out: O,
@@ -368,55 +268,4 @@ impl<'a> BlockingNotificationAction<'a> for DidChangeWatchedFiles {
 
         Ok(())
     }
-}
-
-/// Notification sent to client, used to publish file diagnostics
-/// (warnings, errors) from the server.
-#[derive(Debug)]
-pub struct PublishDiagnostics;
-
-impl Action for PublishDiagnostics {
-    type Params = PublishDiagnosticsParams;
-    const METHOD: &'static str = NOTIFICATION__PublishDiagnostics;
-}
-
-/// Notification sent to client, asking to show a specified message with a given type.
-#[derive(Debug)]
-pub struct ShowMessage;
-
-impl Action for ShowMessage {
-    type Params = ShowMessageParams;
-    const METHOD: &'static str = NOTIFICATION__ShowMessage;
-}
-
-/// Custom LSP notification sent to client indicating that the server is currently
-/// processing data and may publish new diagnostics on `rustDocument/diagnosticsEnd`.
-#[derive(Debug)]
-pub struct DiagnosticsBegin;
-
-impl Action for DiagnosticsBegin {
-    type Params = NoParams;
-    const METHOD: &'static str = "rustDocument/diagnosticsBegin";
-}
-
-/// Custom LSP notification sent to client indicating that data processing started
-/// by a `rustDocument`/diagnosticsBegin` has ended.
-/// For each `diagnosticsBegin` message, there is a single `diagnosticsEnd` message.
-/// This means that for multiple active `diagnosticsBegin` messages, there will
-/// be sent multiple `diagnosticsEnd` notifications.
-#[derive(Debug)]
-pub struct DiagnosticsEnd;
-
-impl Action for DiagnosticsEnd {
-    type Params = NoParams;
-    const METHOD: &'static str = "rustDocument/diagnosticsEnd";
-}
-
-/// Custom LSP notification sent to client indicating that a build process has begun.
-#[derive(Debug)]
-pub struct BeginBuild;
-
-impl Action for BeginBuild {
-    type Params = NoParams;
-    const METHOD: &'static str = "rustDocument/beginBuild";
 }
