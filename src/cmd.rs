@@ -344,7 +344,7 @@ fn resolve_completion(
     }
 }
 
-fn shutdown<'a>() -> Request<server::ShutdownRequest<'a>> {
+fn shutdown() -> Request<server::ShutdownRequest> {
     Request {
         id: next_id(),
         params: (),
