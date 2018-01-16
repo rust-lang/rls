@@ -21,8 +21,6 @@ use Span;
 
 use build::*;
 use lsp_data::*;
-use lsp_data::request::Request as LSPRequest;
-use lsp_data::notification::Notification as LSPNotification;
 use lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
 use server::Request;
 

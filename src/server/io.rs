@@ -12,8 +12,7 @@ use serde;
 use serde_json;
 
 use super::{Notification, Request};
-use ls_types::notification::Notification as LSPNotification;
-use ls_types::request::Request as LSPRequest;
+use lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
 use std::io::{self, Read, Write};

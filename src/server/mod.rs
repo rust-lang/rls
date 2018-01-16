@@ -30,8 +30,6 @@ use server::io::{StdioMsgReader, StdioOutput};
 use server::dispatch::Dispatcher;
 pub use server::dispatch::{RequestAction, ResponseError};
 
-use ls_types::notification::Notification as LSPNotification;
-use ls_types::request::Request as LSPRequest;
 pub use ls_types::request::Shutdown as ShutdownRequest;
 pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::notification::Exit as ExitNotification;
@@ -728,7 +726,7 @@ mod test {
         #[derive(Debug)]
         pub enum DummyNotification { }
 
-        impl notification::Notification for DummyNotification {
+        impl LSPNotification for DummyNotification {
             type Params = ();
             const METHOD: &'static str = "dummyNotification";
         }
@@ -754,7 +752,7 @@ mod test {
         #[derive(Serialize)]
         pub struct EmptyParams {}
 
-        impl notification::Notification for DummyNotification {
+        impl LSPNotification for DummyNotification {
             type Params = EmptyParams;
             const METHOD: &'static str = "dummyNotification";
         }

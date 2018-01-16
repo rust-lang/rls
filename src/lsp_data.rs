@@ -22,6 +22,8 @@ use vfs::FileContents;
 use ls_types;
 
 pub use ls_types::*;
+pub use ls_types::request::Request as LSPRequest;
+pub use ls_types::notification::Notification as LSPNotification;
 
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
@@ -298,7 +300,7 @@ impl ClientCapabilities {
 #[derive(Debug)]
 pub enum DiagnosticsBegin { }
 
-impl notification::Notification for DiagnosticsBegin {
+impl LSPNotification for DiagnosticsBegin {
     type Params = ();
     const METHOD: &'static str = "rustDocument/diagnosticsBegin";
 }
@@ -311,7 +313,7 @@ impl notification::Notification for DiagnosticsBegin {
 #[derive(Debug)]
 pub enum DiagnosticsEnd { }
 
-impl notification::Notification for DiagnosticsEnd {
+impl LSPNotification for DiagnosticsEnd {
     type Params = ();
     const METHOD: &'static str = "rustDocument/diagnosticsEnd";
 }
@@ -320,7 +322,7 @@ impl notification::Notification for DiagnosticsEnd {
 #[derive(Debug)]
 pub enum BeginBuild { }
 
-impl notification::Notification for BeginBuild {
+impl LSPNotification for BeginBuild {
     type Params = ();
     const METHOD: &'static str = "rustDocument/beginBuild";
 }
@@ -331,9 +333,8 @@ impl notification::Notification for BeginBuild {
 #[derive(Debug)]
 pub enum FindImpls { }
 
-impl request::Request for FindImpls {
+impl LSPRequest for FindImpls {
     type Params = TextDocumentPositionParams;
     type Result = Vec<Location>;
     const METHOD: &'static str = "rustDocument/implementations";
 }
-
