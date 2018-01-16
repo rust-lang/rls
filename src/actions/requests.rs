@@ -370,7 +370,8 @@ impl RequestAction for Rename {
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
         Ok(WorkspaceEdit {
-            changes: HashMap::new(),
+            changes: None,
+            document_changes: None,
         })
     }
 
@@ -422,7 +423,7 @@ impl RequestAction for Rename {
                 });
         }
 
-        Ok(WorkspaceEdit { changes: edits })
+        Ok(WorkspaceEdit { changes: Some(edits), document_changes: None })
     }
 }
 
@@ -515,11 +516,15 @@ fn apply_deglobs(args: Vec<serde_json::Value>) -> Result<ApplyWorkspaceEditParam
             }
         })
         .collect();
-    let mut edit = WorkspaceEdit {
-        changes: HashMap::new(),
-    };
     // all deglob results will share the same URI
-    edit.changes.insert(uri, text_edits);
+    let changes: HashMap<_, _> = vec![(uri, text_edits)]
+        .into_iter()
+        .collect();
+
+    let edit = WorkspaceEdit {
+        changes: Some(changes),
+        document_changes: None,
+    };
 
     Ok(ApplyWorkspaceEditParams { edit })
 }

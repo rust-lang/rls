@@ -10,7 +10,6 @@
 
 //! Types, helpers, and conversions to and from LSP and `racer` types.
 
-use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::path::PathBuf;
 use std::error::Error;
@@ -64,11 +63,7 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
 
 /// Create an edit for the given location and text.
 pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
-    let mut edit = WorkspaceEdit {
-        changes: HashMap::new(),
-    };
-
-    edit.changes.insert(
+    let changes = vec![(
         location.uri,
         vec![
             TextEdit {
@@ -76,9 +71,12 @@ pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdi
                 new_text,
             },
         ],
-    );
+    )].into_iter().collect();
 
-    edit
+    WorkspaceEdit {
+        changes: Some(changes),
+        document_changes: None,
+    }
 }
 
 /// Utilities for working with the language server protocol.

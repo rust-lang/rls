@@ -304,7 +304,7 @@ impl BlockingRequestAction for InitializeRequest {
 
         let result = InitializeResult {
             capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncKind::Incremental),
+                text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::Incremental)),
                 hover_provider: Some(true),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(true),

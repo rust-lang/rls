@@ -111,7 +111,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
             .expect("error committing to VFS");
         if !changes.is_empty() {
             ctx.build_queue
-                .mark_file_dirty(file_path, params.text_document.version)
+                .mark_file_dirty(file_path, params.text_document.version.unwrap())
         }
 
         if !ctx.config.lock().unwrap().build_on_save {
