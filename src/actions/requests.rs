@@ -27,9 +27,10 @@ use rayon;
 use lsp_data;
 use lsp_data::*;
 use server;
-use server::{Ack, Output, RequestAction, ResponseError};
+use server::{Ack, Output, Request, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
 
+use lsp_data::request::ApplyWorkspaceEdit;
 pub use lsp_data::request::{
     WorkspaceSymbol,
     DocumentSymbol as Symbols,
@@ -438,14 +439,13 @@ impl server::Response for ExecuteCommandResponse {
         // FIXME should handle the client's responses
         match *self {
             ExecuteCommandResponse::ApplyEdit(ref params) => {
-                let output = serde_json::to_string(&RequestMessage::new(
-                    out.provide_id(),
-                    "workspace/applyEdit".to_owned(),
-                    ApplyWorkspaceEditParams {
+                let id = out.provide_id() as usize;
+                let params = ApplyWorkspaceEditParams {
                         edit: params.edit.clone(),
-                    },
-                )).unwrap();
-                out.response(output);
+                };
+
+                let request = Request::<ApplyWorkspaceEdit>::new(id, params);
+                out.request(request);
             }
         }
 

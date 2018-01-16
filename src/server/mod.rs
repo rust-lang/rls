@@ -116,6 +116,18 @@ pub struct Request<A: LSPRequest> {
     pub _action: PhantomData<A>,
 }
 
+impl<A: LSPRequest> Request<A> {
+    /// Creates a server `Request` structure with given `params`.
+    pub fn new(id: usize, params: A::Params) -> Request<A> {
+        Request {
+            id,
+            received: Instant::now(),
+            params,
+            _action: PhantomData,
+        }
+    }
+}
+
 /// A notification that gets JSON serialized in the language server protocol.
 #[derive(Debug, PartialEq)]
 pub struct Notification<A: LSPNotification> {

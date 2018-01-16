@@ -10,13 +10,12 @@
 
 //! Types, helpers, and conversions to and from LSP and `racer` types.
 
-use std::fmt::{self, Debug};
+use std::fmt;
 use std::path::PathBuf;
 use std::error::Error;
 
 use analysis::DefKind;
 use url::Url;
-use serde::Serialize;
 use span;
 use racer;
 use vfs::FileContents;
@@ -288,36 +287,6 @@ impl ClientCapabilities {
 
         ClientCapabilities {
             code_completion_has_snippet_support,
-        }
-    }
-}
-
-/// A JSON language server protocol request that will have a matching response.
-#[derive(Debug, Serialize)]
-pub struct RequestMessage<T>
-where
-    T: Debug + Serialize,
-{
-    jsonrpc: &'static str,
-    /// The request id. The response will have a matching id.
-    pub id: u32,
-    /// The well-known language server protocol request method string.
-    pub method: String,
-    /// Extra request parameters.
-    pub params: T,
-}
-
-impl<T> RequestMessage<T>
-where
-    T: Debug + Serialize,
-{
-    /// Construct a new request.
-    pub fn new(id: u32, method: String, params: T) -> Self {
-        RequestMessage {
-            jsonrpc: "2.0",
-            id,
-            method: method,
-            params: params,
         }
     }
 }

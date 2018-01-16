@@ -21,8 +21,10 @@ use Span;
 
 use build::*;
 use lsp_data::*;
-use lsp_data::request::{Request, RangeFormatting};
-use lsp_data::notification::{Notification, RegisterCapability, UnregisterCapability};
+use lsp_data::request::Request as LSPRequest;
+use lsp_data::notification::Notification as LSPNotification;
+use lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
+use server::Request;
 
 pub use lsp_data::notification::{
     Initialized,
@@ -46,21 +48,19 @@ impl BlockingNotificationAction for Initialized {
 
         let ctx = ctx.inited();
 
-        let options = FileWatch::new(&ctx).watchers_config();
-        let output = serde_json::to_string(&RequestMessage::new(
-            out.provide_id(),
-            <RegisterCapability as Notification>::METHOD.to_owned(),
-            RegistrationParams {
-                registrations: vec![
-                    Registration {
-                        id: WATCH_ID.to_owned(),
-                        method: <DidChangeWatchedFiles as Notification>::METHOD.to_owned(),
-                        register_options: options,
-                    },
-                ],
-            },
-        )).unwrap();
-        out.response(output);
+        let id = out.provide_id() as usize;
+        let params = RegistrationParams {
+            registrations: vec![
+                Registration {
+                    id: WATCH_ID.to_owned(),
+                    method: <DidChangeWatchedFiles as LSPNotification>::METHOD.to_owned(),
+                    register_options: FileWatch::new(&ctx).watchers_config(),
+                },
+            ],
+        };
+
+        let request = Request::<RegisterCapability>::new(id, params);
+        out.request(request);
         Ok(())
     }
 }
@@ -198,35 +198,32 @@ impl BlockingNotificationAction for DidChangeConfiguration {
 
         const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
         // FIXME should handle the response
+        let id = out.provide_id() as usize;
         if unstable_features {
-            let output = serde_json::to_string(&RequestMessage::new(
-                out.provide_id(),
-                <RegisterCapability as Notification>::METHOD.to_owned(),
-                RegistrationParams {
+            let params = RegistrationParams {
                     registrations: vec![
                         Registration {
                             id: RANGE_FORMATTING_ID.to_owned(),
-                            method: <RangeFormatting as Request>::METHOD.to_owned(),
+                            method: <RangeFormatting as LSPRequest>::METHOD.to_owned(),
                             register_options: serde_json::Value::Null,
                         },
                     ],
-                },
-            )).unwrap();
-            out.response(output);
+            };
+
+            let request = Request::<RegisterCapability>::new(id, params);
+            out.request(request);
         } else {
-            let output = serde_json::to_string(&RequestMessage::new(
-                out.provide_id(),
-                <UnregisterCapability as Notification>::METHOD.to_owned(),
-                UnregistrationParams {
-                    unregisterations: vec![
-                        Unregistration {
-                            id: RANGE_FORMATTING_ID.to_owned(),
-                            method: <RangeFormatting as Request>::METHOD.to_owned(),
-                        },
-                    ],
-                },
-            )).unwrap();
-            out.response(output);
+            let params = UnregistrationParams {
+                unregisterations: vec![
+                    Unregistration {
+                        id: RANGE_FORMATTING_ID.to_owned(),
+                        method: <RangeFormatting as LSPRequest>::METHOD.to_owned(),
+                    },
+                ],
+            };
+
+            let request = Request::<UnregisterCapability>::new(id, params);
+            out.request(request);
         }
         Ok(())
     }
