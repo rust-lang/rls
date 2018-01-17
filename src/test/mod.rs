@@ -322,22 +322,6 @@ fn test_hover_after_src_line_change() {
         ls_server::ServerStateChange::Continue
     );
 
-    {
-        // for some reason i get publishDiagnostics that aren't for the test project:
-        // "diagnostics":[{"code":"E0463","message":"can't find crate for `cargo`" ...
-        // for file: rls/src/main.rs"
-        //
-        // Ignore as probably not relevant to the test, but this seems to be a bug
-        wait_for_n_results!(3, results);
-        results.lock().unwrap().retain(|msg| {
-            if msg.contains("publishDiagnostics") {
-                error!("Unexpected server->client: `{}`", msg);
-                return false;
-            }
-            true
-        });
-    }
-
     expect_messages(
         results.clone(),
         &[
