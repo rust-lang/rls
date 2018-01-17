@@ -17,6 +17,7 @@ use jsonrpc_core::{self as jsonrpc, Id};
 use vfs::Vfs;
 use serde;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
+use serde::Deserialize;
 use serde_json;
 
 use version;
@@ -517,10 +518,10 @@ struct RawMessage {
 }
 
 impl RawMessage {
-    fn parse_as_request<'de, R, P>(&'de self) -> Result<Request<R>, jsonrpc::Error>
+    fn parse_as_request<'de, R>(&'de self) -> Result<Request<R>, jsonrpc::Error>
     where
-        R: LSPRequest<Params = P>,
-        P: serde::Deserialize<'de>,
+        R: LSPRequest,
+        <R as LSPRequest>::Params: serde::Deserialize<'de>,
     {
         // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
         // to using jsonrpc_core::Id
@@ -530,9 +531,9 @@ impl RawMessage {
             _ => None,
         };
 
-        let params = P::deserialize(&self.params).map_err(|e| {
+        let params = R::Params::deserialize(&self.params).map_err(|e| {
             debug!("error when parsing as request: {}", e);
-            jsonrpc::Error::invalid_request()
+            jsonrpc::Error::invalid_params(format!("{}", e))
         })?;
 
         match parsed_numeric_id {
@@ -546,14 +547,14 @@ impl RawMessage {
         }
     }
 
-    fn parse_as_notification<'de, T, P>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
+    fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
     where
-        T: LSPNotification<Params = P>,
-        P: serde::Deserialize<'de>,
+        T: LSPNotification,
+        <T as LSPNotification>::Params: serde::Deserialize<'de>,
     {
         let params = T::Params::deserialize(&self.params).map_err(|e| {
             debug!("error when parsing as notification: {}", e);
-            jsonrpc::Error::invalid_request()
+            jsonrpc::Error::invalid_params(format!("{}", e))
         })?;
 
         Ok(Notification {
@@ -680,12 +681,12 @@ mod test {
         let raw = RawMessage {
             method: "initialize".to_owned(),
             id: None,
-            params: serde_json::Value::Null,
+            params: serde_json::Value::Object(serde_json::Map::new()),
         };
         let notification: Notification<notifications::Initialized> =
             raw.parse_as_notification().unwrap();
 
-        let expected = Notification::<notifications::Initialized>::new(());
+        let expected = Notification::<notifications::Initialized>::new(InitializedParams {});
 
         assert_eq!(notification.params, expected.params);
         assert_eq!(notification._action, expected._action);
@@ -751,5 +752,12 @@ mod test {
         let deser: serde_json::Value = serde_json::from_str(&raw).unwrap();
 
         assert_eq!(*deser.get("params").unwrap(), json!({}));
+    }
+
+    #[test]
+    fn deserialize_message_empty_params() {
+        let msg = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
+        let parsed = RawMessage::try_parse(msg).unwrap().unwrap();
+        parsed.parse_as_notification::<notifications::Initialized>().unwrap();
     }
 }
