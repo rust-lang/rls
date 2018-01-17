@@ -168,33 +168,52 @@ impl RlsHandle {
     pub fn send(&mut self, j: serde_json::Value) -> io::Result<usize> {
         self.send_string(&j.to_string())
     }
-    pub fn notify(&mut self, method: &str, params: serde_json::Value) -> io::Result<usize> {
-        self.send(json!({
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-        }))
+    pub fn notify(&mut self, method: &str, params: Option<serde_json::Value>) -> io::Result<usize> {
+        let message = if let Some(params) = params {
+            json!({
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params,
+            })
+        } else {
+            json!({
+                "jsonrpc": "2.0",
+                "method": method,
+            })
+        };
+
+        self.send(message)
     }
-    pub fn request(&mut self, id: u64, method: &str, params: serde_json::Value) -> io::Result<usize> {
-        self.send(json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method,
-            "params": params,
-        }))
+    pub fn request(&mut self, id: u64, method: &str, params: Option<serde_json::Value>) -> io::Result<usize> {
+        let message = if let Some(params) = params {
+            json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": method,
+                "params": params,
+            })
+        } else {
+            json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": method,
+            })
+        };
+
+        self.send(message)
     }
     pub fn shutdown_exit(&mut self) {
-        self.request(99999, "shutdown", json!({})).unwrap();
+        self.request(99999, "shutdown", None).unwrap();
 
         self.expect_messages(&[
             &ExpectedMessage::new(Some(99999)),
         ]);
 
-        self.notify("exit", json!({})).unwrap();
+        self.notify("exit", None).unwrap();
 
         let ecode = self.child.wait()
             .expect("failed to wait on child rls process");
-        
+
         assert!(ecode.success());
     }
 
