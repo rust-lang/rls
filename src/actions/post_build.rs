@@ -215,7 +215,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     // they're meant to be referencing other spans but show up here
     for label in message.spans
         .iter()
-        .filter(|span| !span.is_primary && span.is_within(primary_span))
+        .filter(|span| !span.is_primary && span.is_same_line_as(primary_span))
         .filter_map(|span| span.label.as_ref())
     {
         full_message.push('\n');
@@ -317,7 +317,6 @@ trait IsWithin {
     /// note: a thing should be 'within' itself
     fn is_within(&self, other: &Self) -> bool;
 }
-
 impl<T: PartialOrd<T>> IsWithin for ::std::ops::Range<T> {
     fn is_within(&self, other: &Self) -> bool {
         self.start >= other.start &&
@@ -326,12 +325,23 @@ impl<T: PartialOrd<T>> IsWithin for ::std::ops::Range<T> {
             self.end >= other.start
     }
 }
-
 impl IsWithin for DiagnosticSpan {
     fn is_within(&self, other: &Self) -> bool {
         let DiagnosticSpan { line_start, line_end, column_start, column_end, .. } = *self;
         (line_start..line_end+1).is_within(&(other.line_start..other.line_end+1)) &&
             (column_start..column_end+1).is_within(&(other.column_start..other.column_end+1))
+    }
+}
+
+trait IsSameLineAs {
+    /// Returns if `other` refers to the same line as `self`
+    fn is_same_line_as(&self, other: &Self) -> bool;
+}
+impl IsSameLineAs for DiagnosticSpan {
+    fn is_same_line_as(&self, other: &Self) -> bool {
+        self.file_name == other.file_name &&
+            self.line_start == other.line_start &&
+            self.line_end == other.line_end
     }
 }
 
@@ -382,7 +392,8 @@ mod diagnostic_message_test {
         );
         assert_eq!(
             msg,
-            "type annotations needed: cannot infer type for `T`",
+            "type annotations needed: cannot infer type for `T`\n\
+            consider giving `v` a type",
         );
     }
 
