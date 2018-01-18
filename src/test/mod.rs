@@ -541,7 +541,7 @@ fn test_borrow_error() {
             ExpectedMessage::new(None).expect_contains("beginBuild"),
             ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
             ExpectedMessage::new(None).expect_contains(
-                r#""message":"cannot borrow `x` as mutable more than once at a time""#,
+                r#""message":"cannot borrow `x` as mutable more than once at a time"#,
             ),
             ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
         ],
@@ -1181,7 +1181,7 @@ fn test_features() {
             ExpectedMessage::new(None).expect_contains("beginBuild"),
             ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
             ExpectedMessage::new(None).expect_contains(
-                r#""message":"cannot find struct, variant or union type `Bar` in this scope""#,
+                r#""message":"cannot find struct, variant or union type `Bar` in this scope"#,
             ),
             ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
         ],
@@ -1241,7 +1241,7 @@ fn test_no_default_features() {
             ExpectedMessage::new(None).expect_contains("beginBuild"),
             ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
             ExpectedMessage::new(None).expect_contains(
-                r#""message":"cannot find struct, variant or union type `Baz` in this scope""#,
+                r#""message":"cannot find struct, variant or union type `Baz` in this scope"#,
             ),
             ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
         ],

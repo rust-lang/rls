@@ -20,7 +20,6 @@ use std::thread;
 use build::BuildResult;
 use lsp_data::{ls_util, PublishDiagnosticsParams};
 use CRATE_BLACKLIST;
-use Span;
 
 use analysis::AnalysisHost;
 use data::Analysis;
@@ -28,7 +27,6 @@ use ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range};
 use serde_json;
 use span::compiler::DiagnosticSpan;
 use url::Url;
-
 
 pub type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
@@ -202,25 +200,88 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
         return None;
     }
 
-    let primary_span = primary_span(&message);
-    let suggestions = make_suggestions(message.children, &primary_span.file);
+    let primary_span = message.spans.iter().find(|s| s.is_primary).unwrap();
+    let rls_span = primary_span.rls_span().zero_indexed();
+    let suggestions = make_suggestions(&message.children, &rls_span.file);
+
+    let mut full_message = message.message;
+    if let Some(ref primary_label) = primary_span.label {
+        full_message.push_str(": ");
+        full_message.push_str(primary_label);
+    }
+
+    // add secondary labels if the spans match
+    // some useful stuff is omitted this way, but other messages can be confusing when
+    // they're meant to be referencing other spans but show up here
+    for label in message.spans
+        .iter()
+        .filter(|span| !span.is_primary && span.is_within(primary_span))
+        .filter_map(|span| span.label.as_ref())
+    {
+        full_message.push('\n');
+        full_message.push_str(label);
+    }
+
+    if let Some(notes) = format_notes(&message.children, primary_span) {
+        full_message.push('\n');
+        full_message.push_str(&notes);
+    }
 
     let diagnostic = Diagnostic {
-        range: ls_util::rls_to_range(primary_span.range),
+        range: ls_util::rls_to_range(rls_span.range),
         severity: Some(severity(&message.level)),
         code: Some(NumberOrString::String(match message.code {
             Some(c) => c.code.clone(),
             None => String::new(),
         })),
         source: Some("rustc".into()),
-        message: message.message,
+        message: full_message,
     };
 
     Some(FileDiagnostic {
-        file_path: primary_span.file,
-        diagnostic: diagnostic,
-        suggestions: suggestions,
+        file_path: rls_span.file,
+        diagnostic,
+        suggestions,
     })
+}
+
+fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Option<String> {
+    if !children.is_empty() {
+        let mut notes = String::new();
+        for &CompilerMessage { ref message, ref level, ref spans, .. } in children {
+            notes.push_str(&format!("\n{}: ", level));
+
+            macro_rules! add_message_to_notes {
+                ($msg:expr) => {{
+                    let mut lines = message.lines();
+                    notes.push_str(lines.next().unwrap());
+                    for line in lines {
+                        notes.push_str(&format!(
+                            "\n{:indent$}{line}",
+                            "",
+                            indent = level.len() + 2,
+                            line = line,
+                        ));
+                    }
+                }}
+            }
+
+            if spans.is_empty() {
+                add_message_to_notes!(message);
+            }
+            else if spans.len() == 1 && spans[0].is_within(primary) {
+                add_message_to_notes!(message);
+                if let Some(ref suggested) = spans[0].suggested_replacement {
+                    notes.push_str(&format!(": `{}`", suggested));
+                }
+            }
+        }
+
+        if notes.is_empty() { None } else { Some(notes) }
+    }
+    else {
+        None
+    }
 }
 
 fn severity(level: &str) -> DiagnosticSeverity {
@@ -231,13 +292,13 @@ fn severity(level: &str) -> DiagnosticSeverity {
     }
 }
 
-fn make_suggestions(children: Vec<CompilerMessage>, file: &Path) -> Vec<Suggestion> {
+fn make_suggestions(children: &[CompilerMessage], file: &Path) -> Vec<Suggestion> {
     let mut suggestions = vec![];
     for c in children {
-        for sp in c.spans {
+        for sp in &c.spans {
             let span = sp.rls_span().zero_indexed();
             if span.file == file {
-                if let Some(s) = sp.suggested_replacement {
+                if let Some(ref s) = sp.suggested_replacement {
                     let suggestion = Suggestion {
                         new_text: s.clone(),
                         range: ls_util::rls_to_range(span.range),
@@ -251,14 +312,132 @@ fn make_suggestions(children: Vec<CompilerMessage>, file: &Path) -> Vec<Suggesti
     suggestions
 }
 
-fn primary_span(message: &CompilerMessage) -> Span {
-    let primary = message
-        .spans
-        .iter()
-        .filter(|x| x.is_primary)
-        .next()
-        .unwrap()
-        .clone();
-    primary.rls_span().zero_indexed()
+trait IsWithin {
+    /// Returns whether `other` is considered within `self`
+    /// note: a thing should be 'within' itself
+    fn is_within(&self, other: &Self) -> bool;
 }
 
+impl<T: PartialOrd<T>> IsWithin for ::std::ops::Range<T> {
+    fn is_within(&self, other: &Self) -> bool {
+        self.start >= other.start &&
+            self.start <= other.end &&
+            self.end <= other.end &&
+            self.end >= other.start
+    }
+}
+
+impl IsWithin for DiagnosticSpan {
+    fn is_within(&self, other: &Self) -> bool {
+        let DiagnosticSpan { line_start, line_end, column_start, column_end, .. } = *self;
+        (line_start..line_end+1).is_within(&(other.line_start..other.line_end+1)) &&
+            (column_start..column_end+1).is_within(&(other.column_start..other.column_end+1))
+    }
+}
+
+/// Tests for formatted messages from the compilers json output
+/// run cargo with `--message-format=json` to generate the json for new tests and add .json
+/// message files to '../../test_data/compiler_message/'
+#[cfg(test)]
+mod diagnostic_message_test {
+    use super::*;
+
+    fn parsed_message(compiler_message: &str) -> String {
+        let _ = ::env_logger::init();
+        parse_diagnostics(compiler_message)
+            .expect("failed to parse compiler message")
+            .diagnostic
+            .message
+    }
+
+    /// ```
+    /// fn use_after_move() {
+    ///     let s = String::new();
+    ///     ::std::mem::drop(s);
+    ///     ::std::mem::drop(s);
+    /// }
+    /// ```
+    #[test]
+    fn message_use_after_move() {
+        let msg = parsed_message(
+            include_str!("../../test_data/compiler_message/use-after-move.json")
+        );
+        assert_eq!(
+            msg,
+            "use of moved value: `s`: value used here after move\n\
+            \n\
+            note: move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait",
+        );
+    }
+
+    /// ```
+    /// fn type_annotations_needed() {
+    ///     let v = Vec::new();
+    /// }
+    /// ```
+    #[test]
+    fn message_type_annotations_needed() {
+        let msg = parsed_message(
+            include_str!("../../test_data/compiler_message/type-annotations-needed.json")
+        );
+        assert_eq!(
+            msg,
+            "type annotations needed: cannot infer type for `T`",
+        );
+    }
+
+    /// ```
+    /// fn mismatched_types() -> usize {
+    ///     123_i32
+    /// }
+    /// ```
+    #[test]
+    fn message_mismatched_types() {
+        let msg = parsed_message(
+            include_str!("../../test_data/compiler_message/mismatched-types.json")
+        );
+        assert_eq!(
+            msg,
+            "mismatched types: expected usize, found i32",
+        );
+    }
+
+    /// ```
+    /// pub fn not_mut() {
+    ///     let string = String::new();
+    ///     let _s1 = &mut string;
+    /// }
+    /// ```
+    #[test]
+    fn message_not_mutable() {
+        let msg = parsed_message(
+            include_str!("../../test_data/compiler_message/not-mut.json")
+        );
+        assert_eq!(
+            msg,
+            "cannot borrow immutable local variable `string` as mutable: cannot borrow mutably",
+        );
+    }
+
+    /// ```
+    /// pub fn consider_borrow() {
+    ///     fn takes_ref(s: &str) {}
+    ///     let string = String::new();
+    ///     takes_ref(string);
+    /// }
+    /// ```
+    #[test]
+    fn message_consider_borrowing() {
+        let msg = parsed_message(
+            include_str!("../../test_data/compiler_message/consider-borrowing.json")
+        );
+        assert_eq!(
+            msg,
+            r#"mismatched types: expected &str, found struct `std::string::String`
+
+note: expected type `&str`
+         found type `std::string::String`
+help: consider borrowing here: `&string`"#,
+        );
+    }
+}

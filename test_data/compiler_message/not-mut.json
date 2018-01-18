@@ -1,0 +1,45 @@
+{
+  "children": [],
+  "code": {
+    "code": "E0596",
+    "explanation": "\nThis error occurs because you tried to mutably borrow a non-mutable variable.\n\nExample of erroneous code:\n\n```compile_fail,E0596\nlet x = 1;\nlet y = &mut x; // error: cannot borrow mutably\n```\n\nIn here, `x` isn't mutable, so when we try to mutably borrow it in `y`, it\nfails. To fix this error, you need to make `x` mutable:\n\n```\nlet mut x = 1;\nlet y = &mut x; // ok!\n```\n"
+  },
+  "level": "error",
+  "message": "cannot borrow immutable local variable `string` as mutable",
+  "rendered": "error[E0596]: cannot borrow immutable local variable `string` as mutable\n   --> src/lib.rs:134:24\n    |\n133 |         let string = String::new();\n    |             ------ consider changing this to `mut string`\n134 |         let _s1 = &mut string;\n    |                        ^^^^^^ cannot borrow mutably\n\n",
+  "spans": [{
+    "byte_end": 4108,
+    "byte_start": 4102,
+    "column_end": 30,
+    "column_start": 24,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": true,
+    "label": "cannot borrow mutably",
+    "line_end": 134,
+    "line_start": 134,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 30,
+      "highlight_start": 24,
+      "text": "        let _s1 = &mut string;"
+    }]
+  }, {
+    "byte_end": 4061,
+    "byte_start": 4055,
+    "column_end": 19,
+    "column_start": 13,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": false,
+    "label": "consider changing this to `mut string`",
+    "line_end": 133,
+    "line_start": 133,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 19,
+      "highlight_start": 13,
+      "text": "        let string = String::new();"
+    }]
+  }]
+}

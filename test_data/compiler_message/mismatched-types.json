@@ -1,0 +1,45 @@
+{
+  "children": [],
+  "code": {
+    "code": "E0308",
+    "explanation": "\nThis error occurs when the compiler was unable to infer the concrete type of a\nvariable. It can occur for several cases, the most common of which is a\nmismatch in the expected type that the compiler inferred for a variable's\ninitializing expression, and the actual type explicitly assigned to the\nvariable.\n\nFor example:\n\n```compile_fail,E0308\nlet x: i32 = \"I am not a number!\";\n//     ~~~   ~~~~~~~~~~~~~~~~~~~~\n//      |             |\n//      |    initializing expression;\n//      |    compiler infers type `&str`\n//      |\n//    type `i32` assigned to variable `x`\n```\n"
+  },
+  "level": "error",
+  "message": "mismatched types",
+  "rendered": "error[E0308]: mismatched types\n   --> src/lib.rs:137:9\n    |\n136 |     fn mismatched_types() -> usize {\n    |                              ----- expected `usize` because of return type\n137 |         123_i32\n    |         ^^^^^^^ expected usize, found i32\n\n",
+  "spans": [{
+    "byte_end": 4140,
+    "byte_start": 4133,
+    "column_end": 16,
+    "column_start": 9,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": true,
+    "label": "expected usize, found i32",
+    "line_end": 137,
+    "line_start": 137,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 16,
+      "highlight_start": 9,
+      "text": "        123_i32"
+    }]
+  }, {
+    "byte_end": 4122,
+    "byte_start": 4117,
+    "column_end": 35,
+    "column_start": 30,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": false,
+    "label": "expected `usize` because of return type",
+    "line_end": 136,
+    "line_start": 136,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 35,
+      "highlight_start": 30,
+      "text": "    fn mismatched_types() -> usize {"
+    }]
+  }]
+}
