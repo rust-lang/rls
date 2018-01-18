@@ -27,9 +27,10 @@ use rayon;
 use lsp_data;
 use lsp_data::*;
 use server;
-use server::{Ack, Output, RequestAction, ResponseError};
+use server::{Ack, Output, Request, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
 
+use lsp_data::request::ApplyWorkspaceEdit;
 pub use lsp_data::request::{
     WorkspaceSymbol,
     DocumentSymbol as Symbols,
@@ -370,7 +371,8 @@ impl RequestAction for Rename {
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
         Ok(WorkspaceEdit {
-            changes: HashMap::new(),
+            changes: None,
+            document_changes: None,
         })
     }
 
@@ -422,7 +424,7 @@ impl RequestAction for Rename {
                 });
         }
 
-        Ok(WorkspaceEdit { changes: edits })
+        Ok(WorkspaceEdit { changes: Some(edits), document_changes: None })
     }
 }
 
@@ -437,14 +439,13 @@ impl server::Response for ExecuteCommandResponse {
         // FIXME should handle the client's responses
         match *self {
             ExecuteCommandResponse::ApplyEdit(ref params) => {
-                let output = serde_json::to_string(&RequestMessage::new(
-                    out.provide_id(),
-                    "workspace/applyEdit".to_owned(),
-                    ApplyWorkspaceEditParams {
+                let id = out.provide_id() as usize;
+                let params = ApplyWorkspaceEditParams {
                         edit: params.edit.clone(),
-                    },
-                )).unwrap();
-                out.response(output);
+                };
+
+                let request = Request::<ApplyWorkspaceEdit>::new(id, params);
+                out.request(request);
             }
         }
 
@@ -515,11 +516,15 @@ fn apply_deglobs(args: Vec<serde_json::Value>) -> Result<ApplyWorkspaceEditParam
             }
         })
         .collect();
-    let mut edit = WorkspaceEdit {
-        changes: HashMap::new(),
-    };
     // all deglob results will share the same URI
-    edit.changes.insert(uri, text_edits);
+    let changes: HashMap<_, _> = vec![(uri, text_edits)]
+        .into_iter()
+        .collect();
+
+    let edit = WorkspaceEdit {
+        changes: Some(changes),
+        document_changes: None,
+    };
 
     Ok(ApplyWorkspaceEditParams { edit })
 }

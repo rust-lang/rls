@@ -11,8 +11,8 @@
 use serde;
 use serde_json;
 
-use super::Notification;
-use ls_types::notification::Notification as LSPNotification;
+use super::{Notification, Request};
+use lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -145,12 +145,22 @@ pub trait Output: Sync + Send + Clone + 'static {
     }
 
     /// Send a notification along the output.
-    fn notify<A, P>(&self, notification: Notification<A>)
+    fn notify<A>(&self, notification: Notification<A>)
     where
-        A: LSPNotification<Params = P>,
-        P: serde::Serialize,
+        A: LSPNotification,
+        <A as LSPNotification>::Params: serde::Serialize,
     {
         self.response(format!("{}", notification));
+    }
+
+    /// Send a one-shot request along the output.
+    /// Ignores any response associated with the request.
+    fn request<A>(&self, request: Request<A>)
+    where
+        A: LSPRequest,
+        <A as LSPRequest>::Params: serde::Serialize,
+    {
+        self.response(format!("{}", request));
     }
 }
 

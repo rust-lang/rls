@@ -10,20 +10,20 @@
 
 //! Types, helpers, and conversions to and from LSP and `racer` types.
 
-use std::collections::HashMap;
-use std::fmt::{self, Debug};
+use std::fmt;
 use std::path::PathBuf;
 use std::error::Error;
 
 use analysis::DefKind;
 use url::Url;
-use serde::Serialize;
 use span;
 use racer;
 use vfs::FileContents;
 use ls_types;
 
 pub use ls_types::*;
+pub use ls_types::request::Request as LSPRequest;
+pub use ls_types::notification::Notification as LSPNotification;
 
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
@@ -64,11 +64,7 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
 
 /// Create an edit for the given location and text.
 pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
-    let mut edit = WorkspaceEdit {
-        changes: HashMap::new(),
-    };
-
-    edit.changes.insert(
+    let changes = vec![(
         location.uri,
         vec![
             TextEdit {
@@ -76,9 +72,12 @@ pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdi
                 new_text,
             },
         ],
-    );
+    )].into_iter().collect();
 
-    edit
+    WorkspaceEdit {
+        changes: Some(changes),
+        document_changes: None,
+    }
 }
 
 /// Utilities for working with the language server protocol.
@@ -294,36 +293,6 @@ impl ClientCapabilities {
     }
 }
 
-/// A JSON language server protocol request that will have a matching response.
-#[derive(Debug, Serialize)]
-pub struct RequestMessage<T>
-where
-    T: Debug + Serialize,
-{
-    jsonrpc: &'static str,
-    /// The request id. The response will have a matching id.
-    pub id: u32,
-    /// The well-known language server protocol request method string.
-    pub method: String,
-    /// Extra request parameters.
-    pub params: T,
-}
-
-impl<T> RequestMessage<T>
-where
-    T: Debug + Serialize,
-{
-    /// Construct a new request.
-    pub fn new(id: u32, method: String, params: T) -> Self {
-        RequestMessage {
-            jsonrpc: "2.0",
-            id,
-            method: method,
-            params: params,
-        }
-    }
-}
-
 /* --------------- Custom JSON-RPC notifications -------------- */
 
 /// Custom LSP notification sent to client indicating that the server is currently
@@ -331,7 +300,7 @@ where
 #[derive(Debug)]
 pub enum DiagnosticsBegin { }
 
-impl notification::Notification for DiagnosticsBegin {
+impl LSPNotification for DiagnosticsBegin {
     type Params = ();
     const METHOD: &'static str = "rustDocument/diagnosticsBegin";
 }
@@ -344,7 +313,7 @@ impl notification::Notification for DiagnosticsBegin {
 #[derive(Debug)]
 pub enum DiagnosticsEnd { }
 
-impl notification::Notification for DiagnosticsEnd {
+impl LSPNotification for DiagnosticsEnd {
     type Params = ();
     const METHOD: &'static str = "rustDocument/diagnosticsEnd";
 }
@@ -353,7 +322,7 @@ impl notification::Notification for DiagnosticsEnd {
 #[derive(Debug)]
 pub enum BeginBuild { }
 
-impl notification::Notification for BeginBuild {
+impl LSPNotification for BeginBuild {
     type Params = ();
     const METHOD: &'static str = "rustDocument/beginBuild";
 }
@@ -364,9 +333,8 @@ impl notification::Notification for BeginBuild {
 #[derive(Debug)]
 pub enum FindImpls { }
 
-impl request::Request for FindImpls {
+impl LSPRequest for FindImpls {
     type Params = TextDocumentPositionParams;
     type Result = Vec<Location>;
     const METHOD: &'static str = "rustDocument/implementations";
 }
-

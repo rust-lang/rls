@@ -14,7 +14,7 @@ use server;
 use server::{Request, Response};
 use server::io::Output;
 use actions::InitActionContext;
-use ls_types::request::Request as LSPRequest;
+use lsp_data::LSPRequest;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;

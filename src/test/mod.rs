@@ -1333,14 +1333,32 @@ fn test_deglob() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
+
+        {
+        wait_for_n_results!(1, results);
+        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        println!("{}", response.pretty(2));
+        assert_eq!(response["id"], 0x0100_0002);
+        assert_eq!(response["method"], "workspace/applyEdit");
+        let (key, changes) = response["params"]["edit"]["changes"].entries().next().unwrap();
+        assert!(key.ends_with("deglob/src/main.rs"));
+        let change = &changes[0];
+        assert_eq!(change["range"]["start"]["line"], 15);
+        assert_eq!(change["range"]["start"]["character"], 14);
+        assert_eq!(change["range"]["end"]["line"], 15);
+        assert_eq!(change["range"]["end"]["character"], 15);
+        assert_eq!(change["newText"], "size_of");
+        let change = &changes[1];
+        assert_eq!(change["range"]["start"]["line"], 15);
+        assert_eq!(change["range"]["start"]["character"], 31);
+        assert_eq!(change["range"]["end"]["line"], 15);
+        assert_eq!(change["range"]["end"]["character"], 32);
+        assert_eq!(change["newText"], "max");
+    }
+
     expect_messages(
         results.clone(),
         &[
-            ExpectedMessage::new(Some(0x0100_0002))
-                .expect_contains(r#""method":"workspace/applyEdit""#)
-                .expect_contains(r#"deglob/src/main.rs""#)
-                .expect_contains(r#"{"range":{"start":{"line":15,"character":14},"end":{"line":15,"character":15}},"newText":"size_of"}"#)
-                .expect_contains(r#"{"range":{"start":{"line":15,"character":31},"end":{"line":15,"character":32}},"newText":"max"}"#),
             ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
         ],
     );

@@ -30,8 +30,6 @@ use server::io::{StdioMsgReader, StdioOutput};
 use server::dispatch::Dispatcher;
 pub use server::dispatch::{RequestAction, ResponseError};
 
-use ls_types::notification::Notification as LSPNotification;
-use ls_types::request::Request as LSPRequest;
 pub use ls_types::request::Shutdown as ShutdownRequest;
 pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::notification::Exit as ExitNotification;
@@ -114,6 +112,18 @@ pub struct Request<A: LSPRequest> {
     pub params: A::Params,
     /// This request's handler action.
     pub _action: PhantomData<A>,
+}
+
+impl<A: LSPRequest> Request<A> {
+    /// Creates a server `Request` structure with given `params`.
+    pub fn new(id: usize, params: A::Params) -> Request<A> {
+        Request {
+            id,
+            received: Instant::now(),
+            params,
+            _action: PhantomData,
+        }
+    }
 }
 
 /// A notification that gets JSON serialized in the language server protocol.
@@ -304,7 +314,7 @@ impl BlockingRequestAction for InitializeRequest {
 
         let result = InitializeResult {
             capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncKind::Incremental),
+                text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::Incremental)),
                 hover_provider: Some(true),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(true),
@@ -716,7 +726,7 @@ mod test {
         #[derive(Debug)]
         pub enum DummyNotification { }
 
-        impl notification::Notification for DummyNotification {
+        impl LSPNotification for DummyNotification {
             type Params = ();
             const METHOD: &'static str = "dummyNotification";
         }
@@ -742,7 +752,7 @@ mod test {
         #[derive(Serialize)]
         pub struct EmptyParams {}
 
-        impl notification::Notification for DummyNotification {
+        impl LSPNotification for DummyNotification {
             type Params = EmptyParams;
             const METHOD: &'static str = "dummyNotification";
         }
