@@ -184,13 +184,13 @@ impl RlsHandle {
         }))
     }
     pub fn shutdown_exit(&mut self) {
-        self.request(99999, "shutdown", json!({})).unwrap();
+        self.request(99999, "shutdown", json!(null)).unwrap();
 
         self.expect_messages(&[
             &ExpectedMessage::new(Some(99999)),
         ]);
 
-        self.notify("exit", json!({})).unwrap();
+        self.notify("exit", json!(null)).unwrap();
 
         let ecode = self.child.wait()
             .expect("failed to wait on child rls process");
