@@ -331,17 +331,13 @@ impl JobQueue {
         // to Cargo (which we do currently) in `prepare_work`
         assert!(self.0.is_empty() == false);
 
-        let build_dir = internals
-            .compilation_cx
-            .lock()
-            .unwrap()
-            .build_dir
-            .clone()
-            .unwrap();
-
         let mut compiler_messages = vec![];
         let mut analyses = vec![];
-        let mut cwd = PathBuf::from(".");
+        let (build_dir, mut cwd) = {
+            let comp_cx = internals.compilation_cx.lock().unwrap();
+            (comp_cx.build_dir.clone().unwrap(), comp_cx.cwd.clone())
+        };
+
         // Go through cached compiler invocations sequentially, collecting each
         // invocation's compiler messages for diagnostics and analysis data
         while let Some(job) = self.dequeue() {
@@ -358,7 +354,7 @@ impl JobQueue {
                 &internals.vfs,
                 &args,
                 job.get_envs(),
-                None,
+                cwd.as_ref().map(|p| &**p),
                 &build_dir,
                 internals.config.clone(),
                 internals.env_lock.as_facade(),
@@ -366,14 +362,18 @@ impl JobQueue {
                 BuildResult::Success(c, mut messages, mut analysis) => {
                     compiler_messages.append(&mut messages);
                     analyses.append(&mut analysis);
-                    cwd = c;
+                    cwd = Some(c);
                 }
                 BuildResult::Err => return BuildResult::Err,
                 _ => {}
             }
         }
 
-        BuildResult::Success(cwd, compiler_messages, analyses)
+        BuildResult::Success(
+            cwd.unwrap_or_else(|| PathBuf::from(".")),
+            compiler_messages,
+            analyses,
+        )
     }
 }
 

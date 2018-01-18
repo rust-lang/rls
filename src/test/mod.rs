@@ -17,9 +17,9 @@ extern crate json;
 mod harness;
 
 use analysis;
-use actions::requests;
+use actions::{requests, notifications};
 use config::{Config, Inferrable};
-use server::{self as ls_server, Request, ShutdownRequest};
+use server::{self as ls_server, Request, ShutdownRequest, Notification};
 use jsonrpc_core;
 use vfs;
 
@@ -86,6 +86,13 @@ pub fn request<'a, T: ls_server::RequestAction>(id: usize, params: T::Params) ->
         id,
         params,
         received: Instant::now(),
+        _action: PhantomData,
+    }
+}
+
+fn notification<'a, A: ls_server::BlockingNotificationAction>(params: A::Params) -> Notification<A> {
+    Notification {
+        params,
         _action: PhantomData,
     }
 }
@@ -221,6 +228,118 @@ fn test_hover() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(11))
+                .expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
+        ],
+    );
+}
+
+/// Test hover continues to work after the source has moved line
+#[test]
+fn test_hover_after_src_line_change() {
+    let mut env = Environment::new("common");
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
+        .expect("couldn't convert file path to URL");
+
+    let world_src_pos = env.cache.mk_ls_position(src(&source_file_path, 21, "world"));
+    let world_src_pos_after = Position {
+        line: world_src_pos.line + 1,
+        ..world_src_pos
+    };
+
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+
+        request::<requests::Hover>(
+            11,
+            TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier::new(url.clone()),
+                position: world_src_pos,
+            },
+        ).to_string(),
+
+        notification::<notifications::DidChangeTextDocument>(
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: url.clone(),
+                    version: Some(2),
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: Some(Range {
+                        start: Position { line: 19, character: 15 },
+                        end: Position { line: 19, character: 15 },
+                    }),
+                    range_length: Some(0),
+                    text: "\n    ".into(),
+                }],
+            },
+        ).to_string(),
+
+        request::<requests::Hover>(
+            13,
+            TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier::new(url),
+                position: world_src_pos_after,
+            },
+        ).to_string(),
+    ];
+
+    let (mut server, results) = env.mock_server(messages);
+    // Initialize and build.
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+            ExpectedMessage::new(None).expect_contains("beginBuild"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
+        ],
+    );
+
+    // first hover over unmodified
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(11))
+                .expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
+        ],
+    );
+
+    // handle didChange notification and wait for rebuild
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(None).expect_contains("beginBuild"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+            ExpectedMessage::new(None).expect_contains("diagnosticsEnd"),
+        ],
+    );
+
+    // hover after line change should work at the new line
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(13))
                 .expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
         ],
     );
