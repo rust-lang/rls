@@ -37,10 +37,10 @@ fn test_infer_bin() {
         let rls_child = p.rls().spawn().unwrap();
         let mut rls = RlsHandle::new(rls_child);
 
-        rls.request(0, "initialize", json!({
+        rls.request(0, "initialize", Some(json!({
             "rootPath": root_path,
             "capabilities": {}
-        })).unwrap();
+        }))).unwrap();
 
         rls.expect_messages(&[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -119,10 +119,10 @@ fn test_simple_workspace() {
         let rls_child = p.rls().spawn().unwrap();
         let mut rls = RlsHandle::new(rls_child);
 
-        rls.request(0, "initialize", json!({
+        rls.request(0, "initialize", Some(json!({
             "rootPath": root_path,
             "capabilities": {}
-        })).unwrap();
+        }))).unwrap();
 
         // This is the expected behavior is workspace_mode is on by default
         rls.expect_messages(&[
