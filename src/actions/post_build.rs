@@ -353,7 +353,7 @@ mod diagnostic_message_test {
     use super::*;
 
     fn parsed_message(compiler_message: &str) -> String {
-        let _ = ::env_logger::init();
+        let _ = ::env_logger::try_init();
         parse_diagnostics(compiler_message)
             .expect("failed to parse compiler message")
             .diagnostic
