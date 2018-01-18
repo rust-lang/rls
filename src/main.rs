@@ -93,7 +93,7 @@ type Span = span::Span<span::ZeroIndexed>;
 /// The main entry point to the RLS. Parses CLI arguments and then runs the
 /// server.
 pub fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     if env::var(RUSTC_SHIM_ENV_VAR_NAME)
         .map(|v| v != "0")
