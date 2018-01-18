@@ -265,7 +265,7 @@ fn test_hover_after_src_line_change() {
             DidChangeTextDocumentParams {
                 text_document: VersionedTextDocumentIdentifier {
                     uri: url.clone(),
-                    version: 8,
+                    version: Some(2),
                 },
                 content_changes: vec![TextDocumentContentChangeEvent {
                     range: Some(Range {
