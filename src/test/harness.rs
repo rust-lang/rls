@@ -37,7 +37,7 @@ impl Environment {
             static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
         }
 
-        let _ = env_logger::init();
+        let _ = env_logger::try_init();
         if env::var("RUSTC").is_err() {
             env::set_var("RUSTC", "rustc");
         }

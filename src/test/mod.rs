@@ -1041,7 +1041,7 @@ fn test_omit_init_build() {
 
 #[test]
 fn test_parse_error_on_malformed_input() {
-    let _ = env_logger::init();
+    let _ = env_logger::try_init();
     struct NoneMsgReader;
 
     impl ls_server::MessageReader for NoneMsgReader {
