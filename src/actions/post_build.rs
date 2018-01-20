@@ -59,7 +59,7 @@ impl PostBuildHandler {
                     trace!("build - Success");
 
                     // Emit appropriate diagnostics using the ones from build.
-                    self.handle_messages(&cwd, messages);
+                    self.handle_messages(&cwd, &messages);
 
                     // Reload the analysis data.
                     debug!("reload analysis: {:?}", self.project_path);
@@ -88,7 +88,7 @@ impl PostBuildHandler {
         }
     }
 
-    fn handle_messages(&self, cwd: &Path, messages: Vec<String>) {
+    fn handle_messages(&self, cwd: &Path, messages: &[String]) {
         // These notifications will include empty sets of errors for files
         // which had errors, but now don't. This instructs the IDE to clear
         // errors for those files.
@@ -99,7 +99,7 @@ impl PostBuildHandler {
             v.clear();
         }
 
-        for msg in &messages {
+        for msg in messages {
             if let Some(FileDiagnostic {
                 file_path,
                 diagnostic,
@@ -111,7 +111,7 @@ impl PostBuildHandler {
                     .or_insert_with(Vec::new);
 
                 entry.push((diagnostic, suggestions));
-                for secondary in secondaries.into_iter() {
+                for secondary in secondaries {
                     entry.push((secondary, vec![]));
                 }
             }
@@ -123,21 +123,21 @@ impl PostBuildHandler {
     fn reload_analysis_from_disk(&self, cwd: &Path) {
         if self.use_black_list {
             self.analysis
-                .reload_with_blacklist(&self.project_path, &cwd, &CRATE_BLACKLIST)
+                .reload_with_blacklist(&self.project_path, cwd, &CRATE_BLACKLIST)
                 .unwrap();
         } else {
-            self.analysis.reload(&self.project_path, &cwd).unwrap();
+            self.analysis.reload(&self.project_path, cwd).unwrap();
         }
     }
 
     fn reload_analysis_from_memory(&self, cwd: &Path, analysis: Vec<Analysis>) {
         if self.use_black_list {
             self.analysis
-                .reload_from_analysis(analysis, &self.project_path, &cwd, &CRATE_BLACKLIST)
+                .reload_from_analysis(analysis, &self.project_path, cwd, &CRATE_BLACKLIST)
                 .unwrap();
         } else {
             self.analysis
-                .reload_from_analysis(analysis, &self.project_path, &cwd, &[])
+                .reload_from_analysis(analysis, &self.project_path, cwd, &[])
                 .unwrap();
         }
     }
@@ -243,7 +243,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     .iter()
     .filter(|x| !x.is_primary)
     .map(|secondary_span| {
-        let mut secondary_message = if secondary_span.is_within(&primary_span) {
+        let mut secondary_message = if secondary_span.is_within(primary_span) {
             String::new()
         }
         else {
@@ -360,18 +360,6 @@ impl IsWithin for DiagnosticSpan {
         let DiagnosticSpan { line_start, line_end, column_start, column_end, .. } = *self;
         (line_start..line_end+1).is_within(&(other.line_start..other.line_end+1)) &&
             (column_start..column_end+1).is_within(&(other.column_start..other.column_end+1))
-    }
-}
-
-trait IsSameLineAs {
-    /// Returns if `other` refers to the same line as `self`
-    fn is_same_line_as(&self, other: &Self) -> bool;
-}
-impl IsSameLineAs for DiagnosticSpan {
-    fn is_same_line_as(&self, other: &Self) -> bool {
-        self.file_name == other.file_name &&
-            self.line_start == other.line_start &&
-            self.line_end == other.line_end
     }
 }
 
