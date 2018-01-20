@@ -214,7 +214,9 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     let diagnostic = {
         let mut primary_message = diagnostic_msg.clone();
         if let Some(ref primary_label) = primary_span.label {
-            primary_message.push_str(&format!("\n{}", primary_label));
+            if primary_label.trim() != primary_message.trim() {
+                primary_message.push_str(&format!("\n{}", primary_label));
+            }
         }
 
         if let Some(notes) = format_notes(&message.children, primary_span) {
@@ -229,7 +231,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
                 None => String::new(),
             })),
             source: Some("rustc".into()),
-            message: primary_message,
+            message: primary_message.trim().to_owned(),
         }
     };
 
@@ -241,7 +243,12 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     .iter()
     .filter(|x| !x.is_primary)
     .map(|secondary_span| {
-        let mut secondary_message = diagnostic_msg.clone();
+        let mut secondary_message = if secondary_span.is_within(&primary_span) {
+            String::new()
+        }
+        else {
+            diagnostic_msg.clone()
+        };
 
         if let Some(ref secondary_label) = secondary_span.label {
             secondary_message.push_str(&format!("\n{}", secondary_label));
@@ -256,7 +263,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
                 None => String::new(),
             })),
             source: Some("rustc".into()),
-            message: secondary_message,
+            message: secondary_message.trim().to_owned(),
         }
     }).collect();
 
@@ -375,12 +382,12 @@ impl IsSameLineAs for DiagnosticSpan {
 mod diagnostic_message_test {
     use super::*;
 
-    fn parsed_message(compiler_message: &str) -> String {
+    /// Returns (primary message, secondary messages)
+    fn parsed_message(compiler_message: &str) -> (String, Vec<String>) {
         let _ = ::env_logger::try_init();
-        parse_diagnostics(compiler_message)
-            .expect("failed to parse compiler message")
-            .diagnostic
-            .message
+        let parsed = parse_diagnostics(compiler_message)
+            .expect("failed to parse compiler message");
+        (parsed.diagnostic.message, parsed.secondaries.into_iter().map(|s| s.message).collect())
     }
 
     /// ```
@@ -392,15 +399,20 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_use_after_move() {
-        let msg = parsed_message(
+        let (msg, others) = parsed_message(
             include_str!("../../test_data/compiler_message/use-after-move.json")
         );
         assert_eq!(
             msg,
-            "use of moved value: `s`: value used here after move\n\
-            \n\
-            note: move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait",
+            "use of moved value: `s`\n\n\
+            value used here after move\n\n\
+            note: move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait"
         );
+
+        assert_eq!(others, vec![
+            "use of moved value: `s`\n\n\
+            value moved here"
+        ]);
     }
 
     /// ```
@@ -410,14 +422,19 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_type_annotations_needed() {
-        let msg = parsed_message(
+        let (msg, others) = parsed_message(
             include_str!("../../test_data/compiler_message/type-annotations-needed.json")
         );
         assert_eq!(
             msg,
-            "type annotations needed: cannot infer type for `T`\n\
-            consider giving `v` a type",
+            "type annotations needed\n\n\
+            cannot infer type for `T`",
         );
+
+        assert_eq!(others, vec![
+            "type annotations needed\n\n\
+            consider giving `v` a type"
+        ]);
     }
 
     /// ```
@@ -427,34 +444,46 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_mismatched_types() {
-        let msg = parsed_message(
+        let (msg, others) = parsed_message(
             include_str!("../../test_data/compiler_message/mismatched-types.json")
         );
         assert_eq!(
             msg,
-            "mismatched types: expected usize, found i32",
+            "mismatched types\n\n\
+            expected usize, found i32",
         );
+
+        assert_eq!(others, vec![
+            "mismatched types\n\n\
+            expected `usize` because of return type"
+        ]);
     }
 
     /// ```
-    /// pub fn not_mut() {
+    /// fn not_mut() {
     ///     let string = String::new();
     ///     let _s1 = &mut string;
     /// }
     /// ```
     #[test]
     fn message_not_mutable() {
-        let msg = parsed_message(
+        let (msg, others) = parsed_message(
             include_str!("../../test_data/compiler_message/not-mut.json")
         );
         assert_eq!(
             msg,
-            "cannot borrow immutable local variable `string` as mutable: cannot borrow mutably",
+            "cannot borrow immutable local variable `string` as mutable\n\n\
+            cannot borrow mutably",
         );
+
+        assert_eq!(others, vec![
+            "cannot borrow immutable local variable `string` as mutable\n\n\
+            consider changing this to `mut string`"
+        ]);
     }
 
     /// ```
-    /// pub fn consider_borrow() {
+    /// fn consider_borrow() {
     ///     fn takes_ref(s: &str) {}
     ///     let string = String::new();
     ///     takes_ref(string);
@@ -462,16 +491,38 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_consider_borrowing() {
-        let msg = parsed_message(
+        let (msg, others) = parsed_message(
             include_str!("../../test_data/compiler_message/consider-borrowing.json")
         );
         assert_eq!(
             msg,
-            r#"mismatched types: expected &str, found struct `std::string::String`
+            r#"mismatched types
+
+expected &str, found struct `std::string::String`
 
 note: expected type `&str`
          found type `std::string::String`
 help: consider borrowing here: `&string`"#,
         );
+
+        assert!(others.is_empty(), "{:?}", others);
+    }
+
+    /// ```
+    /// fn move_out_of_borrow() {
+    ///     match &Some(String::new()) {
+    ///         &Some(string) => takes_borrow(&string),
+    ///         &None => {},
+    ///     }
+    /// }
+    /// ```
+    #[test]
+    fn message_move_out_of_borrow() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/move-out-of-borrow.json")
+        );
+        assert_eq!(msg, "cannot move out of borrowed content");
+
+        assert_eq!(others, vec!["hint: to prevent move, use `ref string` or `ref mut string`"]);
     }
 }
