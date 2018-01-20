@@ -19,7 +19,7 @@ use std::str;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
-
+use std::panic;
 
 use support::paths::TestPathExt;
 
@@ -27,30 +27,42 @@ pub mod paths;
 
 /// Executes `func` and panics if it takes longer than `dur`.
 pub fn timeout<F>(dur: Duration, func: F)
-    where F: FnOnce() + Send + 'static {
-    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+    where F: FnOnce() + Send + 'static + panic::UnwindSafe {
+    let pair = Arc::new((Mutex::new(TestState::Running), Condvar::new()));
     let pair2 = pair.clone();
 
     thread::spawn(move|| {
         let &(ref lock, ref cvar) = &*pair2;
-        func();
-        let mut finished = lock.lock().unwrap();
-        *finished = true;
+        match panic::catch_unwind(|| func()) {
+            Ok(_) => *lock.lock().unwrap() = TestState::Success,
+            Err(_) => *lock.lock().unwrap() = TestState::Fail,
+        }
+
         // We notify the condvar that the value has changed.
         cvar.notify_one();
     });
 
     // Wait for the test to finish.
     let &(ref lock, ref cvar) = &*pair;
-    let mut finished = lock.lock().unwrap();
+    let mut test_state = lock.lock().unwrap();
     // As long as the value inside the `Mutex` is false, we wait.
-    while !*finished {
-        let result = cvar.wait_timeout(finished, dur).unwrap();
+    while *test_state == TestState::Running {
+        let result = cvar.wait_timeout(test_state, dur).unwrap();
         if result.1.timed_out() {
             panic!("Timed out")
         }
-        finished = result.0
+        if *result.0 == TestState::Fail {
+            panic!("failed");
+        }
+        test_state = result.0
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TestState {
+    Running,
+    Success,
+    Fail,
 }
 
 #[derive(Clone, Debug)]

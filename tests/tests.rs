@@ -21,7 +21,7 @@ use support::{ExpectedMessage, RlsHandle, basic_bin_manifest, project, timeout};
 const TIME_LIMIT_SECS: u64 = 300;
 
 #[test]
-fn test_infer_bin() {
+fn cmd_test_infer_bin() {
     timeout(Duration::from_secs(TIME_LIMIT_SECS), ||{
         let p = project("simple_workspace")
             .file("Cargo.toml", &basic_bin_manifest("foo"))
@@ -55,7 +55,7 @@ fn test_infer_bin() {
 }
 
 #[test]
-fn test_simple_workspace() {
+fn cmd_test_simple_workspace() {
     timeout(Duration::from_secs(300), ||{
         let p = project("simple_workspace")
             .file("Cargo.toml", r#"
