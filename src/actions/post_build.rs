@@ -103,12 +103,17 @@ impl PostBuildHandler {
             if let Some(FileDiagnostic {
                 file_path,
                 diagnostic,
+                secondaries,
                 suggestions,
             }) = parse_diagnostics(msg) {
-                results
+                let entry = results
                     .entry(cwd.join(file_path))
-                    .or_insert_with(Vec::new)
-                    .push((diagnostic, suggestions));
+                    .or_insert_with(Vec::new);
+
+                entry.push((diagnostic, suggestions));
+                for secondary in secondaries.into_iter() {
+                    entry.push((secondary, vec![]));
+                }
             }
         }
 
@@ -169,6 +174,7 @@ pub struct Suggestion {
 struct FileDiagnostic {
     file_path: PathBuf,
     diagnostic: Diagnostic,
+    secondaries: Vec<Diagnostic>,
     suggestions: Vec<Suggestion>,
 }
 
@@ -204,43 +210,76 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     let rls_span = primary_span.rls_span().zero_indexed();
     let suggestions = make_suggestions(&message.children, &rls_span.file);
 
-    let mut full_message = message.message;
-    if let Some(ref primary_label) = primary_span.label {
-        full_message.push_str(": ");
-        full_message.push_str(primary_label);
-    }
+    let diagnostic = {
+        let mut full_message = message.message.clone();
+        if let Some(ref primary_label) = primary_span.label {
+            full_message.push_str(": ");
+            full_message.push_str(primary_label);
+        }
 
-    // add secondary labels if the spans match
-    // some useful stuff is omitted this way, but other messages can be confusing when
-    // they're meant to be referencing other spans but show up here
-    for label in message.spans
-        .iter()
-        .filter(|span| !span.is_primary && span.is_same_line_as(primary_span))
-        .filter_map(|span| span.label.as_ref())
-    {
-        full_message.push('\n');
-        full_message.push_str(label);
-    }
+        // add secondary labels if the spans match
+        // some useful stuff is omitted this way, but other messages can be confusing when
+        // they're meant to be referencing other spans but show up here
+        for label in message.spans
+            .iter()
+            .filter(|span| !span.is_primary && span.is_same_line_as(primary_span))
+            .filter_map(|span| span.label.as_ref())
+        {
+            full_message.push('\n');
+            full_message.push_str(label);
+        }
 
-    if let Some(notes) = format_notes(&message.children, primary_span) {
-        full_message.push('\n');
-        full_message.push_str(&notes);
-    }
+        if let Some(notes) = format_notes(&message.children, primary_span) {
+            full_message.push('\n');
+            full_message.push_str(&notes);
+        }
 
-    let diagnostic = Diagnostic {
-        range: ls_util::rls_to_range(rls_span.range),
-        severity: Some(severity(&message.level)),
-        code: Some(NumberOrString::String(match message.code {
-            Some(c) => c.code.clone(),
-            None => String::new(),
-        })),
-        source: Some("rustc".into()),
-        message: full_message,
+        Diagnostic {
+            range: ls_util::rls_to_range(rls_span.range),
+            severity: Some(severity(&message.level)),
+            code: Some(NumberOrString::String(match message.code {
+                Some(ref c) => c.code.clone(),
+                None => String::new(),
+            })),
+            source: Some("rustc".into()),
+            message: full_message,
+        }
     };
+
+    //////
+    let secondaries = message
+    .spans
+    .iter()
+    .filter(|x| !x.is_primary)
+    .map(|secondary_span| {
+        let mut full_message = (&message).message.clone();
+        if let Some(ref primary_label) = primary_span.label {
+            full_message.push_str(": ");
+            full_message.push_str(primary_label);
+        }
+        if let Some(ref secondary_label) = secondary_span.label {
+            full_message.push_str("\n");
+            full_message.push_str(secondary_label);
+        }
+        let rls_span = secondary_span.rls_span().zero_indexed();
+
+        Diagnostic {
+            range: ls_util::rls_to_range(rls_span.range),
+            severity: Some(DiagnosticSeverity::Information),
+            code: Some(NumberOrString::String(match message.code {
+                Some(ref c) => c.code.clone(),
+                None => String::new(),
+            })),
+            source: Some("rustc".into()),
+            message: full_message,
+        }
+    }).collect();
+    //////
 
     Some(FileDiagnostic {
         file_path: rls_span.file,
         diagnostic,
+        secondaries,
         suggestions,
     })
 }
