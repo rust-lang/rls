@@ -206,24 +206,19 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
         return None;
     }
 
+    let diagnostic_msg = format!("{}\n", message.message);
     let primary_span = message.spans.iter().find(|s| s.is_primary).unwrap();
     let rls_span = primary_span.rls_span().zero_indexed();
     let suggestions = make_suggestions(&message.children, &rls_span.file);
 
-    let primary_message = {
-        let mut primary_message = message.message.clone();
-        if let Some(ref primary_label) = primary_span.label {
-            primary_message.push_str(&format!(": {}", primary_label));
-        }
-        primary_message
-    };
-
     let diagnostic = {
-        let mut primary_message = primary_message.clone();
+        let mut primary_message = diagnostic_msg.clone();
+        if let Some(ref primary_label) = primary_span.label {
+            primary_message.push_str(&format!("\n{}", primary_label));
+        }
 
         if let Some(notes) = format_notes(&message.children, primary_span) {
-            primary_message.push('\n');
-            primary_message.push_str(&notes);
+            primary_message.push_str(&format!("\n{}", notes));
         }
 
         Diagnostic {
@@ -246,11 +241,10 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     .iter()
     .filter(|x| !x.is_primary)
     .map(|secondary_span| {
-        let mut secondary_message = primary_message.clone();
+        let mut secondary_message = diagnostic_msg.clone();
 
         if let Some(ref secondary_label) = secondary_span.label {
-            secondary_message.push_str("\n");
-            secondary_message.push_str(secondary_label);
+            secondary_message.push_str(&format!("\n{}", secondary_label));
         }
         let rls_span = secondary_span.rls_span().zero_indexed();
 
