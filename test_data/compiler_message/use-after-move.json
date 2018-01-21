@@ -1,0 +1,52 @@
+{
+  "children": [{
+    "children": [],
+    "code": null,
+    "level": "note",
+    "message": "move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait",
+    "rendered": null,
+    "spans": []
+  }],
+  "code": {
+    "code": "E0382",
+    "explanation": "\nThis error occurs when an attempt is made to use a variable after its contents\nhave been moved elsewhere. For example:\n\n```compile_fail,E0382\nstruct MyStruct { s: u32 }\n\nfn main() {\n    let mut x = MyStruct{ s: 5u32 };\n    let y = x;\n    x.s = 6;\n    println!(\"{}\", x.s);\n}\n```\n\nSince `MyStruct` is a type that is not marked `Copy`, the data gets moved out\nof `x` when we set `y`. This is fundamental to Rust's ownership system: outside\nof workarounds like `Rc`, a value cannot be owned by more than one variable.\n\nSometimes we don't need to move the value. Using a reference, we can let another\nfunction borrow the value without changing its ownership. In the example below,\nwe don't actually have to move our string to `calculate_length`, we can give it\na reference to it with `&` instead.\n\n```\nfn main() {\n    let s1 = String::from(\"hello\");\n\n    let len = calculate_length(&s1);\n\n    println!(\"The length of '{}' is {}.\", s1, len);\n}\n\nfn calculate_length(s: &String) -> usize {\n    s.len()\n}\n```\n\nA mutable reference can be created with `&mut`.\n\nSometimes we don't want a reference, but a duplicate. All types marked `Clone`\ncan be duplicated by calling `.clone()`. Subsequent changes to a clone do not\naffect the original variable.\n\nMost types in the standard library are marked `Clone`. The example below\ndemonstrates using `clone()` on a string. `s1` is first set to \"many\", and then\ncopied to `s2`. Then the first character of `s1` is removed, without affecting\n`s2`. \"any many\" is printed to the console.\n\n```\nfn main() {\n    let mut s1 = String::from(\"many\");\n    let s2 = s1.clone();\n    s1.remove(0);\n    println!(\"{} {}\", s1, s2);\n}\n```\n\nIf we control the definition of a type, we can implement `Clone` on it ourselves\nwith `#[derive(Clone)]`.\n\nSome types have no ownership semantics at all and are trivial to duplicate. An\nexample is `i32` and the other number types. We don't have to call `.clone()` to\nclone them, because they are marked `Copy` in addition to `Clone`.  Implicit\ncloning is more convienient in this case. We can mark our own types `Copy` if\nall their members also are marked `Copy`.\n\nIn the example below, we implement a `Point` type. Because it only stores two\nintegers, we opt-out of ownership semantics with `Copy`. Then we can\n`let p2 = p1` without `p1` being moved.\n\n```\n#[derive(Copy, Clone)]\nstruct Point { x: i32, y: i32 }\n\nfn main() {\n    let mut p1 = Point{ x: -1, y: 2 };\n    let p2 = p1;\n    p1.x = 1;\n    println!(\"p1: {}, {}\", p1.x, p1.y);\n    println!(\"p2: {}, {}\", p2.x, p2.y);\n}\n```\n\nAlternatively, if we don't control the struct's definition, or mutable shared\nownership is truly required, we can use `Rc` and `RefCell`:\n\n```\nuse std::cell::RefCell;\nuse std::rc::Rc;\n\nstruct MyStruct { s: u32 }\n\nfn main() {\n    let mut x = Rc::new(RefCell::new(MyStruct{ s: 5u32 }));\n    let y = x.clone();\n    x.borrow_mut().s = 6;\n    println!(\"{}\", x.borrow().s);\n}\n```\n\nWith this approach, x and y share ownership of the data via the `Rc` (reference\ncount type). `RefCell` essentially performs runtime borrow checking: ensuring\nthat at most one writer or multiple readers can access the data at any one time.\n\nIf you wish to learn more about ownership in Rust, start with the chapter in the\nBook:\n\nhttps://doc.rust-lang.org/book/first-edition/ownership.html\n"
+  },
+  "level": "error",
+  "message": "use of moved value: `s`",
+  "rendered": "error[E0382]: use of moved value: `s`\n   --> src/lib.rs:147:26\n    |\n146 |         ::std::mem::drop(s);\n    |                          - value moved here\n147 |         ::std::mem::drop(s);\n    |                          ^ value used here after move\n    |\n    = note: move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait\n\n",
+  "spans": [{
+    "byte_end": 4285,
+    "byte_start": 4284,
+    "column_end": 27,
+    "column_start": 26,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": true,
+    "label": "value used here after move",
+    "line_end": 147,
+    "line_start": 147,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 27,
+      "highlight_start": 26,
+      "text": "        ::std::mem::drop(s);"
+    }]
+  }, {
+    "byte_end": 4256,
+    "byte_start": 4255,
+    "column_end": 27,
+    "column_start": 26,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": false,
+    "label": "value moved here",
+    "line_end": 146,
+    "line_start": 146,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 27,
+      "highlight_start": 26,
+      "text": "        ::std::mem::drop(s);"
+    }]
+  }]
+}

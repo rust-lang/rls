@@ -1,0 +1,45 @@
+{
+  "children": [],
+  "code": {
+    "code": "E0282",
+    "explanation": "\nThis error indicates that type inference did not result in one unique possible\ntype, and extra information is required. In most cases this can be provided\nby adding a type annotation. Sometimes you need to specify a generic type\nparameter manually.\n\nA common example is the `collect` method on `Iterator`. It has a generic type\nparameter with a `FromIterator` bound, which for a `char` iterator is\nimplemented by `Vec` and `String` among others. Consider the following snippet\nthat reverses the characters of a string:\n\n```compile_fail,E0282\nlet x = \"hello\".chars().rev().collect();\n```\n\nIn this case, the compiler cannot infer what the type of `x` should be:\n`Vec<char>` and `String` are both suitable candidates. To specify which type to\nuse, you can use a type annotation on `x`:\n\n```\nlet x: Vec<char> = \"hello\".chars().rev().collect();\n```\n\nIt is not necessary to annotate the full type. Once the ambiguity is resolved,\nthe compiler can infer the rest:\n\n```\nlet x: Vec<_> = \"hello\".chars().rev().collect();\n```\n\nAnother way to provide the compiler with enough information, is to specify the\ngeneric type parameter:\n\n```\nlet x = \"hello\".chars().rev().collect::<Vec<char>>();\n```\n\nAgain, you need not specify the full type if the compiler can infer it:\n\n```\nlet x = \"hello\".chars().rev().collect::<Vec<_>>();\n```\n\nApart from a method or function with a generic type parameter, this error can\noccur when a type parameter of a struct or trait cannot be inferred. In that\ncase it is not always possible to use a type annotation, because all candidates\nhave the same return type. For instance:\n\n```compile_fail,E0282\nstruct Foo<T> {\n    num: T,\n}\n\nimpl<T> Foo<T> {\n    fn bar() -> i32 {\n        0\n    }\n\n    fn baz() {\n        let number = Foo::bar();\n    }\n}\n```\n\nThis will fail because the compiler does not know which instance of `Foo` to\ncall `bar` on. Change `Foo::bar()` to `Foo::<T>::bar()` to resolve the error.\n"
+  },
+  "level": "error",
+  "message": "type annotations needed",
+  "rendered": "error[E0282]: type annotations needed\n   --> src/lib.rs:141:17\n    |\n141 |         let v = Vec::new();\n    |             -   ^^^^^^^^ cannot infer type for `T`\n    |             |\n    |             consider giving `v` a type\n\n",
+  "spans": [{
+    "byte_end": 4162,
+    "byte_start": 4154,
+    "column_end": 25,
+    "column_start": 17,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": true,
+    "label": "cannot infer type for `T`",
+    "line_end": 141,
+    "line_start": 141,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 25,
+      "highlight_start": 17,
+      "text": "        let v = Vec::new();"
+    }]
+  }, {
+    "byte_end": 4151,
+    "byte_start": 4150,
+    "column_end": 14,
+    "column_start": 13,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": false,
+    "label": "consider giving `v` a type",
+    "line_end": 141,
+    "line_start": 141,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 14,
+      "highlight_start": 13,
+      "text": "        let v = Vec::new();"
+    }]
+  }]
+}

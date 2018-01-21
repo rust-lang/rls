@@ -20,7 +20,6 @@ use std::thread;
 use build::BuildResult;
 use lsp_data::{ls_util, PublishDiagnosticsParams};
 use CRATE_BLACKLIST;
-use Span;
 
 use analysis::AnalysisHost;
 use data::Analysis;
@@ -28,7 +27,6 @@ use ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range};
 use serde_json;
 use span::compiler::DiagnosticSpan;
 use url::Url;
-
 
 pub type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
@@ -61,7 +59,7 @@ impl PostBuildHandler {
                     trace!("build - Success");
 
                     // Emit appropriate diagnostics using the ones from build.
-                    self.handle_messages(&cwd, messages);
+                    self.handle_messages(&cwd, &messages);
 
                     // Reload the analysis data.
                     debug!("reload analysis: {:?}", self.project_path);
@@ -90,7 +88,7 @@ impl PostBuildHandler {
         }
     }
 
-    fn handle_messages(&self, cwd: &Path, messages: Vec<String>) {
+    fn handle_messages(&self, cwd: &Path, messages: &[String]) {
         // These notifications will include empty sets of errors for files
         // which had errors, but now don't. This instructs the IDE to clear
         // errors for those files.
@@ -101,16 +99,21 @@ impl PostBuildHandler {
             v.clear();
         }
 
-        for msg in &messages {
+        for msg in messages {
             if let Some(FileDiagnostic {
                 file_path,
                 diagnostic,
+                secondaries,
                 suggestions,
             }) = parse_diagnostics(msg) {
-                results
+                let entry = results
                     .entry(cwd.join(file_path))
-                    .or_insert_with(Vec::new)
-                    .push((diagnostic, suggestions));
+                    .or_insert_with(Vec::new);
+
+                entry.push((diagnostic, suggestions));
+                for secondary in secondaries {
+                    entry.push((secondary, vec![]));
+                }
             }
         }
 
@@ -120,21 +123,21 @@ impl PostBuildHandler {
     fn reload_analysis_from_disk(&self, cwd: &Path) {
         if self.use_black_list {
             self.analysis
-                .reload_with_blacklist(&self.project_path, &cwd, &CRATE_BLACKLIST)
+                .reload_with_blacklist(&self.project_path, cwd, &CRATE_BLACKLIST)
                 .unwrap();
         } else {
-            self.analysis.reload(&self.project_path, &cwd).unwrap();
+            self.analysis.reload(&self.project_path, cwd).unwrap();
         }
     }
 
     fn reload_analysis_from_memory(&self, cwd: &Path, analysis: Vec<Analysis>) {
         if self.use_black_list {
             self.analysis
-                .reload_from_analysis(analysis, &self.project_path, &cwd, &CRATE_BLACKLIST)
+                .reload_from_analysis(analysis, &self.project_path, cwd, &CRATE_BLACKLIST)
                 .unwrap();
         } else {
             self.analysis
-                .reload_from_analysis(analysis, &self.project_path, &cwd, &[])
+                .reload_from_analysis(analysis, &self.project_path, cwd, &[])
                 .unwrap();
         }
     }
@@ -171,6 +174,7 @@ pub struct Suggestion {
 struct FileDiagnostic {
     file_path: PathBuf,
     diagnostic: Diagnostic,
+    secondaries: Vec<Diagnostic>,
     suggestions: Vec<Suggestion>,
 }
 
@@ -202,25 +206,112 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
         return None;
     }
 
-    let primary_span = primary_span(&message);
-    let suggestions = make_suggestions(message.children, &primary_span.file);
+    let diagnostic_msg = format!("{}\n", message.message);
+    let primary_span = message.spans.iter().find(|s| s.is_primary).unwrap();
+    let rls_span = primary_span.rls_span().zero_indexed();
+    let suggestions = make_suggestions(&message.children, &rls_span.file);
 
-    let diagnostic = Diagnostic {
-        range: ls_util::rls_to_range(primary_span.range),
-        severity: Some(severity(&message.level)),
-        code: Some(NumberOrString::String(match message.code {
-            Some(c) => c.code.clone(),
-            None => String::new(),
-        })),
-        source: Some("rustc".into()),
-        message: message.message,
+    let diagnostic = {
+        let mut primary_message = diagnostic_msg.clone();
+        if let Some(ref primary_label) = primary_span.label {
+            if primary_label.trim() != primary_message.trim() {
+                primary_message.push_str(&format!("\n{}", primary_label));
+            }
+        }
+
+        if let Some(notes) = format_notes(&message.children, primary_span) {
+            primary_message.push_str(&format!("\n{}", notes));
+        }
+
+        Diagnostic {
+            range: ls_util::rls_to_range(rls_span.range),
+            severity: Some(severity(&message.level)),
+            code: Some(NumberOrString::String(match message.code {
+                Some(ref c) => c.code.clone(),
+                None => String::new(),
+            })),
+            source: Some("rustc".into()),
+            message: primary_message.trim().to_owned(),
+        }
     };
 
+    // For a compiler error that has secondary spans (e.g. borrow error showing
+    // both borrow and error spans) we emit additional diagnostics. These don't
+    // include notes and are of an `Information` severity.
+    let secondaries = message
+    .spans
+    .iter()
+    .filter(|x| !x.is_primary)
+    .map(|secondary_span| {
+        let mut secondary_message = if secondary_span.is_within(primary_span) {
+            String::new()
+        }
+        else {
+            diagnostic_msg.clone()
+        };
+
+        if let Some(ref secondary_label) = secondary_span.label {
+            secondary_message.push_str(&format!("\n{}", secondary_label));
+        }
+        let rls_span = secondary_span.rls_span().zero_indexed();
+
+        Diagnostic {
+            range: ls_util::rls_to_range(rls_span.range),
+            severity: Some(DiagnosticSeverity::Information),
+            code: Some(NumberOrString::String(match message.code {
+                Some(ref c) => c.code.clone(),
+                None => String::new(),
+            })),
+            source: Some("rustc".into()),
+            message: secondary_message.trim().to_owned(),
+        }
+    }).collect();
+
     Some(FileDiagnostic {
-        file_path: primary_span.file,
-        diagnostic: diagnostic,
-        suggestions: suggestions,
+        file_path: rls_span.file,
+        diagnostic,
+        secondaries,
+        suggestions,
     })
+}
+
+fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Option<String> {
+    if !children.is_empty() {
+        let mut notes = String::new();
+        for &CompilerMessage { ref message, ref level, ref spans, .. } in children {
+            notes.push_str(&format!("\n{}: ", level));
+
+            macro_rules! add_message_to_notes {
+                ($msg:expr) => {{
+                    let mut lines = message.lines();
+                    notes.push_str(lines.next().unwrap());
+                    for line in lines {
+                        notes.push_str(&format!(
+                            "\n{:indent$}{line}",
+                            "",
+                            indent = level.len() + 2,
+                            line = line,
+                        ));
+                    }
+                }}
+            }
+
+            if spans.is_empty() {
+                add_message_to_notes!(message);
+            }
+            else if spans.len() == 1 && spans[0].is_within(primary) {
+                add_message_to_notes!(message);
+                if let Some(ref suggested) = spans[0].suggested_replacement {
+                    notes.push_str(&format!(": `{}`", suggested));
+                }
+            }
+        }
+
+        if notes.is_empty() { None } else { Some(notes) }
+    }
+    else {
+        None
+    }
 }
 
 fn severity(level: &str) -> DiagnosticSeverity {
@@ -231,13 +322,13 @@ fn severity(level: &str) -> DiagnosticSeverity {
     }
 }
 
-fn make_suggestions(children: Vec<CompilerMessage>, file: &Path) -> Vec<Suggestion> {
+fn make_suggestions(children: &[CompilerMessage], file: &Path) -> Vec<Suggestion> {
     let mut suggestions = vec![];
     for c in children {
-        for sp in c.spans {
+        for sp in &c.spans {
             let span = sp.rls_span().zero_indexed();
             if span.file == file {
-                if let Some(s) = sp.suggested_replacement {
+                if let Some(ref s) = sp.suggested_replacement {
                     let suggestion = Suggestion {
                         new_text: s.clone(),
                         range: ls_util::rls_to_range(span.range),
@@ -251,14 +342,175 @@ fn make_suggestions(children: Vec<CompilerMessage>, file: &Path) -> Vec<Suggesti
     suggestions
 }
 
-fn primary_span(message: &CompilerMessage) -> Span {
-    let primary = message
-        .spans
-        .iter()
-        .filter(|x| x.is_primary)
-        .next()
-        .unwrap()
-        .clone();
-    primary.rls_span().zero_indexed()
+trait IsWithin {
+    /// Returns whether `other` is considered within `self`
+    /// note: a thing should be 'within' itself
+    fn is_within(&self, other: &Self) -> bool;
+}
+impl<T: PartialOrd<T>> IsWithin for ::std::ops::Range<T> {
+    fn is_within(&self, other: &Self) -> bool {
+        self.start >= other.start &&
+            self.start <= other.end &&
+            self.end <= other.end &&
+            self.end >= other.start
+    }
+}
+impl IsWithin for DiagnosticSpan {
+    fn is_within(&self, other: &Self) -> bool {
+        let DiagnosticSpan { line_start, line_end, column_start, column_end, .. } = *self;
+        (line_start..line_end+1).is_within(&(other.line_start..other.line_end+1)) &&
+            (column_start..column_end+1).is_within(&(other.column_start..other.column_end+1))
+    }
 }
 
+/// Tests for formatted messages from the compilers json output
+/// run cargo with `--message-format=json` to generate the json for new tests and add .json
+/// message files to '../../test_data/compiler_message/'
+#[cfg(test)]
+mod diagnostic_message_test {
+    use super::*;
+
+    /// Returns (primary message, secondary messages)
+    fn parsed_message(compiler_message: &str) -> (String, Vec<String>) {
+        let _ = ::env_logger::try_init();
+        let parsed = parse_diagnostics(compiler_message)
+            .expect("failed to parse compiler message");
+        (parsed.diagnostic.message, parsed.secondaries.into_iter().map(|s| s.message).collect())
+    }
+
+    /// ```
+    /// fn use_after_move() {
+    ///     let s = String::new();
+    ///     ::std::mem::drop(s);
+    ///     ::std::mem::drop(s);
+    /// }
+    /// ```
+    #[test]
+    fn message_use_after_move() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/use-after-move.json")
+        );
+        assert_eq!(
+            msg,
+            "use of moved value: `s`\n\n\
+            value used here after move\n\n\
+            note: move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait"
+        );
+
+        assert_eq!(others, vec![
+            "use of moved value: `s`\n\n\
+            value moved here"
+        ]);
+    }
+
+    /// ```
+    /// fn type_annotations_needed() {
+    ///     let v = Vec::new();
+    /// }
+    /// ```
+    #[test]
+    fn message_type_annotations_needed() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/type-annotations-needed.json")
+        );
+        assert_eq!(
+            msg,
+            "type annotations needed\n\n\
+            cannot infer type for `T`",
+        );
+
+        assert_eq!(others, vec![
+            "type annotations needed\n\n\
+            consider giving `v` a type"
+        ]);
+    }
+
+    /// ```
+    /// fn mismatched_types() -> usize {
+    ///     123_i32
+    /// }
+    /// ```
+    #[test]
+    fn message_mismatched_types() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/mismatched-types.json")
+        );
+        assert_eq!(
+            msg,
+            "mismatched types\n\n\
+            expected usize, found i32",
+        );
+
+        assert_eq!(others, vec![
+            "mismatched types\n\n\
+            expected `usize` because of return type"
+        ]);
+    }
+
+    /// ```
+    /// fn not_mut() {
+    ///     let string = String::new();
+    ///     let _s1 = &mut string;
+    /// }
+    /// ```
+    #[test]
+    fn message_not_mutable() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/not-mut.json")
+        );
+        assert_eq!(
+            msg,
+            "cannot borrow immutable local variable `string` as mutable\n\n\
+            cannot borrow mutably",
+        );
+
+        assert_eq!(others, vec![
+            "cannot borrow immutable local variable `string` as mutable\n\n\
+            consider changing this to `mut string`"
+        ]);
+    }
+
+    /// ```
+    /// fn consider_borrow() {
+    ///     fn takes_ref(s: &str) {}
+    ///     let string = String::new();
+    ///     takes_ref(string);
+    /// }
+    /// ```
+    #[test]
+    fn message_consider_borrowing() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/consider-borrowing.json")
+        );
+        assert_eq!(
+            msg,
+            r#"mismatched types
+
+expected &str, found struct `std::string::String`
+
+note: expected type `&str`
+         found type `std::string::String`
+help: consider borrowing here: `&string`"#,
+        );
+
+        assert!(others.is_empty(), "{:?}", others);
+    }
+
+    /// ```
+    /// fn move_out_of_borrow() {
+    ///     match &Some(String::new()) {
+    ///         &Some(string) => takes_borrow(&string),
+    ///         &None => {},
+    ///     }
+    /// }
+    /// ```
+    #[test]
+    fn message_move_out_of_borrow() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/move-out-of-borrow.json")
+        );
+        assert_eq!(msg, "cannot move out of borrowed content");
+
+        assert_eq!(others, vec!["hint: to prevent move, use `ref string` or `ref mut string`"]);
+    }
+}

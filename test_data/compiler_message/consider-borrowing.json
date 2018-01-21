@@ -1,0 +1,59 @@
+{
+  "children": [{
+    "children": [],
+    "code": null,
+    "level": "note",
+    "message": "expected type `&str`\n   found type `std::string::String`",
+    "rendered": null,
+    "spans": []
+  }, {
+    "children": [],
+    "code": null,
+    "level": "help",
+    "message": "consider borrowing here",
+    "rendered": null,
+    "spans": [{
+      "byte_end": 4144,
+      "byte_start": 4138,
+      "column_end": 25,
+      "column_start": 19,
+      "expansion": null,
+      "file_name": "src/lib.rs",
+      "is_primary": true,
+      "label": null,
+      "line_end": 135,
+      "line_start": 135,
+      "suggested_replacement": "&string",
+      "text": [{
+        "highlight_end": 25,
+        "highlight_start": 19,
+        "text": "        takes_ref(string);"
+      }]
+    }]
+  }],
+  "code": {
+    "code": "E0308",
+    "explanation": "\nThis error occurs when the compiler was unable to infer the concrete type of a\nvariable. It can occur for several cases, the most common of which is a\nmismatch in the expected type that the compiler inferred for a variable's\ninitializing expression, and the actual type explicitly assigned to the\nvariable.\n\nFor example:\n\n```compile_fail,E0308\nlet x: i32 = \"I am not a number!\";\n//     ~~~   ~~~~~~~~~~~~~~~~~~~~\n//      |             |\n//      |    initializing expression;\n//      |    compiler infers type `&str`\n//      |\n//    type `i32` assigned to variable `x`\n```\n"
+  },
+  "level": "error",
+  "message": "mismatched types",
+  "rendered": "error[E0308]: mismatched types\n   --> src/lib.rs:135:19\n    |\n135 |         takes_ref(string);\n    |                   ^^^^^^\n    |                   |\n    |                   expected &str, found struct `std::string::String`\n    |                   help: consider borrowing here: `&string`\n    |\n    = note: expected type `&str`\n               found type `std::string::String`\n\n",
+  "spans": [{
+    "byte_end": 4144,
+    "byte_start": 4138,
+    "column_end": 25,
+    "column_start": 19,
+    "expansion": null,
+    "file_name": "src/lib.rs",
+    "is_primary": true,
+    "label": "expected &str, found struct `std::string::String`",
+    "line_end": 135,
+    "line_start": 135,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 25,
+      "highlight_start": 19,
+      "text": "        takes_ref(string);"
+    }]
+  }]
+}

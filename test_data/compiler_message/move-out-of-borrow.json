@@ -1,0 +1,45 @@
+{
+  "children": [],
+  "code": {
+    "code": "E0507",
+    "explanation": "\nYou tried to move out of a value which was borrowed. Erroneous code example:\n\n```compile_fail,E0507\nuse std::cell::RefCell;\n\nstruct TheDarkKnight;\n\nimpl TheDarkKnight {\n    fn nothing_is_true(self) {}\n}\n\nfn main() {\n    let x = RefCell::new(TheDarkKnight);\n\n    x.borrow().nothing_is_true(); // error: cannot move out of borrowed content\n}\n```\n\nHere, the `nothing_is_true` method takes the ownership of `self`. However,\n`self` cannot be moved because `.borrow()` only provides an `&TheDarkKnight`,\nwhich is a borrow of the content owned by the `RefCell`. To fix this error,\nyou have three choices:\n\n* Try to avoid moving the variable.\n* Somehow reclaim the ownership.\n* Implement the `Copy` trait on the type.\n\nExamples:\n\n```\nuse std::cell::RefCell;\n\nstruct TheDarkKnight;\n\nimpl TheDarkKnight {\n    fn nothing_is_true(&self) {} // First case, we don't take ownership\n}\n\nfn main() {\n    let x = RefCell::new(TheDarkKnight);\n\n    x.borrow().nothing_is_true(); // ok!\n}\n```\n\nOr:\n\n```\nuse std::cell::RefCell;\n\nstruct TheDarkKnight;\n\nimpl TheDarkKnight {\n    fn nothing_is_true(self) {}\n}\n\nfn main() {\n    let x = RefCell::new(TheDarkKnight);\n    let x = x.into_inner(); // we get back ownership\n\n    x.nothing_is_true(); // ok!\n}\n```\n\nOr:\n\n```\nuse std::cell::RefCell;\n\n#[derive(Clone, Copy)] // we implement the Copy trait\nstruct TheDarkKnight;\n\nimpl TheDarkKnight {\n    fn nothing_is_true(self) {}\n}\n\nfn main() {\n    let x = RefCell::new(TheDarkKnight);\n\n    x.borrow().nothing_is_true(); // ok!\n}\n```\n\nMoving a member out of a mutably borrowed struct will also cause E0507 error:\n\n```compile_fail,E0507\nstruct TheDarkKnight;\n\nimpl TheDarkKnight {\n    fn nothing_is_true(self) {}\n}\n\nstruct Batcave {\n    knight: TheDarkKnight\n}\n\nfn main() {\n    let mut cave = Batcave {\n        knight: TheDarkKnight\n    };\n    let borrowed = &mut cave;\n\n    borrowed.knight.nothing_is_true(); // E0507\n}\n```\n\nIt is fine only if you put something back. `mem::replace` can be used for that:\n\n```\n# struct TheDarkKnight;\n# impl TheDarkKnight { fn nothing_is_true(self) {} }\n# struct Batcave { knight: TheDarkKnight }\nuse std::mem;\n\nlet mut cave = Batcave {\n    knight: TheDarkKnight\n};\nlet borrowed = &mut cave;\n\nmem::replace(&mut borrowed.knight, TheDarkKnight).nothing_is_true(); // ok!\n```\n\nYou can find more information about borrowing in the rust-book:\nhttp://doc.rust-lang.org/book/first-edition/references-and-borrowing.html\n"
+  },
+  "level": "error",
+  "message": "cannot move out of borrowed content",
+  "rendered": "error[E0507]: cannot move out of borrowed content\n  --> src/main.rs:18:9\n   |\n18 |         &Some(string) => takes_borrow(&string),\n   |         ^^^^^^------^\n   |         |     |\n   |         |     hint: to prevent move, use `ref string` or `ref mut string`\n   |         cannot move out of borrowed content\n\n",
+  "spans": [{
+    "byte_end": 567,
+    "byte_start": 554,
+    "column_end": 22,
+    "column_start": 9,
+    "expansion": null,
+    "file_name": "src/main.rs",
+    "is_primary": true,
+    "label": "cannot move out of borrowed content",
+    "line_end": 18,
+    "line_start": 18,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 22,
+      "highlight_start": 9,
+      "text": "        &Some(string) => takes_borrow(&string),"
+    }]
+  }, {
+    "byte_end": 566,
+    "byte_start": 560,
+    "column_end": 21,
+    "column_start": 15,
+    "expansion": null,
+    "file_name": "src/main.rs",
+    "is_primary": false,
+    "label": "hint: to prevent move, use `ref string` or `ref mut string`",
+    "line_end": 18,
+    "line_start": 18,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 21,
+      "highlight_start": 15,
+      "text": "        &Some(string) => takes_borrow(&string),"
+    }]
+  }]
+}
