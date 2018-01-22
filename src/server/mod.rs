@@ -475,7 +475,7 @@ impl<O: Output> LsService<O> {
         let msg_string = match self.msg_reader.read_message() {
             Some(m) => m,
             None => {
-                debug!("Can't read message");
+                error!("Can't read message");
                 self.output.failure(Id::Null, jsonrpc::Error::parse_error());
                 return ServerStateChange::Break;
             }
@@ -487,7 +487,7 @@ impl<O: Output> LsService<O> {
             Ok(Some(rm)) => rm,
             Ok(None) => return ServerStateChange::Continue,
             Err(e) => {
-                debug!("parsing error, {:?}", e);
+                error!("parsing error, {:?}", e);
                 self.output.failure(Id::Null, jsonrpc::Error::parse_error());
                 return ServerStateChange::Break;
             }
@@ -511,7 +511,7 @@ impl<O: Output> LsService<O> {
         }
 
         if let Err(e) = self.dispatch_message(&raw_message) {
-            debug!("dispatch error, {:?}", e);
+            error!("dispatch error, {:?}", e);
             self.output.failure(raw_message.id.unwrap_or(Id::Null), e);
             return ServerStateChange::Break;
         }
