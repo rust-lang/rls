@@ -971,7 +971,7 @@ dependencies = [
  "rayon 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-analysis 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-data 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-rustc 0.1.1 (git+https://github.com/nrc/rls-rustc)",
+ "rls-rustc 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-vfs 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustfmt-nightly 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1007,8 +1007,8 @@ dependencies = [
 
 [[package]]
 name = "rls-rustc"
-version = "0.1.1"
-source = "git+https://github.com/nrc/rls-rustc#aaa4adad41135c216875d8703f30be4bcd208312"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rls-span"
@@ -1673,7 +1673,7 @@ dependencies = [
 "checksum regex-syntax 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ad890a5eef7953f55427c50575c680c42841653abd2b028b68cd223d157f62db"
 "checksum rls-analysis 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "38841e3c5271715a574ac220d9b408b59ed9e2626909c3bc54b5853b4eaadb7b"
 "checksum rls-data 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8024f1feaca72d0aa4ae1e2a8d454a31b9a33ed02f8d0e9c8559bf53c267ec3c"
-"checksum rls-rustc 0.1.1 (git+https://github.com/nrc/rls-rustc)" = "<none>"
+"checksum rls-rustc 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0ad5bd451d475380356f124efd104dc924ef91eeb76155be933de23d00d26acd"
 "checksum rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5d7c7046dc6a92f2ae02ed302746db4382e75131b9ce20ce967259f6b5867a6a"
 "checksum rls-vfs 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ffd34691a510938bb67fe0444fb363103c73ffb31c121d1e16bc92d8945ea8ff"
 "checksum rustc-ap-rustc_cratesio_shim 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f1a51c10af5abd5d698b7e3487e869e6d15f6feb04cbedb5c792e2824f9d845e"
