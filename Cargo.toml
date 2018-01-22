@@ -20,7 +20,7 @@ log = "0.4"
 racer = "2.0.12"
 rls-analysis = "0.10"
 rls-data = { version = "0.14", features = ["serialize-serde"] }
-rls-rustc = { git = "https://github.com/nrc/rls-rustc" }
+rls-rustc = "0.2"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4", features = ["racer-impls"] }
 rustfmt-nightly = { version = "0.3.6", optional = true }
