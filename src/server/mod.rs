@@ -425,7 +425,7 @@ impl<O: Output> LsService<O> {
                     if $method == <$request as LSPRequest>::METHOD {
                         let request: Request<$request> = msg.parse_as_request()?;
                         let request = (request, self.ctx.inited());
-                        self.dispatcher.dispatch((request));
+                        self.dispatcher.dispatch(request);
                         handled = true;
                     }
                 )*

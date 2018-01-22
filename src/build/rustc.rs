@@ -14,6 +14,7 @@ extern crate rustc_driver;
 extern crate rustc_errors as errors;
 extern crate rustc_resolve;
 extern crate rustc_save_analysis;
+extern crate rustc_trans_utils;
 extern crate syntax;
 
 use self::rustc::middle::cstore::CrateStore;
@@ -23,6 +24,7 @@ use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDef
 use self::rustc_driver::driver::CompileController;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
+use self::rustc_trans_utils::trans_crate::TransCrate;
 use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
@@ -148,6 +150,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
     fn late_callback(
         &mut self,
+        trans_crate: &TransCrate,
         matches: &getopts::Matches,
         sess: &Session,
         cstore: &CrateStore,
@@ -156,7 +159,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         ofile: &Option<PathBuf>,
     ) -> Compilation {
         self.default_calls
-            .late_callback(matches, sess, cstore, input, odir, ofile)
+            .late_callback(trans_crate, matches, sess, cstore, input, odir, ofile)
     }
 
     fn build_controller(
