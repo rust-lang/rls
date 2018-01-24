@@ -100,13 +100,15 @@ impl PostBuildHandler {
             v.clear();
         }
 
+        let mut group = 0;
+
         for msg in messages {
             if let Some(FileDiagnostic {
                 file_path,
                 diagnostic,
                 secondaries,
                 suggestions,
-            }) = parse_diagnostics(msg) {
+            }) = parse_diagnostics(msg, group) {
                 let entry = results
                     .entry(cwd.join(file_path))
                     .or_insert_with(Vec::new);
@@ -115,6 +117,7 @@ impl PostBuildHandler {
                 for secondary in secondaries {
                     entry.push((secondary, vec![]));
                 }
+                group += 1;
             }
         }
 
@@ -193,7 +196,7 @@ struct CompilerMessageCode {
     code: String,
 }
 
-fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
+fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     let message = match serde_json::from_str::<CompilerMessage>(message) {
         Ok(m) => m,
         Err(e) => {
@@ -233,6 +236,11 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
             })),
             source: Some("rustc".into()),
             message: primary_message.trim().to_owned(),
+            group: if message.spans.iter().any(|x| !x.is_primary) {
+                Some(group)
+            } else {
+                None
+            }
         }
     };
 
@@ -265,6 +273,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
             })),
             source: Some("rustc".into()),
             message: secondary_message.trim().to_owned(),
+            group: Some(group),
         }
     }).collect();
 
