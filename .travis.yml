@@ -11,9 +11,12 @@ env:
   - RUSTFMT=true
 matrix:
   include:
-    rust: nightly
+  - rust: nightly
     env: RUSTFMT=false
     os: linux
+  allow_failures:
+  - os: osx
+  fast_finish: true
 install:
     # Required for Racer autoconfiguration
     rustup component add rust-src
