@@ -853,14 +853,17 @@ fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
 
 lazy_static! {
     /// Thread pool for request execution allowing concurrent request processing.
-    pub static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
+    static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
         rayon::Configuration::default()
             .thread_name(|num| format!("request-worker-{}", num))
-            .panic_handler(|err| warn!("{:?}", err))
+            // panic details will be on stderr, otherwise ignore the work panic as it
+            // will already cause a mpsc disconnect-error & there isn't anything else to log
+            .panic_handler(|_| {})
     ).unwrap();
 }
 
 /// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
+/// Panicking work will receive `Err(RecvError)` / `Err(RecvTimeoutError::Disconnected)`
 pub fn receive_from_thread<T, F>(work_fn: F) -> mpsc::Receiver<T>
 where
     T: Send + 'static,
