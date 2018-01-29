@@ -10,7 +10,8 @@ categories = ["development-tools"]
 build = "build.rs"
 
 [dependencies]
-cargo = { git = "https://github.com/rust-lang/cargo" }
+# cargo hash delivered with nightly-2018-01-24
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "6a8eb71f6" }
 env_logger = "0.5"
 failure = "0.1.1"
 jsonrpc-core = "8.0.1"
