@@ -83,6 +83,15 @@ impl ActionContext {
         client_capabilities: lsp_data::ClientCapabilities,
         out: O,
     ) {
+        let cargo_toml = current_project.join("Cargo.toml");
+        if !cargo_toml.is_file() {
+            let warning: Notification<ShowMessage> = Notification::new(ShowMessageParams {
+                typ: MessageType::Warning,
+                message: format!("A {:?} file is required to support all RLS features", cargo_toml)
+            });
+            out.notify(warning);
+        }
+
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
                 let ctx = InitActionContext::new(
