@@ -98,7 +98,7 @@ Currently we accept the following options:
   `build_bin`.
 * `build_bin` (`String`, defaults to `""`) checks the project as if you passed
   `-- bin <build_bin>` argument to cargo. Mutually exclusive with `build_lib`.
-* `cfg_test` (`bool`, defaults to `true`) checks the project as if you were
+* `cfg_test` (`bool`, defaults to `false`) checks the project as if you were
   running `cargo test` rather than `cargo build`. I.e., compiles (but does not
   run) test code.
 * `unstable_features` (`bool`, defaults to `false`) enables unstable features.
@@ -111,7 +111,7 @@ Currently we accept the following options:
   the given target triple for all rustc invocations
 * `wait_to_build` (`u64`, defaults to `500`) time in milliseconds between
   receiving a change notification and starting build
-* `workspace_mode` (`bool`, defaults to `false`) Experimental mode, requires
+* `workspace_mode` (`bool`, defaults to `true`) Experimental mode, requires
   `unstable_features` turned on. When turned on, RLS will try to scan current
   workspace and analyze every package in it.
 * `analyze_package` (`String`, defaults to `""`) When `workspace_mode` is
