@@ -34,6 +34,8 @@ rayon = "0.9"
 
 [dev-dependencies]
 json = "0.11"
+tempdir = "0.3"
+walkdir = "2"
 
 [features]
 default = ["rustfmt"]

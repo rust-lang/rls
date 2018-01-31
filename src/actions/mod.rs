@@ -83,15 +83,6 @@ impl ActionContext {
         client_capabilities: lsp_data::ClientCapabilities,
         out: O,
     ) {
-        let cargo_toml = current_project.join("Cargo.toml");
-        if !cargo_toml.is_file() {
-            let warning: Notification<ShowMessage> = Notification::new(ShowMessageParams {
-                typ: MessageType::Warning,
-                message: format!("A {:?} file is required to support all RLS features", cargo_toml)
-            });
-            out.notify(warning);
-        }
-
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
                 let ctx = InitActionContext::new(
@@ -194,13 +185,24 @@ impl InitActionContext {
         let config = self.config.clone();
         // Spawn another thread since we're shelling out to Cargo and this can
         // cause a non-trivial amount of time due to disk access
+        let out2 = out.clone();
         thread::spawn(move || {
             let mut config = config.lock().unwrap();
             if let Err(e) = config.infer_defaults(&current_project) {
-                debug!(
-                    "Encountered an error while trying to infer config defaults: {:?}",
-                    e
-                );
+                let error = format!("{}", e);
+                if error.contains("Cargo.toml") {
+                    let warning: Notification<ShowMessage> = Notification::new(ShowMessageParams {
+                        typ: MessageType::Warning,
+                        message: format!(
+                            "A valid `Cargo.toml` must exist to support all RLS features: {}",
+                            error,
+                        ),
+                    });
+                    out2.notify(warning);
+                }
+                else {
+                    warn!("Encountered an error while trying to infer config defaults: {:?}", e);
+                }
             }
         });
 

@@ -1,0 +1,9 @@
+# note: purposely invalid toml
+
+[package]
+name = "dodgy"
+version = "0.1.0"
+authors = ["Alex Butler <alexheretic@gmail.com>"]
+
+[dependencies
+something = "

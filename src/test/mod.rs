@@ -24,7 +24,8 @@ use server::{self as ls_server, Request, ShutdownRequest, Notification};
 use jsonrpc_core;
 use vfs;
 
-use self::harness::{expect_messages, src, Environment, ExpectedMessage, RecordOutput};
+use self::harness::{expect_messages, src, test_data_to_tmp_dir, Environment, ExpectedMessage,
+                    RecordOutput};
 
 use ls_types::*;
 use lsp_data::InitializationOptions;
