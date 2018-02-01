@@ -1369,7 +1369,6 @@ fn test_deglob() {
     {
         wait_for_n_results!(1, results);
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
-        println!("{}", response.pretty(2));
         assert_eq!(response["id"], 100);
         assert_eq!(response["result"][0]["title"], "Deglob Import");
         assert_eq!(response["result"][0]["command"], "rls.deglobImports");
@@ -1403,7 +1402,6 @@ fn test_deglob() {
     {
         wait_for_n_results!(2, results);
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
-        println!("{}", response.pretty(2));
         assert_eq!(response["id"], 0x0100_0001);
         assert_eq!(response["method"], "workspace/applyEdit");
         let (key, changes) = response["params"]["edit"]["changes"].entries().next().unwrap();
@@ -1424,7 +1422,6 @@ fn test_deglob() {
         assert_eq!(imports, vec!["Stdin", "Stdout"]);
 
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
-        println!("{}", response.pretty(2));
         assert_eq!(response["id"], 200);
         assert!(response["result"].is_null());
     }
@@ -1456,7 +1453,6 @@ fn test_deglob() {
         {
         wait_for_n_results!(1, results);
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
-        println!("{}", response.pretty(2));
         assert_eq!(response["id"], 0x0100_0002);
         assert_eq!(response["method"], "workspace/applyEdit");
         let (key, changes) = response["params"]["edit"]["changes"].entries().next().unwrap();
