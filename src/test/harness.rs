@@ -193,11 +193,11 @@ impl ExpectedMessage {
 }
 
 macro_rules! wait_for_n_results {
-    ($n:expr, $results:expr) => {{
+    ($n:expr, $results:expr, timeout= $timout:expr) => {{
         use std::time::{Duration, SystemTime};
         use std::thread;
 
-        let timeout = Duration::from_secs(320);
+        let timeout = $timout; //Duration::from_secs(320);
         let start_clock = SystemTime::now();
         let mut results_count = $results.lock().unwrap().len();
         while results_count < $n {
@@ -208,6 +208,9 @@ macro_rules! wait_for_n_results {
             results_count = $results.lock().unwrap().len();
         }
     }};
+    ($n:expr, $results:expr) => {
+        wait_for_n_results!($n, $results, timeout = Duration::from_secs(320))
+    };
 }
 
 pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {

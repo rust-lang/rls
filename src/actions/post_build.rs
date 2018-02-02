@@ -23,7 +23,7 @@ use CRATE_BLACKLIST;
 
 use analysis::AnalysisHost;
 use data::Analysis;
-use ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range};
+use ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range, Position};
 use serde_json;
 use span::compiler::DiagnosticSpan;
 use url::Url;
@@ -143,24 +143,60 @@ impl PostBuildHandler {
     }
 
     fn emit_notifications(&self, build_results: &BuildResults) {
-        for (path, diagnostics) in build_results {
+        for (path, diags) in build_results {
+            let mut diagnostics: Vec<_> = diags
+                .iter()
+                .filter_map(|&(ref d, _)| {
+                    if self.show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
+                        Some(d.clone())
+                    }
+                    else {
+                        None
+                    }
+                })
+                .collect();
+
+            // deduplicate diagnostics (keep most severe)
+            diagnostics.sort_unstable_by(|a, b| sortable_diagnostic(a).cmp(&sortable_diagnostic(b)));
+            diagnostics.dedup_by(|a, b| dupable_diagnostic_bits(a) == dupable_diagnostic_bits(b));
+
             let params = PublishDiagnosticsParams {
                 uri: Url::from_file_path(path).unwrap(),
-                diagnostics: diagnostics
-                    .iter()
-                    .filter_map(|&(ref d, _)| {
-                        if self.show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
-                            Some(d.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect(),
+                diagnostics,
             };
 
             self.notifier.notify_publish(params);
         }
     }
+}
+
+/// Sort order for a Diagnostic
+/// sort by position, message, severity (most severe first), source (rustc first)
+fn sortable_diagnostic(d: &Diagnostic) -> (Position, Position, &str, usize, &str) {
+    use ls_types::DiagnosticSeverity::*;
+    (
+        d.range.start,
+        d.range.end,
+        &d.message,
+        match d.severity {
+            Some(Error) => 0,
+            Some(Warning) => 1,
+            Some(Information) => 2,
+            Some(Hint) => 3,
+            _ => 4,
+        },
+        match d.source.as_ref().map(String::as_str) {
+            Some("rustc") => "!!first",
+            Some(s) => s,
+            _ => "~~last",
+        },
+    )
+}
+
+/// Deduplicate diagnostics have the same position & message
+fn dupable_diagnostic_bits(d: &Diagnostic) -> (Position, Position, &str) {
+    let (p1, p2, msg, ..) = sortable_diagnostic(d);
+    (p1, p2, msg)
 }
 
 #[derive(Debug)]
