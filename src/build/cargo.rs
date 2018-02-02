@@ -173,7 +173,7 @@ fn run_cargo(
             false,
             &[],
             false,
-            false,
+            opts.all_targets,
         ),
         features: &opts.features,
         all_features: opts.all_features,
@@ -413,7 +413,13 @@ impl Executor for RlsExecutor {
             // Because we only try to emulate `cargo test` using `cargo check`, so for now
             // assume crate_type arg (i.e. in `cargo test` it isn't specified for --test targets)
             // and build test harness only for final crate type
-            let crate_type = crate_type.expect("no crate-type in rustc command line");
+            let crate_type = if config.all_targets {
+                // Crate type may be undefined when `all_targets` is true, for example for integration tests
+                crate_type.unwrap_or("undefined".to_owned())
+            } else {
+                // Panic if crate type undefined for other cases
+                crate_type.expect("no crate-type in rustc command line")
+            };
             let build_lib = *config.build_lib.as_ref();
             let is_final_crate_type = crate_type == "bin" || (crate_type == "lib" && build_lib);
 
@@ -512,6 +518,7 @@ struct CargoOptions {
     no_default_features: bool,
     features: Vec<String>,
     jobs: Option<u32>,
+    all_targets: bool,
 }
 
 impl Default for CargoOptions {
@@ -525,6 +532,7 @@ impl Default for CargoOptions {
             no_default_features: false,
             features: vec![],
             jobs: None,
+            all_targets: false
         }
     }
 }
@@ -538,6 +546,7 @@ impl CargoOptions {
                 all_features: config.all_features,
                 no_default_features: config.no_default_features,
                 jobs: config.jobs,
+                all_targets: config.all_targets,
                 ..CargoOptions::default()
             }
         } else {
@@ -562,6 +571,7 @@ impl CargoOptions {
                 all_features: config.all_features,
                 no_default_features: config.no_default_features,
                 jobs: config.jobs,
+                all_targets: config.all_targets,
                 ..CargoOptions::default()
             }
         }
