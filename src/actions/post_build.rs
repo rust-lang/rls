@@ -281,12 +281,11 @@ fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Optio
     if !children.is_empty() {
         let mut notes = String::new();
         for &CompilerMessage { ref message, ref level, ref spans, .. } in children {
-            notes.push_str(&format!("\n{}: ", level));
 
             macro_rules! add_message_to_notes {
                 ($msg:expr) => {{
                     let mut lines = message.lines();
-                    notes.push_str(lines.next().unwrap());
+                    notes.push_str(&format!("\n{}: {}", level, lines.next().unwrap()));
                     for line in lines {
                         notes.push_str(&format!(
                             "\n{:indent$}{line}",
@@ -526,6 +525,17 @@ help: consider borrowing here: `&string`"#,
         );
         assert_eq!(msg, "unused import: `std::borrow::Cow`\n\n\
                          note: #[warn(unused_imports)] on by default");
+
+        assert!(others.is_empty(), "{:?}", others);
+    }
+
+    #[test]
+    fn message_cannot_find_type() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/cannot-find-type.json")
+        );
+        assert_eq!(msg, "cannot find type `HashSet` in this scope\n\n\
+                         not found in this scope");
 
         assert!(others.is_empty(), "{:?}", others);
     }
