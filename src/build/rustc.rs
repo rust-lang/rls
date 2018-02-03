@@ -74,7 +74,14 @@ pub fn rustc(
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();
     let args: Vec<_> = if cfg!(feature = "clippy") {
-        args.iter().map(|s| s.to_owned()).chain(Some("-Aclippy".to_owned())).collect()
+        args.iter()
+            .map(|s| s.to_owned())
+            .chain(vec![
+                "-Aclippy".to_owned(),
+                "--cfg".to_owned(),
+                r#"feature="cargo-clippy""#.to_owned(),
+            ])
+            .collect()
     } else {
         args.to_owned()
     };
