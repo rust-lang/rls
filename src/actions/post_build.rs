@@ -206,7 +206,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
         return None;
     }
 
-    let diagnostic_msg = format!("{}\n", message.message);
+    let diagnostic_msg = message.message.clone();
     let primary_span = message.spans.iter().find(|s| s.is_primary).unwrap();
     let rls_span = primary_span.rls_span().zero_indexed();
     let suggestions = make_suggestions(&message.children, &rls_span.file);
@@ -215,12 +215,12 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
         let mut primary_message = diagnostic_msg.clone();
         if let Some(ref primary_label) = primary_span.label {
             if primary_label.trim() != primary_message.trim() {
-                primary_message.push_str(&format!("\n{}", primary_label));
+                primary_message.push_str(&format!("\n\n{}", primary_label));
             }
         }
 
         if let Some(notes) = format_notes(&message.children, primary_span) {
-            primary_message.push_str(&format!("\n{}", notes));
+            primary_message.push_str(&format!("\n\n{}", notes));
         }
 
         Diagnostic {
@@ -251,7 +251,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
         };
 
         if let Some(ref secondary_label) = secondary_span.label {
-            secondary_message.push_str(&format!("\n{}", secondary_label));
+            secondary_message.push_str(&format!("\n\n{}", secondary_label));
         }
         let rls_span = secondary_span.rls_span().zero_indexed();
 
@@ -307,7 +307,7 @@ fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Optio
             }
         }
 
-        if notes.is_empty() { None } else { Some(notes) }
+        if notes.is_empty() { None } else { Some(notes.trim().to_string()) }
     }
     else {
         None
@@ -512,5 +512,19 @@ help: consider borrowing here: `&string`"#,
         assert_eq!(msg, "cannot move out of borrowed content");
 
         assert_eq!(others, vec!["hint: to prevent move, use `ref string` or `ref mut string`"]);
+    }
+
+    /// ```
+    /// use std::borrow::Cow;
+    /// ```
+    #[test]
+    fn message_unused_use() {
+        let (msg, others) = parsed_message(
+            include_str!("../../test_data/compiler_message/unused-use.json")
+        );
+        assert_eq!(msg, "unused import: `std::borrow::Cow`\n\n\
+                         note: #[warn(unused_imports)] on by default");
+
+        assert!(others.is_empty(), "{:?}", others);
     }
 }

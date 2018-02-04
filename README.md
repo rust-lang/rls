@@ -85,7 +85,7 @@ Studio Code extension this will be done via the workspace settings file
 `settings.json`.
 
 Other editors will have their own way of sending the
-[workspace/DidChangeConfiguration](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#workspace_didChangeConfiguration)
+[workspace/DidChangeConfiguration](https://microsoft.github.io/language-server-protocol/specification#workspace_didChangeConfiguration)
 method.
 
 Entries in this file will affect how the RLS operates and how it builds your
