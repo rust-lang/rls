@@ -11,17 +11,20 @@
 extern crate getopts;
 extern crate rustc;
 extern crate rustc_driver;
+extern crate rustc_plugin;
 extern crate rustc_errors as errors;
 extern crate rustc_resolve;
 extern crate rustc_save_analysis;
 extern crate rustc_trans_utils;
+#[cfg(feature = "clippy")]
+extern crate clippy_lints;
 extern crate syntax;
 
 use self::rustc::middle::cstore::CrateStore;
 use self::rustc::session::Session;
 use self::rustc::session::config::{self, ErrorOutputType, Input};
 use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
-use self::rustc_driver::driver::CompileController;
+use self::rustc_driver::driver::{CompileController, CompileState};
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::rustc_trans_utils::trans_crate::TransCrate;
@@ -70,7 +73,18 @@ pub fn rustc(
 
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();
-    let args = args.to_owned();
+    let args: Vec<_> = if cfg!(feature = "clippy") {
+        args.iter()
+            .map(|s| s.to_owned())
+            .chain(vec![
+                "-Aclippy".to_owned(),
+                "--cfg".to_owned(),
+                r#"feature="cargo-clippy""#.to_owned(),
+            ])
+            .collect()
+    } else {
+        args.to_owned()
+    };
 
     let analysis = Arc::new(Mutex::new(None));
 
@@ -170,6 +184,50 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
         let analysis = self.analysis.clone();
+
+        #[cfg(feature = "clippy")]
+        fn clippy(state: &mut CompileState) {
+            let mut registry = rustc_plugin::registry::Registry::new(
+                state.session,
+                state
+                    .krate
+                    .as_ref()
+                    .expect(
+                        "at this compilation stage \
+                            the crate must be parsed",
+                    )
+                    .span,
+            );
+            registry.args_hidden = Some(Vec::new());
+            clippy_lints::register_plugins(&mut registry);
+
+            let rustc_plugin::registry::Registry {
+                early_lint_passes,
+                late_lint_passes,
+                lint_groups,
+                llvm_passes,
+                attributes,
+                ..
+            } = registry;
+            let sess = &state.session;
+            let mut ls = sess.lint_store.borrow_mut();
+            for pass in early_lint_passes {
+                ls.register_early_pass(Some(sess), true, pass);
+            }
+            for pass in late_lint_passes {
+                ls.register_late_pass(Some(sess), true, pass);
+            }
+
+            for (name, to) in lint_groups {
+                ls.register_group(Some(sess), true, name, to);
+            }
+
+            sess.plugin_llvm_passes.borrow_mut().extend(llvm_passes);
+            sess.plugin_attributes.borrow_mut().extend(attributes);
+        }
+        #[cfg(not(feature = "clippy"))]
+        fn clippy(_: &mut CompileState) {}
+        result.after_parse.callback = Box::new(clippy);
 
         result.after_analysis.callback = Box::new(move |state| {
             // There are two ways to move the data from rustc to the RLS, either
