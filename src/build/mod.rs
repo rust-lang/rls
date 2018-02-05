@@ -291,17 +291,8 @@ impl BuildQueue {
     }
 
     // Takes the unlocked build queue and pushes an incoming build onto it.
-    fn push_build(queued: &mut (Build, Build), mut build: PendingBuild) {
+    fn push_build(queued: &mut (Build, Build), build: PendingBuild) {
         if build.priority == BuildPriority::Normal {
-            if let Build::None = queued.0 {
-                if let Build::None = queued.1 {
-                    // If there are no builds pending or running, we can start one
-                    // immediately.
-                    build.priority = BuildPriority::Immediate;
-                    queued.1 = Build::Pending(build);
-                    return;
-                }
-            }
             Self::squash_build(&mut queued.0);
             queued.0 = Build::Pending(build);
         } else {
@@ -376,6 +367,7 @@ impl BuildQueue {
                 let mut blocked = internals.blocked.lock().unwrap();
                 pbh.blocked_threads.extend(blocked.drain(..));
             }
+
             pbh.handle(result);
 
             // Remove the in-progress marker from the build queue.

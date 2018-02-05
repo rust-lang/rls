@@ -63,7 +63,7 @@ impl PostBuildHandler {
                     self.handle_messages(&cwd, &messages);
 
                     // Reload the analysis data.
-                    debug!("reload analysis: {:?}", self.project_path);
+                    trace!("reload analysis: {:?}", self.project_path);
                     if new_analysis.is_empty() {
                         self.reload_analysis_from_disk(&cwd);
                     } else {

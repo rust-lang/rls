@@ -29,7 +29,7 @@ use rustfmt::config::Config as RustfmtConfig;
 #[cfg(feature = "rustfmt")]
 use rustfmt::config::WriteMode;
 
-const DEFAULT_WAIT_TO_BUILD: u64 = 500;
+const DEFAULT_WAIT_TO_BUILD: u64 = 1500;
 
 /// Some values in the config can be inferred without an explicit value set by
 /// the user. There are no guarantees which values will or will not be passed
