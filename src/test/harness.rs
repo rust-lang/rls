@@ -37,6 +37,8 @@ pub struct Environment {
 }
 
 impl Environment {
+    /// constructs a new test environment around a project directory child of `./test_data`
+    /// if path is absolute will use as is
     pub fn new<P: AsRef<Path>>(project_dir: P) -> Self {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -49,16 +51,7 @@ impl Environment {
             env::set_var("RUSTC", "rustc");
         }
 
-        // Acquire the current directory, but this is changing when tests are
-        // running so we need to be sure to access it in a synchronized fashion.
-        let cur_dir = {
-            use build::environment::{EnvironmentLock, Environment};
-            let env = EnvironmentLock::get();
-            let (guard, _other) = env.lock();
-            Environment::push_with_lock(&HashMap::new(), None, guard)
-                .get_old_cwd()
-                .to_path_buf()
-        };
+        let cur_dir = current_dir();
         let project_path = {
             if project_dir.as_ref().is_absolute() {
                 project_dir.as_ref().to_path_buf()
@@ -120,6 +113,17 @@ impl Drop for Environment {
             fs::remove_dir_all(&self.target_path).expect("failed to tidy up");
         }
     }
+}
+
+// Acquire the current directory, but this is changing when tests are
+// running so we need to be sure to access it in a synchronized fashion.
+fn current_dir() -> PathBuf {
+    use build::environment::{EnvironmentLock, Environment};
+    let env = EnvironmentLock::get();
+    let (guard, _other) = env.lock();
+    Environment::push_with_lock(&HashMap::new(), None, guard)
+        .get_old_cwd()
+        .to_path_buf()
 }
 
 struct MockMsgReader {
@@ -360,15 +364,7 @@ fn char_of_byte_index(s: &str, byte: usize) -> usize {
 }
 
 pub fn test_data_to_tmp_dir<P: AsRef<Path>>(test_data_path: P) -> Result<TempDir, Box<Error>> {
-    let cur_dir = {
-        use build::environment::{EnvironmentLock, Environment};
-        let env = EnvironmentLock::get();
-        let (guard, _other) = env.lock();
-        Environment::push_with_lock(&HashMap::new(), None, guard)
-            .get_old_cwd()
-            .to_path_buf()
-    };
-
+    let cur_dir = current_dir();
     let test_data_dir = cur_dir.join(&test_data_path);
     let dir = TempDir::new(test_data_path.as_ref().to_str().unwrap_or("rls-test"))?;
 
