@@ -47,6 +47,7 @@ pub trait Notifier: Send {
     fn notify_begin(&self);
     fn notify_end(&self);
     fn notify_publish(&self, PublishDiagnosticsParams);
+    fn notify_error(&self, &str);
 }
 
 impl PostBuildHandler {
@@ -83,6 +84,7 @@ impl PostBuildHandler {
             }
             BuildResult::Err => {
                 trace!("build - Error");
+                self.notifier.notify_error("There was an error trying to build, RLS features will be limited. Try running `cargo check` for more information.");
                 self.notifier.notify_end();
             }
         }

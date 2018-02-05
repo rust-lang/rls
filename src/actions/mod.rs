@@ -25,7 +25,7 @@ use actions::post_build::{BuildResults, PostBuildHandler, Notifier};
 use build::*;
 use lsp_data;
 use lsp_data::*;
-use lsp_data::notification::PublishDiagnostics;
+use lsp_data::notification::{PublishDiagnostics, ShowMessage};
 use server::{Output, Notification};
 
 use std::collections::HashMap;
@@ -216,6 +216,12 @@ impl InitActionContext {
             }
             fn notify_publish(&self, params: PublishDiagnosticsParams) {
                 self.out.notify(Notification::<PublishDiagnostics>::new(params));
+            }
+            fn notify_error(&self, msg: &str) {
+                self.out.notify(Notification::<ShowMessage>::new(lsp_data::ShowMessageParams {
+                    typ: lsp_data::MessageType::Error,
+                    message: msg.to_owned(),
+                }));
             }
         }
 

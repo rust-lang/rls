@@ -733,9 +733,7 @@ mod test {
 
         let notif = Notification::<DummyNotification>::new(());
         let raw = format!("{}", notif);
-        eprintln!("raw: {:?}", raw);
         let deser: serde_json::Value = serde_json::from_str(&raw).unwrap();
-        eprintln!("deser: {:?}", deser);
 
         assert!(match deser.get("params") {
             Some(&serde_json::Value::Array(ref arr)) if arr.len() == 0 => true,
