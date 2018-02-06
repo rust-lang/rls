@@ -376,7 +376,7 @@ impl Executor for RlsExecutor {
                 build_script_notice
             );
 
-            if ::CRATE_BLACKLIST.contains(&&*crate_name) {
+            if ::blacklist::CRATE_BLACKLIST.contains(&&*crate_name) {
                 // By running the original command (rather than using our shim), we
                 // avoid producing save-analysis data.
                 trace!("crate is blacklisted");

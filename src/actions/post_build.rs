@@ -19,7 +19,6 @@ use std::thread;
 
 use build::BuildResult;
 use lsp_data::{ls_util, PublishDiagnosticsParams};
-use CRATE_BLACKLIST;
 
 use analysis::AnalysisHost;
 use data::Analysis;
@@ -125,7 +124,7 @@ impl PostBuildHandler {
     fn reload_analysis_from_disk(&self, cwd: &Path) {
         if self.use_black_list {
             self.analysis
-                .reload_with_blacklist(&self.project_path, cwd, &CRATE_BLACKLIST)
+                .reload_with_blacklist(&self.project_path, cwd, &::blacklist::CRATE_BLACKLIST)
                 .unwrap();
         } else {
             self.analysis.reload(&self.project_path, cwd).unwrap();
@@ -135,7 +134,7 @@ impl PostBuildHandler {
     fn reload_analysis_from_memory(&self, cwd: &Path, analysis: Vec<Analysis>) {
         if self.use_black_list {
             self.analysis
-                .reload_from_analysis(analysis, &self.project_path, cwd, &CRATE_BLACKLIST)
+                .reload_from_analysis(analysis, &self.project_path, cwd, &::blacklist::CRATE_BLACKLIST)
                 .unwrap();
         } else {
             self.analysis

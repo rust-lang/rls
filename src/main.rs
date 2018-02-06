@@ -33,6 +33,7 @@ extern crate log;
 extern crate racer;
 extern crate rayon;
 extern crate rls_analysis as analysis;
+extern crate rls_blacklist as blacklist;
 extern crate rls_data as data;
 extern crate rls_rustc as rustc_shim;
 extern crate rls_span as span;
@@ -69,22 +70,6 @@ const COMPILER_TIMEOUT: u64 = 1500;
 // Timeout for potenially very slow CPU CI boxes
 #[cfg(test)]
 const COMPILER_TIMEOUT: u64 = 3_600_000;
-
-const CRATE_BLACKLIST: [&'static str; 13] = [
-    "libc",
-    "typenum",
-    "alloc",
-    "idna",
-    "openssl",
-    "unicode_normalization",
-    "serde",
-    "serde_json",
-    "rustc_serialize",
-    "unicode_segmentation",
-    "cocoa",
-    "gleam",
-    "winapi",
-];
 
 const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
 
