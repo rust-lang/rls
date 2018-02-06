@@ -50,7 +50,8 @@ pub use lsp_data::FindImpls;
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::mpsc;
+use std::panic;
+use std::sync::{Mutex, mpsc};
 
 /// Represent the result of a deglob action for a single wildcard import.
 ///
@@ -229,7 +230,7 @@ impl RequestAction for Definition {
 
                     racer::find_definition(file_path, location, &session)
                         .and_then(location_from_racer_match)
-                }))
+                }, "textDocument/definition-racer"))
             } else {
                 None
             }
@@ -852,27 +853,64 @@ fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
 }
 
 lazy_static! {
+    static ref NUM_THREADS: usize = ::num_cpus::get();
+    static ref WORK: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
+
     /// Thread pool for request execution allowing concurrent request processing.
     static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
         rayon::Configuration::default()
             .thread_name(|num| format!("request-worker-{}", num))
-            // panic details will be on stderr, otherwise ignore the work panic as it
-            // will already cause a mpsc disconnect-error & there isn't anything else to log
-            .panic_handler(|_| {})
+            .num_threads(*NUM_THREADS)
     ).unwrap();
 }
 
 /// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
 /// Panicking work will receive `Err(RecvError)` / `Err(RecvTimeoutError::Disconnected)`
-pub fn receive_from_thread<T, F>(work_fn: F) -> mpsc::Receiver<T>
+pub fn receive_from_thread<T, F>(work_fn: F, description: &'static str) -> mpsc::Receiver<T>
 where
     T: Send + 'static,
-    F: FnOnce() -> T + Send + 'static,
+    F: FnOnce() -> T + Send + panic::UnwindSafe + 'static,
 {
     let (sender, receiver) = mpsc::channel();
+
+    {
+        let mut work = WORK.lock().unwrap();
+        if work.len() >= *NUM_THREADS {
+            // there are already N ongoing tasks, that may or may not have timed out
+            // don't add yet more to the queue fail fast to allow the work pool to recover
+            warn!(
+                "Could not start `{}` as at work capacity, {:?} in progress",
+                description,
+                *work,
+            );
+            return receiver;
+        }
+        if work.iter().filter(|desc| *desc == &description).count() >= (*NUM_THREADS / 2).max(1) {
+            // this type of work is already filling around half the work pool, so there's
+            // good reason to believe it may fill the entire pool => fail fast to allow
+            // other task-types to run
+            warn!(
+                "Could not start `{}` as same work-type is filling half capacity, {:?} in progress",
+                description,
+                *work,
+            );
+            return receiver;
+        }
+        work.push(description);
+    }
+
     WORK_POOL.spawn(move || {
-        // an error here simply means the work took too long and the receiver has been dropped
-        let _ = sender.send(work_fn());
+        // panic details will be on stderr, otherwise ignore the work panic as it
+        // will already cause a mpsc disconnect-error & there isn't anything else to log
+        if let Ok(work_result) = panic::catch_unwind(work_fn) {
+            // an error here simply means the work took too long and the receiver has been dropped
+            let _ = sender.send(work_result);
+        }
+
+        let mut work = WORK.lock().unwrap();
+        if let Some(index) = work.iter().position(|desc| desc == &description) {
+            work.swap_remove(index);
+        }
     });
     receiver
 }

@@ -59,7 +59,7 @@ macro_rules! define_dispatch_request_enum {
                             else {
                                 $request_type::handle(ctx, params)
                             }
-                        });
+                        }, $request_type::METHOD);
 
                         match receiver.recv_timeout(timeout)
                             .unwrap_or_else(|_| $request_type::fallback_response()) {
