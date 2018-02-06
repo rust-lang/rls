@@ -346,7 +346,7 @@ impl BlockingRequestAction for InitializeRequest {
         };
         out.success(id, &result);
 
-        ctx.init(get_root_path(&params), &init_options, capabilities, out);
+        ctx.init(get_root_path(&params), &init_options, capabilities, &out);
 
         Ok(NoResponse)
     }
@@ -386,6 +386,7 @@ impl<O: Output> LsService<O> {
         while self.handle_message() == ServerStateChange::Continue {}
     }
 
+    #[allow(cyclomatic_complexity)] // complexity after macro expansion
     fn dispatch_message(&mut self, msg: &RawMessage) -> Result<(), jsonrpc::Error> {
         macro_rules! match_action {
             (
@@ -399,7 +400,7 @@ impl<O: Output> LsService<O> {
                 $(
                     if $method == <$n_action as LSPNotification>::METHOD {
                         let notification: Notification<$n_action> = msg.parse_as_notification()?;
-                        if let Err(_) = notification.dispatch(&mut self.ctx, self.output.clone()) {
+                        if notification.dispatch(&mut self.ctx, self.output.clone()).is_err() {
                             debug!("Error handling notification: {:?}", msg);
                         }
                         handled = true;
@@ -412,10 +413,7 @@ impl<O: Output> LsService<O> {
                         // block until all nonblocking requests have been handled ensuring ordering
                         self.dispatcher.await_all_dispatched();
 
-                        if let Err(_) = request.blocking_dispatch(
-                            &mut self.ctx,
-                            &self.output
-                        ) {
+                        if request.blocking_dispatch(&mut self.ctx, &self.output).is_err() {
                             debug!("Error handling request: {:?}", msg);
                         }
                         handled = true;
@@ -535,9 +533,9 @@ impl RawMessage {
     {
         // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
         // to using jsonrpc_core::Id
-        let parsed_numeric_id = match &self.id {
-            &Some(Id::Num(n)) => Some(n as usize),
-            &Some(Id::Str(ref s)) => usize::from_str_radix(s, 10).ok(),
+        let parsed_numeric_id = match self.id {
+            Some(Id::Num(n)) => Some(n as usize),
+            Some(Id::Str(ref s)) => usize::from_str_radix(s, 10).ok(),
             _ => None,
         };
 
@@ -553,7 +551,7 @@ impl RawMessage {
                 received: Instant::now(),
                 _action: PhantomData,
             }),
-            None => return Err(jsonrpc::Error::invalid_request()),
+            None => Err(jsonrpc::Error::invalid_request()),
         }
     }
 
@@ -592,19 +590,18 @@ impl RawMessage {
 
         let method = method
             .as_str()
-            .ok_or_else(|| jsonrpc::Error::invalid_request())?
+            .ok_or_else(jsonrpc::Error::invalid_request)?
             .to_owned();
 
         // Representing internally a missing parameter as Null instead of None,
         // (Null being unused value of param by the JSON-RPC 2.0 spec)
         // to unify the type handling – now the parameter type implements Deserialize.
         let params = match ls_command.get("params").map(|p| p.to_owned()) {
-            Some(params @ serde_json::Value::Object(..)) => params,
+            Some(params @ serde_json::Value::Object(..)) |
             Some(params @ serde_json::Value::Array(..)) => params,
-            None => serde_json::Value::Null,
             // Null as input value is not allowed by JSON-RPC 2.0,
             // but including it for robustness
-            Some(serde_json::Value::Null) => serde_json::Value::Null,
+            Some(serde_json::Value::Null) | None => serde_json::Value::Null,
             _ => return Err(jsonrpc::Error::invalid_request()),
         };
 

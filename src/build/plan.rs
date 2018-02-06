@@ -66,7 +66,7 @@ impl Plan {
     /// Returns whether a build plan has cached compiler invocations and dep
     /// graph so it's at all able to return a job queue via `prepare_work`.
     pub fn is_ready(&self) -> bool {
-        self.compiler_jobs.is_empty() == false
+        !self.compiler_jobs.is_empty()
     }
 
     /// Cache a given compiler invocation in `ProcessBuilder` for a given
@@ -102,7 +102,7 @@ impl Plan {
         }
 
         let key = key_from_unit(unit);
-        self.units.entry(key.clone()).or_insert(unit.into());
+        self.units.entry(key.clone()).or_insert_with(|| unit.into());
         // Process only those units, which are not yet in the dep graph.
         if self.dep_graph.get(&key).is_some() {
             return Ok(());
@@ -131,9 +131,9 @@ impl Plan {
         // to quickly construct a work sub-graph from a set of dirty units.
         self.rev_dep_graph
             .entry(key.clone())
-            .or_insert(HashSet::new());
+            .or_insert_with(HashSet::new);
         for unit in dep_keys {
-            let revs = self.rev_dep_graph.entry(unit).or_insert(HashSet::new());
+            let revs = self.rev_dep_graph.entry(unit).or_insert_with(HashSet::new);
             revs.insert(key.clone());
         }
 
@@ -158,12 +158,12 @@ impl Plan {
         let build_scripts: HashMap<&Path, UnitKey> = self.units
             .iter()
             .filter(|&(&(_, ref kind), _)| *kind == TargetKind::CustomBuild)
-            .map(|(key, ref unit)| (unit.target.src_path(), key.clone()))
+            .map(|(key, unit)| (unit.target.src_path(), key.clone()))
             .collect();
         let other_targets: HashMap<UnitKey, &Path> = self.units
             .iter()
             .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
-            .map(|(key, ref unit)| {
+            .map(|(key, unit)| {
                 (key.clone(), unit.target.src_path().parent().unwrap())
             })
             .collect();
@@ -206,14 +206,11 @@ impl Plan {
         while let Some(top) = to_process.pop() {
             if transitive.get(&top).is_some() {
                 continue;
-            } else {
-                transitive.insert(top.clone());
             }
+            transitive.insert(top.clone());
 
             // Process every dirty rev dep of the processed node
-            let dirty_rev_deps = self.rev_dep_graph
-                .get(&top)
-                .unwrap()
+            let dirty_rev_deps = self.rev_dep_graph[&top]
                 .iter()
                 .filter(|dep| dirties.contains(dep));
             for rev_dep in dirty_rev_deps {
@@ -233,9 +230,9 @@ impl Plan {
 
         self.rev_dep_graph.iter()
             // Remove nodes that are not dirty
-            .filter(|&(unit, _)| dirties.contains(&unit))
+            .filter(|&(unit, _)| dirties.contains(unit))
             // Retain only dirty dependencies of the ones that are dirty
-            .map(|(k, deps)| (k.clone(), deps.iter().cloned().filter(|d| dirties.contains(&d)).collect()))
+            .map(|(k, deps)| (k.clone(), deps.iter().cloned().filter(|d| dirties.contains(d)).collect()))
             .collect()
     }
 
@@ -246,8 +243,8 @@ impl Plan {
         let mut visited: HashSet<UnitKey> = HashSet::new();
         let mut output = vec![];
 
-        for (k, _) in dirties {
-            if !visited.contains(&k) {
+        for k in dirties.keys() {
+            if !visited.contains(k) {
                 dfs(k, &self.rev_dep_graph, &mut visited, &mut output);
             }
         }
@@ -262,11 +259,11 @@ impl Plan {
             visited: &mut HashSet<UnitKey>,
             output: &mut Vec<UnitKey>,
         ) {
-            if visited.contains(&unit) {
+            if visited.contains(unit) {
                 return;
             } else {
                 visited.insert(unit.clone());
-                for neighbour in graph.get(&unit).unwrap() {
+                for neighbour in &graph[unit] {
                     dfs(neighbour, graph, visited, output);
                 }
                 output.push(unit.clone());
@@ -275,7 +272,7 @@ impl Plan {
     }
 
     pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
-        if self.is_ready() == false {
+        if !self.is_ready() {
             return WorkStatus::NeedsCargo;
         }
 
@@ -299,7 +296,7 @@ impl Plan {
             trace!("Topologically sorted dirty graph: {:?}", queue);
             let jobs: Vec<_> = queue
                 .iter()
-                .map(|x| self.compiler_jobs.get(x).unwrap().clone())
+                .map(|x| self.compiler_jobs[x].clone())
                 .collect();
 
             if jobs.is_empty() {
@@ -329,7 +326,7 @@ impl JobQueue {
         // returned results will replace currently held diagnostics/analyses.
         // Either allow to return a BuildResult::Squashed here or just delegate
         // to Cargo (which we do currently) in `prepare_work`
-        assert!(self.0.is_empty() == false);
+        assert!(!self.0.is_empty());
 
         let mut compiler_messages = vec![];
         let mut analyses = vec![];
@@ -356,8 +353,8 @@ impl JobQueue {
                 job.get_envs(),
                 cwd.as_ref().map(|p| &**p),
                 &build_dir,
-                internals.config.clone(),
-                internals.env_lock.as_facade(),
+                &internals.config,
+                &internals.env_lock.as_facade(),
             ) {
                 BuildResult::Success(c, mut messages, mut analysis) => {
                     compiler_messages.append(&mut messages);

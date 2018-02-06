@@ -103,7 +103,7 @@ pub mod ls_util {
 
     /// Convert a language server protocol location into an RLS span.
     pub fn location_to_rls(
-        l: Location,
+        l: &Location,
     ) -> Result<span::Span<span::ZeroIndexed>, UrlFileParseError> {
         parse_file_path(&l.uri).map(|path| Span::from_range(range_to_rls(l.range), path))
     }
@@ -136,8 +136,8 @@ pub mod ls_util {
     /// Convert an RLS position into a language server protocol range.
     pub fn rls_to_position(p: span::Position<span::ZeroIndexed>) -> Position {
         Position {
-            line: p.row.0 as u64,
-            character: p.col.0 as u64,
+            line: p.row.0.into(),
+            character: p.col.0.into(),
         }
     }
 
@@ -183,14 +183,11 @@ pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     match k {
         DefKind::Enum => SymbolKind::Enum,
         DefKind::TupleVariant => SymbolKind::Constant,
-        DefKind::StructVariant => SymbolKind::Class,
         DefKind::Tuple => SymbolKind::Array,
-        DefKind::Struct => SymbolKind::Class,
-        DefKind::Union => SymbolKind::Class,
-        DefKind::Trait => SymbolKind::Interface,
+        DefKind::StructVariant | DefKind::Union | DefKind::Struct => SymbolKind::Class,
         DefKind::Function | DefKind::Method | DefKind::Macro => SymbolKind::Function,
         DefKind::Mod => SymbolKind::Module,
-        DefKind::Type | DefKind::ExternType => SymbolKind::Interface,
+        DefKind::Trait | DefKind::Type | DefKind::ExternType => SymbolKind::Interface,
         DefKind::Local | DefKind::Static | DefKind::Const | DefKind::Field => SymbolKind::Variable,
     }
 }

@@ -82,7 +82,7 @@ impl ActionContext {
         current_project: PathBuf,
         init_options: &InitializationOptions,
         client_capabilities: lsp_data::ClientCapabilities,
-        out: O,
+        out: &O,
     ) {
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
@@ -181,7 +181,7 @@ impl InitActionContext {
         FmtConfig::from(&self.current_project)
     }
 
-    fn init<O: Output>(&self, init_options: &InitializationOptions, out: O) {
+    fn init<O: Output>(&self, init_options: &InitializationOptions, out: &O) {
         let current_project = self.current_project.clone();
         let config = self.config.clone();
         // Spawn another thread since we're shelling out to Cargo and this can
@@ -201,7 +201,7 @@ impl InitActionContext {
         }
     }
 
-    fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: O) {
+    fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: &O) {
         struct BuildNotifier<O: Output> {
             out: O,
             active_build_count: Arc<AtomicUsize>,
@@ -248,7 +248,7 @@ impl InitActionContext {
             .request_build(project_path, priority, pbh);
     }
 
-    fn build_current_project<O: Output>(&self, priority: BuildPriority, out: O) {
+    fn build_current_project<O: Output>(&self, priority: BuildPriority, out: &O) {
         self.build(&self.current_project, priority, out);
     }
 
