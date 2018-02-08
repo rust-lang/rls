@@ -1,0 +1,66 @@
+{
+  "children": [{
+    "children": [],
+    "code": null,
+    "level": "note",
+    "message": "lint level defined here",
+    "rendered": null,
+    "spans": [{
+      "byte_end": 39,
+      "byte_start": 33,
+      "column_end": 15,
+      "column_start": 9,
+      "expansion": null,
+      "file_name": "src/main.rs",
+      "is_primary": true,
+      "label": null,
+      "line_end": 2,
+      "line_start": 2,
+      "suggested_replacement": null,
+      "text": [{
+        "highlight_end": 15,
+        "highlight_start": 9,
+        "text": "#![warn(clippy)]"
+      }]
+    }]
+  }, {
+    "children": [],
+    "code": null,
+    "level": "note",
+    "message": "#[warn(identity_op)] implied by #[warn(clippy)]",
+    "rendered": null,
+    "spans": []
+  }, {
+    "children": [],
+    "code": null,
+    "level": "help",
+    "message": "for further information visit https://rust-lang-nursery.github.io/rust-clippy/v0.0.186/index.html#identity_op",
+    "rendered": null,
+    "spans": []
+  }],
+  "code": {
+    "code": "identity_op",
+    "explanation": null
+  },
+  "level": "warning",
+  "message": "the operation is ineffective. Consider reducing it to `1`",
+  "rendered": "warning: the operation is ineffective. Consider reducing it to `1`\n --> src/main.rs:5:14\n  |\n5 |     let _s = 1 / 1;\n  |              ^^^^^\n  |\nnote: lint level defined here\n --> src/main.rs:2:9\n  |\n2 | #![warn(clippy)]\n  |         ^^^^^^\n  = note: #[warn(identity_op)] implied by #[warn(clippy)]\n  = help: for further information visit https://rust-lang-nursery.github.io/rust-clippy/v0.0.186/index.html#identity_op\n\n",
+  "spans": [{
+    "byte_end": 73,
+    "byte_start": 68,
+    "column_end": 19,
+    "column_start": 14,
+    "expansion": null,
+    "file_name": "src/main.rs",
+    "is_primary": true,
+    "label": null,
+    "line_end": 5,
+    "line_start": 5,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 19,
+      "highlight_start": 14,
+      "text": "    let _s = 1 / 1;"
+    }]
+  }]
+}

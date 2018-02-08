@@ -212,6 +212,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     let rls_span = primary_span.rls_span().zero_indexed();
     let suggestions = make_suggestions(&message.children, &rls_span.file);
 
+    let mut source = "rustc";
     let diagnostic = {
         let mut primary_message = diagnostic_msg.clone();
         if let Some(ref primary_label) = primary_span.label {
@@ -224,6 +225,12 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
             primary_message.push_str(&format!("\n\n{}", notes));
         }
 
+        // A diagnostic source is quite likely to be clippy if it contains
+        // the further information link to the rust-clippy project.
+        if primary_message.contains("rust-clippy") {
+            source = "clippy"
+        }
+
         Diagnostic {
             range: ls_util::rls_to_range(rls_span.range),
             severity: Some(severity(&message.level)),
@@ -231,7 +238,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
                 Some(ref c) => c.code.clone(),
                 None => String::new(),
             })),
-            source: Some("rustc".into()),
+            source: Some(source.to_owned()),
             message: primary_message.trim().to_owned(),
             group: if message.spans.iter().any(|x| !x.is_primary) {
                 Some(group)
@@ -268,7 +275,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
                 Some(ref c) => c.code.clone(),
                 None => String::new(),
             })),
-            source: Some("rustc".into()),
+            source: Some(source.to_owned()),
             message: secondary_message.trim().to_owned(),
             group: Some(group),
         }
@@ -376,12 +383,24 @@ impl IsWithin for DiagnosticSpan {
 mod diagnostic_message_test {
     use super::*;
 
-    /// Returns (primary message, secondary messages)
-    fn parsed_message(compiler_message: &str) -> (String, Vec<String>) {
+    fn parse_compiler_message(compiler_message: &str) -> FileDiagnostic {
         let _ = ::env_logger::try_init();
-        let parsed = parse_diagnostics(compiler_message, 0)
-            .expect("failed to parse compiler message");
-        (parsed.diagnostic.message, parsed.secondaries.into_iter().map(|s| s.message).collect())
+        parse_diagnostics(compiler_message, 0)
+            .expect("failed to parse compiler message")
+    }
+
+    trait FileDiagnosticTestExt {
+        /// Returns (primary message, secondary messages)
+        fn to_messages(&self) -> (String, Vec<String>);
+    }
+
+    impl FileDiagnosticTestExt for FileDiagnostic {
+        fn to_messages(&self) -> (String, Vec<String>) {
+            (
+                self.diagnostic.message.clone(),
+                self.secondaries.iter().map(|d| d.message.clone()).collect()
+            )
+        }
     }
 
     /// ```
@@ -393,9 +412,16 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_use_after_move() {
-        let (msg, others) = parsed_message(
+        let diag = parse_compiler_message(
             include_str!("../../test_data/compiler_message/use-after-move.json")
         );
+
+        assert_eq!(diag.diagnostic.source, Some("rustc".into()));
+        for source in diag.secondaries.iter().map(|d| d.source.as_ref()) {
+            assert_eq!(source, Some(&"rustc".into()));
+        }
+
+        let (msg, others) = diag.to_messages();
         assert_eq!(
             msg,
             "use of moved value: `s`\n\n\
@@ -416,9 +442,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_type_annotations_needed() {
-        let (msg, others) = parsed_message(
+        let (msg, others) = parse_compiler_message(
             include_str!("../../test_data/compiler_message/type-annotations-needed.json")
-        );
+        ).to_messages();
         assert_eq!(
             msg,
             "type annotations needed\n\n\
@@ -438,9 +464,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_mismatched_types() {
-        let (msg, others) = parsed_message(
+        let (msg, others) = parse_compiler_message(
             include_str!("../../test_data/compiler_message/mismatched-types.json")
-        );
+        ).to_messages();
         assert_eq!(
             msg,
             "mismatched types\n\n\
@@ -461,9 +487,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_not_mutable() {
-        let (msg, others) = parsed_message(
+        let (msg, others) = parse_compiler_message(
             include_str!("../../test_data/compiler_message/not-mut.json")
-        );
+        ).to_messages();
         assert_eq!(
             msg,
             "cannot borrow immutable local variable `string` as mutable\n\n\
@@ -485,9 +511,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_consider_borrowing() {
-        let (msg, others) = parsed_message(
+        let (msg, others) = parse_compiler_message(
             include_str!("../../test_data/compiler_message/consider-borrowing.json")
-        );
+        ).to_messages();
         assert_eq!(
             msg,
             r#"mismatched types
@@ -512,9 +538,9 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_move_out_of_borrow() {
-        let (msg, others) = parsed_message(
+        let (msg, others) = parse_compiler_message(
             include_str!("../../test_data/compiler_message/move-out-of-borrow.json")
-        );
+        ).to_messages();
         assert_eq!(msg, "cannot move out of borrowed content");
 
         assert_eq!(others, vec!["hint: to prevent move, use `ref string` or `ref mut string`"]);
@@ -525,9 +551,9 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_unused_use() {
-        let (msg, others) = parsed_message(
+        let (msg, others) = parse_compiler_message(
             include_str!("../../test_data/compiler_message/unused-use.json")
-        );
+        ).to_messages();
         assert_eq!(msg, "unused import: `std::borrow::Cow`\n\n\
                          note: #[warn(unused_imports)] on by default");
 
@@ -536,11 +562,44 @@ help: consider borrowing here: `&string`"#,
 
     #[test]
     fn message_cannot_find_type() {
-        let (msg, others) = parsed_message(
+        let (msg, others) = parse_compiler_message(
             include_str!("../../test_data/compiler_message/cannot-find-type.json")
-        );
+        ).to_messages();
         assert_eq!(msg, "cannot find type `HashSet` in this scope\n\n\
                          not found in this scope");
+
+        assert!(others.is_empty(), "{:?}", others);
+    }
+
+    /// ```
+    /// let _s = 1 / 1;
+    /// ```
+    #[test]
+    fn message_clippy_identity_op() {
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/clippy-identity-op.json")
+        );
+
+        assert_eq!(diag.diagnostic.source, Some("clippy".into()));
+        for source in diag.secondaries.iter().map(|d| d.source.as_ref()) {
+            assert_eq!(source, Some(&"clippy".into()));
+        }
+
+        let (msg, others) = diag.to_messages();
+        println!("\n---message---\n{}\n---", msg);
+
+        let link = {
+            let link_index = msg.find("https://rust-lang-nursery.github.io/rust-clippy/")
+                .expect("no clippy link found in message");
+            &msg[link_index..]
+        };
+
+        assert_eq!(
+            msg,
+            "the operation is ineffective. Consider reducing it to `1`\n\n\
+             note: #[warn(identity_op)] implied by #[warn(clippy)]\n\
+             help: for further information visit ".to_owned() + link
+         );
 
         assert!(others.is_empty(), "{:?}", others);
     }
