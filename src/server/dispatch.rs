@@ -20,7 +20,7 @@ use std::thread;
 use std::time::Duration;
 
 lazy_static! {
-    static ref TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
+    pub static ref DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
 }
 
 /// Macro enum `DispatchRequest` packing in various similar `Request` types
@@ -160,7 +160,7 @@ pub trait RequestAction: LSPRequest {
 
     /// Max duration this request should finish within, also see `fallback_response()`
     fn timeout() -> Duration {
-        *TIMEOUT
+        *DEFAULT_REQUEST_TIMEOUT
     }
 
     /// Returns a response used in timeout scenarios

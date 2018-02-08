@@ -27,7 +27,7 @@ use rayon;
 use lsp_data;
 use lsp_data::*;
 use server;
-use server::{Ack, Output, Request, RequestAction, ResponseError};
+use server::{Ack, Output, Request, RequestAction, ResponseError, DEFAULT_REQUEST_TIMEOUT};
 use jsonrpc_core::types::ErrorCode;
 
 use lsp_data::request::ApplyWorkspaceEdit;
@@ -51,6 +51,7 @@ pub use lsp_data::FindImpls;
 use std::collections::HashMap;
 use std::path::Path;
 use std::panic;
+use std::time::{Duration, Instant};
 use std::sync::{Mutex, mpsc};
 
 /// Represent the result of a deglob action for a single wildcard import.
@@ -854,6 +855,11 @@ fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
 
 lazy_static! {
     static ref NUM_THREADS: usize = ::num_cpus::get();
+
+    /// Duration of work after which we should warn something is taking a long time
+    static ref WARN_TASK_DURATION: Duration = *DEFAULT_REQUEST_TIMEOUT * 5;
+
+    /// Current work descriptions active on the work pool
     static ref WORK: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
 
     /// Thread pool for request execution allowing concurrent request processing.
@@ -889,7 +895,7 @@ where
             // this type of work is already filling around half the work pool, so there's
             // good reason to believe it may fill the entire pool => fail fast to allow
             // other task-types to run
-            warn!(
+            info!(
                 "Could not start `{}` as same work-type is filling half capacity, {:?} in progress",
                 description,
                 *work,
@@ -900,6 +906,8 @@ where
     }
 
     WORK_POOL.spawn(move || {
+        let start = Instant::now();
+
         // panic details will be on stderr, otherwise ignore the work panic as it
         // will already cause a mpsc disconnect-error & there isn't anything else to log
         if let Ok(work_result) = panic::catch_unwind(work_fn) {
@@ -910,6 +918,13 @@ where
         let mut work = WORK.lock().unwrap();
         if let Some(index) = work.iter().position(|desc| desc == &description) {
             work.swap_remove(index);
+        }
+
+        let elapsed = start.elapsed();
+        if elapsed >= *WARN_TASK_DURATION {
+            let secs = elapsed.as_secs() as f64 +
+                f64::from(elapsed.subsec_nanos()) / 1_000_000_000_f64;
+            warn!("`{}` took {:.1}s", description, secs);
         }
     });
     receiver
