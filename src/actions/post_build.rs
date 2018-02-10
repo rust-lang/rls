@@ -379,7 +379,7 @@ mod diagnostic_message_test {
     /// Returns (primary message, secondary messages)
     fn parsed_message(compiler_message: &str) -> (String, Vec<String>) {
         let _ = ::env_logger::try_init();
-        let parsed = parse_diagnostics(compiler_message)
+        let parsed = parse_diagnostics(compiler_message, 0)
             .expect("failed to parse compiler message");
         (parsed.diagnostic.message, parsed.secondaries.into_iter().map(|s| s.message).collect())
     }
