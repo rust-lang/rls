@@ -100,15 +100,13 @@ impl PostBuildHandler {
             v.clear();
         }
 
-        let mut group = 0;
-
-        for msg in messages {
+        for (group, msg) in messages.iter().enumerate() {
             if let Some(FileDiagnostic {
                 file_path,
                 diagnostic,
                 secondaries,
                 suggestions,
-            }) = parse_diagnostics(msg, group) {
+            }) = parse_diagnostics(msg, group as u64) {
                 let entry = results
                     .entry(cwd.join(file_path))
                     .or_insert_with(Vec::new);
@@ -117,7 +115,6 @@ impl PostBuildHandler {
                 for secondary in secondaries {
                     entry.push((secondary, vec![]));
                 }
-                group += 1;
             }
         }
 
