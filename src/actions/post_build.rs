@@ -100,13 +100,13 @@ impl PostBuildHandler {
             v.clear();
         }
 
-        for msg in messages {
+        for (group, msg) in messages.iter().enumerate() {
             if let Some(FileDiagnostic {
                 file_path,
                 diagnostic,
                 secondaries,
                 suggestions,
-            }) = parse_diagnostics(msg) {
+            }) = parse_diagnostics(msg, group as u64) {
                 let entry = results
                     .entry(cwd.join(file_path))
                     .or_insert_with(Vec::new);
@@ -193,7 +193,7 @@ struct CompilerMessageCode {
     code: String,
 }
 
-fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
+fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     let message = match serde_json::from_str::<CompilerMessage>(message) {
         Ok(m) => m,
         Err(e) => {
@@ -233,6 +233,11 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
             })),
             source: Some("rustc".into()),
             message: primary_message.trim().to_owned(),
+            group: if message.spans.iter().any(|x| !x.is_primary) {
+                Some(group)
+            } else {
+                None
+            }
         }
     };
 
@@ -265,6 +270,7 @@ fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
             })),
             source: Some("rustc".into()),
             message: secondary_message.trim().to_owned(),
+            group: Some(group),
         }
     }).collect();
 
@@ -373,7 +379,7 @@ mod diagnostic_message_test {
     /// Returns (primary message, secondary messages)
     fn parsed_message(compiler_message: &str) -> (String, Vec<String>) {
         let _ = ::env_logger::try_init();
-        let parsed = parse_diagnostics(compiler_message)
+        let parsed = parse_diagnostics(compiler_message, 0)
             .expect("failed to parse compiler message");
         (parsed.diagnostic.message, parsed.secondaries.into_iter().map(|s| s.message).collect())
     }
