@@ -20,9 +20,6 @@ lazy_static! {
     /// Maximum total concurrent working tasks
     static ref NUM_THREADS: usize = ::num_cpus::get();
 
-    /// Maximum concurrent working tasks of the same type
-    static ref MAX_SIMILAR_CONCURRENT_WORK: usize = (*NUM_THREADS / 2).max(1);
-
     /// Duration of work after which we should warn something is taking a long time
     static ref WARN_TASK_DURATION: Duration = *DEFAULT_REQUEST_TIMEOUT * 5;
 
@@ -36,6 +33,11 @@ lazy_static! {
             .num_threads(*NUM_THREADS)
     ).unwrap();
 }
+
+/// Maximum concurrent working tasks of the same type
+/// Note: `2` allows a single task to run immediately after a similar task has timed out.
+/// Once multiple tasks have timed out but remain running we start refusing to start new ones.
+const MAX_SIMILAR_CONCURRENT_WORK: usize = 2;
 
 /// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
 ///
@@ -61,8 +63,7 @@ where
             );
             return receiver;
         }
-        if work.iter().filter(|desc| *desc == &description).count() >= *MAX_SIMILAR_CONCURRENT_WORK
-        {
+        if work.iter().filter(|desc| *desc == &description).count() >= MAX_SIMILAR_CONCURRENT_WORK {
             // this type of work is already filling around half the work pool, so there's
             // good reason to believe it may fill the entire pool => fail fast to allow
             // other task-types to run
