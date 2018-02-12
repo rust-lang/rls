@@ -30,6 +30,7 @@ extern crate languageserver_types as ls_types;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
+extern crate num_cpus;
 extern crate racer;
 extern crate rayon;
 extern crate rls_analysis as analysis;

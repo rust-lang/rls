@@ -22,8 +22,9 @@ use rustfmt::{FileName, format_input, Input as FmtInput};
 use rustfmt::file_lines::{FileLines, Range as RustfmtRange};
 use serde_json;
 use span;
-use rayon;
 
+use actions::work_pool;
+use actions::work_pool::WorkDescription;
 use lsp_data;
 use lsp_data::*;
 use server;
@@ -50,7 +51,6 @@ pub use lsp_data::FindImpls;
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::mpsc;
 
 /// Represent the result of a deglob action for a single wildcard import.
 ///
@@ -222,14 +222,14 @@ impl RequestAction for Definition {
         // If configured start racer concurrently and fallback to racer result
         let racer_receiver = {
             if ctx.config.lock().unwrap().goto_def_racer_fallback {
-                Some(receive_from_thread(move || {
+                Some(work_pool::receive_from_thread(move || {
                     let cache = racer::FileCache::new(vfs);
                     let session = racer::Session::new(&cache);
                     let location = pos_to_racer_location(params.position);
 
                     racer::find_definition(file_path, location, &session)
                         .and_then(location_from_racer_match)
-                }))
+                }, WorkDescription("textDocument/definition-racer")))
             } else {
                 None
             }
@@ -849,30 +849,4 @@ fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
         let loc = span::Location::new(row.zero_indexed(), col, source_path);
         ls_util::rls_location_to_location(&loc)
     })
-}
-
-lazy_static! {
-    /// Thread pool for request execution allowing concurrent request processing.
-    static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
-        rayon::Configuration::default()
-            .thread_name(|num| format!("request-worker-{}", num))
-            // panic details will be on stderr, otherwise ignore the work panic as it
-            // will already cause a mpsc disconnect-error & there isn't anything else to log
-            .panic_handler(|_| {})
-    ).unwrap();
-}
-
-/// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
-/// Panicking work will receive `Err(RecvError)` / `Err(RecvTimeoutError::Disconnected)`
-pub fn receive_from_thread<T, F>(work_fn: F) -> mpsc::Receiver<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> T + Send + 'static,
-{
-    let (sender, receiver) = mpsc::channel();
-    WORK_POOL.spawn(move || {
-        // an error here simply means the work took too long and the receiver has been dropped
-        let _ = sender.send(work_fn());
-    });
-    receiver
 }

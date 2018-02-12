@@ -28,7 +28,7 @@ use config::Config;
 pub use server::io::{MessageReader, Output};
 use server::io::{StdioMsgReader, StdioOutput};
 use server::dispatch::Dispatcher;
-pub use server::dispatch::{RequestAction, ResponseError};
+pub use server::dispatch::{RequestAction, ResponseError, DEFAULT_REQUEST_TIMEOUT};
 
 pub use ls_types::request::Shutdown as ShutdownRequest;
 pub use ls_types::request::Initialize as InitializeRequest;

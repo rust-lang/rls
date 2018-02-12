@@ -9,6 +9,8 @@
 // except according to those terms.
 
 use super::requests::*;
+use actions::work_pool;
+use actions::work_pool::WorkDescription;
 use jsonrpc_core as jsonrpc;
 use server;
 use server::{Request, Response};
@@ -20,7 +22,7 @@ use std::thread;
 use std::time::Duration;
 
 lazy_static! {
-    static ref TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
+    pub static ref DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
 }
 
 /// Macro enum `DispatchRequest` packing in various similar `Request` types
@@ -48,7 +50,7 @@ macro_rules! define_dispatch_request_enum {
                         let Request { id, params, received, .. } = req;
                         let timeout = $request_type::timeout();
 
-                        let receiver = receive_from_thread(move || {
+                        let receiver = work_pool::receive_from_thread(move || {
                             // checking timeout here can prevent starting expensive work that has
                             // already timed out due to previous long running requests
                             // Note: done here on the threadpool as pool scheduling may incur
@@ -59,7 +61,7 @@ macro_rules! define_dispatch_request_enum {
                             else {
                                 $request_type::handle(ctx, params)
                             }
-                        });
+                        }, WorkDescription($request_type::METHOD));
 
                         match receiver.recv_timeout(timeout)
                             .unwrap_or_else(|_| $request_type::fallback_response()) {
@@ -160,7 +162,7 @@ pub trait RequestAction: LSPRequest {
 
     /// Max duration this request should finish within, also see `fallback_response()`
     fn timeout() -> Duration {
-        *TIMEOUT
+        *DEFAULT_REQUEST_TIMEOUT
     }
 
     /// Returns a response used in timeout scenarios
