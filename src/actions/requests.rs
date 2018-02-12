@@ -22,12 +22,13 @@ use rustfmt::{FileName, format_input, Input as FmtInput};
 use rustfmt::file_lines::{FileLines, Range as RustfmtRange};
 use serde_json;
 use span;
-use rayon;
 
+use actions::work_pool;
+use actions::work_pool::WorkDescription;
 use lsp_data;
 use lsp_data::*;
 use server;
-use server::{Ack, Output, Request, RequestAction, ResponseError, DEFAULT_REQUEST_TIMEOUT};
+use server::{Ack, Output, Request, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
 
 use lsp_data::request::ApplyWorkspaceEdit;
@@ -50,9 +51,6 @@ pub use lsp_data::FindImpls;
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::panic;
-use std::time::{Duration, Instant};
-use std::sync::{Mutex, mpsc};
 
 /// Represent the result of a deglob action for a single wildcard import.
 ///
@@ -224,14 +222,14 @@ impl RequestAction for Definition {
         // If configured start racer concurrently and fallback to racer result
         let racer_receiver = {
             if ctx.config.lock().unwrap().goto_def_racer_fallback {
-                Some(receive_from_thread(move || {
+                Some(work_pool::receive_from_thread(move || {
                     let cache = racer::FileCache::new(vfs);
                     let session = racer::Session::new(&cache);
                     let location = pos_to_racer_location(params.position);
 
                     racer::find_definition(file_path, location, &session)
                         .and_then(location_from_racer_match)
-                }, "textDocument/definition-racer"))
+                }, WorkDescription("textDocument/definition-racer")))
             } else {
                 None
             }
@@ -851,81 +849,4 @@ fn location_from_racer_match(a_match: racer::Match) -> Option<Location> {
         let loc = span::Location::new(row.zero_indexed(), col, source_path);
         ls_util::rls_location_to_location(&loc)
     })
-}
-
-lazy_static! {
-    static ref NUM_THREADS: usize = ::num_cpus::get();
-
-    /// Duration of work after which we should warn something is taking a long time
-    static ref WARN_TASK_DURATION: Duration = *DEFAULT_REQUEST_TIMEOUT * 5;
-
-    /// Current work descriptions active on the work pool
-    static ref WORK: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
-
-    /// Thread pool for request execution allowing concurrent request processing.
-    static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
-        rayon::Configuration::default()
-            .thread_name(|num| format!("request-worker-{}", num))
-            .num_threads(*NUM_THREADS)
-    ).unwrap();
-}
-
-/// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
-/// Panicking work will receive `Err(RecvError)` / `Err(RecvTimeoutError::Disconnected)`
-pub fn receive_from_thread<T, F>(work_fn: F, description: &'static str) -> mpsc::Receiver<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> T + Send + panic::UnwindSafe + 'static,
-{
-    let (sender, receiver) = mpsc::channel();
-
-    {
-        let mut work = WORK.lock().unwrap();
-        if work.len() >= *NUM_THREADS {
-            // there are already N ongoing tasks, that may or may not have timed out
-            // don't add yet more to the queue fail fast to allow the work pool to recover
-            warn!(
-                "Could not start `{}` as at work capacity, {:?} in progress",
-                description,
-                *work,
-            );
-            return receiver;
-        }
-        if work.iter().filter(|desc| *desc == &description).count() >= (*NUM_THREADS / 2).max(1) {
-            // this type of work is already filling around half the work pool, so there's
-            // good reason to believe it may fill the entire pool => fail fast to allow
-            // other task-types to run
-            info!(
-                "Could not start `{}` as same work-type is filling half capacity, {:?} in progress",
-                description,
-                *work,
-            );
-            return receiver;
-        }
-        work.push(description);
-    }
-
-    WORK_POOL.spawn(move || {
-        let start = Instant::now();
-
-        // panic details will be on stderr, otherwise ignore the work panic as it
-        // will already cause a mpsc disconnect-error & there isn't anything else to log
-        if let Ok(work_result) = panic::catch_unwind(work_fn) {
-            // an error here simply means the work took too long and the receiver has been dropped
-            let _ = sender.send(work_result);
-        }
-
-        let mut work = WORK.lock().unwrap();
-        if let Some(index) = work.iter().position(|desc| desc == &description) {
-            work.swap_remove(index);
-        }
-
-        let elapsed = start.elapsed();
-        if elapsed >= *WARN_TASK_DURATION {
-            let secs = elapsed.as_secs() as f64 +
-                f64::from(elapsed.subsec_nanos()) / 1_000_000_000_f64;
-            warn!("`{}` took {:.1}s", description, secs);
-        }
-    });
-    receiver
 }

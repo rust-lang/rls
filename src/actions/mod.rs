@@ -53,6 +53,7 @@ macro_rules! parse_file_path {
     }
 }
 
+pub mod work_pool;
 pub mod post_build;
 pub mod requests;
 pub mod notifications;
