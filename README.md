@@ -66,11 +66,11 @@ VSCode to test the RLS. The easiest way is to use the [published extension](http
 You'll know it's working when you see this in the status bar at the bottom, with
 a spinning indicator:
 
-`RLS analysis: working /`
+`RLS: working ◐`
 
 Once you see:
 
-`RLS analysis: done`
+`RLS: done`
 
 Then you have the full set of capabilities available to you.  You can goto def,
 find all refs, rename, goto type, etc.  Completions are also available using the
