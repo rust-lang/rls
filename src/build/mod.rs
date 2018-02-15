@@ -182,10 +182,10 @@ impl Build {
         }
     }
 
-    fn assert_pending(self) -> PendingBuild {
+    fn try_into_pending(self) -> Result<PendingBuild, ()> {
         match self {
-            Build::Pending(b) => b,
-            _ => unreachable!(),
+            Build::Pending(b) => Ok(b),
+            _ => Err(()),
         }
     }
 }
@@ -323,11 +323,11 @@ impl BuildQueue {
                 if queued.1.is_pending_fresh() {
                     let mut build = Build::InProgress;
                     mem::swap(&mut queued.1, &mut build);
-                    build.assert_pending()
+                    build.try_into_pending().unwrap()
                 } else if queued.0.is_pending_fresh() {
                     let mut build = Build::InProgress;
                     mem::swap(&mut queued.0, &mut build);
-                    build.assert_pending()
+                    build.try_into_pending().unwrap()
                 } else {
                     return;
                 }
