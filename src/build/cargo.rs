@@ -54,7 +54,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     let handle = thread::spawn(move || {
         run_cargo(
             &compilation_cx,
-            &config,
+            config,
             vfs,
             &env_lock,
             diagnostics,
@@ -90,7 +90,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
 
 fn run_cargo(
     compilation_cx: &Arc<Mutex<CompilationContext>>,
-    rls_config: &Arc<Mutex<Config>>,
+    rls_config: Arc<Mutex<Config>>,
     vfs: Arc<Vfs>,
     env_lock: &Arc<EnvironmentLock>,
     compiler_messages: Arc<Mutex<Vec<String>>>,
@@ -119,7 +119,7 @@ fn run_cargo(
     // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
     let manifest_dir = manifest_path.parent().unwrap();
 
-    let mut shell = Shell::from_write(Box::new(BufWriter(out.clone())));
+    let mut shell = Shell::from_write(Box::new(BufWriter(Arc::clone(out))));
     shell.set_verbosity(Verbosity::Quiet);
 
     let config = {
@@ -193,8 +193,8 @@ fn run_cargo(
 
     let exec = RlsExecutor::new(
         &ws,
-        compilation_cx.clone(),
-        rls_config.clone(),
+        Arc::clone(compilation_cx),
+        rls_config,
         inner_lock,
         vfs,
         compiler_messages,
@@ -416,7 +416,7 @@ impl Executor for RlsExecutor {
             // and build test harness only for final crate type
             let crate_type = if config.all_targets {
                 // Crate type may be undefined when `all_targets` is true, for example for integration tests
-                crate_type.unwrap_or("undefined".to_owned())
+                crate_type.unwrap_or_else(|| "undefined".to_owned())
             } else {
                 // Panic if crate type undefined for other cases
                 crate_type.expect("no crate-type in rustc command line")
