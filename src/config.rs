@@ -132,6 +132,7 @@ pub struct Config {
     pub all_features: bool,
     pub no_default_features: bool,
     pub jobs: Option<u32>,
+    pub all_targets: bool,
 }
 
 impl Default for Config {
@@ -156,6 +157,7 @@ impl Default for Config {
             all_features: false,
             no_default_features: false,
             jobs: None,
+            all_targets: false,
         };
         result.normalise();
         result

@@ -115,6 +115,9 @@ Currently we accept the following options:
 * `analyze_package` (`String`, defaults to `""`) When `workspace_mode` is
   enabled, analysis will be only provided for the specified package (runs as
   if `-p <analyze_package>` was passed).
+* `all_targets` (`bool`, defaults to `false`) checks the project as if you were
+  running `cargo check --all-targets`. I.e., check all targets and integration
+  tests too.
 
 
 ## Troubleshooting
