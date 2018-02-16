@@ -165,7 +165,7 @@ impl Plan {
             .iter()
             .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
             .map(|(key, unit)| {
-                (key.clone(), unit.target.src_path().parent().unwrap())
+                (key.clone(), unit.target.src_path().parent().expect("no parent for src_path"))
             })
             .collect();
 
@@ -333,7 +333,7 @@ impl JobQueue {
         let mut analyses = vec![];
         let (build_dir, mut cwd) = {
             let comp_cx = internals.compilation_cx.lock().unwrap();
-            (comp_cx.build_dir.clone().unwrap(), comp_cx.cwd.clone())
+            (comp_cx.build_dir.clone().expect("no build directory"), comp_cx.cwd.clone())
         };
 
         // Go through cached compiler invocations sequentially, collecting each
@@ -343,10 +343,10 @@ impl JobQueue {
             let mut args: Vec<_> = job.get_args()
                 .iter()
                 .cloned()
-                .map(|x| x.into_string().unwrap())
+                .map(|x| x.into_string().expect("cannot stringify job args"))
                 .collect();
 
-            args.insert(0, job.get_program().clone().into_string().unwrap());
+            args.insert(0, job.get_program().clone().into_string().expect("cannot stringify job program"));
 
             match super::rustc::rustc(
                 &internals.vfs,
