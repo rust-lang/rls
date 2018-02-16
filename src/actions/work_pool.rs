@@ -27,11 +27,11 @@ lazy_static! {
     static ref WORK: Mutex<Vec<WorkDescription>> = Mutex::new(vec![]);
 
     /// Thread pool for request execution allowing concurrent request processing.
-    static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPool::new(
-        rayon::Configuration::default()
-            .thread_name(|num| format!("request-worker-{}", num))
-            .num_threads(*NUM_THREADS)
-    ).unwrap();
+    static ref WORK_POOL: rayon::ThreadPool = rayon::ThreadPoolBuilder::new()
+        .num_threads(*NUM_THREADS)
+        .thread_name(|num| format!("request-worker-{}", num))
+        .build()
+        .unwrap();
 }
 
 /// Maximum concurrent working tasks of the same type
