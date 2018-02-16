@@ -144,7 +144,7 @@ impl CompilationContext {
 
 /// Status of the build queue.
 ///
-/// Pending should only be replaced if it is built or squashed. InProgress can be
+/// Pending should only be replaced if it is built or squashed. `InProgress` can be
 /// replaced by None or Pending when appropriate. That is, Pending means something
 /// is ready and something else may or may not be being built.
 enum Build {
@@ -182,10 +182,10 @@ impl Build {
         }
     }
 
-    fn as_pending(self) -> PendingBuild {
+    fn try_into_pending(self) -> Result<PendingBuild, ()> {
         match self {
-            Build::Pending(b) => b,
-            _ => unreachable!(),
+            Build::Pending(b) => Ok(b),
+            _ => Err(()),
         }
     }
 }
@@ -323,11 +323,11 @@ impl BuildQueue {
                 if queued.1.is_pending_fresh() {
                     let mut build = Build::InProgress;
                     mem::swap(&mut queued.1, &mut build);
-                    build.as_pending()
+                    build.try_into_pending().unwrap()
                 } else if queued.0.is_pending_fresh() {
                     let mut build = Build::InProgress;
                     mem::swap(&mut queued.0, &mut build);
-                    build.as_pending()
+                    build.try_into_pending().unwrap()
                 } else {
                     return;
                 }
@@ -441,19 +441,16 @@ impl Internals {
         // On a successful build, clear dirty files that were successfully built
         // now. It's possible that a build was scheduled with given files, but
         // user later changed them. These should still be left as dirty (not built).
-        match *&result {
-            BuildResult::Success(..) => {
-                let mut dirty_files = self.dirty_files.lock().unwrap();
-                dirty_files.retain(|file, dirty_version| {
-                    built_files
-                        .get(file)
-                        .map(|built_version| built_version < dirty_version)
-                        .unwrap_or(false)
-                });
-                trace!("Files still dirty after the build: {:?}", *dirty_files);
-            }
-            _ => {}
-        };
+        if let BuildResult::Success(..) = result {
+            let mut dirty_files = self.dirty_files.lock().unwrap();
+            dirty_files.retain(|file, dirty_version| {
+                built_files
+                    .get(file)
+                    .map(|built_version| built_version < dirty_version)
+                    .unwrap_or(false)
+            });
+            trace!("Files still dirty after the build: {:?}", *dirty_files);
+        }
         result
     }
 
@@ -514,8 +511,8 @@ impl Internals {
             envs,
             compile_cx.cwd.as_ref().map(|x| &**x),
             build_dir,
-            self.config.clone(),
-            env_lock,
+            Arc::clone(&self.config),
+            &env_lock,
         )
     }
 }

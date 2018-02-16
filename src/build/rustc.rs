@@ -51,7 +51,7 @@ pub fn rustc(
     cwd: Option<&Path>,
     build_dir: &Path,
     rls_config: Arc<Mutex<Config>>,
-    env_lock: EnvironmentLockFacade,
+    env_lock: &EnvironmentLockFacade,
 ) -> BuildResult {
     trace!(
         "rustc - args: `{:?}`, envs: {:?}, build dir: {:?}",
@@ -113,9 +113,9 @@ pub fn rustc(
     let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();
 
     let analysis = analysis.lock().unwrap().clone();
-    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or(vec![]);
+    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or_else(Vec::new);
 
-    let cwd = cwd.unwrap_or(restore_env.get_old_cwd()).to_path_buf();
+    let cwd = cwd.unwrap_or_else(|| restore_env.get_old_cwd()).to_path_buf();
     BuildResult::Success(cwd, stderr_json_msgs, analysis)
 }
 

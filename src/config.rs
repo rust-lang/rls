@@ -22,6 +22,7 @@ use cargo::CargoResult;
 use cargo::util::important_paths;
 use cargo::core::{Shell, Workspace};
 
+use failure;
 use serde::de::{Deserialize, Deserializer};
 
 #[cfg(feature = "rustfmt")]
@@ -83,7 +84,7 @@ impl<T: Clone + Debug> Inferrable<T> {
     /// Infer the given value if we don't already have an explicitly specified
     /// value.
     pub fn infer(&mut self, value: T) {
-        if let &mut Inferrable::Specified(_) = self {
+        if let Inferrable::Specified(_) = *self {
             trace!("Trying to infer {:?} on a {:?}", value, self);
             return;
         }
@@ -215,10 +216,10 @@ impl Config {
         let ws = Workspace::new(&manifest_path, &cargo_config)?;
 
         // Auto-detect --lib/--bin switch if working under single package mode.
-        let package = match self.workspace_mode {
-            true => return Ok(()),
-            false => ws.current()?,
-        };
+        if self.workspace_mode {
+            return Ok(());
+        }
+        let package = ws.current()?;
 
         trace!(
             "infer_config_defaults: Auto-detected `{}` package",
@@ -233,7 +234,7 @@ impl Config {
             // No `lib` detected, but also can't find any `bin` target - there's
             // no sensible target here, so just Err out
             let first = bins.nth(0)
-                .ok_or(format_err!("No `bin` or `lib` targets in the package"))?;
+                .ok_or_else(|| failure::err_msg("No `bin` or `lib` targets in the package"))?;
 
             let mut bins = targets.iter().filter(|x| x.is_bin());
             let target = match bins.find(|x| x.src_path().ends_with("main.rs")) {
@@ -267,7 +268,7 @@ impl Config {
 }
 
 /// A rustfmt config (typically specified via rustfmt.toml)
-/// The FmtConfig is not an exact translation of the config
+/// The `FmtConfig` is not an exact translation of the config
 /// rustfmt generates from the user's toml file, since when
 /// using rustfmt with rls certain configuration options are
 /// always used. See `FmtConfig::set_rls_options`

@@ -72,7 +72,7 @@ impl MessageReader for StdioMsgReader {
         }
 
         let size = handle_err!(
-            usize::from_str_radix(&res[1].trim(), 10),
+            usize::from_str_radix(res[1].trim(), 10),
             "Couldn't read size"
         );
         trace!("reading: {} bytes", size);

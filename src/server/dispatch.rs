@@ -28,6 +28,7 @@ lazy_static! {
 /// Macro enum `DispatchRequest` packing in various similar `Request` types
 macro_rules! define_dispatch_request_enum {
     ($($request_type:ident),*) => {
+        #[allow(large_enum_variant)] // seems ok for a short lived macro-enum
         pub enum DispatchRequest {
             $(
                 $request_type(Request<$request_type>, InitActionContext),

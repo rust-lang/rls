@@ -14,6 +14,7 @@ use cargo::ops::{compile_with_exec, CompileFilter, CompileMode, CompileOptions, 
 use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue,
                   ProcessBuilder};
 use serde_json;
+use failure;
 
 use data::Analysis;
 use build::{BufWriter, BuildResult, CompilationContext, Internals};
@@ -50,7 +51,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     // we may be in separate threads we need to block and wait our thread.
     // However, if Cargo doesn't run a separate thread, then we'll just wait
     // forever. Therefore, we spawn an extra thread here to be safe.
-    let handle = thread::spawn(|| {
+    let handle = thread::spawn(move || {
         run_cargo(
             compilation_cx,
             config,
@@ -64,7 +65,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
 
     match handle
         .join()
-        .map_err(|_| format_err!("thread panicked"))
+        .map_err(|_| failure::err_msg("thread panicked"))
         .and_then(|res| res)
     {
         Ok(ref cwd) if workspace_mode => {
@@ -118,7 +119,7 @@ fn run_cargo(
     // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
     let manifest_dir = manifest_path.parent().unwrap();
 
-    let mut shell = Shell::from_write(Box::new(BufWriter(out.clone())));
+    let mut shell = Shell::from_write(Box::new(BufWriter(Arc::clone(&out))));
     shell.set_verbosity(Verbosity::Quiet);
 
     let config = {
@@ -146,9 +147,9 @@ fn run_cargo(
                 // TODO: Return client notifications along with diagnostics to inform the user
                 let cur_pkg_targets = ws.current()?.targets();
 
-                if let &Some(ref build_bin) = rls_config.build_bin.as_ref() {
+                if let Some(ref build_bin) = *rls_config.build_bin.as_ref() {
                     let mut bins = cur_pkg_targets.iter().filter(|x| x.is_bin());
-                    if let None = bins.find(|x| x.name() == build_bin) {
+                    if bins.find(|x| x.name() == build_bin).is_none() {
                         warn!("cargo - couldn't find binary `{}` specified in `build_bin` configuration", build_bin);
                     }
                 }
@@ -192,8 +193,8 @@ fn run_cargo(
 
     let exec = RlsExecutor::new(
         &ws,
-        compilation_cx.clone(),
-        rls_config.clone(),
+        Arc::clone(&compilation_cx),
+        rls_config,
         inner_lock,
         vfs,
         compiler_messages,
@@ -290,7 +291,7 @@ impl Executor for RlsExecutor {
         let plan = &mut compilation_cx.build_plan;
         let only_primary = |unit: &Unit| self.is_primary_crate(unit.pkg.package_id());
 
-        if let Err(err) = plan.emplace_dep_with_filter(&unit, &cx, &only_primary) {
+        if let Err(err) = plan.emplace_dep_with_filter(unit, cx, &only_primary) {
             error!("{:?}", err);
         }
     }
@@ -415,7 +416,7 @@ impl Executor for RlsExecutor {
             // and build test harness only for final crate type
             let crate_type = if config.all_targets {
                 // Crate type may be undefined when `all_targets` is true, for example for integration tests
-                crate_type.unwrap_or("undefined".to_owned())
+                crate_type.unwrap_or_else(|| "undefined".to_owned())
             } else {
                 // Panic if crate type undefined for other cases
                 crate_type.expect("no crate-type in rustc command line")
@@ -477,22 +478,17 @@ impl Executor for RlsExecutor {
                 cx.build_dir.clone().unwrap()
             };
 
-            let env_lock = self.env_lock.as_facade();
-
-            match super::rustc::rustc(
+            if let BuildResult::Success(_, mut messages, mut analysis) = super::rustc::rustc(
                 &self.vfs,
                 &args,
                 &envs,
                 cargo_cmd.get_cwd(),
                 &build_dir,
-                self.config.clone(),
-                env_lock,
+                Arc::clone(&self.config),
+                &self.env_lock.as_facade(),
             ) {
-                BuildResult::Success(_, mut messages, mut analysis) => {
-                    self.compiler_messages.lock().unwrap().append(&mut messages);
-                    self.analysis.lock().unwrap().append(&mut analysis);
-                }
-                _ => {}
+                self.compiler_messages.lock().unwrap().append(&mut messages);
+                self.analysis.lock().unwrap().append(&mut analysis);
             }
         } else {
             cmd.exec()?;
@@ -552,15 +548,14 @@ impl CargoOptions {
         } else {
             // In single-crate mode we currently support only one crate target,
             // and if lib is set, then we ignore bin target config
-            let (lib, bin) = match *config.build_lib.as_ref() {
-                true => (true, vec![]),
-                false => {
-                    let bin = match *config.build_bin.as_ref() {
-                        Some(ref bin) => vec![bin.clone()],
-                        None => vec![],
-                    };
-                    (false, bin)
-                }
+            let (lib, bin) = if *config.build_lib.as_ref() {
+                (true, vec![])
+            } else {
+                let bin = match *config.build_bin.as_ref() {
+                    Some(ref bin) => vec![bin.clone()],
+                    None => vec![],
+                };
+                (false, bin)
             };
 
             CargoOptions {
@@ -587,8 +582,8 @@ fn prepare_cargo_rustflags(config: &Config) -> String {
 
     flags = format!(
         "{} {} {}",
-        env::var("RUSTFLAGS").unwrap_or(String::new()),
-        config.rustflags.as_ref().unwrap_or(&String::new()),
+        env::var("RUSTFLAGS").unwrap_or_else(|_| String::new()),
+        config.rustflags.as_ref().map(|s| s.as_str()).unwrap_or(""),
         flags
     );
 
@@ -604,7 +599,7 @@ pub fn make_cargo_config(build_dir: &Path,
     let config = CargoConfig::new(
         shell,
         cwd.to_path_buf(),
-        homedir(&build_dir).unwrap(),
+        homedir(build_dir).unwrap(),
     );
 
     // Cargo is expecting the config to come from a config file and keeps
@@ -619,7 +614,7 @@ pub fn make_cargo_config(build_dir: &Path,
     {
         let build_value = config_value_map
             .entry("build".to_owned())
-            .or_insert(ConfigValue::Table(HashMap::new(), config_path.clone()));
+            .or_insert_with(|| ConfigValue::Table(HashMap::new(), config_path.clone()));
 
         let target_dir = target_dir
             .map(|d| d.to_str().unwrap().to_owned())
@@ -632,7 +627,7 @@ pub fn make_cargo_config(build_dir: &Path,
                     .to_owned()
             });
         let td_value = ConfigValue::String(target_dir, config_path);
-        if let &mut ConfigValue::Table(ref mut build_table, _) = build_value {
+        if let ConfigValue::Table(ref mut build_table, _) = *build_value {
             build_table.insert("target-dir".to_owned(), td_value);
         } else {
             unreachable!();
@@ -653,12 +648,12 @@ fn parse_arg(args: &[OsString], arg: &str) -> Option<String> {
 }
 
 fn current_sysroot() -> Option<String> {
-    let home = env::var("RUSTUP_HOME").or(env::var("MULTIRUST_HOME"));
-    let toolchain = env::var("RUSTUP_TOOLCHAIN").or(env::var("MULTIRUST_TOOLCHAIN"));
+    let home = env::var("RUSTUP_HOME").or_else(|_| env::var("MULTIRUST_HOME"));
+    let toolchain = env::var("RUSTUP_TOOLCHAIN").or_else(|_| env::var("MULTIRUST_TOOLCHAIN"));
     if let (Ok(home), Ok(toolchain)) = (home, toolchain) {
         Some(format!("{}/toolchains/{}", home, toolchain))
     } else {
-        let rustc_exe = env::var("RUSTC").unwrap_or("rustc".to_owned());
+        let rustc_exe = env::var("RUSTC").unwrap_or_else(|_| "rustc".to_owned());
         env::var("SYSROOT").map(|s| s.to_owned()).ok().or_else(|| {
             Command::new(rustc_exe)
                 .arg("--print")
@@ -672,7 +667,7 @@ fn current_sysroot() -> Option<String> {
 }
 
 
-/// flag_str is a string of command line args for Rust. This function removes any
+/// `flag_str` is a string of command line args for Rust. This function removes any
 /// duplicate flags.
 fn dedup_flags(flag_str: &str) -> String {
     // The basic strategy here is that we split flag_str into a set of keys and
@@ -701,19 +696,17 @@ fn dedup_flags(flag_str: &str) -> String {
                 let bits: Vec<_> = bit.splitn(2, '=').collect();
                 assert!(bits.len() == 2);
                 flags.insert(bits[0].to_owned() + "=", bits[1].to_owned());
+            } else if bits.peek().is_some() && !bits.peek().unwrap().starts_with('-') {
+                flags.insert(bit, bits.next().unwrap().to_owned());
             } else {
-                if bits.peek().is_some() && !bits.peek().unwrap().starts_with('-') {
-                    flags.insert(bit, bits.next().unwrap().to_owned());
-                } else {
-                    flags.insert(bit, String::new());
-                }
+                flags.insert(bit, String::new());
             }
         } else {
             // A standalone arg with no flag, no deduplication to do. We merge these
             // together, which is probably not ideal, but is simple.
             flags
                 .entry(String::new())
-                .or_insert(String::new())
+                .or_insert_with(String::new)
                 .push_str(&format!(" {}", bit));
         }
     }

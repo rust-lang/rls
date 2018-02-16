@@ -16,14 +16,14 @@
 //! code completion, and enables renaming and refactorings.
 
 #![feature(rustc_private)]
-#![feature(concat_idents)]
-#![feature(type_ascription)]
 #![feature(integer_atomics)]
-#![feature(fnbox)]
+#![allow(unknown_lints)]
+#![warn(clippy)]
+#![allow(cyclomatic_complexity)]
+#![allow(needless_pass_by_value)]
 
 extern crate cargo;
 extern crate env_logger;
-#[macro_use]
 extern crate failure;
 extern crate languageserver_types as ls_types;
 #[macro_use]
@@ -72,7 +72,7 @@ const COMPILER_TIMEOUT: u64 = 1500;
 #[cfg(test)]
 const COMPILER_TIMEOUT: u64 = 3_600_000;
 
-const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
+const RUSTC_SHIM_ENV_VAR_NAME: &str = "RLS_RUSTC_SHIM";
 
 type Span = span::Span<span::ZeroIndexed>;
 
@@ -89,7 +89,7 @@ pub fn main() {
         return;
     }
 
-    if let Some(first_arg) = ::std::env::args().skip(1).next() {
+    if let Some(first_arg) = ::std::env::args().nth(1) {
         match first_arg.as_str() {
             "--version" | "-V" => println!("rls-preview {}", version()),
             "--help" | "-h" => println!("{}", help()),

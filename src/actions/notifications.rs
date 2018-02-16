@@ -42,7 +42,7 @@ impl BlockingNotificationAction for Initialized {
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
     fn handle<O: Output>(_params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
-        const WATCH_ID: &'static str = "rls-watch";
+        const WATCH_ID: &str = "rls-watch";
 
         let ctx = ctx.inited();
 
@@ -113,7 +113,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
         }
 
         if !ctx.config.lock().unwrap().build_on_save {
-            ctx.build_current_project(BuildPriority::Normal, out);
+            ctx.build_current_project(BuildPriority::Normal, &out);
         }
         Ok(())
     }
@@ -141,8 +141,8 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         let config = params
             .settings
             .get("rust")
-            .ok_or(serde_json::Error::missing_field("rust"))
-            .and_then(|value| Config::deserialize(value));
+            .ok_or_else(|| serde_json::Error::missing_field("rust"))
+            .and_then(Config::deserialize);
 
         let new_config = match config {
             Ok(mut value) => {
@@ -192,9 +192,9 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         // for Cargo, we'll notice them. But if nothing relevant changes
         // then we don't do unnecessary building (i.e., we don't delete
         // artifacts on disk).
-        ctx.build_current_project(BuildPriority::Cargo, out.clone());
+        ctx.build_current_project(BuildPriority::Cargo, &out);
 
-        const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
+        const RANGE_FORMATTING_ID: &str = "rls-range-formatting";
         // FIXME should handle the response
         let id = out.provide_id() as usize;
         if unstable_features {
@@ -239,7 +239,7 @@ impl BlockingNotificationAction for DidSaveTextDocument {
         ctx.vfs.file_saved(&file_path).unwrap();
 
         if ctx.config.lock().unwrap().build_on_save {
-            ctx.build_current_project(BuildPriority::Normal, out);
+            ctx.build_current_project(BuildPriority::Normal, &out);
         }
 
         Ok(())
@@ -258,7 +258,7 @@ impl BlockingNotificationAction for DidChangeWatchedFiles {
         let file_watch = FileWatch::new(&ctx);
 
         if params.changes.iter().any(|c| file_watch.is_relevant(c)) {
-            ctx.build_current_project(BuildPriority::Cargo, out);
+            ctx.build_current_project(BuildPriority::Cargo, &out);
         }
 
         Ok(())
