@@ -1065,7 +1065,7 @@ dependencies = [
  "num_cpus 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "racer 2.0.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-analysis 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rls-analysis 0.11.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-blacklist 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-data 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-rustc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1080,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "rls-analysis"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "derive-new 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1811,7 +1811,7 @@ dependencies = [
 "checksum regex-syntax 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "f9ec002c35e86791825ed294b50008eea9ddfc8def4420124fbc6b08db834957"
 "checksum regex-syntax 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "8e931c58b93d86f080c734bfd2bce7dd0079ae2331235818133c8be7f422e20e"
 "checksum remove_dir_all 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b5d2f806b0fcdabd98acd380dc8daef485e22bcb7cddc811d1337967f2528cf5"
-"checksum rls-analysis 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "30b08808959205a5cf23c68ace2d9d6defdd6867f3cd5d62981cf50fb52f8882"
+"checksum rls-analysis 0.11.1 (registry+https://github.com/rust-lang/crates.io-index)" = "39461c31c9ec26c2f15821d6aaa349216bf71e24e69550d9f8eeded78dc435e1"
 "checksum rls-blacklist 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "56fb7b8e4850b988fbcf277fbdb1eff36879070d02fc1ca243b559273866973d"
 "checksum rls-data 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bea04462e94b5512a78499837eecb7db182ff082144cd1b4bc32ef5d43de6510"
 "checksum rls-rustc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "85cfb9dde19e313da3e47738008f8a472e470cc42d910b71595a9238494701f2"
