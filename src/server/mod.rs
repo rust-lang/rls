@@ -386,7 +386,6 @@ impl<O: Output> LsService<O> {
         while self.handle_message() == ServerStateChange::Continue {}
     }
 
-    #[allow(cyclomatic_complexity)] // complexity after macro expansion
     fn dispatch_message(&mut self, msg: &RawMessage) -> Result<(), jsonrpc::Error> {
         macro_rules! match_action {
             (

@@ -53,13 +53,13 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     // forever. Therefore, we spawn an extra thread here to be safe.
     let handle = thread::spawn(move || {
         run_cargo(
-            &compilation_cx,
+            compilation_cx,
             config,
             vfs,
-            &env_lock,
+            env_lock,
             diagnostics,
             analysis,
-            &out,
+            out,
         )
     });
 
@@ -89,13 +89,13 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
 }
 
 fn run_cargo(
-    compilation_cx: &Arc<Mutex<CompilationContext>>,
+    compilation_cx: Arc<Mutex<CompilationContext>>,
     rls_config: Arc<Mutex<Config>>,
     vfs: Arc<Vfs>,
-    env_lock: &Arc<EnvironmentLock>,
+    env_lock: Arc<EnvironmentLock>,
     compiler_messages: Arc<Mutex<Vec<String>>>,
     analysis: Arc<Mutex<Vec<Analysis>>>,
-    out: &Arc<Mutex<Vec<u8>>>,
+    out: Arc<Mutex<Vec<u8>>>,
 ) -> CargoResult<PathBuf> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
     // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
@@ -119,7 +119,7 @@ fn run_cargo(
     // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
     let manifest_dir = manifest_path.parent().unwrap();
 
-    let mut shell = Shell::from_write(Box::new(BufWriter(Arc::clone(out))));
+    let mut shell = Shell::from_write(Box::new(BufWriter(Arc::clone(&out))));
     shell.set_verbosity(Verbosity::Quiet);
 
     let config = {
@@ -193,7 +193,7 @@ fn run_cargo(
 
     let exec = RlsExecutor::new(
         &ws,
-        Arc::clone(compilation_cx),
+        Arc::clone(&compilation_cx),
         rls_config,
         inner_lock,
         vfs,
@@ -484,7 +484,7 @@ impl Executor for RlsExecutor {
                 &envs,
                 cargo_cmd.get_cwd(),
                 &build_dir,
-                &self.config,
+                Arc::clone(&self.config),
                 &self.env_lock.as_facade(),
             ) {
                 self.compiler_messages.lock().unwrap().append(&mut messages);

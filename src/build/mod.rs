@@ -256,7 +256,7 @@ impl BuildQueue {
         // Need to spawn while holding the lock on queued so that we don't race.
         if !self.internals.building.swap(true, Ordering::SeqCst) {
             thread::spawn(move || {
-                BuildQueue::run_thread(&queued_clone, &internals_clone);
+                BuildQueue::run_thread(queued_clone, &internals_clone);
                 let building = internals_clone.building.swap(false, Ordering::SeqCst);
                 assert!(building);
             });
@@ -315,7 +315,7 @@ impl BuildQueue {
 
     // Run the build thread. This thread will keep going until the build queue is
     // empty, then terminate.
-    fn run_thread(queued: &Arc<Mutex<(Build, Build)>>, internals: &Internals) {
+    fn run_thread(queued: Arc<Mutex<(Build, Build)>>, internals: &Internals) {
         loop {
             // Find the next build to run, or terminate if there are no builds.
             let build = {
@@ -511,7 +511,7 @@ impl Internals {
             envs,
             compile_cx.cwd.as_ref().map(|x| &**x),
             build_dir,
-            &self.config,
+            Arc::clone(&self.config),
             &env_lock,
         )
     }

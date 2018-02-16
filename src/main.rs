@@ -19,6 +19,8 @@
 #![feature(integer_atomics)]
 #![allow(unknown_lints)]
 #![warn(clippy)]
+#![allow(cyclomatic_complexity)]
+#![allow(needless_pass_by_value)]
 
 extern crate cargo;
 extern crate env_logger;

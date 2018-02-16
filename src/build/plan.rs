@@ -27,6 +27,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use cargo::core::{PackageId, Profile, Target, TargetKind};
 use cargo::ops::{Context, Kind, Unit};
@@ -353,7 +354,7 @@ impl JobQueue {
                 job.get_envs(),
                 cwd.as_ref().map(|p| &**p),
                 &build_dir,
-                &internals.config,
+                Arc::clone(&internals.config),
                 &internals.env_lock.as_facade(),
             ) {
                 BuildResult::Success(c, mut messages, mut analysis) => {

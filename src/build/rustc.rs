@@ -50,7 +50,7 @@ pub fn rustc(
     envs: &HashMap<String, Option<OsString>>,
     cwd: Option<&Path>,
     build_dir: &Path,
-    rls_config: &Arc<Mutex<Config>>,
+    rls_config: Arc<Mutex<Config>>,
     env_lock: &EnvironmentLockFacade,
 ) -> BuildResult {
     trace!(
