@@ -82,8 +82,15 @@ impl BlockingNotificationAction for DidChangeTextDocument {
             thread::current().id()
         );
 
+        if params.content_changes.is_empty() {
+            return Ok(());
+        }
+
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_change")?;
+        let version_num = params.text_document.version.unwrap();
+
+        ctx.check_change_version(&file_path, version_num);
 
         let changes: Vec<Change> = params
             .content_changes
@@ -107,10 +114,8 @@ impl BlockingNotificationAction for DidChangeTextDocument {
         ctx.vfs
             .on_changes(&changes)
             .expect("error committing to VFS");
-        if !changes.is_empty() {
-            ctx.build_queue
-                .mark_file_dirty(file_path, params.text_document.version.unwrap())
-        }
+
+        ctx.build_queue.mark_file_dirty(file_path, version_num);
 
         if !ctx.config.lock().unwrap().build_on_save {
             ctx.build_current_project(BuildPriority::Normal, &out);

@@ -125,6 +125,8 @@ pub struct InitActionContext {
     // mutating actions can block until the data is ready.
     active_build_count: Arc<AtomicUsize>,
 
+    prev_changes: Arc<Mutex<HashMap<PathBuf, u64>>>,
+
     config: Arc<Mutex<Config>>,
     client_capabilities: Arc<lsp_data::ClientCapabilities>,
     /// Whether the server is performing cleanup (after having received
@@ -170,6 +172,7 @@ impl InitActionContext {
             current_project,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
+            prev_changes: Arc::new(Mutex::new(HashMap::new())),
             active_build_count: Arc::new(AtomicUsize::new(0)),
             client_capabilities: Arc::new(client_capabilities),
             shut_down: Arc::new(AtomicBool::new(false)),
@@ -266,6 +269,18 @@ impl InitActionContext {
     /// or in progress.
     fn analysis_ready(&self) -> bool {
         self.active_build_count.load(Ordering::SeqCst) == 0
+    }
+
+    fn check_change_version(&self, file_path: &Path, version_num: u64) {
+        let mut prev_changes = self.prev_changes.lock().unwrap();
+        let file_path = file_path.to_owned();
+
+        if prev_changes.contains_key(&file_path) {
+            let prev_version = prev_changes[&file_path];
+            assert!(version_num > prev_version, "Out of order or duplicate change");
+        }
+
+        prev_changes.insert(file_path, version_num);
     }
 
     fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {
