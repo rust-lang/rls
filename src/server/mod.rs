@@ -359,7 +359,7 @@ mod test {
                 text_document: None,
                 experimental: None,
             },
-            trace: TraceOption::Off,
+            trace: ::ls_types::TraceOption::Off,
         }
     }
 
