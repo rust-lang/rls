@@ -19,7 +19,7 @@ use serde_json;
 
 use version;
 use lsp_data;
-use lsp_data::*;
+use lsp_data::{LSPNotification, LSPRequest, InitializationOptions};
 use actions::{notifications, requests, ActionContext};
 use config::Config;
 use server::dispatch::Dispatcher;
@@ -32,6 +32,7 @@ pub use server::message::{Ack, NoResponse, Response, Request, BlockingRequestAct
 pub use ls_types::request::Shutdown as ShutdownRequest;
 pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::notification::Exit as ExitNotification;
+use ls_types::{InitializeResult, InitializeParams, ServerCapabilities, CompletionOptions, TextDocumentSyncCapability, TextDocumentSyncKind, ExecuteCommandOptions};
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -53,14 +54,6 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
     );
     LsService::run(service);
     debug!("Server shutting down");
-}
-
-/// A service implementing a language server.
-pub struct LsService<O: Output> {
-    msg_reader: Box<MessageReader + Send + Sync>,
-    output: O,
-    ctx: ActionContext,
-    dispatcher: Dispatcher,
 }
 
 impl BlockingRequestAction for ShutdownRequest {
@@ -90,23 +83,6 @@ impl BlockingNotificationAction for ExitNotification {
     }
 }
 
-fn get_root_path(params: &InitializeParams) -> PathBuf {
-    params
-        .root_uri
-        .as_ref()
-        .map(|uri| {
-            assert!(uri.scheme() == "file");
-            uri.to_file_path().expect("Could not convert URI to path")
-        })
-        .unwrap_or_else(|| {
-            params
-                .root_path
-                .as_ref()
-                .map(PathBuf::from)
-                .expect("No root path or URI")
-        })
-}
-
 impl BlockingRequestAction for InitializeRequest {
     type Response = NoResponse;
 
@@ -124,56 +100,22 @@ impl BlockingRequestAction for InitializeRequest {
 
         trace!("init: {:?}", init_options);
 
-        let capabilities = lsp_data::ClientCapabilities::new(&params);
-
-        let result = InitializeResult {
-            capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::Incremental)),
-                hover_provider: Some(true),
-                completion_provider: Some(CompletionOptions {
-                    resolve_provider: Some(true),
-                    trigger_characters: vec![".".to_string(), ":".to_string()],
-                }),
-                definition_provider: Some(true),
-                references_provider: Some(true),
-                document_highlight_provider: Some(true),
-                document_symbol_provider: Some(true),
-                workspace_symbol_provider: Some(true),
-                code_action_provider: Some(true),
-                document_formatting_provider: Some(true),
-                execute_command_provider: Some(ExecuteCommandOptions {
-                    commands: vec![
-                        "rls.applySuggestion".to_owned(),
-                        "rls.deglobImports".to_owned(),
-                    ],
-                }),
-                rename_provider: Some(true),
-                // These are supported if the `unstable_features` option is set.
-                // We'll update these capabilities dynamically when we get config
-                // info from the client.
-                document_range_formatting_provider: Some(false),
-
-                code_lens_provider: None,
-                document_on_type_formatting_provider: None,
-                signature_help_provider: None,
-            },
-        };
+        let result = InitializeResult { capabilities: server_caps() };
         out.success(id, &result);
 
+        let capabilities = lsp_data::ClientCapabilities::new(&params);
         ctx.init(get_root_path(&params), &init_options, capabilities, &out);
 
         Ok(NoResponse)
     }
 }
 
-/// How should the server proceed?
-#[derive(Eq, PartialEq, Debug, Clone, Copy)]
-pub enum ServerStateChange {
-    /// Continue serving responses to requests and sending notifications to the
-    /// client.
-    Continue,
-    /// Stop the server.
-    Break,
+/// A service implementing a language server.
+pub struct LsService<O: Output> {
+    msg_reader: Box<MessageReader + Send + Sync>,
+    output: O,
+    ctx: ActionContext,
+    dispatcher: Dispatcher,
 }
 
 impl<O: Output> LsService<O> {
@@ -246,6 +188,16 @@ impl<O: Output> LsService<O> {
             }
         }
 
+        // Notifications and blocking requests are handled immediately on the
+        // main thread. They will never be dropped.
+        // Blocking requests wait for all non-blocking requests to complete,
+        // notifications do not.
+        // Other requests are read and then forwarded to a worker thread, they
+        // might timeout and will return an error but should not be dropped.
+        // Some requests might block again when executing due to waiting for a
+        // build or access to the VFS or real file system.
+        // Requests must not mutate RLS state, but may ask the client to mutate
+        // the client state.
         match_action!(
             msg.method;
             notifications:
@@ -329,6 +281,66 @@ impl<O: Output> LsService<O> {
 
         ServerStateChange::Continue
     }
+}
+
+/// How should the server proceed?
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+pub enum ServerStateChange {
+    /// Continue serving responses to requests and sending notifications to the
+    /// client.
+    Continue,
+    /// Stop the server.
+    Break,
+}
+
+fn server_caps() -> ServerCapabilities {
+    ServerCapabilities {
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::Incremental)),
+        hover_provider: Some(true),
+        completion_provider: Some(CompletionOptions {
+            resolve_provider: Some(true),
+            trigger_characters: vec![".".to_string(), ":".to_string()],
+        }),
+        definition_provider: Some(true),
+        references_provider: Some(true),
+        document_highlight_provider: Some(true),
+        document_symbol_provider: Some(true),
+        workspace_symbol_provider: Some(true),
+        code_action_provider: Some(true),
+        document_formatting_provider: Some(true),
+        execute_command_provider: Some(ExecuteCommandOptions {
+            commands: vec![
+                "rls.applySuggestion".to_owned(),
+                "rls.deglobImports".to_owned(),
+            ],
+        }),
+        rename_provider: Some(true),
+        // These are supported if the `unstable_features` option is set.
+        // We'll update these capabilities dynamically when we get config
+        // info from the client.
+        document_range_formatting_provider: Some(false),
+
+        code_lens_provider: None,
+        document_on_type_formatting_provider: None,
+        signature_help_provider: None,
+    }
+}
+
+fn get_root_path(params: &InitializeParams) -> PathBuf {
+    params
+        .root_uri
+        .as_ref()
+        .map(|uri| {
+            assert!(uri.scheme() == "file");
+            uri.to_file_path().expect("Could not convert URI to path")
+        })
+        .unwrap_or_else(|| {
+            params
+                .root_path
+                .as_ref()
+                .map(PathBuf::from)
+                .expect("No root path or URI")
+        })
 }
 
 #[cfg(test)]

@@ -17,7 +17,7 @@ use serde::ser::{Serialize, Serializer, SerializeStruct};
 use serde::Deserialize;
 use serde_json;
 
-use lsp_data::*;
+use lsp_data::{LSPNotification, LSPRequest};
 use actions::ActionContext;
 use server::io::Output;
 
