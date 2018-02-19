@@ -24,7 +24,7 @@ rls-blacklist = "0.1.0"
 rls-data = { version = "0.15", features = ["serialize-serde"] }
 rls-rustc = "0.2.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
-rls-vfs = { version = "0.4", features = ["racer-impls"] }
+rls-vfs = { version = "0.4.5", features = ["racer-impls"] }
 rustfmt-nightly = { version = "0.3.8", optional = true }
 clippy_lints = { version = "0.0.186", optional = true }
 serde = "1.0"
