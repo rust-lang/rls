@@ -18,6 +18,7 @@ use serde::Deserialize;
 use serde::de::Error;
 use serde_json;
 use Span;
+use std::sync::atomic::Ordering;
 
 use build::*;
 use lsp_data::*;
@@ -87,6 +88,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
         }
 
         let ctx = ctx.inited();
+        ctx.quiescent.store(false, Ordering::SeqCst);
         let file_path = parse_file_path!(&params.text_document.uri, "on_change")?;
         let version_num = params.text_document.version.unwrap();
 

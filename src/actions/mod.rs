@@ -124,6 +124,10 @@ pub struct InitActionContext {
     // Keep a record of builds/post-build tasks currently in flight so that
     // mutating actions can block until the data is ready.
     active_build_count: Arc<AtomicUsize>,
+    // Set to true when a potentially mutating request is received. Set to false
+    // if a change arrives. We can thus tell if the RLS has been quiescent while
+    // waiting to mutate the client state.
+    pub quiescent: Arc<AtomicBool>,
 
     prev_changes: Arc<Mutex<HashMap<PathBuf, u64>>>,
 
@@ -172,8 +176,9 @@ impl InitActionContext {
             current_project,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
-            prev_changes: Arc::new(Mutex::new(HashMap::new())),
             active_build_count: Arc::new(AtomicUsize::new(0)),
+            quiescent: Arc::new(AtomicBool::new(false)),
+            prev_changes: Arc::new(Mutex::new(HashMap::new())),
             client_capabilities: Arc::new(client_capabilities),
             shut_down: Arc::new(AtomicBool::new(false)),
         }

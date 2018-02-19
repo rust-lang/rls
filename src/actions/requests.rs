@@ -51,6 +51,8 @@ pub use lsp_data::FindImpls;
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::Ordering;
+
 
 /// Represent the result of a deglob action for a single wildcard import.
 ///
@@ -380,6 +382,7 @@ impl RequestAction for Rename {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
+        ctx.quiescent.store(true, Ordering::SeqCst);
         // We're going to mutate based on our data so we should block until the
         // data is ready.
         ctx.block_on_build();
@@ -424,6 +427,10 @@ impl RequestAction for Rename {
                 });
         }
 
+        if !ctx.quiescent.load(Ordering::SeqCst) {
+            return Self::fallback_response();
+        }
+
         Ok(WorkspaceEdit { changes: Some(edits), document_changes: None })
     }
 }
@@ -464,7 +471,7 @@ impl RequestAction for ExecuteCommand {
 
     /// Currently supports "rls.applySuggestion", "rls.deglobImports".
     fn handle(
-        _: InitActionContext,
+        ctx: InitActionContext,
         params: ExecuteCommandParams,
     ) -> Result<Self::Response, ResponseError> {
         match &*params.command {
@@ -472,7 +479,7 @@ impl RequestAction for ExecuteCommand {
                 apply_suggestion(&params.arguments).map(ExecuteCommandResponse::ApplyEdit)
             }
             "rls.deglobImports" => {
-                apply_deglobs(params.arguments).map(ExecuteCommandResponse::ApplyEdit)
+                apply_deglobs(params.arguments, &ctx).map(ExecuteCommandResponse::ApplyEdit)
             }
             c => {
                 debug!("Unknown command: {}", c);
@@ -497,12 +504,13 @@ fn apply_suggestion(
     })
 }
 
-fn apply_deglobs(args: Vec<serde_json::Value>) -> Result<ApplyWorkspaceEditParams, ResponseError> {
+fn apply_deglobs(args: Vec<serde_json::Value>, ctx: &InitActionContext) -> Result<ApplyWorkspaceEditParams, ResponseError> {
+    ctx.quiescent.store(true, Ordering::SeqCst);
     let deglob_results: Vec<DeglobResult> = args.into_iter()
         .map(|res| serde_json::from_value(res).expect("Bad argument"))
         .collect();
 
-    trace!("apply_deglob {:?}", deglob_results);
+    trace!("apply_deglobs {:?}", deglob_results);
 
     assert!(!deglob_results.is_empty());
     let uri = deglob_results[0].location.uri.clone();
@@ -526,6 +534,9 @@ fn apply_deglobs(args: Vec<serde_json::Value>) -> Result<ApplyWorkspaceEditParam
         document_changes: None,
     };
 
+    if !ctx.quiescent.load(Ordering::SeqCst) {
+        return Err(ResponseError::Empty);
+    }
     Ok(ApplyWorkspaceEditParams { edit })
 }
 
@@ -714,6 +725,7 @@ fn reformat(
     opts: &FormattingOptions,
     ctx: &InitActionContext,
 ) -> Result<[TextEdit; 1], ResponseError> {
+    ctx.quiescent.store(true, Ordering::SeqCst);
     trace!(
         "Reformat: {:?} {:?} {} {}",
         doc,
@@ -770,6 +782,13 @@ fn reformat(
                 // Note that we don't need to update the VFS, the client
                 // echos back the change to us.
                 let text = String::from_utf8(buf).unwrap();
+
+                if !ctx.quiescent.load(Ordering::SeqCst) {
+                    return Err(ResponseError::Message(
+                        ErrorCode::InternalError,
+                        "Reformat failed to complete successfully".into(),
+                    ))
+                }
 
                 // If Rustfmt returns range of text that changed,
                 // we will be able to pass only range of changed text to the client.
