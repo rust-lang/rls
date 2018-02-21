@@ -94,7 +94,7 @@ pub fn rustc(
     // if it encounters an ICE (internal compiler error) or not.
     // TODO: Change librustc_driver behaviour to distinguish between ICEs and
     // regular compilation failure with errors?
-    let _ = ::std::panic::catch_unwind(|| {
+    let result = ::std::panic::catch_unwind(|| {
         run(move || {
             // Replace stderr so we catch most errors.
             run_compiler(
@@ -116,7 +116,14 @@ pub fn rustc(
     let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or_else(Vec::new);
 
     let cwd = cwd.unwrap_or_else(|| restore_env.get_old_cwd()).to_path_buf();
-    BuildResult::Success(cwd, stderr_json_msgs, analysis)
+
+    match result {
+        Ok(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, true),
+        Err(e) => {
+            eprintln!("Error in rustc: {:?}", e);
+            BuildResult::Success(cwd, stderr_json_msgs, analysis, false)
+        }
+    }
 }
 
 // Our compiler controller. We mostly delegate to the default rustc

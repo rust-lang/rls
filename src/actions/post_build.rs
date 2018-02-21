@@ -54,7 +54,7 @@ impl PostBuildHandler {
         self.notifier.notify_begin();
 
         match result {
-            BuildResult::Success(cwd, messages, new_analysis) => {
+            BuildResult::Success(cwd, messages, new_analysis, _) => {
                 thread::spawn(move || {
                     trace!("build - Success");
 

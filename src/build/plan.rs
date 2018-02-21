@@ -37,6 +37,7 @@ use super::{BuildResult, Internals};
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
 pub type UnitKey = (PackageId, TargetKind);
+
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
 pub struct Plan {
@@ -358,10 +359,21 @@ impl JobQueue {
                 Arc::clone(&internals.config),
                 &internals.env_lock.as_facade(),
             ) {
-                BuildResult::Success(c, mut messages, mut analysis) => {
+                BuildResult::Success(c, mut messages, mut analysis, success) => {
                     compiler_messages.append(&mut messages);
                     analyses.append(&mut analysis);
                     cwd = Some(c);
+
+                    // This compilation failed, but the build as a whole does not
+                    // need to error out.
+                    if !success {
+                        return BuildResult::Success(
+                            cwd.unwrap(),
+                            compiler_messages,
+                            analyses,
+                            false,
+                        );
+                    }
                 }
                 BuildResult::Err(cause, _) => {
                     let cmd = format!("{} {}", program, args.join(" "));
@@ -375,6 +387,7 @@ impl JobQueue {
             cwd.unwrap_or_else(|| PathBuf::from(".")),
             compiler_messages,
             analyses,
+            true,
         )
     }
 }

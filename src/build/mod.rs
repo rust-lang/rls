@@ -98,7 +98,8 @@ pub enum BuildResult {
     /// Build was performed without any internal errors. The payload
     /// contains current directory at the time, emitted raw diagnostics, and
     /// Analysis data.
-    Success(PathBuf, Vec<String>, Vec<Analysis>),
+    /// Final bool is true if and only if compiler's exit code would be 0.
+    Success(PathBuf, Vec<String>, Vec<Analysis>, bool),
     /// Build was coalesced with another build.
     Squashed,
     /// There was an error attempting to build.

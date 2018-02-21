@@ -77,9 +77,9 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
                 .unwrap()
                 .into_inner()
                 .unwrap();
-            BuildResult::Success(cwd.clone(), diagnostics, analysis)
+            BuildResult::Success(cwd.clone(), diagnostics, analysis, true)
         }
-        Ok(cwd) => BuildResult::Success(cwd, vec![], vec![]),
+        Ok(cwd) => BuildResult::Success(cwd, vec![], vec![], true),
         Err(err) => {
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
             debug!("cargo failed\ncause: {}\nstdout: {}", err, stdout);
@@ -201,12 +201,17 @@ fn run_cargo(
         analysis,
     );
 
-    compile_with_exec(&ws, &compile_opts, Arc::new(exec))?;
-
-    trace!(
-        "Created build plan after Cargo compilation routine: {:?}",
-        compilation_cx.lock().unwrap().build_plan
-    );
+    match compile_with_exec(&ws, &compile_opts, Arc::new(exec)) {
+        Ok(_) => {
+            trace!(
+                "Created build plan after Cargo compilation routine: {:?}",
+                compilation_cx.lock().unwrap().build_plan
+            );
+        }
+        Err(e) => {
+            debug!("Error running compile_with_exec: {:?}", e);
+        }
+    }
 
     Ok(compilation_cx.lock().unwrap().cwd.clone().unwrap_or_else(|| {
         restore_env.get_old_cwd().to_path_buf()
@@ -463,6 +468,7 @@ impl Executor for RlsExecutor {
 
         // Cache executed command for the build plan
         {
+            eprintln!("cache job {:?}", cmd);
             let mut cx = self.compilation_cx.lock().unwrap();
             cx.build_plan.cache_compiler_job(id, target, &cmd);
         }
@@ -478,7 +484,7 @@ impl Executor for RlsExecutor {
                 cx.build_dir.clone().unwrap()
             };
 
-            if let BuildResult::Success(_, mut messages, mut analysis) = super::rustc::rustc(
+            if let BuildResult::Success(_, mut messages, mut analysis, success) = super::rustc::rustc(
                 &self.vfs,
                 &args,
                 &envs,
@@ -489,6 +495,10 @@ impl Executor for RlsExecutor {
             ) {
                 self.compiler_messages.lock().unwrap().append(&mut messages);
                 self.analysis.lock().unwrap().append(&mut analysis);
+
+                if !success {
+                    return Err(format_err!("Build error"));
+                }
             }
         } else {
             cmd.exec()?;
