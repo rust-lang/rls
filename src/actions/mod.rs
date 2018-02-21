@@ -124,6 +124,9 @@ pub struct InitActionContext {
     // Keep a record of builds/post-build tasks currently in flight so that
     // mutating actions can block until the data is ready.
     active_build_count: Arc<AtomicUsize>,
+    // Whether we've shown an error message from Cargo since the last successful
+    // build.
+    shown_cargo_error: Arc<AtomicBool>,
     // Set to true when a potentially mutating request is received. Set to false
     // if a change arrives. We can thus tell if the RLS has been quiescent while
     // waiting to mutate the client state.
@@ -177,6 +180,7 @@ impl InitActionContext {
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
             active_build_count: Arc::new(AtomicUsize::new(0)),
+            shown_cargo_error: Arc::new(AtomicBool::new(false)),
             quiescent: Arc::new(AtomicBool::new(false)),
             prev_changes: Arc::new(Mutex::new(HashMap::new())),
             client_capabilities: Arc::new(client_capabilities),
@@ -241,6 +245,7 @@ impl InitActionContext {
                 previous_build_results: self.previous_build_results.clone(),
                 project_path: project_path.to_owned(),
                 show_warnings: config.show_warnings,
+                shown_cargo_error: self.shown_cargo_error.clone(),
                 use_black_list: config.use_crate_blacklist,
                 notifier: Box::new(BuildNotifier {
                     out: out.clone(),

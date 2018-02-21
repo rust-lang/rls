@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use build::BuildResult;
@@ -35,6 +36,7 @@ pub struct PostBuildHandler {
     pub project_path: PathBuf,
     pub show_warnings: bool,
     pub use_black_list: bool,
+    pub shown_cargo_error: Arc<AtomicBool>,
     pub notifier: Box<Notifier>,
     pub blocked_threads: Vec<thread::Thread>,
 }
@@ -75,6 +77,7 @@ impl PostBuildHandler {
                     }
 
                     self.notifier.notify_end();
+                    self.shown_cargo_error.store(false, Ordering::SeqCst);
                 });
             }
             BuildResult::Squashed => {
@@ -83,8 +86,10 @@ impl PostBuildHandler {
             }
             BuildResult::Err(cause, cmd) => {
                 trace!("build - Error {} when running {:?}", cause, cmd);
-                let msg = format!("There was an error trying to build, RLS features will be limited: {}", cause);
-                self.notifier.notify_error(&msg);
+                if !self.shown_cargo_error.swap(true, Ordering::SeqCst) {
+                    let msg = format!("There was an error trying to build, RLS features will be limited: {}", cause);
+                    self.notifier.notify_error(&msg);
+                }
                 self.notifier.notify_end();
             }
         }
