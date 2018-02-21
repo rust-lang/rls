@@ -83,7 +83,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
         Err(err) => {
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
             debug!("cargo failed\ncause: {}\nstdout: {}", err, stdout);
-            BuildResult::Err
+            BuildResult::Err(err.to_string(), None)
         }
     }
 }

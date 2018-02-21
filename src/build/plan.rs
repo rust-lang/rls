@@ -346,7 +346,8 @@ impl JobQueue {
                 .map(|x| x.into_string().expect("cannot stringify job args"))
                 .collect();
 
-            args.insert(0, job.get_program().clone().into_string().expect("cannot stringify job program"));
+            let program = job.get_program().clone().into_string().expect("cannot stringify job program");
+            args.insert(0, program.clone());
 
             match super::rustc::rustc(
                 &internals.vfs,
@@ -362,7 +363,10 @@ impl JobQueue {
                     analyses.append(&mut analysis);
                     cwd = Some(c);
                 }
-                BuildResult::Err => return BuildResult::Err,
+                BuildResult::Err(cause, _) => {
+                    let cmd = format!("{} {}", program, args.join(" "));
+                    return BuildResult::Err(cause, Some(cmd));
+                }
                 _ => {}
             }
         }

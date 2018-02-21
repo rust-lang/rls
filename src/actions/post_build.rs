@@ -81,8 +81,13 @@ impl PostBuildHandler {
                 trace!("build - Squashed");
                 self.notifier.notify_end();
             }
-            BuildResult::Err => {
-                trace!("build - Error");
+            BuildResult::Err(cause, cmd) => {
+                trace!("build - Error {} when running {:?}", cause, cmd);
+                // FIXME remove error reporting or use something more discoverable
+                eprintln!("build error: {}", cause);
+                if let Some(cmd) = cmd {
+                    eprintln!("  when running `{}`", cmd);
+                }
                 self.notifier.notify_error("There was an error trying to build, RLS features will be limited. Try running `cargo check` for more information.");
                 self.notifier.notify_end();
             }

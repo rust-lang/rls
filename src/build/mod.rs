@@ -102,7 +102,9 @@ pub enum BuildResult {
     /// Build was coalesced with another build.
     Squashed,
     /// There was an error attempting to build.
-    Err,
+    /// 0: error cause
+    /// 1: command which caused the error
+    Err(String, Option<String>),
 }
 
 /// Priority for a build request.
@@ -494,8 +496,8 @@ impl Internals {
         // In single package mode Cargo needs to be run to cache args/envs for
         // future rustc calls
         } else if needs_to_run_cargo {
-            if let BuildResult::Err = cargo::cargo(self) {
-                return BuildResult::Err;
+            if let e @ BuildResult::Err(..) = cargo::cargo(self) {
+                return e;
             }
         }
 
