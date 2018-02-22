@@ -1106,11 +1106,10 @@ fn test_find_impls() {
                     .mk_ls_position(src(&source_file_path, 16, "Super")),
             },
         ).to_string(),
-        // Does not work on Travis
-        // blocking_request::<requests::FindImpls>(3, TextDocumentPositionParams {
-        //     text_document: TextDocumentIdentifier::new(url),
-        //     position: env.cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
-        // })).to_string(),
+        blocking_request::<requests::FindImpls>(3, TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url),
+            position: env.cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
+        })).to_string(),
     ];
 
     let (mut server, results) = env.mock_server(messages);
@@ -1148,14 +1147,13 @@ fn test_find_impls() {
             .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
             .expect_contains(r#""range":{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#)
     ]);
-    // Does not work on Travis
-    // assert_eq!(ls_server::LsService::handle_message(&mut server),
-    //            ls_server::ServerStateChange::Continue);
-    // expect_messages(results.clone(), &[
-    //     // TODO assert that only one position is returned
-    //     ExpectedMessage::new(Some(3))
-    //         .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
-    // ]);
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[
+        // TODO assert that only one position is returned
+        ExpectedMessage::new(Some(3))
+            .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
+    ]);
 }
 
 #[test]
