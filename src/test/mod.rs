@@ -1106,10 +1106,13 @@ fn test_find_impls() {
                     .mk_ls_position(src(&source_file_path, 16, "Super")),
             },
         ).to_string(),
-        blocking_request::<requests::FindImpls>(3, TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(url),
-            position: env.cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
-        })).to_string(),
+        request::<requests::FindImpls>(
+            3,
+            TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier::new(url),
+                position: env.cache.mk_ls_position(src(&source_file_path, 20, "Eq")),
+            },
+            ).to_string(),
     ];
 
     let (mut server, results) = env.mock_server(messages);
