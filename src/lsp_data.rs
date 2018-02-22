@@ -54,11 +54,11 @@ where
 
 /// Parse the given URI into a `PathBuf`.
 pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
-    if uri.scheme() != "file" {
-        Err(UrlFileParseError::InvalidScheme)
-    } else {
+    if uri.scheme() == "file" {
         uri.to_file_path()
             .map_err(|_err| UrlFileParseError::InvalidFilePath)
+    } else {
+        Err(UrlFileParseError::InvalidScheme)
     }
 }
 

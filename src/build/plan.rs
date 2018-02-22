@@ -27,11 +27,15 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use build::PackageArg;
 use cargo::core::{PackageId, Profile, Target, TargetKind};
 use cargo::ops::{Context, Kind, Unit};
 use cargo::util::{CargoResult, ProcessBuilder};
+use cargo_metadata;
+use lsp_data::parse_file_path;
+use url::Url;
 
 use super::{BuildResult, Internals};
 
@@ -49,6 +53,11 @@ pub struct Plan {
     pub rev_dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
     /// Cached compiler calls used when creating a compiler call queue.
     pub compiler_jobs: HashMap<UnitKey, ProcessBuilder>,
+    // An object for finding the package which a file belongs to and this inferring
+    // a package argument.
+    package_map: Option<PackageMap>,
+    // The package argument used in the last Cargo build.
+    prev_package_arg: Option<PackageArg>,
 }
 
 impl Plan {
@@ -58,11 +67,16 @@ impl Plan {
             dep_graph: HashMap::new(),
             rev_dep_graph: HashMap::new(),
             compiler_jobs: HashMap::new(),
+            package_map: None,
+            prev_package_arg: None,
         }
     }
 
     pub fn clear(&mut self) {
-        *self = Plan::new();
+        self.units = HashMap::new();
+        self.dep_graph = HashMap::new();
+        self.rev_dep_graph = HashMap::new();
+        self.compiler_jobs = HashMap::new();
     }
 
     /// Returns whether a build plan has cached compiler invocations and dep
@@ -273,23 +287,34 @@ impl Plan {
         }
     }
 
-    pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
-        if !self.is_ready() {
-            return WorkStatus::NeedsCargo;
+    pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&mut self, manifest_path: &Path, modified: &[T], requested_cargo: bool) -> WorkStatus {
+        if self.package_map.is_none() || requested_cargo {
+            self.package_map = Some(PackageMap::new(manifest_path));
+        }
+
+        let package_arg = self.package_map.as_ref().unwrap().compute_package_arg(modified);
+        let package_arg_changed = match self.prev_package_arg {
+            Some(ref ppa) => ppa != &package_arg,
+            None => true,
+        };
+        self.prev_package_arg = Some(package_arg.clone());
+
+        if !self.is_ready() || requested_cargo || package_arg_changed {
+            return WorkStatus::NeedsCargo(package_arg);
         }
 
         let dirties = self.fetch_dirty_units(modified);
         trace!(
             "fetch_dirty_units: for files {:?}, these units are dirty: {:?}",
             modified,
-            dirties
+            dirties,
         );
 
         if dirties
             .iter()
             .any(|&(_, ref kind)| *kind == TargetKind::CustomBuild)
         {
-            WorkStatus::NeedsCargo
+            WorkStatus::NeedsCargo(package_arg)
         } else {
             let graph = self.dirty_rev_dep_graph(&dirties);
             trace!("Constructed dirty rev dep graph: {:?}", graph);
@@ -302,7 +327,7 @@ impl Plan {
                 .collect();
 
             if jobs.is_empty() {
-                WorkStatus::NeedsCargo
+                WorkStatus::NeedsCargo(package_arg)
             } else {
                 WorkStatus::Execute(JobQueue(jobs))
             }
@@ -311,8 +336,72 @@ impl Plan {
 }
 
 pub enum WorkStatus {
-    NeedsCargo,
+    NeedsCargo(PackageArg),
     Execute(JobQueue),
+}
+
+// Maps paths to packages.
+#[derive(Debug)]
+struct PackageMap {
+    // A map from a manifest directory to the package name.
+    package_paths: HashMap<PathBuf, String>,
+    // A map from a file's path, to the package it belongs to.
+    map_cache: Mutex<HashMap<PathBuf, String>>,
+}
+
+impl PackageMap {
+    fn new(manifest_path: &Path) -> PackageMap {
+        PackageMap {
+            package_paths: Self::discover_package_paths(manifest_path),
+            map_cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn discover_package_paths(manifest_path: &Path) -> HashMap<PathBuf, String> {
+        trace!("read metadata {:?}", manifest_path);
+        let metadata = cargo_metadata::metadata(Some(manifest_path)).expect("Can't read crate metadata");
+        metadata
+            .workspace_members
+            .into_iter()
+            .map(|wm| {
+                assert!(wm.url.starts_with("path+"));
+                let url = Url::parse(&wm.url[5..]).expect("Bad URL");
+                let path = parse_file_path(&url).expect("URL not a path");
+                (path, wm.name)
+            })
+            .collect()
+    }
+
+    fn compute_package_arg<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> PackageArg {
+        let mut packages: Option<HashSet<String>> = modified_files.iter().map(|p| self.map(p.as_ref())).collect();
+        match packages {
+            Some(ref mut packages) if packages.len() == 1 => {
+                PackageArg::Package(packages.drain().next().unwrap())
+            }
+            _ => PackageArg::All,
+        }
+    }
+
+    fn map(&self, path: &Path) -> Option<String> {
+        let mut map_cache = self.map_cache.lock().unwrap();
+        if map_cache.contains_key(path) {
+            return Some(map_cache[path].clone());
+        }
+
+        let result = Self::map_uncached(path, &self.package_paths)?;
+
+        map_cache.insert(path.to_owned(), result.clone());
+        Some(result)
+    }
+
+    fn map_uncached(path: &Path, package_paths: &HashMap<PathBuf, String>) -> Option<String> {
+        match package_paths.get(path) {
+            Some(package) => Some(package.clone()),
+            None => {
+                Self::map_uncached(path.parent()?, package_paths)
+            }
+        }
+    }
 }
 
 pub struct JobQueue(Vec<ProcessBuilder>);

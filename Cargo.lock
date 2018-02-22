@@ -1054,6 +1054,7 @@ name = "rls"
 version = "0.126.0"
 dependencies = [
  "cargo 0.26.0 (git+https://github.com/rust-lang/cargo?rev=1d6dfea44f97199d5d5c177c7dadcde393eaff9a)",
+ "cargo_metadata 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clippy_lints 0.0.186 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
