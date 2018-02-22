@@ -119,10 +119,7 @@ pub fn rustc(
 
     match result {
         Ok(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, true),
-        Err(e) => {
-            eprintln!("Error in rustc: {:?}", e);
-            BuildResult::Success(cwd, stderr_json_msgs, analysis, false)
-        }
+        Err(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, false),
     }
 }
 

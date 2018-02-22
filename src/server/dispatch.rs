@@ -12,6 +12,7 @@ use super::requests::*;
 use actions::work_pool;
 use actions::work_pool::WorkDescription;
 use jsonrpc_core as jsonrpc;
+use jsonrpc_core::types::ErrorCode;
 use server;
 use server::{Request, Response};
 use server::io::Output;
@@ -67,7 +68,9 @@ macro_rules! define_dispatch_request_enum {
                         match receiver.recv_timeout(timeout)
                             .unwrap_or_else(|_| $request_type::fallback_response()) {
                             Ok(response) => response.send(id, out),
-                            Err(ResponseError::Empty) => debug!("Error handling request"),
+                            Err(ResponseError::Empty) => {
+                                out.failure_message(id, ErrorCode::InternalError, "An unknown error occurred")
+                            }
                             Err(ResponseError::Message(code, msg)) => {
                                 out.failure_message(id, code, msg)
                             }

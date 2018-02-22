@@ -468,7 +468,6 @@ impl Executor for RlsExecutor {
 
         // Cache executed command for the build plan
         {
-            eprintln!("cache job {:?}", cmd);
             let mut cx = self.compilation_cx.lock().unwrap();
             cx.build_plan.cache_compiler_job(id, target, &cmd);
         }
