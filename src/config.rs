@@ -171,6 +171,9 @@ impl Config {
         new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
 
+        // Ignore requests to disable workspace mode.
+        self.workspace_mode = true;
+
         *self = new;
     }
 
@@ -201,8 +204,12 @@ impl Config {
         }
     }
 
-    /// Infer default values for the given project directory.
+    /// Auto-detect --lib/--bin switch if working under single package mode.
     pub fn infer_defaults(&mut self, project_dir: &Path) -> CargoResult<()> {
+        if self.workspace_mode {
+            return Ok(());
+        }
+
         // Note that this may not be equal build_dir when inside a workspace member
         let manifest_path = important_paths::find_root_manifest_for_wd(None, project_dir)?;
         trace!("root manifest_path: {:?}", &manifest_path);
@@ -214,11 +221,6 @@ impl Config {
         let cargo_config = build::make_cargo_config(manifest_dir, None, &cwd, shell);
 
         let ws = Workspace::new(&manifest_path, &cargo_config)?;
-
-        // Auto-detect --lib/--bin switch if working under single package mode.
-        if self.workspace_mode {
-            return Ok(());
-        }
         let package = ws.current()?;
 
         trace!(
