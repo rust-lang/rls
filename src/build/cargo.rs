@@ -477,6 +477,14 @@ impl Executor for RlsExecutor {
         args.insert(0, rustc);
         let envs = cargo_cmd.get_envs().clone();
 
+        // Store the modified cargo-generated args/envs for future rustc calls
+        {
+            let mut compilation_cx = self.compilation_cx.lock().unwrap();
+            compilation_cx.args = args.clone();
+            compilation_cx.envs = envs.clone();
+            compilation_cx.cwd = cargo_cmd.get_cwd().map(|p| p.to_path_buf());
+        }
+
         if self.workspace_mode {
             let build_dir = {
                 let cx = self.compilation_cx.lock().unwrap();
@@ -502,12 +510,6 @@ impl Executor for RlsExecutor {
         } else {
             cmd.exec()?;
         }
-
-        // Finally, store the modified cargo-generated args/envs for future rustc calls
-        let mut compilation_cx = self.compilation_cx.lock().unwrap();
-        compilation_cx.args = args;
-        compilation_cx.envs = envs;
-        compilation_cx.cwd = cargo_cmd.get_cwd().map(|p| p.to_path_buf());
 
         Ok(())
     }
