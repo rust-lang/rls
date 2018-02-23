@@ -13,11 +13,11 @@ use cargo::ops::{compile_with_exec, CompileFilter, CompileMode, CompileOptions, 
                  Packages, Unit};
 use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue,
                   ProcessBuilder};
-use serde_json;
 use failure;
+use serde_json;
 
 use data::Analysis;
-use build::{BufWriter, BuildResult, CompilationContext, Internals};
+use build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
 use build::environment::{self, Environment, EnvironmentLock};
 use config::Config;
 use vfs::Vfs;
@@ -32,7 +32,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 // Runs an in-process instance of Cargo.
-pub(super) fn cargo(internals: &Internals) -> BuildResult {
+pub(super) fn cargo(internals: &Internals, package_arg: PackageArg) -> BuildResult {
     let workspace_mode = internals.config.lock().unwrap().workspace_mode;
 
     let compilation_cx = internals.compilation_cx.clone();
@@ -54,6 +54,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     let handle = thread::spawn(move || {
         run_cargo(
             compilation_cx,
+            package_arg,
             config,
             vfs,
             env_lock,
@@ -90,6 +91,7 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
 
 fn run_cargo(
     compilation_cx: Arc<Mutex<CompilationContext>>,
+    package_arg: PackageArg,
     rls_config: Arc<Mutex<Config>>,
     vfs: Arc<Vfs>,
     env_lock: Arc<EnvironmentLock>,
@@ -113,6 +115,7 @@ fn run_cargo(
 
         compilation_cx.build_dir.as_ref().unwrap().clone()
     };
+
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)?;
     trace!("root manifest_path: {:?}", &manifest_path);
@@ -131,6 +134,11 @@ fn run_cargo(
 
     let ws = Workspace::new(&manifest_path, &config)?;
 
+    let packages = match package_arg {
+        PackageArg::Unknown | PackageArg::All => vec![],
+        PackageArg::Package(s) => vec![s]
+    };
+
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
     // it on every relevant configuration change
     let (opts, rustflags, clear_env_rust_log) =
@@ -142,7 +150,14 @@ fn run_cargo(
             trace!("Cargo compilation options:\n{:?}", opts);
             let rustflags = prepare_cargo_rustflags(&rls_config);
 
-            if !rls_config.workspace_mode {
+
+            if rls_config.workspace_mode {
+                for package in &packages {
+                    if let None = ws.members().find(|x| x.name() == package) {
+                        warn!("cargo - couldn't find member package `{}` specified in `analyze_package` configuration", package);
+                    }
+                }
+            } else {
                 // Warn about invalid specified bin target or package depending on current mode
                 // TODO: Return client notifications along with diagnostics to inform the user
                 let cur_pkg_targets = ws.current()?.targets();
@@ -158,7 +173,7 @@ fn run_cargo(
             (opts, rustflags, rls_config.clear_env_rust_log)
         };
 
-    let spec = Packages::from_flags(false, &[], &[])?;
+    let spec = Packages::from_flags(false, &[], &packages)?;
 
     let compile_opts = CompileOptions {
         target: opts.target.as_ref().map(|t| &t[..]),
@@ -630,6 +645,7 @@ pub fn make_cargo_config(build_dir: &Path,
         let target_dir = target_dir
             .map(|d| d.to_str().unwrap().to_owned())
             .unwrap_or_else(|| {
+                // FIXME(#730) should be using the workspace root here, not build_dir
                 build_dir
                     .join("target")
                     .join("rls")

@@ -13,9 +13,10 @@
 pub use self::cargo::make_cargo_config;
 
 use actions::post_build::PostBuildHandler;
+use cargo::util::important_paths;
+use config::Config;
 use data::Analysis;
 use vfs::Vfs;
-use config::Config;
 
 use self::environment::EnvironmentLock;
 
@@ -119,6 +120,15 @@ pub enum BuildPriority {
     Normal,
 }
 
+impl BuildPriority {
+    fn is_cargo(&self) -> bool {
+        match *self {
+            BuildPriority::Cargo => true,
+            _ => false,
+        }
+    }
+}
+
 /// Information passed to Cargo/rustc to build.
 #[derive(Debug)]
 struct CompilationContext {
@@ -138,11 +148,20 @@ impl CompilationContext {
         CompilationContext {
             args: vec![],
             envs: HashMap::new(),
+            cwd: None,
             build_dir: None,
             build_plan: BuildPlan::new(),
-            cwd: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum PackageArg {
+    Unknown,
+    // --all
+    All,
+    // -p ...
+    Package(String),
 }
 
 /// Status of the build queue.
@@ -429,11 +448,11 @@ impl Internals {
                 .map_or(true, |dir| dir != new_build_dir)
             {
                 // We'll need to re-run cargo in this case.
-                assert!(priority == BuildPriority::Cargo);
+                assert!(priority.is_cargo());
                 (*compilation_cx).build_dir = Some(new_build_dir.to_owned());
             }
 
-            if priority == BuildPriority::Cargo {
+            if priority.is_cargo() {
                 // Killing these args indicates we'll do a full Cargo build.
                 compilation_cx.args = vec![];
                 compilation_cx.envs = HashMap::new();
@@ -485,19 +504,27 @@ impl Internals {
             // has to be specifically rerun (e.g. when build scripts changed)
             let work = {
                 let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
-                let cx = self.compilation_cx.lock().unwrap();
-                cx.build_plan.prepare_work(&modified)
+                let mut cx = self.compilation_cx.lock().unwrap();
+                let manifest_path = important_paths::find_root_manifest_for_wd(None, cx.build_dir.as_ref().unwrap());
+                let manifest_path = match manifest_path {
+                    Ok(mp) => mp,
+                    Err(e) => {
+                        let msg = format!("Error reading manifest path: {:?}", e);
+                        return BuildResult::Err(msg, None);
+                    }
+                };
+                cx.build_plan.prepare_work(&manifest_path, &modified, needs_to_run_cargo)
             };
             return match work {
                 // In workspace_mode, cargo performs the full build and returns
                 // appropriate diagnostics/analysis data
-                WorkStatus::NeedsCargo => cargo::cargo(self),
+                WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg),
                 WorkStatus::Execute(job_queue) => job_queue.execute(self),
             };
         // In single package mode Cargo needs to be run to cache args/envs for
         // future rustc calls
         } else if needs_to_run_cargo {
-            if let e @ BuildResult::Err(..) = cargo::cargo(self) {
+            if let e @ BuildResult::Err(..) = cargo::cargo(self, PackageArg::Unknown) {
                 return e;
             }
         }

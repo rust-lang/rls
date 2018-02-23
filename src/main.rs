@@ -23,6 +23,7 @@
 #![allow(needless_pass_by_value)]
 
 extern crate cargo;
+extern crate cargo_metadata;
 extern crate env_logger;
 #[macro_use]
 extern crate failure;
