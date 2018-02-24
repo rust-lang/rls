@@ -335,3 +335,47 @@ impl LSPRequest for FindImpls {
     type Result = Vec<Location>;
     const METHOD: &'static str = "rustDocument/implementations";
 }
+
+/* ----------  Temporary LSP type until window/progress proposal is done --------- */
+
+// Notification from server to client for build progress.
+#[derive(Debug)]
+pub struct Progress;
+
+impl notification::Notification for Progress {
+    type Params = ProgressParams;
+    const METHOD: &'static str = NOTIFICATION__Progress;
+}
+
+/**
+ * The progress notification is sent from the server to the client to ask the client
+ * to indicate progress.
+ */
+#[allow(non_upper_case_globals)]
+pub const NOTIFICATION__Progress: &'static str = "window/progress";
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
+pub struct ProgressParams {
+    // A unique identifier to associate multiple progress notifications with the same progress.
+    pub id: String,
+
+    // The title of the progress.
+    // This should be the same for all ProgressParams with the same id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    // Optional progress message to display.
+    // If unset, the previous progress message (if any) is still valid.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+
+    // Optional progress percentage to display.
+    // If unset, the previous progress percentage (if any) is still valid.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub percentage: Option<f64>,
+
+    // Set to true on the final progress update.
+    // No more progress notifications with the same ID should be sent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub done: Option<bool>,
+}

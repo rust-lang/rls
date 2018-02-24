@@ -461,7 +461,7 @@ fn init() -> Sender<String> {
             ).to_string(),
         )
         .expect("Error sending init");
-    println!("Initializing (look for `diagnosticsEnd` message)...");
+    println!("Initializing (look for `progress[done:true]` message)...");
 
     sender
 }

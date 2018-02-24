@@ -21,12 +21,12 @@ use url::Url;
 use span;
 use Span;
 
-use actions::post_build::{BuildResults, PostBuildHandler, Notifier};
+use actions::post_build::{BuildResults, PostBuildHandler};
+use actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
 use build::*;
 use lsp_data;
 use lsp_data::*;
-use lsp_data::notification::{PublishDiagnostics, ShowMessage};
-use server::{Output, Notification};
+use server::Output;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -57,6 +57,7 @@ pub mod work_pool;
 pub mod post_build;
 pub mod requests;
 pub mod notifications;
+pub mod progress;
 
 /// Persistent context shared across all requests and notifications.
 pub enum ActionContext {
@@ -214,29 +215,6 @@ impl InitActionContext {
     }
 
     fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: &O) {
-        struct BuildNotifier<O: Output> {
-            out: O,
-            active_build_count: Arc<AtomicUsize>,
-        }
-
-        impl<O: Output> Notifier for BuildNotifier<O> {
-            fn notify_begin(&self) {
-                self.out.notify(Notification::<DiagnosticsBegin>::new(()));
-            }
-            fn notify_end(&self) {
-                self.active_build_count.fetch_sub(1, Ordering::SeqCst);
-                self.out.notify(Notification::<DiagnosticsEnd>::new(()));
-            }
-            fn notify_publish(&self, params: PublishDiagnosticsParams) {
-                self.out.notify(Notification::<PublishDiagnostics>::new(params));
-            }
-            fn notify_error(&self, msg: &str) {
-                self.out.notify(Notification::<ShowMessage>::new(lsp_data::ShowMessageParams {
-                    typ: lsp_data::MessageType::Error,
-                    message: msg.to_owned(),
-                }));
-            }
-        }
 
         let pbh = {
             let config = self.config.lock().unwrap();
@@ -246,19 +224,18 @@ impl InitActionContext {
                 project_path: project_path.to_owned(),
                 show_warnings: config.show_warnings,
                 shown_cargo_error: self.shown_cargo_error.clone(),
+                active_build_count: self.active_build_count.clone(),
                 use_black_list: config.use_crate_blacklist,
-                notifier: Box::new(BuildNotifier {
-                    out: out.clone(),
-                    active_build_count: self.active_build_count.clone(),
-                }),
+                notifier: Box::new(BuildDiagnosticsNotifier::new(out.clone())),
                 blocked_threads: vec![],
             }
         };
 
-        out.notify(Notification::<BeginBuild>::new(()));
+        let notifier = Box::new(BuildProgressNotifier::new(out.clone()));
+
         self.active_build_count.fetch_add(1, Ordering::SeqCst);
         self.build_queue
-            .request_build(project_path, priority, pbh);
+            .request_build(project_path, priority, notifier, pbh);
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: &O) {
@@ -391,7 +368,6 @@ impl<'ctx> FileWatch<'ctx> {
             || local == "/target" && change.typ == FileChangeType::Deleted
     }
 }
-
 
 #[cfg(test)]
 mod test {

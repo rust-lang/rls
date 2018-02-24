@@ -12,6 +12,7 @@
 
 pub use self::cargo::make_cargo_config;
 
+use actions::progress::{ProgressNotifier, ProgressUpdate};
 use actions::post_build::PostBuildHandler;
 use cargo::util::important_paths;
 use config::Config;
@@ -27,6 +28,7 @@ use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::time::Duration;
 
@@ -183,6 +185,7 @@ struct PendingBuild {
     build_dir: PathBuf,
     priority: BuildPriority,
     built_files: HashMap<PathBuf, FileVersion>,
+    notifier: Box<ProgressNotifier>,
     pbh: PostBuildHandler,
 }
 
@@ -252,7 +255,13 @@ impl BuildQueue {
     /// (we might want to do a high priority build, then a low priority one). So
     /// our build queue is just a single slot (for each priority). We record if
     /// a build is waiting and if not, if a build is running.
-    pub fn request_build(&self, new_build_dir: &Path, mut priority: BuildPriority, pbh: PostBuildHandler) {
+    pub fn request_build(
+        &self,
+        new_build_dir: &Path,
+        mut priority: BuildPriority,
+        notifier: Box<ProgressNotifier>,
+        pbh: PostBuildHandler
+    ) {
         trace!("request_build {:?}", priority);
         let needs_compilation_ctx_from_cargo = {
             let context = self.internals.compilation_cx.lock().unwrap();
@@ -266,6 +275,7 @@ impl BuildQueue {
             build_dir: new_build_dir.to_owned(),
             built_files: self.internals.dirty_files.lock().unwrap().clone(),
             priority,
+            notifier,
             pbh,
         };
 
@@ -377,8 +387,35 @@ impl BuildQueue {
                 }
             }
 
+            // channel to get progress updates out for the async build
+            let (progress_sender, progress_receiver) = channel::<ProgressUpdate>();
+
+            // notifier of window/progress
+            let notifier = build.notifier;
+
+            // use this thread to propagate the progress messages until the sender is dropped.
+            let progress_thread = thread::Builder::new()
+                .name("progress-notifier".into())
+                .spawn(move || {
+                    // window/progress notification that we are about to build
+                    notifier.notify_begin_progress();
+                    loop {
+                        match progress_receiver.recv() {
+                            Ok(progress) => notifier.notify_progress(progress),
+                            Err(_) => break, // error means the sender was Dropped at build end
+                        }
+                    }
+                    notifier.notify_end_progress();
+                })
+                .expect("Failed to start progress-notifier thread");
+
             // Run the build.
-            let result = internals.run_build(&build.build_dir, build.priority, &build.built_files);
+            let result = internals.run_build(
+                &build.build_dir,
+                build.priority,
+                &build.built_files,
+                progress_sender
+            );
             // Assert that the build was not squashed.
             if let BuildResult::Squashed = result {
                 unreachable!();
@@ -390,6 +427,8 @@ impl BuildQueue {
                 pbh.blocked_threads.extend(blocked.drain(..));
             }
 
+            // wait for progress to complete before starting analysis
+            progress_thread.join().expect("progress-notifier panicked!");
             pbh.handle(result);
 
             // Remove the in-progress marker from the build queue.
@@ -436,6 +475,7 @@ impl Internals {
         new_build_dir: &Path,
         priority: BuildPriority,
         built_files: &HashMap<PathBuf, FileVersion>,
+        progress_sender: Sender<ProgressUpdate>,
     ) -> BuildResult {
         trace!("run_build, {:?} {:?}", new_build_dir, priority);
 
@@ -459,7 +499,7 @@ impl Internals {
             }
         }
 
-        let result = self.build();
+        let result = self.build(progress_sender);
         // On a successful build, clear dirty files that were successfully built
         // now. It's possible that a build was scheduled with given files, but
         // user later changed them. These should still be left as dirty (not built).
@@ -477,7 +517,7 @@ impl Internals {
     }
 
     // Build the project.
-    fn build(&self) -> BuildResult {
+    fn build(&self, progress_sender: Sender<ProgressUpdate>) -> BuildResult {
         trace!("running build");
         // When we change build directory (presumably because the IDE is
         // changing project), we must do a cargo build of the whole project.
@@ -518,13 +558,13 @@ impl Internals {
             return match work {
                 // In workspace_mode, cargo performs the full build and returns
                 // appropriate diagnostics/analysis data
-                WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg),
-                WorkStatus::Execute(job_queue) => job_queue.execute(self),
+                WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
+                WorkStatus::Execute(job_queue) => job_queue.execute(self, progress_sender),
             };
         // In single package mode Cargo needs to be run to cache args/envs for
         // future rustc calls
         } else if needs_to_run_cargo {
-            if let e @ BuildResult::Err(..) = cargo::cargo(self, PackageArg::Unknown) {
+            if let e @ BuildResult::Err(..) = cargo::cargo(self, PackageArg::Unknown, progress_sender) {
                 return e;
             }
         }
