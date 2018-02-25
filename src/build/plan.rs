@@ -361,7 +361,10 @@ impl PackageMap {
 
     fn discover_package_paths(manifest_path: &Path) -> HashMap<PathBuf, String> {
         trace!("read metadata {:?}", manifest_path);
-        let metadata = cargo_metadata::metadata(Some(manifest_path)).expect("Can't read crate metadata");
+        let metadata = match cargo_metadata::metadata(Some(manifest_path)) {
+            Ok(metadata) => metadata,
+            Err(_) => return HashMap::new(),
+        };
         metadata
             .workspace_members
             .into_iter()
@@ -385,6 +388,10 @@ impl PackageMap {
     }
 
     fn map(&self, path: &Path) -> Option<String> {
+        if self.package_paths.is_empty() {
+            return None;
+        }
+
         let mut map_cache = self.map_cache.lock().unwrap();
         if map_cache.contains_key(path) {
             return Some(map_cache[path].clone());
@@ -397,6 +404,10 @@ impl PackageMap {
     }
 
     fn map_uncached(path: &Path, package_paths: &HashMap<PathBuf, String>) -> Option<String> {
+        if package_paths.is_empty() {
+            return None;
+        }
+
         match package_paths.get(path) {
             Some(package) => Some(package.clone()),
             None => {
