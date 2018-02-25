@@ -85,9 +85,17 @@ pub(super) fn cargo(internals: &Internals, package_arg: PackageArg, progress_sen
         }
         Ok(cwd) => BuildResult::Success(cwd, vec![], vec![], true),
         Err(err) => {
+            // This message goes like this to the UI via showMessage. In VSCode
+            // this ends up on one single line, so it's important to keep it concise.
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
-            debug!("cargo failed\ncause: {}\nstdout: {}", err, stdout);
-            BuildResult::Err(err.to_string(), None)
+            let stdout_msg = if stdout.is_empty() {
+                "".to_string()
+            } else {
+                format!("({})", stdout)
+            };
+            let msg = format!("Cargo failed: {}{}", err, stdout_msg);
+            info!("{}", msg);
+            BuildResult::Err(msg, None)
         }
     }
 }
