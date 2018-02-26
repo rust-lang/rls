@@ -89,8 +89,7 @@ impl PostBuildHandler {
                     // It's not a good idea to make a long message here, the output in
                     // VSCode is one single line, and it's important to capture the
                     // root cause.
-                    // let msg = format!("There was an error trying to build, RLS features will be limited: {}", cause);
-                    self.notifier.notify_build_error_diagnostics(cause);
+                    self.notifier.notify_error_diagnostics(cause);
                 }
                 self.notifier.notify_end_diagnostics();
                 self.active_build_count.fetch_sub(1, Ordering::SeqCst);

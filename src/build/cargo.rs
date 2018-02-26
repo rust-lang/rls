@@ -94,7 +94,7 @@ pub(super) fn cargo(internals: &Internals, package_arg: PackageArg, progress_sen
                 format!("({})", stdout)
             };
             let msg = format!("Cargo failed: {}{}", err, stdout_msg);
-            info!("{}", msg);
+            debug!("{}", msg);
             BuildResult::Err(msg, None)
         }
     }

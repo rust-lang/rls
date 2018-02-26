@@ -34,7 +34,7 @@ pub enum ProgressUpdate {
 pub trait DiagnosticsNotifier: Send {
     fn notify_begin_diagnostics(&self);
     fn notify_publish_diagnostics(&self, PublishDiagnosticsParams);
-    fn notify_build_error_diagnostics(&self, msg: String);
+    fn notify_error_diagnostics(&self, msg: String);
     fn notify_end_diagnostics(&self);
 }
 
@@ -121,7 +121,7 @@ impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
     fn notify_publish_diagnostics(&self, params: PublishDiagnosticsParams) {
         self.out.notify(Notification::<PublishDiagnostics>::new(params));
     }
-    fn notify_build_error_diagnostics(&self, message: String) {
+    fn notify_error_diagnostics(&self, message: String) {
         self.out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
              typ: MessageType::Error,
              message: message.to_owned(),
