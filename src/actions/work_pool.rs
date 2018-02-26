@@ -34,9 +34,10 @@ lazy_static! {
         .unwrap();
 }
 
-/// Maximum concurrent working tasks of the same type
+/// Maximum concurrent working tasks of the same type (equal `WorkDescription`)
 /// Note: `2` allows a single task to run immediately after a similar task has timed out.
-/// Once multiple tasks have timed out but remain running we start refusing to start new ones.
+/// Once multiple similar tasks have timed out but remain running we start refusing to start new
+/// ones.
 const MAX_SIMILAR_CONCURRENT_WORK: usize = 2;
 
 /// Runs work in a new thread on the `WORK_POOL` returning a result `Receiver`
@@ -64,9 +65,8 @@ where
             return receiver;
         }
         if work.iter().filter(|desc| *desc == &description).count() >= MAX_SIMILAR_CONCURRENT_WORK {
-            // this type of work is already filling around half the work pool, so there's
-            // good reason to believe it may fill the entire pool => fail fast to allow
-            // other task-types to run
+            // this type of work is already filling max proportion of the work pool, so fail
+            // new requests of this kind until some/all the ongoing work finishes
             info!(
                 "Could not start `{}` as same work-type is filling half capacity, {:?} in progress",
                 description, *work,
