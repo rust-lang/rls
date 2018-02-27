@@ -25,7 +25,6 @@ use span;
 
 use actions::work_pool;
 use actions::work_pool::WorkDescription;
-use analysis::DefKind;
 use lsp_data;
 use lsp_data::*;
 use server;
@@ -117,7 +116,6 @@ impl RequestAction for Symbols {
         Ok(
             symbols
                 .into_iter()
-                .filter(|s| s.kind != DefKind::Local) // Removes local variables from the outline
                 .map(|s| {
                     SymbolInformation {
                         name: s.name,
