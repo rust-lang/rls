@@ -359,6 +359,7 @@ impl PackageMap {
         }
     }
 
+    // Fine each package in the workspace and record the root directory and package name.
     fn discover_package_paths(manifest_path: &Path) -> HashMap<PathBuf, String> {
         trace!("read metadata {:?}", manifest_path);
         let metadata = match cargo_metadata::metadata(Some(manifest_path)) {
@@ -377,6 +378,8 @@ impl PackageMap {
             .collect()
     }
 
+    // Compute the `-p` argument to pass to Cargo by examining the current dirty
+    // set of files and finding their package.
     fn compute_package_arg<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> PackageArg {
         let mut packages: Option<HashSet<String>> = modified_files.iter().map(|p| self.map(p.as_ref())).collect();
         match packages {
@@ -387,6 +390,9 @@ impl PackageMap {
         }
     }
 
+    // Map a file to the package which it belongs to.
+    // We do this by walking up the directory tree from `path` until we get to
+    // one of the recorded package root directories.
     fn map(&self, path: &Path) -> Option<String> {
         if self.package_paths.is_empty() {
             return None;

@@ -1563,7 +1563,7 @@ fn test_all_targets() {
             ExpectedMessage::new(None)
                 .expect_contains(r#"bin_lib/tests/tests.rs"#)
                 .expect_contains(r#"unused variable: `unused_var`"#),
-
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
 }
