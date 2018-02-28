@@ -109,17 +109,16 @@ impl PostBuildHandler {
         for (group, msg) in messages.iter().enumerate() {
             if let Some(FileDiagnostic {
                 file_path,
-                diagnostic,
+                main: (diagnostic, suggestions),
                 secondaries,
-                suggestions,
             }) = parse_diagnostics(msg, group as u64) {
                 let entry = results
                     .entry(cwd.join(file_path))
                     .or_insert_with(Vec::new);
 
                 entry.push((diagnostic, suggestions));
-                for secondary in secondaries {
-                    entry.push((secondary, vec![]));
+                for (secondary, suggestions) in secondaries {
+                    entry.push((secondary, suggestions));
                 }
             }
         }
@@ -180,9 +179,8 @@ pub struct Suggestion {
 #[derive(Debug)]
 struct FileDiagnostic {
     file_path: PathBuf,
-    diagnostic: Diagnostic,
-    secondaries: Vec<Diagnostic>,
-    suggestions: Vec<Suggestion>,
+    main: (Diagnostic, Vec<Suggestion>),
+    secondaries: Vec<(Diagnostic, Vec<Suggestion>)>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -216,7 +214,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     let diagnostic_msg = message.message.clone();
     let primary_span = message.spans.iter().find(|s| s.is_primary).unwrap();
     let rls_span = primary_span.rls_span().zero_indexed();
-    let suggestions = make_suggestions(&message.children, &rls_span.file);
+    let suggestions = make_suggestions(&message, &rls_span.file);
 
     let mut source = "rustc";
     let diagnostic = {
@@ -269,12 +267,23 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
             diagnostic_msg.clone()
         };
 
+        let mut suggestion = secondary_span
+            .suggested_replacement
+            .as_ref()
+            .map(|s| span_suggestion(secondary_span, s));
+
         if let Some(ref secondary_label) = secondary_span.label {
-            secondary_message.push_str(&format!("\n\n{}", secondary_label));
+            let label_suggestion = label_suggestion(secondary_span, secondary_label);
+            if suggestion.is_none() && label_suggestion.is_some() {
+                suggestion = label_suggestion;
+            }
+            else {
+                secondary_message.push_str(&format!("\n\n{}", secondary_label));
+            }
         }
         let rls_span = secondary_span.rls_span().zero_indexed();
 
-        Diagnostic {
+        let diag = Diagnostic {
             range: ls_util::rls_to_range(rls_span.range),
             severity: Some(DiagnosticSeverity::Information),
             code: Some(NumberOrString::String(match message.code {
@@ -284,14 +293,14 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
             source: Some(source.to_owned()),
             message: secondary_message.trim().to_owned(),
             group: Some(group),
-        }
+        };
+        (diag, suggestion.map(|s| vec![s]).unwrap_or_default())
     }).collect();
 
     Some(FileDiagnostic {
         file_path: rls_span.file,
-        diagnostic,
+        main: (diagnostic, suggestions),
         secondaries,
-        suggestions,
     })
 }
 
@@ -341,24 +350,57 @@ fn severity(level: &str) -> DiagnosticSeverity {
     }
 }
 
-fn make_suggestions(children: &[CompilerMessage], file: &Path) -> Vec<Suggestion> {
+fn make_suggestions(message: &CompilerMessage, file: &Path) -> Vec<Suggestion> {
     let mut suggestions = vec![];
-    for c in children {
-        for sp in &c.spans {
-            let span = sp.rls_span().zero_indexed();
-            if span.file == file {
-                if let Some(ref s) = sp.suggested_replacement {
-                    let suggestion = Suggestion {
-                        new_text: s.clone(),
-                        range: ls_util::rls_to_range(span.range),
-                        label: format!("{}: `{}`", c.message, s),
-                    };
-                    suggestions.push(suggestion);
-                }
+    for sp in message.children.iter().flat_map(|msg| &msg.spans) {
+        let span = sp.rls_span().zero_indexed();
+        if span.file == file {
+            if let Some(ref s) = sp.suggested_replacement {
+                let range = ls_util::rls_to_range(span.range);
+                let action = if range.start == range.end { "Add" } else { "Change to" };
+                let label = if message
+                    .spans
+                    .iter()
+                    .filter(|s| s.is_primary)
+                    .map(|s| s.rls_span().zero_indexed())
+                    .any(|s| s.range.row_start == span.range.row_start)
+                {
+                    // on the same line as diagnostic
+                    format!("{} `{}`", action, s)
+                } else {
+                    format!("Line {}: {} `{}`", range.start.line + 1, action, s)
+                };
+                let suggestion = Suggestion {
+                    new_text: s.clone(),
+                    range,
+                    label,
+                };
+                suggestions.push(suggestion);
             }
         }
     }
     suggestions
+}
+
+fn span_suggestion(span: &DiagnosticSpan, suggested: &str) -> Suggestion {
+    let zspan = span.rls_span().zero_indexed();
+    let range = ls_util::rls_to_range(zspan.range);
+    let action = if range.start == range.end { "Add" } else { "Change to" };
+    let label = format!("{} `{}`", action, suggested);
+    Suggestion {
+        new_text: suggested.to_string(),
+        range,
+        label,
+    }
+}
+
+fn label_suggestion(span: &DiagnosticSpan, label: &str) -> Option<Suggestion> {
+    let suggest_label = "consider changing this to `";
+    if label.starts_with(suggest_label) && label.ends_with('`') {
+        let suggested_replacement = &label[suggest_label.len()..label.len() - 1];
+        return Some(span_suggestion(span, suggested_replacement))
+    }
+    None
 }
 
 trait IsWithin {
@@ -389,23 +431,34 @@ impl IsWithin for DiagnosticSpan {
 mod diagnostic_message_test {
     use super::*;
 
-    fn parse_compiler_message(compiler_message: &str) -> FileDiagnostic {
+    pub(super) fn parse_compiler_message(compiler_message: &str) -> FileDiagnostic {
         let _ = ::env_logger::try_init();
         parse_diagnostics(compiler_message, 0)
             .expect("failed to parse compiler message")
     }
 
-    trait FileDiagnosticTestExt {
+    pub(super) trait FileDiagnosticTestExt {
         /// Returns (primary message, secondary messages)
         fn to_messages(&self) -> (String, Vec<String>);
+
+        /// Returns all primary & secondary suggestions
+        fn all_suggestions(&self) -> Vec<&Suggestion>;
     }
 
     impl FileDiagnosticTestExt for FileDiagnostic {
         fn to_messages(&self) -> (String, Vec<String>) {
             (
-                self.diagnostic.message.clone(),
-                self.secondaries.iter().map(|d| d.message.clone()).collect()
+                self.main.0.message.clone(),
+                self.secondaries.iter().map(|d| d.0.message.clone()).collect()
             )
+        }
+
+        fn all_suggestions(&self) -> Vec<&Suggestion> {
+            self.main
+                .1
+                .iter()
+                .chain(self.secondaries.iter().flat_map(|s| &s.1))
+                .collect()
         }
     }
 
@@ -422,8 +475,8 @@ mod diagnostic_message_test {
             include_str!("../../test_data/compiler_message/use-after-move.json")
         );
 
-        assert_eq!(diag.diagnostic.source, Some("rustc".into()));
-        for source in diag.secondaries.iter().map(|d| d.source.as_ref()) {
+        assert_eq!(diag.main.0.source, Some("rustc".into()));
+        for source in diag.secondaries.iter().map(|d| d.0.source.as_ref()) {
             assert_eq!(source, Some(&"rustc".into()));
         }
 
@@ -502,9 +555,9 @@ mod diagnostic_message_test {
             cannot borrow mutably",
         );
 
+        // note: consider message becomes a suggetion
         assert_eq!(others, vec![
-            "cannot borrow immutable local variable `string` as mutable\n\n\
-            consider changing this to `mut string`"
+            "cannot borrow immutable local variable `string` as mutable"
         ]);
     }
 
@@ -586,8 +639,8 @@ help: consider borrowing here: `&string`"#,
             include_str!("../../test_data/compiler_message/clippy-identity-op.json")
         );
 
-        assert_eq!(diag.diagnostic.source, Some("clippy".into()));
-        for source in diag.secondaries.iter().map(|d| d.source.as_ref()) {
+        assert_eq!(diag.main.0.source, Some("clippy".into()));
+        for source in diag.secondaries.iter().map(|d| d.0.source.as_ref()) {
             assert_eq!(source, Some(&"clippy".into()));
         }
 
@@ -608,5 +661,95 @@ help: consider borrowing here: `&string`"#,
          );
 
         assert!(others.is_empty(), "{:?}", others);
+    }
+}
+
+/// Tests for creating suggestions from the compilers json output
+#[cfg(test)]
+mod diagnostic_suggestion_test {
+    use super::*;
+    use self::diagnostic_message_test::*;
+    use ls_types;
+
+    #[test]
+    fn suggest_use_when_cannot_find_type() {
+        let diag = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/cannot-find-type.json"
+        ));
+        let suggestions = diag.all_suggestions();
+
+        eprintln!("{:#?}", suggestions);
+
+        let use_hash_set = suggestions
+            .iter()
+            .find(|s| s.new_text == "use std::collections::HashSet;\n")
+            .expect("`use std::collections::HashSet` not found");
+
+        assert_eq!(
+            use_hash_set.label,
+            "Line 15: Add `use std::collections::HashSet;\n`"
+        );
+
+        let expected_position = ls_types::Position { line: 14, character: 0 };
+        assert_eq!(
+            use_hash_set.range,
+            Range {
+                start: expected_position,
+                end: expected_position,
+            }
+        );
+    }
+
+    #[test]
+    fn suggest_mut_when_not_mut() {
+        let diag = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/not-mut.json"
+        ));
+        let suggestions = diag.all_suggestions();
+
+        eprintln!("{:#?}", suggestions);
+
+        let change_to_mut = suggestions
+            .iter()
+            .find(|s| s.new_text == "mut string")
+            .expect("`mut string` not found");
+
+        assert_eq!(change_to_mut.label, "Change to `mut string`");
+
+        assert_eq!(
+            change_to_mut.range,
+            Range {
+                start: ls_types::Position { line: 132, character: 12 },
+                end: ls_types::Position { line: 132, character: 18 },
+            }
+        );
+    }
+
+    /// ```
+    /// pub const WINDOW_PROGRESS: &'static str = "window/progress";
+    /// ```
+    #[test]
+    fn suggest_clippy_const_static() {
+        let diag = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/clippy-const-static-lifetime.json"
+        ));
+        let suggestions = diag.all_suggestions();
+
+        eprintln!("{:#?}", suggestions);
+
+        let change_to_mut = suggestions
+            .iter()
+            .find(|s| s.new_text == "&str")
+            .expect("`&str` not found");
+
+        assert_eq!(change_to_mut.label, "Change to `&str`");
+
+        assert_eq!(
+            change_to_mut.range,
+            Range {
+                start: ls_types::Position { line: 354, character: 34 },
+                end: ls_types::Position { line: 354, character: 46 },
+            }
+        );
     }
 }
