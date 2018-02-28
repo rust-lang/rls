@@ -33,7 +33,7 @@ pub fn timeout<F>(dur: Duration, func: F)
 
     thread::spawn(move|| {
         let &(ref lock, ref cvar) = &*pair2;
-        match panic::catch_unwind(|| func()) {
+        match panic::catch_unwind(func) {
             Ok(_) => *lock.lock().unwrap() = TestState::Success,
             Err(_) => *lock.lock().unwrap() = TestState::Fail,
         }
@@ -353,7 +353,7 @@ pub fn main_file(println: &str, deps: &[&str]) -> String {
     }
 
     buf.push_str("fn main() { println!(");
-    buf.push_str(&println);
+    buf.push_str(println);
     buf.push_str("); }\n");
 
     buf.to_string()
