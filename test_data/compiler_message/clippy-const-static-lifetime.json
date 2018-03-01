@@ -1,0 +1,90 @@
+{
+  "children": [{
+    "children": [],
+    "code": null,
+    "level": "note",
+    "message": "lint level defined here",
+    "rendered": null,
+    "spans": [{
+      "byte_end": 889,
+      "byte_start": 883,
+      "column_end": 15,
+      "column_start": 9,
+      "expansion": null,
+      "file_name": "src/main.rs",
+      "is_primary": true,
+      "label": null,
+      "line_end": 21,
+      "line_start": 21,
+      "suggested_replacement": null,
+      "text": [{
+        "highlight_end": 15,
+        "highlight_start": 9,
+        "text": "#![warn(clippy)]"
+      }]
+    }]
+  }, {
+    "children": [],
+    "code": null,
+    "level": "note",
+    "message": "#[warn(const_static_lifetime)] implied by #[warn(clippy)]",
+    "rendered": null,
+    "spans": []
+  }, {
+    "children": [],
+    "code": null,
+    "level": "help",
+    "message": "for further information visit https://rust-lang-nursery.github.io/rust-clippy/v0.0.187/index.html#const_static_lifetime",
+    "rendered": null,
+    "spans": []
+  }, {
+    "children": [],
+    "code": null,
+    "level": "help",
+    "message": "consider removing `'static`",
+    "rendered": null,
+    "spans": [{
+      "byte_end": 12140,
+      "byte_start": 12128,
+      "column_end": 47,
+      "column_start": 35,
+      "expansion": null,
+      "file_name": "src/lsp_data.rs",
+      "is_primary": true,
+      "label": null,
+      "line_end": 355,
+      "line_start": 355,
+      "suggested_replacement": "&str",
+      "text": [{
+        "highlight_end": 47,
+        "highlight_start": 35,
+        "text": "pub const WINDOW_PROGRESS: &'static str = \"window/progress\";"
+      }]
+    }]
+  }],
+  "code": {
+    "code": "const_static_lifetime",
+    "explanation": null
+  },
+  "level": "warning",
+  "message": "Constants have by default a `'static` lifetime",
+  "rendered": "warning: Constants have by default a `'static` lifetime\n   --> src/lsp_data.rs:355:36\n    |\n355 | pub const WINDOW_PROGRESS: &'static str = \"window/progress\";\n    |                                   -^^^^^^^---- help: consider removing `'static`: `&str`\n    |\nnote: lint level defined here\n   --> src/main.rs:21:9\n    |\n21  | #![warn(clippy)]\n    |         ^^^^^^\n    = note: #[warn(const_static_lifetime)] implied by #[warn(clippy)]\n    = help: for further information visit https://rust-lang-nursery.github.io/rust-clippy/v0.0.187/index.html#const_static_lifetime\n\n",
+  "spans": [{
+    "byte_end": 12136,
+    "byte_start": 12129,
+    "column_end": 43,
+    "column_start": 36,
+    "expansion": null,
+    "file_name": "src/lsp_data.rs",
+    "is_primary": true,
+    "label": null,
+    "line_end": 355,
+    "line_start": 355,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 43,
+      "highlight_start": 36,
+      "text": "pub const WINDOW_PROGRESS: &'static str = \"window/progress\";"
+    }]
+  }]
+}
