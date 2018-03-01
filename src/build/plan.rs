@@ -440,7 +440,7 @@ impl JobQueue {
         // returned results will replace currently held diagnostics/analyses.
         // Either allow to return a BuildResult::Squashed here or just delegate
         // to Cargo (which we do currently) in `prepare_work`
-        assert!(self.0.len() > 0);
+        assert!(!self.0.is_empty());
 
         let mut compiler_messages = vec![];
         let mut analyses = vec![];
