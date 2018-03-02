@@ -181,14 +181,21 @@ pub mod ls_util {
 /// Convert an RLS def-kind to a language server protocol symbol-kind.
 pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     match k {
-        DefKind::Enum => SymbolKind::Enum,
-        DefKind::TupleVariant => SymbolKind::Constant,
+        DefKind::Enum | DefKind::Union => SymbolKind::Enum,
+        DefKind::Static | DefKind::Const => SymbolKind::Constant,
         DefKind::Tuple => SymbolKind::Array,
-        DefKind::StructVariant | DefKind::Union | DefKind::Struct => SymbolKind::Class,
-        DefKind::Function | DefKind::Method | DefKind::Macro => SymbolKind::Function,
+        DefKind::Struct => SymbolKind::Class,
+        DefKind::Function | DefKind::Macro => SymbolKind::Function,
+        DefKind::Method => SymbolKind::Method,
         DefKind::Mod => SymbolKind::Module,
         DefKind::Trait | DefKind::Type | DefKind::ExternType => SymbolKind::Interface,
-        DefKind::Local | DefKind::Static | DefKind::Const | DefKind::Field => SymbolKind::Variable,
+        DefKind::Local => SymbolKind::Variable,
+        DefKind::Field | DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::Field,
+
+        // Waiting for languageserver-types be updated to LSP 3 spec
+        //DefKind::Struct => SymbolKind::Struct,
+        //DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::EnumMember,
+        //DefKind::Type => SymbolKind::TypeParameter,
     }
 }
 
