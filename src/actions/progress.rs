@@ -34,8 +34,8 @@ pub enum ProgressUpdate {
 pub trait DiagnosticsNotifier: Send {
     fn notify_begin_diagnostics(&self);
     fn notify_publish_diagnostics(&self, PublishDiagnosticsParams);
+    fn notify_error_diagnostics(&self, msg: String);
     fn notify_end_diagnostics(&self);
-    fn notify_error_diagnostics(&self, msg: &str);
 }
 
 /// Generate a new progress params with a unique ID and the given title.
@@ -121,15 +121,15 @@ impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
     fn notify_publish_diagnostics(&self, params: PublishDiagnosticsParams) {
         self.out.notify(Notification::<PublishDiagnostics>::new(params));
     }
+    fn notify_error_diagnostics(&self, message: String) {
+        self.out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+             typ: MessageType::Error,
+             message: message.to_owned(),
+         }));
+    }
     fn notify_end_diagnostics(&self) {
         let mut params = self.progress_params.clone();
         params.done = Some(true);
         self.out.notify(Notification::<Progress>::new(params));
-    }
-    fn notify_error_diagnostics(&self, msg: &str) {
-        self.out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-            typ: MessageType::Error,
-            message: msg.to_owned(),
-        }));
     }
 }
