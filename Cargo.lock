@@ -1049,7 +1049,7 @@ dependencies = [
  "rls-rustc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-vfs 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustfmt-nightly 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustfmt-nightly 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1187,7 +1187,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rustfmt-nightly"
-version = "0.3.8"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cargo_metadata 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1791,7 +1791,7 @@ dependencies = [
 "checksum rustc-ap-syntax_pos 29.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "db9de2e927e280c75b8efab9c5f591ad31082d5d2c4c562c68fdba2ee77286b0"
 "checksum rustc-demangle 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "11fb43a206a04116ffd7cfcf9bcb941f8eb6cc7ff667272246b0a1c74259a3cb"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
-"checksum rustfmt-nightly 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)" = "43b808fb7257e2a8dbafffea338448db7f688fc741289344f8d4ff6055e01a4d"
+"checksum rustfmt-nightly 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "554256054eae37ead2f799ffa9cf8be8249496c6c3cf005c28b7cfa55f4efaa5"
 "checksum same-file 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "cfb6eded0b06a0b512c8ddbcf04089138c9b4362c2f696f3c3d76039d68f3637"
 "checksum schannel 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "acece75e0f987c48863a6c792ec8b7d6c4177d4a027f8ccc72f849794f437016"
 "checksum scoped-tls 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f417c22df063e9450888a7561788e9bd46d3bb3c1466435b4eccb903807f147d"
