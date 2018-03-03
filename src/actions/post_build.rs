@@ -284,7 +284,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
             }
         }
         let severity = Some(if secondary_span.is_primary {
-            DiagnosticSeverity::Warning
+            severity(&message.level)
         }
         else {
             DiagnosticSeverity::Information
