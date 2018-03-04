@@ -302,6 +302,10 @@ impl RequestAction for Completion {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
+        if !ctx.config.lock().unwrap().racer_completion {
+            return Self::fallback_response();
+        }
+
         let vfs = ctx.vfs;
         let file_path = parse_file_path!(&params.text_document.uri, "complete")?;
 

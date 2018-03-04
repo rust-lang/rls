@@ -134,6 +134,8 @@ pub struct Config {
     pub no_default_features: bool,
     pub jobs: Option<u32>,
     pub all_targets: bool,
+    /// Enable use of racer for `textDocument/completion` requests
+    pub racer_completion: bool,
 }
 
 impl Default for Config {
@@ -159,6 +161,7 @@ impl Default for Config {
             no_default_features: false,
             jobs: None,
             all_targets: false,
+            racer_completion: true,
         };
         result.normalise();
         result
