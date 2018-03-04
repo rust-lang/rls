@@ -118,7 +118,8 @@ Currently we accept the following options:
 * `all_targets` (`bool`, defaults to `false`) checks the project as if you were
   running `cargo check --all-targets`. I.e., check all targets and integration
   tests too.
-
+* `racer_completion` (`bool`, defaults to `true`) enables/disables code
+  completion using racer.
 
 ## Troubleshooting
 
