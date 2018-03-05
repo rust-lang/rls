@@ -12,24 +12,58 @@
     "explanation": null
   },
   "level": "warning",
-  "message": "unused import: `std::borrow::Cow`",
-  "rendered": "warning: unused import: `std::borrow::Cow`\n  --> src/main.rs:54:5\n   |\n54 | use std::borrow::Cow;\n   |     ^^^^^^^^^^^^^^^^\n   |\n   = note: #[warn(unused_imports)] on by default\n\n",
+  "message": "unused imports: `f64`, `u64`, `u8 as Foo`",
+  "rendered": "warning: unused imports: `f64`, `u64`, `u8 as Foo`\n --> src/main.rs:1:11\n  |\n1 | use std::{f64, u64, u8 as Foo};\n  |           ^^^  ^^^  ^^^^^^^^^\n  |\n  = note: #[warn(unused_imports)] on by default\n\n",
   "spans": [{
-    "byte_end": 1053,
-    "byte_start": 1037,
-    "column_end": 21,
-    "column_start": 5,
+    "byte_end": 13,
+    "byte_start": 10,
+    "column_end": 14,
+    "column_start": 11,
     "expansion": null,
     "file_name": "src/main.rs",
     "is_primary": true,
     "label": null,
-    "line_end": 54,
-    "line_start": 54,
+    "line_end": 1,
+    "line_start": 1,
     "suggested_replacement": null,
     "text": [{
-      "highlight_end": 21,
-      "highlight_start": 5,
-      "text": "use std::borrow::Cow;"
+      "highlight_end": 14,
+      "highlight_start": 11,
+      "text": "use std::{f64, u64, u8 as Foo};"
+    }]
+  }, {
+    "byte_end": 18,
+    "byte_start": 15,
+    "column_end": 19,
+    "column_start": 16,
+    "expansion": null,
+    "file_name": "src/main.rs",
+    "is_primary": true,
+    "label": null,
+    "line_end": 1,
+    "line_start": 1,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 19,
+      "highlight_start": 16,
+      "text": "use std::{f64, u64, u8 as Foo};"
+    }]
+  }, {
+    "byte_end": 29,
+    "byte_start": 20,
+    "column_end": 30,
+    "column_start": 21,
+    "expansion": null,
+    "file_name": "src/main.rs",
+    "is_primary": true,
+    "label": null,
+    "line_end": 1,
+    "line_start": 1,
+    "suggested_replacement": null,
+    "text": [{
+      "highlight_end": 30,
+      "highlight_start": 21,
+      "text": "use std::{f64, u64, u8 as Foo};"
     }]
   }]
 }

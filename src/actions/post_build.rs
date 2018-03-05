@@ -214,20 +214,21 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     }
 
     let diagnostic_msg = message.message.clone();
-    let primary_span = message.spans.iter().find(|s| s.is_primary).unwrap();
-    let rls_span = primary_span.rls_span().zero_indexed();
+    let (first_primary_span_index, first_primary_span)
+        = message.spans.iter().enumerate().find(|s| s.1.is_primary).unwrap();
+    let rls_span = first_primary_span.rls_span().zero_indexed();
     let suggestions = make_suggestions(&message, &rls_span.file);
 
     let mut source = "rustc";
     let diagnostic = {
         let mut primary_message = diagnostic_msg.clone();
-        if let Some(ref primary_label) = primary_span.label {
+        if let Some(ref primary_label) = first_primary_span.label {
             if primary_label.trim() != primary_message.trim() {
                 primary_message.push_str(&format!("\n\n{}", primary_label));
             }
         }
 
-        if let Some(notes) = format_notes(&message.children, primary_span) {
+        if let Some(notes) = format_notes(&message.children, first_primary_span) {
             primary_message.push_str(&format!("\n\n{}", notes));
         }
 
@@ -260,9 +261,10 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     let secondaries = message
     .spans
     .iter()
-    .filter(|x| !x.is_primary)
-    .map(|secondary_span| {
-        let mut secondary_message = if secondary_span.is_within(primary_span) {
+    .enumerate()
+    .filter(|x| x.0 != first_primary_span_index)
+    .map(|(_, secondary_span)| {
+        let mut secondary_message = if secondary_span.is_within(first_primary_span) {
             String::new()
         }
         else {
@@ -283,11 +285,17 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
                 secondary_message.push_str(&format!("\n\n{}", secondary_label));
             }
         }
+        let severity = Some(if secondary_span.is_primary {
+            severity(&message.level)
+        }
+        else {
+            DiagnosticSeverity::Information
+        });
         let rls_span = secondary_span.rls_span().zero_indexed();
 
         let diag = Diagnostic {
             range: ls_util::rls_to_range(rls_span.range),
-            severity: Some(DiagnosticSeverity::Information),
+            severity,
             code: Some(NumberOrString::String(match message.code {
                 Some(ref c) => c.code.clone(),
                 None => String::new(),
@@ -608,17 +616,27 @@ help: consider borrowing here: `&string`"#,
     }
 
     /// ```
-    /// use std::borrow::Cow;
+    /// use std::{f64, u64, u8 as Foo};
     /// ```
     #[test]
     fn message_unused_use() {
-        let (msg, others) = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/unused-use.json")
-        ).to_messages();
-        assert_eq!(msg, "unused import: `std::borrow::Cow`\n\n\
-                         note: #[warn(unused_imports)] on by default");
+        let (msg, others) = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/unused-use.json"
+        )).to_messages();
+        assert_eq!(
+            msg,
+            "unused imports: `f64`, `u64`, `u8 as Foo`\n\n\
+             note: #[warn(unused_imports)] on by default"
+        );
 
-        assert!(others.is_empty(), "{:?}", others);
+        // 2 more warnings for the other two imports
+        assert_eq!(
+            others,
+            vec![
+                "unused imports: `f64`, `u64`, `u8 as Foo`",
+                "unused imports: `f64`, `u64`, `u8 as Foo`",
+            ]
+        );
     }
 
     #[test]
