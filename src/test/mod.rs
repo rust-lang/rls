@@ -118,10 +118,10 @@ fn test_shutdown() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -165,10 +165,10 @@ fn test_goto_def() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -218,10 +218,10 @@ fn test_hover() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -303,10 +303,10 @@ fn test_hover_after_src_line_change() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -333,10 +333,10 @@ fn test_hover_after_src_line_change() {
     expect_messages(
         results.clone(),
         &[
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -382,10 +382,10 @@ fn test_workspace_symbol() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("workspace_symbol"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -446,10 +446,10 @@ fn test_find_all_refs() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -509,10 +509,10 @@ fn test_find_all_refs_no_cfg_test() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("find_all_refs_no_cfg_test"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -554,10 +554,10 @@ fn test_borrow_error() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("borrow_error"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains(
                 r#""message":"cannot borrow `x` as mutable more than once at a time"#,
             ),
@@ -598,10 +598,10 @@ fn test_highlight() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -657,10 +657,10 @@ fn test_rename() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -720,10 +720,10 @@ fn test_reformat() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("reformat"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -782,10 +782,10 @@ fn test_reformat_with_range() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("reformat_with_range"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -820,12 +820,12 @@ fn test_multiple_binaries() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
                                                                                            // order of these is random
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin"), // "bin1"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin"), // "bin2"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             // These messages should be about bin_name1 and bin_name2, but the order is
             // not deterministic FIXME(#606)
             ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
@@ -863,7 +863,7 @@ fn test_multiple_binaries() {
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#)]);
 
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
@@ -899,11 +899,11 @@ fn test_bin_lib_project() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin_lib"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin_lib"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -929,7 +929,7 @@ fn test_bin_lib_project() {
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`"),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#)]);
 // }
@@ -951,12 +951,12 @@ fn test_bin_lib_project() {
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        // TODO: Ideally we should check for message contents for different crates/targets,
 //                                        // however order of received messages is non-deterministic and this
 //                                        // would require implementing something like `or_expect_contains`
-//                                        ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
-//                                        ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
+//                                        ExpectedMessage::new(None).expect_contains("publishIndexing"),
+//                                        ExpectedMessage::new(None).expect_contains("publishIndexing"),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#)]);
 // }
 
@@ -979,10 +979,10 @@ fn test_infer_lib() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_lib"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedLib`"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
@@ -1008,10 +1008,10 @@ fn test_infer_bin() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_bin"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedBin`"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
@@ -1037,10 +1037,10 @@ fn test_infer_custom_bin() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("custom_bin"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedCustomBin`"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
@@ -1162,10 +1162,10 @@ fn test_find_impls() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("find_impls"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -1219,10 +1219,10 @@ fn test_features() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains(
                 r#""message":"cannot find struct, variant or union type `Bar` in this scope"#,
             ),
@@ -1251,10 +1251,10 @@ fn test_all_features() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -1283,10 +1283,10 @@ fn test_no_default_features() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains(
                 r#""message":"cannot find struct, variant or union type `Baz` in this scope"#,
             ),
@@ -1310,7 +1310,7 @@ fn test_no_default_features() {
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+//                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        ExpectedMessage::new(None)
 //                                            .expect_contains(root_url.path())
 //                                            .expect_contains("struct is never used: `Unused`"),
@@ -1402,10 +1402,10 @@ fn test_deglob() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("deglob"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -1551,14 +1551,14 @@ fn test_all_targets() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Build""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Diagnostics""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 
             ExpectedMessage::new(None)
                 .expect_contains(r#"bin_lib/tests/tests.rs"#)
