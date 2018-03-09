@@ -70,7 +70,7 @@ impl<O: Output> BuildProgressNotifier<O> {
     pub fn new(out: O) -> BuildProgressNotifier<O> {
         BuildProgressNotifier {
             out,
-            progress_params: new_progress_params("Build".into()),
+            progress_params: new_progress_params("Building".into()),
         }
     }
 }
@@ -108,7 +108,10 @@ impl<O: Output> BuildDiagnosticsNotifier<O> {
     pub fn new(out: O) -> BuildDiagnosticsNotifier<O> {
         BuildDiagnosticsNotifier {
             out,
-            progress_params: new_progress_params("Diagnostics".into()),
+            // We emit diagnostics then index, since emitting diagnostics is really
+            // quick and always has a message, "indexing" is usually a more useful
+            // title.
+            progress_params: new_progress_params("Indexing".into()),
         }
     }
 }
