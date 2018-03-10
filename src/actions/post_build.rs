@@ -13,6 +13,8 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -128,6 +130,21 @@ impl PostBuildHandler {
         }
     }
 
+    fn finalise(mut self) {
+        // the end message must be dispatched before waking up
+        // the blocked threads, or we might see "done":true message
+        // first in the next action invocation.
+        self.notifier.notify_end_diagnostics();
+
+        // Wake up any threads blocked on this analysis.
+        for t in self.blocked_threads.drain(..) {
+            t.unpark();
+        }
+
+        self.shown_cargo_error.store(false, Ordering::SeqCst);
+        self.active_build_count.fetch_sub(1, Ordering::SeqCst);
+    }
+
     fn emit_notifications(&self, build_results: &BuildResults) {
         for (path, diagnostics) in build_results {
             let params = PublishDiagnosticsParams {
@@ -180,10 +197,20 @@ impl AnalysisQueue {
 
     fn enqueue(&self, job: Job) {
         trace!("enqueue job");
+
         {
             let mut queue = self.queue.lock().unwrap();
             let mut cur_cwd = self.cur_cwd.lock().unwrap();
             *cur_cwd = Some(job.cwd.clone());
+
+            // Remove any analysis jobs which this job obsoletes.
+            trace!("Pre-prune queue len: {}", queue.len());
+            if let Some(hash) = job.hash {
+                let mut squashed = queue.drain_filter(|j| j.hash == Some(hash));
+                squashed.for_each(|j| j.handler.finalise());
+            }
+            trace!("Post-prune queue len: {}", queue.len());
+
             queue.push(job);
         }
 
@@ -208,23 +235,36 @@ impl AnalysisQueue {
     }
 }
 
-// An analysis task to be queued and exectuted by `AnalysisQueue`.
+// An analysis task to be queued and executed by `AnalysisQueue`.
 struct Job {
     handler: PostBuildHandler,
     analysis: Vec<Analysis>,
     cwd: PathBuf,
+    hash: Option<u64>,
 }
 
 impl Job {
     fn new(handler: PostBuildHandler, analysis: Vec<Analysis>, cwd: PathBuf) -> Job {
+        // We make a hash from all the crate paths in analysis.
+        let hash = analysis
+            .iter()
+            .map(|a| a.prelude.as_ref().map(|p| &*p.crate_root))
+            .collect::<Option<Vec<&str>>>()
+            .map(|v| {
+                let mut hasher = DefaultHasher::new();
+                Hash::hash_slice(&v, &mut hasher);
+                hasher.finish()
+            });
+
         Job {
             handler,
             analysis,
             cwd,
+            hash,
         }
     }
 
-    fn process(mut self) {
+    fn process(self) {
         // Reload the analysis data.
         trace!("reload analysis: {:?} {:?}", self.handler.project_path, self.cwd);
         if self.analysis.is_empty() {
@@ -233,18 +273,7 @@ impl Job {
             self.handler.reload_analysis_from_memory(&self.cwd, self.analysis);
         }
 
-        // the end message must be dispatched before waking up
-        // the blocked threads, or we might see "done":true message
-        // first in the next action invocation.
-        self.handler.notifier.notify_end_diagnostics();
-
-        // Wake up any threads blocked on this analysis.
-        for t in self.handler.blocked_threads.drain(..) {
-            t.unpark();
-        }
-
-        self.handler.shown_cargo_error.store(false, Ordering::SeqCst);
-        self.handler.active_build_count.fetch_sub(1, Ordering::SeqCst);
+        self.handler.finalise();
     }
 }
 
