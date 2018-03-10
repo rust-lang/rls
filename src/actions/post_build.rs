@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::thread;
+use std::thread::{self, Thread};
 
 use build::BuildResult;
 use lsp_data::{ls_util, PublishDiagnosticsParams};
@@ -43,40 +43,18 @@ pub struct PostBuildHandler {
     pub blocked_threads: Vec<thread::Thread>,
 }
 
-
 impl PostBuildHandler {
-    pub fn handle(mut self, result: BuildResult) {
-
+    pub fn handle(self, result: BuildResult) {
         match result {
             BuildResult::Success(cwd, messages, new_analysis, _) => {
-                thread::spawn(move || {
-                    trace!("build - Success");
-                    self.notifier.notify_begin_diagnostics();
+                trace!("build - Success");
+                self.notifier.notify_begin_diagnostics();
 
-                    // Emit appropriate diagnostics using the ones from build.
-                    self.handle_messages(&cwd, &messages);
+                // Emit appropriate diagnostics using the ones from build.
+                self.handle_messages(&cwd, &messages);
 
-                    // Reload the analysis data.
-                    trace!("reload analysis: {:?} {:?}", self.project_path, cwd);
-                    if new_analysis.is_empty() {
-                        self.reload_analysis_from_disk(&cwd);
-                    } else {
-                        self.reload_analysis_from_memory(&cwd, new_analysis);
-                    }
-
-                    // the end message must be dispatched before waking up
-                    // the blocked threads, or we might see "done":true message
-                    // first in the next action invocation.
-                    self.notifier.notify_end_diagnostics();
-
-                    // Wake up any threads blocked on this analysis.
-                    for t in self.blocked_threads.drain(..) {
-                        t.unpark();
-                    }
-
-                    self.shown_cargo_error.store(false, Ordering::SeqCst);
-                    self.active_build_count.fetch_sub(1, Ordering::SeqCst);
-                });
+                let job = Job::new(self, new_analysis, cwd);
+                ANALYSIS_QUEUE.enqueue(job);
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
@@ -168,6 +146,105 @@ impl PostBuildHandler {
 
             self.notifier.notify_publish_diagnostics(params);
         }
+    }
+}
+
+// Queue up analysis tasks and execute them on the same thread (this is slower
+// than executing in parallel, but allows us to skip indexing tasks).
+struct AnalysisQueue {
+    // The cwd of the previous build.
+    // !!! Do not take this lock without holding the lock on `queue` !!!
+    cur_cwd: Mutex<Option<PathBuf>>,
+    queue: Arc<Mutex<Vec<Job>>>,
+    // Handle to the worker thread where we handle analysis tasks.
+    worker_thread: Thread,
+}
+
+lazy_static! {
+    static ref ANALYSIS_QUEUE: AnalysisQueue = AnalysisQueue::init();
+}
+
+impl AnalysisQueue {
+    // Create a new queue and start the worker thread.
+    fn init() -> AnalysisQueue {
+        let queue = Arc::new(Mutex::new(Vec::new()));
+        let queue_clone = queue.clone();
+        let worker_thread = thread::spawn(move || AnalysisQueue::run_worker_thread(queue_clone)).thread().clone();
+
+        AnalysisQueue {
+            cur_cwd: Mutex::new(None),
+            queue,
+            worker_thread,
+        }
+    }
+
+    fn enqueue(&self, job: Job) {
+        trace!("enqueue job");
+        {
+            let mut queue = self.queue.lock().unwrap();
+            let mut cur_cwd = self.cur_cwd.lock().unwrap();
+            *cur_cwd = Some(job.cwd.clone());
+            queue.push(job);
+        }
+
+        self.worker_thread.unpark();
+    }
+
+    fn run_worker_thread(queue: Arc<Mutex<Vec<Job>>>) {
+        loop {
+            let job = {
+                let mut queue = queue.lock().unwrap();
+                if queue.is_empty() {
+                    None
+                } else {
+                    Some(queue.remove(0))
+                }
+            };
+            match job {
+                Some(job) => job.process(),
+                None => thread::park(),
+            }
+        }
+    }
+}
+
+// An analysis task to be queued and exectuted by `AnalysisQueue`.
+struct Job {
+    handler: PostBuildHandler,
+    analysis: Vec<Analysis>,
+    cwd: PathBuf,
+}
+
+impl Job {
+    fn new(handler: PostBuildHandler, analysis: Vec<Analysis>, cwd: PathBuf) -> Job {
+        Job {
+            handler,
+            analysis,
+            cwd,
+        }
+    }
+
+    fn process(mut self) {
+        // Reload the analysis data.
+        trace!("reload analysis: {:?} {:?}", self.handler.project_path, self.cwd);
+        if self.analysis.is_empty() {
+            self.handler.reload_analysis_from_disk(&self.cwd);
+        } else {
+            self.handler.reload_analysis_from_memory(&self.cwd, self.analysis);
+        }
+
+        // the end message must be dispatched before waking up
+        // the blocked threads, or we might see "done":true message
+        // first in the next action invocation.
+        self.handler.notifier.notify_end_diagnostics();
+
+        // Wake up any threads blocked on this analysis.
+        for t in self.handler.blocked_threads.drain(..) {
+            t.unpark();
+        }
+
+        self.handler.shown_cargo_error.store(false, Ordering::SeqCst);
+        self.handler.active_build_count.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
