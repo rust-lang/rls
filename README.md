@@ -70,7 +70,7 @@ a spinning indicator:
 
 Once you see:
 
-`RLS: done`
+`RLS`
 
 Then you have the full set of capabilities available to you.  You can goto def,
 find all refs, rename, goto type, etc.  Completions are also available using the
