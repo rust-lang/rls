@@ -140,6 +140,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_metadata"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "semver 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1029,7 +1041,7 @@ name = "rls"
 version = "0.126.0"
 dependencies = [
  "cargo 0.26.0 (git+https://github.com/rust-lang/cargo?rev=1d6dfea44f97199d5d5c177c7dadcde393eaff9a)",
- "cargo_metadata 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cargo_metadata 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "clippy_lints 0.0.187 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1671,6 +1683,7 @@ dependencies = [
 "checksum bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b3c30d3802dfb7281680d6285f2ccdaa8c2d8fee41f93805dba5c4cf50dc23cf"
 "checksum cargo 0.26.0 (git+https://github.com/rust-lang/cargo?rev=1d6dfea44f97199d5d5c177c7dadcde393eaff9a)" = "<none>"
 "checksum cargo_metadata 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f410f43295c912ae1328de55e5c050dbef882c17b836f5ed41cc8b96c40d6cc5"
+"checksum cargo_metadata 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "0574943c9fe2860e80de6506cc49372724da0c3158139a66f0ecc61c757ae7fb"
 "checksum cc 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "deaf9ec656256bb25b404c51ef50097207b9cbb29c933d31f92cae5a8a0ffee0"
 "checksum cfg-if 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d4c819a1287eb618df47cc647173c5c4c66ba19d888a6e50d605672aed3140de"
 "checksum clap 2.30.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1c07b9257a00f3fc93b7f3c417fc15607ec7a56823bc2c37ec744e266387de5b"
