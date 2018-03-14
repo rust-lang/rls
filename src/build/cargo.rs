@@ -165,7 +165,7 @@ fn run_cargo(
 
             if rls_config.workspace_mode {
                 for package in &packages {
-                    if ws.members().find(|x| x.name() == package).is_none() {
+                    if ws.members().find(|x| *x.name() == *package).is_none() {
                         warn!("cargo - couldn't find member package `{}` specified in `analyze_package` configuration", package);
                     }
                 }
