@@ -116,7 +116,7 @@ pub trait Output: Sync + Send + Clone + 'static {
     /// Notify the client of a failure with the given diagnostic message.
     fn failure_message<M: Into<String>>(&self, id: usize, code: jsonrpc::ErrorCode, msg: M) {
         let error = jsonrpc::Error {
-            code: code,
+            code,
             message: msg.into(),
             data: None,
         };

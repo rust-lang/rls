@@ -131,7 +131,7 @@ impl<O: Output> LsService<O> {
 
         LsService {
             msg_reader: reader,
-            output: output,
+            output,
             ctx: ActionContext::new(analysis, vfs, config),
             dispatcher,
         }

@@ -359,7 +359,7 @@ impl notification::Notification for Progress {
  * to indicate progress.
  */
 #[allow(non_upper_case_globals)]
-pub const NOTIFICATION__Progress: &'static str = "window/progress";
+pub const NOTIFICATION__Progress: &str = "window/progress";
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 pub struct ProgressParams {

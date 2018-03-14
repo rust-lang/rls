@@ -135,7 +135,7 @@ impl RlsRustcCalls {
     fn new(analysis: Arc<Mutex<Option<Analysis>>>) -> RlsRustcCalls {
         RlsRustcCalls {
             default_calls: RustcDefaultCalls,
-            analysis: analysis,
+            analysis,
         }
     }
 }
@@ -279,7 +279,7 @@ struct ReplacedFileLoader {
 impl ReplacedFileLoader {
     fn new(replacements: HashMap<PathBuf, String>) -> ReplacedFileLoader {
         ReplacedFileLoader {
-            replacements: replacements,
+            replacements,
             real_file_loader: RealFileLoader,
         }
     }

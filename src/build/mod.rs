@@ -399,11 +399,8 @@ impl BuildQueue {
                 .spawn(move || {
                     // window/progress notification that we are about to build
                     notifier.notify_begin_progress();
-                    loop {
-                        match progress_receiver.recv() {
-                            Ok(progress) => notifier.notify_progress(progress),
-                            Err(_) => break, // error means the sender was Dropped at build end
-                        }
+                    while let Ok(progress) = progress_receiver.recv() {
+                        notifier.notify_progress(progress);
                     }
                     notifier.notify_end_progress();
                 })
