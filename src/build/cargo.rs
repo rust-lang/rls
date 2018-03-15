@@ -185,25 +185,25 @@ fn run_cargo(
             (opts, rustflags, rls_config.clear_env_rust_log)
         };
 
-    let spec = Packages::from_flags(false, &[], &packages)?;
+    let spec = Packages::from_flags(false, Vec::new(), packages)?;
 
     let compile_opts = CompileOptions {
-        target: opts.target.as_ref().map(|t| &t[..]),
+        target: opts.target,
         spec,
         filter: CompileFilter::new(
             opts.lib,
-            &opts.bin,
+            opts.bin,
             opts.bins,
             // TODO: Support more crate target types
-            &[],
+            Vec::new(),
             false,
-            &[],
+            Vec::new(),
             false,
-            &[],
+            Vec::new(),
             false,
             opts.all_targets,
         ),
-        features: &opts.features,
+        features: opts.features,
         all_features: opts.all_features,
         no_default_features: opts.no_default_features,
         jobs: opts.jobs,
