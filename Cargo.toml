@@ -10,13 +10,13 @@ categories = ["development-tools"]
 build = "build.rs"
 
 [dependencies]
-# cargo hash delivered with nightly-2018-02-01
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "1d6dfea44f97199d5d5c177c7dadcde393eaff9a" }
+# cargo hash delivered with nightly-2018-03-14
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "5f83bb4044f32b60d06717c609610f67411fc671" }
 cargo_metadata = "0.5.2"
 env_logger = "0.5"
 failure = "0.1.1"
 jsonrpc-core = "8.0.1"
-languageserver-types = "0.30"
+languageserver-types = "0.31"
 lazy_static = "1"
 log = "0.4"
 racer = "2.0.12"
