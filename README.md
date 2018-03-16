@@ -110,16 +110,19 @@ Currently we accept the following options:
   the given target triple for all rustc invocations
 * `wait_to_build` (`u64`, defaults to `500`) time in milliseconds between
   receiving a change notification and starting build
-* `workspace_mode` (`bool`, defaults to `true`) When turned on, RLS will try
-  to scan current workspace and analyze every package in it.
-* `analyze_package` (`String`, defaults to `""`) When `workspace_mode` is
-  enabled, analysis will be only provided for the specified package (runs as
-  if `-p <analyze_package>` was passed).
 * `all_targets` (`bool`, defaults to `false`) checks the project as if you were
   running `cargo check --all-targets`. I.e., check all targets and integration
-  tests too.
-* `racer_completion` (`bool`, defaults to `true`) enables/disables code
-  completion using racer.
+  tests too
+* `use_crate_blacklist` (`bool`, defaults to `true`) if disabled, also indexes
+  data from the [blacklisted](https://github.com/nrc/rls-blacklist/blob/master/src/lib.rs) crates
+* `build_on_save` (`bool`, defaults to `false`) toggles whether the RLS should
+  perform continuous analysis or only after a file is saved
+* `features` (`[String]`, defaults to empty) list of Cargo features to enable
+* `all_features` (`bool`, defaults to `false`) enables all Cargo features
+* `no_default_features` (`bool`, defaults to `false`) disables default Cargo
+  features
+* `racer_completion` (`bool`, defaults to `true`) enables code completion using
+  racer (which is, at the moment, our only code completion backend)
 
 ## Troubleshooting
 
