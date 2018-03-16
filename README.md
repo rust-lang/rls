@@ -11,7 +11,7 @@ completion, and enables renaming and refactorings.
 
 The RLS gets its source data from the compiler and from
 [Racer](https://github.com/phildawes/racer). Where possible it uses data from
-the compiler which is precise and complete. Where its not possible, (for example
+the compiler which is precise and complete. Where it is not possible, (for example
 for code completion and where building is too slow), it uses Racer.
 
 Since the Rust compiler does not yet support end-to-end incremental compilation,
@@ -31,7 +31,7 @@ for [Visual Studio Code](https://code.visualstudio.com/).
 ### Step 1: Install rustup
 
 You can install [rustup](http://rustup.rs/) on many platforms. This will help us quickly install the
-rls and its dependencies.
+RLS and its dependencies.
 
 If you already have rustup installed, update to ensure you have the latest
 rustup and compiler:
@@ -80,7 +80,7 @@ squiggles to see the text of the error.
 
 ## Configuration
 
-The RLS can be configured on a per-project basis, using the Visual
+The RLS can be configured on a per-project basis; using the Visual
 Studio Code extension this will be done via the workspace settings file
 `settings.json`.
 
@@ -94,7 +94,7 @@ project.
 Currently we accept the following options:
 
 * `build_lib` (`bool`, defaults to `false`) checks the project as if you passed
-  the `--lib` argument to cargo. Mutually exclusive with, and preferred over
+  the `--lib` argument to cargo. Mutually exclusive with, and preferred over,
   `build_bin`.
 * `build_bin` (`String`, defaults to `""`) checks the project as if you passed
   `-- bin <build_bin>` argument to cargo. Mutually exclusive with `build_lib`.
