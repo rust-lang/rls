@@ -182,7 +182,13 @@ impl Plan {
             .iter()
             .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
             .map(|(key, unit)| {
-                (key.clone(), unit.target.src_path().parent().expect("no parent for src_path"))
+                (
+                    key.clone(),
+                    unit.target
+                        .src_path()
+                        .parent()
+                        .expect("no parent for src_path"),
+                )
             })
             .collect();
 
@@ -228,7 +234,9 @@ impl Plan {
             transitive.insert(top.clone());
 
             // Process every dirty rev dep of the processed node
-            let dirty_rev_deps = self.rev_dep_graph[&top]
+            let dirty_rev_deps = self.rev_dep_graph
+                .get(&top)
+                .expect("missing key in rev_dep_graph")
                 .iter()
                 .filter(|dep| dirties.contains(dep));
             for rev_dep in dirty_rev_deps {
@@ -289,12 +297,20 @@ impl Plan {
         }
     }
 
-    pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(&mut self, manifest_path: &Path, modified: &[T], requested_cargo: bool) -> WorkStatus {
+    pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(
+        &mut self,
+        manifest_path: &Path,
+        modified: &[T],
+        requested_cargo: bool,
+    ) -> WorkStatus {
         if self.package_map.is_none() || requested_cargo {
             self.package_map = Some(PackageMap::new(manifest_path));
         }
 
-        let package_arg = self.package_map.as_ref().unwrap().compute_package_arg(modified);
+        let package_arg = self.package_map
+            .as_ref()
+            .unwrap()
+            .compute_package_arg(modified);
         let package_arg_changed = match self.prev_package_arg {
             Some(ref ppa) => ppa != &package_arg,
             None => true,
@@ -325,7 +341,12 @@ impl Plan {
             trace!("Topologically sorted dirty graph: {:?}", queue);
             let jobs: Vec<_> = queue
                 .iter()
-                .map(|x| self.compiler_jobs[x].clone())
+                .map(|x| {
+                    self.compiler_jobs
+                        .get(x)
+                        .expect("missing key in compiler_jobs")
+                        .clone()
+                })
                 .collect();
 
             if jobs.is_empty() {
@@ -381,7 +402,10 @@ impl PackageMap {
     // Compute the `-p` argument to pass to Cargo by examining the current dirty
     // set of files and finding their package.
     fn compute_package_arg<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> PackageArg {
-        let mut packages: Option<HashSet<String>> = modified_files.iter().map(|p| self.map(p.as_ref())).collect();
+        let mut packages: Option<HashSet<String>> = modified_files
+            .iter()
+            .map(|p| self.map(p.as_ref()))
+            .collect();
         match packages {
             Some(ref mut packages) if packages.len() == 1 => {
                 PackageArg::Package(packages.drain().next().unwrap())
@@ -416,9 +440,7 @@ impl PackageMap {
 
         match package_paths.get(path) {
             Some(package) => Some(package.clone()),
-            None => {
-                Self::map_uncached(path.parent()?, package_paths)
-            }
+            None => Self::map_uncached(path.parent()?, package_paths),
         }
     }
 }
@@ -434,7 +456,7 @@ impl JobQueue {
     pub(super) fn execute(
         mut self,
         internals: &Internals,
-        progress_sender: Sender<ProgressUpdate>
+        progress_sender: Sender<ProgressUpdate>,
     ) -> BuildResult {
         // TODO: In case of an empty job queue we shouldn't be here, since the
         // returned results will replace currently held diagnostics/analyses.
@@ -446,7 +468,10 @@ impl JobQueue {
         let mut analyses = vec![];
         let (build_dir, mut cwd) = {
             let comp_cx = internals.compilation_cx.lock().unwrap();
-            (comp_cx.build_dir.clone().expect("no build directory"), comp_cx.cwd.clone())
+            (
+                comp_cx.build_dir.clone().expect("no build directory"),
+                comp_cx.cwd.clone(),
+            )
         };
 
         // Go through cached compiler invocations sequentially, collecting each
@@ -459,7 +484,10 @@ impl JobQueue {
                 .map(|x| x.into_string().expect("cannot stringify job args"))
                 .collect();
 
-            let program = job.get_program().clone().into_string().expect("cannot stringify job program");
+            let program = job.get_program()
+                .clone()
+                .into_string()
+                .expect("cannot stringify job program");
             args.insert(0, program.clone());
 
             // Send a window/progress notification. At this point we know the percentage
@@ -469,10 +497,10 @@ impl JobQueue {
             {
                 // divide by zero is avoided by earlier assert!
                 let percentage = compiler_messages.len() as f64 / self.0.len() as f64;
-                progress_sender.send(ProgressUpdate::Percentage(percentage))
+                progress_sender
+                    .send(ProgressUpdate::Percentage(percentage))
                     .expect("Failed to send progress update");
             }
-
 
             match super::rustc::rustc(
                 &internals.vfs,
@@ -529,7 +557,7 @@ macro_rules! print_dep_graph {
                 $f.write_str(&format!("- {:?}\n", dep))?;
             }
         }
-    }
+    };
 }
 
 impl fmt::Debug for Plan {
