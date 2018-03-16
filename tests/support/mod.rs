@@ -74,7 +74,7 @@ pub struct ExpectedMessage {
 impl ExpectedMessage {
     pub fn new(id: Option<u64>) -> ExpectedMessage {
         ExpectedMessage {
-            id: id,
+            id,
             contains: vec![],
         }
     }
@@ -91,7 +91,7 @@ pub fn read_message<R: Read>(reader: &mut BufReader<R>) -> io::Result<String> {
     loop {
         let mut header = String::new();
         reader.read_line(&mut header)?;
-        if header.len() == 0 {
+        if header.is_empty() {
             panic!("eof")
         }
         if header == "\r\n" {
@@ -146,7 +146,7 @@ pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&Expected
                 "Unexpected id"
             );
         }
-        for c in expected.contains.iter() {
+        for c in &expected.contains {
             found
                 .find(c)
                 .expect(&format!("Could not find `{}` in `{}`", c, found));
@@ -177,7 +177,7 @@ impl RlsHandle {
         let full_msg = format!("Content-Length: {}\r\n\r\n{}", s.len(), s);
         self.stdin.write(full_msg.as_bytes())
     }
-    pub fn send(&mut self, j: serde_json::Value) -> io::Result<usize> {
+    pub fn send(&mut self, j: &serde_json::Value) -> io::Result<usize> {
         self.send_string(&j.to_string())
     }
     pub fn notify(&mut self, method: &str, params: Option<serde_json::Value>) -> io::Result<usize> {
@@ -194,7 +194,7 @@ impl RlsHandle {
             })
         };
 
-        self.send(message)
+        self.send(&message)
     }
     pub fn request(&mut self, id: u64, method: &str, params: Option<serde_json::Value>) -> io::Result<usize> {
         let message = if let Some(params) = params {
@@ -212,7 +212,7 @@ impl RlsHandle {
             })
         };
 
-        self.send(message)
+        self.send(&message)
     }
     pub fn shutdown_exit(&mut self) {
         self.request(99999, "shutdown", None).unwrap();
@@ -242,7 +242,7 @@ struct FileBuilder {
 
 impl FileBuilder {
     pub fn new(path: PathBuf, body: &str) -> FileBuilder {
-        FileBuilder { path: path, body: body.to_string() }
+        FileBuilder { path, body: body.to_string() }
     }
 
     fn mk(&self) {
@@ -299,7 +299,7 @@ impl ProjectBuilder {
         // Create the empty directory
         self.root.root.mkdir_p();
 
-        for file in self.files.iter() {
+        for file in &self.files {
             file.mk();
         }
 
