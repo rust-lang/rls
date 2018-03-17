@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::panic::RefUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -35,6 +36,7 @@ pub type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
 
 pub struct PostBuildHandler {
     pub analysis: Arc<AnalysisHost>,
+    pub analysis_queue: Arc<AnalysisQueue>,
     pub previous_build_results: Arc<Mutex<BuildResults>>,
     pub project_path: PathBuf,
     pub show_warnings: bool,
@@ -54,9 +56,10 @@ impl PostBuildHandler {
 
                 // Emit appropriate diagnostics using the ones from build.
                 self.handle_messages(&cwd, &messages);
+                let analysis_queue = self.analysis_queue.clone();
 
                 let job = Job::new(self, new_analysis, cwd);
-                ANALYSIS_QUEUE.enqueue(job);
+                analysis_queue.enqueue(job);
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
@@ -172,22 +175,18 @@ impl PostBuildHandler {
 
 // Queue up analysis tasks and execute them on the same thread (this is slower
 // than executing in parallel, but allows us to skip indexing tasks).
-struct AnalysisQueue {
+pub struct AnalysisQueue {
     // The cwd of the previous build.
     // !!! Do not take this lock without holding the lock on `queue` !!!
     cur_cwd: Mutex<Option<PathBuf>>,
-    queue: Arc<Mutex<Vec<Job>>>,
+    queue: Arc<Mutex<Vec<QueuedJob>>>,
     // Handle to the worker thread where we handle analysis tasks.
     worker_thread: Thread,
 }
 
-lazy_static! {
-    static ref ANALYSIS_QUEUE: AnalysisQueue = AnalysisQueue::init();
-}
-
 impl AnalysisQueue {
     // Create a new queue and start the worker thread.
-    fn init() -> AnalysisQueue {
+    pub fn init() -> AnalysisQueue {
         let queue = Arc::new(Mutex::new(Vec::new()));
         let queue_clone = queue.clone();
         let worker_thread = thread::spawn(move || AnalysisQueue::run_worker_thread(queue_clone))
@@ -212,18 +211,20 @@ impl AnalysisQueue {
             // Remove any analysis jobs which this job obsoletes.
             trace!("Pre-prune queue len: {}", queue.len());
             if let Some(hash) = job.hash {
-                let mut squashed = queue.drain_filter(|j| j.hash == Some(hash));
-                squashed.for_each(|j| j.handler.finalise());
+                queue.drain_filter(|j| match *j {
+                    QueuedJob::Job(ref j) if j.hash == Some(hash) => true,
+                    _ => false,
+                }).for_each(|j| j.unwrap_job().handler.finalise())
             }
             trace!("Post-prune queue len: {}", queue.len());
 
-            queue.push(job);
+            queue.push(QueuedJob::Job(job));
         }
 
         self.worker_thread.unpark();
     }
 
-    fn run_worker_thread(queue: Arc<Mutex<Vec<Job>>>) {
+    fn run_worker_thread(queue: Arc<Mutex<Vec<QueuedJob>>>) {
         loop {
             let job = {
                 let mut queue = queue.lock().unwrap();
@@ -234,9 +235,32 @@ impl AnalysisQueue {
                 }
             };
             match job {
-                Some(job) => job.process(),
+                Some(QueuedJob::Terminate) => return,
+                Some(QueuedJob::Job(job)) => job.process(),
                 None => thread::park(),
             }
+        }
+    }
+}
+
+impl RefUnwindSafe for AnalysisQueue {}
+
+impl Drop for AnalysisQueue {
+    fn drop(&mut self) {
+        let _ = self.queue.lock().map(|mut q| q.push(QueuedJob::Terminate));
+    }
+}
+
+enum QueuedJob {
+    Job(Job),
+    Terminate,
+}
+
+impl QueuedJob {
+    fn unwrap_job(self) -> Job {
+        match self {
+            QueuedJob::Job(job) => job,
+            QueuedJob::Terminate => panic!("Expected Job"),
         }
     }
 }
@@ -449,7 +473,7 @@ fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Optio
                     notes.push_str(&format!("\n{}: {}", level, lines.next().unwrap()));
                     for line in lines {
                         notes.push_str(&format!(
-                            "\n{:indent$line}",
+                            "\n{:indent$}{line}",
                             "",
                             indent = level.len() + 2,
                             line = line,

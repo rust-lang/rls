@@ -21,7 +21,7 @@ use url::Url;
 use span;
 use Span;
 
-use actions::post_build::{BuildResults, PostBuildHandler};
+use actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
 use actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
 use build::*;
 use lsp_data;
@@ -117,6 +117,8 @@ impl ActionContext {
 pub struct InitActionContext {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
+    // Queues analysis jobs so that we don't over-use the CPU.
+    analysis_queue: Arc<AnalysisQueue>,
 
     current_project: PathBuf,
 
@@ -173,8 +175,10 @@ impl InitActionContext {
         current_project: PathBuf,
     ) -> InitActionContext {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
+        let analysis_queue = Arc::new(AnalysisQueue::init());
         InitActionContext {
             analysis,
+            analysis_queue,
             vfs,
             config,
             current_project,
@@ -220,6 +224,7 @@ impl InitActionContext {
             let config = self.config.lock().unwrap();
             PostBuildHandler {
                 analysis: self.analysis.clone(),
+                analysis_queue: self.analysis_queue.clone(),
                 previous_build_results: self.previous_build_results.clone(),
                 project_path: project_path.to_owned(),
                 show_warnings: config.show_warnings,
