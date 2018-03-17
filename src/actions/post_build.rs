@@ -93,10 +93,9 @@ impl PostBuildHandler {
                 file_path,
                 main: (diagnostic, suggestions),
                 secondaries,
-            }) = parse_diagnostics(msg, group as u64) {
-                let entry = results
-                    .entry(cwd.join(file_path))
-                    .or_insert_with(Vec::new);
+            }) = parse_diagnostics(msg, group as u64)
+            {
+                let entry = results.entry(cwd.join(file_path)).or_insert_with(Vec::new);
 
                 entry.push((diagnostic, suggestions));
                 for (secondary, suggestions) in secondaries {
@@ -121,7 +120,12 @@ impl PostBuildHandler {
     fn reload_analysis_from_memory(&self, cwd: &Path, analysis: Vec<Analysis>) {
         if self.use_black_list {
             self.analysis
-                .reload_from_analysis(analysis, &self.project_path, cwd, &::blacklist::CRATE_BLACKLIST)
+                .reload_from_analysis(
+                    analysis,
+                    &self.project_path,
+                    cwd,
+                    &::blacklist::CRATE_BLACKLIST,
+                )
                 .unwrap();
         } else {
             self.analysis
@@ -186,7 +190,9 @@ impl AnalysisQueue {
     fn init() -> AnalysisQueue {
         let queue = Arc::new(Mutex::new(Vec::new()));
         let queue_clone = queue.clone();
-        let worker_thread = thread::spawn(move || AnalysisQueue::run_worker_thread(queue_clone)).thread().clone();
+        let worker_thread = thread::spawn(move || AnalysisQueue::run_worker_thread(queue_clone))
+            .thread()
+            .clone();
 
         AnalysisQueue {
             cur_cwd: Mutex::new(None),
@@ -266,11 +272,16 @@ impl Job {
 
     fn process(self) {
         // Reload the analysis data.
-        trace!("reload analysis: {:?} {:?}", self.handler.project_path, self.cwd);
+        trace!(
+            "reload analysis: {:?} {:?}",
+            self.handler.project_path,
+            self.cwd
+        );
         if self.analysis.is_empty() {
             self.handler.reload_analysis_from_disk(&self.cwd);
         } else {
-            self.handler.reload_analysis_from_memory(&self.cwd, self.analysis);
+            self.handler
+                .reload_analysis_from_memory(&self.cwd, self.analysis);
         }
 
         self.handler.finalise();
@@ -320,8 +331,12 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     }
 
     let diagnostic_msg = message.message.clone();
-    let (first_primary_span_index, first_primary_span)
-        = message.spans.iter().enumerate().find(|s| s.1.is_primary).unwrap();
+    let (first_primary_span_index, first_primary_span) = message
+        .spans
+        .iter()
+        .enumerate()
+        .find(|s| s.1.is_primary)
+        .unwrap();
     let rls_span = first_primary_span.rls_span().zero_indexed();
     let suggestions = make_suggestions(&message, &rls_span.file);
 
@@ -357,7 +372,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
                 Some(group)
             } else {
                 None
-            }
+            },
         }
     };
 
@@ -365,53 +380,51 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
     // both borrow and error spans) we emit additional diagnostics. These don't
     // include notes and are of an `Information` severity.
     let secondaries = message
-    .spans
-    .iter()
-    .enumerate()
-    .filter(|x| x.0 != first_primary_span_index)
-    .map(|(_, secondary_span)| {
-        let mut secondary_message = if secondary_span.is_within(first_primary_span) {
-            String::new()
-        }
-        else {
-            diagnostic_msg.clone()
-        };
+        .spans
+        .iter()
+        .enumerate()
+        .filter(|x| x.0 != first_primary_span_index)
+        .map(|(_, secondary_span)| {
+            let mut secondary_message = if secondary_span.is_within(first_primary_span) {
+                String::new()
+            } else {
+                diagnostic_msg.clone()
+            };
 
-        let mut suggestion = secondary_span
-            .suggested_replacement
-            .as_ref()
-            .map(|s| span_suggestion(secondary_span, s));
+            let mut suggestion = secondary_span
+                .suggested_replacement
+                .as_ref()
+                .map(|s| span_suggestion(secondary_span, s));
 
-        if let Some(ref secondary_label) = secondary_span.label {
-            let label_suggestion = label_suggestion(secondary_span, secondary_label);
-            if suggestion.is_none() && label_suggestion.is_some() {
-                suggestion = label_suggestion;
+            if let Some(ref secondary_label) = secondary_span.label {
+                let label_suggestion = label_suggestion(secondary_span, secondary_label);
+                if suggestion.is_none() && label_suggestion.is_some() {
+                    suggestion = label_suggestion;
+                } else {
+                    secondary_message.push_str(&format!("\n\n{}", secondary_label));
+                }
             }
-            else {
-                secondary_message.push_str(&format!("\n\n{}", secondary_label));
-            }
-        }
-        let severity = Some(if secondary_span.is_primary {
-            severity(&message.level)
-        }
-        else {
-            DiagnosticSeverity::Information
-        });
-        let rls_span = secondary_span.rls_span().zero_indexed();
+            let severity = Some(if secondary_span.is_primary {
+                severity(&message.level)
+            } else {
+                DiagnosticSeverity::Information
+            });
+            let rls_span = secondary_span.rls_span().zero_indexed();
 
-        let diag = Diagnostic {
-            range: ls_util::rls_to_range(rls_span.range),
-            severity,
-            code: Some(NumberOrString::String(match message.code {
-                Some(ref c) => c.code.clone(),
-                None => String::new(),
-            })),
-            source: Some(source.to_owned()),
-            message: secondary_message.trim().to_owned(),
-            group: Some(group),
-        };
-        (diag, suggestion.map(|s| vec![s]).unwrap_or_default())
-    }).collect();
+            let diag = Diagnostic {
+                range: ls_util::rls_to_range(rls_span.range),
+                severity,
+                code: Some(NumberOrString::String(match message.code {
+                    Some(ref c) => c.code.clone(),
+                    None => String::new(),
+                })),
+                source: Some(source.to_owned()),
+                message: secondary_message.trim().to_owned(),
+                group: Some(group),
+            };
+            (diag, suggestion.map(|s| vec![s]).unwrap_or_default())
+        })
+        .collect();
 
     Some(FileDiagnostic {
         file_path: rls_span.file,
@@ -423,27 +436,31 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
 fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Option<String> {
     if !children.is_empty() {
         let mut notes = String::new();
-        for &CompilerMessage { ref message, ref level, ref spans, .. } in children {
-
+        for &CompilerMessage {
+            ref message,
+            ref level,
+            ref spans,
+            ..
+        } in children
+        {
             macro_rules! add_message_to_notes {
-                ($msg:expr) => {{
+                ($msg: expr) => {{
                     let mut lines = message.lines();
                     notes.push_str(&format!("\n{}: {}", level, lines.next().unwrap()));
                     for line in lines {
                         notes.push_str(&format!(
-                            "\n{:indent$}{line}",
+                            "\n{:indent$line}",
                             "",
                             indent = level.len() + 2,
                             line = line,
                         ));
                     }
-                }}
+                }};
             }
 
             if spans.is_empty() {
                 add_message_to_notes!(message);
-            }
-            else if spans.len() == 1 && spans[0].is_within(primary) {
+            } else if spans.len() == 1 && spans[0].is_within(primary) {
                 add_message_to_notes!(message);
                 if let Some(ref suggested) = spans[0].suggested_replacement {
                     notes.push_str(&format!(": `{}`", suggested));
@@ -451,9 +468,12 @@ fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Optio
             }
         }
 
-        if notes.is_empty() { None } else { Some(notes.trim().to_string()) }
-    }
-    else {
+        if notes.is_empty() {
+            None
+        } else {
+            Some(notes.trim().to_string())
+        }
+    } else {
         None
     }
 }
@@ -473,7 +493,11 @@ fn make_suggestions(message: &CompilerMessage, file: &Path) -> Vec<Suggestion> {
         if span.file == file {
             if let Some(ref s) = sp.suggested_replacement {
                 let range = ls_util::rls_to_range(span.range);
-                let action = if range.start == range.end { "Add" } else { "Change to" };
+                let action = if range.start == range.end {
+                    "Add"
+                } else {
+                    "Change to"
+                };
                 let label = if message
                     .spans
                     .iter()
@@ -501,7 +525,11 @@ fn make_suggestions(message: &CompilerMessage, file: &Path) -> Vec<Suggestion> {
 fn span_suggestion(span: &DiagnosticSpan, suggested: &str) -> Suggestion {
     let zspan = span.rls_span().zero_indexed();
     let range = ls_util::rls_to_range(zspan.range);
-    let action = if range.start == range.end { "Add" } else { "Change to" };
+    let action = if range.start == range.end {
+        "Add"
+    } else {
+        "Change to"
+    };
     let label = format!("{} `{}`", action, suggested);
     Suggestion {
         new_text: suggested.to_string(),
@@ -514,7 +542,7 @@ fn label_suggestion(span: &DiagnosticSpan, label: &str) -> Option<Suggestion> {
     let suggest_label = "consider changing this to `";
     if label.starts_with(suggest_label) && label.ends_with('`') {
         let suggested_replacement = &label[suggest_label.len()..label.len() - 1];
-        return Some(span_suggestion(span, suggested_replacement))
+        return Some(span_suggestion(span, suggested_replacement));
     }
     None
 }
@@ -526,17 +554,21 @@ trait IsWithin {
 }
 impl<T: PartialOrd<T>> IsWithin for ::std::ops::Range<T> {
     fn is_within(&self, other: &Self) -> bool {
-        self.start >= other.start &&
-            self.start <= other.end &&
-            self.end <= other.end &&
-            self.end >= other.start
+        self.start >= other.start && self.start <= other.end && self.end <= other.end
+            && self.end >= other.start
     }
 }
 impl IsWithin for DiagnosticSpan {
     fn is_within(&self, other: &Self) -> bool {
-        let DiagnosticSpan { line_start, line_end, column_start, column_end, .. } = *self;
-        (line_start..line_end+1).is_within(&(other.line_start..other.line_end+1)) &&
-            (column_start..column_end+1).is_within(&(other.column_start..other.column_end+1))
+        let DiagnosticSpan {
+            line_start,
+            line_end,
+            column_start,
+            column_end,
+            ..
+        } = *self;
+        (line_start..line_end + 1).is_within(&(other.line_start..other.line_end + 1))
+            && (column_start..column_end + 1).is_within(&(other.column_start..other.column_end + 1))
     }
 }
 
@@ -549,8 +581,7 @@ mod diagnostic_message_test {
 
     pub(super) fn parse_compiler_message(compiler_message: &str) -> FileDiagnostic {
         let _ = ::env_logger::try_init();
-        parse_diagnostics(compiler_message, 0)
-            .expect("failed to parse compiler message")
+        parse_diagnostics(compiler_message, 0).expect("failed to parse compiler message")
     }
 
     pub(super) trait FileDiagnosticTestExt {
@@ -565,7 +596,10 @@ mod diagnostic_message_test {
         fn to_messages(&self) -> (String, Vec<String>) {
             (
                 self.main.0.message.clone(),
-                self.secondaries.iter().map(|d| d.0.message.clone()).collect()
+                self.secondaries
+                    .iter()
+                    .map(|d| d.0.message.clone())
+                    .collect(),
             )
         }
 
@@ -587,9 +621,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_use_after_move() {
-        let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/use-after-move.json")
-        );
+        let diag = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/use-after-move.json"
+        ));
 
         assert_eq!(diag.main.0.source, Some("rustc".into()));
         for source in diag.secondaries.iter().map(|d| d.0.source.as_ref()) {
@@ -604,10 +638,13 @@ mod diagnostic_message_test {
             note: move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait"
         );
 
-        assert_eq!(others, vec![
-            "use of moved value: `s`\n\n\
-            value moved here"
-        ]);
+        assert_eq!(
+            others,
+            vec![
+                "use of moved value: `s`\n\n\
+                 value moved here",
+            ]
+        );
     }
 
     /// ```
@@ -617,19 +654,22 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_type_annotations_needed() {
-        let (msg, others) = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/type-annotations-needed.json")
-        ).to_messages();
+        let (msg, others) = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/type-annotations-needed.json"
+        )).to_messages();
         assert_eq!(
             msg,
             "type annotations needed\n\n\
-            cannot infer type for `T`",
+             cannot infer type for `T`",
         );
 
-        assert_eq!(others, vec![
-            "type annotations needed\n\n\
-            consider giving `v` a type"
-        ]);
+        assert_eq!(
+            others,
+            vec![
+                "type annotations needed\n\n\
+                 consider giving `v` a type",
+            ]
+        );
     }
 
     /// ```
@@ -639,19 +679,22 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_mismatched_types() {
-        let (msg, others) = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/mismatched-types.json")
-        ).to_messages();
+        let (msg, others) = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/mismatched-types.json"
+        )).to_messages();
         assert_eq!(
             msg,
             "mismatched types\n\n\
-            expected usize, found i32",
+             expected usize, found i32",
         );
 
-        assert_eq!(others, vec![
-            "mismatched types\n\n\
-            expected `usize` because of return type"
-        ]);
+        assert_eq!(
+            others,
+            vec![
+                "mismatched types\n\n\
+                 expected `usize` because of return type",
+            ]
+        );
     }
 
     /// ```
@@ -662,19 +705,20 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_not_mutable() {
-        let (msg, others) = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/not-mut.json")
-        ).to_messages();
+        let (msg, others) = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/not-mut.json"
+        )).to_messages();
         assert_eq!(
             msg,
             "cannot borrow immutable local variable `string` as mutable\n\n\
-            cannot borrow mutably",
+             cannot borrow mutably",
         );
 
         // note: consider message becomes a suggetion
-        assert_eq!(others, vec![
-            "cannot borrow immutable local variable `string` as mutable"
-        ]);
+        assert_eq!(
+            others,
+            vec!["cannot borrow immutable local variable `string` as mutable"]
+        );
     }
 
     /// ```
@@ -686,9 +730,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_consider_borrowing() {
-        let (msg, others) = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/consider-borrowing.json")
-        ).to_messages();
+        let (msg, others) = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/consider-borrowing.json"
+        )).to_messages();
         assert_eq!(
             msg,
             r#"mismatched types
@@ -713,12 +757,17 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_move_out_of_borrow() {
-        let (msg, others) = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/move-out-of-borrow.json")
-        ).to_messages();
+        let (msg, others) = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/move-out-of-borrow.json"
+        )).to_messages();
         assert_eq!(msg, "cannot move out of borrowed content");
 
-        assert_eq!(others, vec!["hint: to prevent move, use `ref string` or `ref mut string`"]);
+        assert_eq!(
+            others,
+            vec![
+                "hint: to prevent move, use `ref string` or `ref mut string`",
+            ]
+        );
     }
 
     /// ```
@@ -747,11 +796,14 @@ help: consider borrowing here: `&string`"#,
 
     #[test]
     fn message_cannot_find_type() {
-        let (msg, others) = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/cannot-find-type.json")
-        ).to_messages();
-        assert_eq!(msg, "cannot find type `HashSet` in this scope\n\n\
-                         not found in this scope");
+        let (msg, others) = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/cannot-find-type.json"
+        )).to_messages();
+        assert_eq!(
+            msg,
+            "cannot find type `HashSet` in this scope\n\n\
+             not found in this scope"
+        );
 
         assert!(others.is_empty(), "{:?}", others);
     }
@@ -761,9 +813,9 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_clippy_identity_op() {
-        let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/clippy-identity-op.json")
-        );
+        let diag = parse_compiler_message(include_str!(
+            "../../test_data/compiler_message/clippy-identity-op.json"
+        ));
 
         assert_eq!(diag.main.0.source, Some("clippy".into()));
         for source in diag.secondaries.iter().map(|d| d.0.source.as_ref()) {
@@ -783,8 +835,9 @@ help: consider borrowing here: `&string`"#,
             msg,
             "the operation is ineffective. Consider reducing it to `1`\n\n\
              note: #[warn(identity_op)] implied by #[warn(clippy)]\n\
-             help: for further information visit ".to_owned() + link
-         );
+             help: for further information visit "
+                .to_owned() + link
+        );
 
         assert!(others.is_empty(), "{:?}", others);
     }
@@ -816,7 +869,10 @@ mod diagnostic_suggestion_test {
             "Line 15: Add `use std::collections::HashSet;\n`"
         );
 
-        let expected_position = ls_types::Position { line: 14, character: 0 };
+        let expected_position = ls_types::Position {
+            line: 14,
+            character: 0,
+        };
         assert_eq!(
             use_hash_set.range,
             Range {
@@ -845,8 +901,14 @@ mod diagnostic_suggestion_test {
         assert_eq!(
             change_to_mut.range,
             Range {
-                start: ls_types::Position { line: 132, character: 12 },
-                end: ls_types::Position { line: 132, character: 18 },
+                start: ls_types::Position {
+                    line: 132,
+                    character: 12,
+                },
+                end: ls_types::Position {
+                    line: 132,
+                    character: 18,
+                },
             }
         );
     }
@@ -873,8 +935,14 @@ mod diagnostic_suggestion_test {
         assert_eq!(
             change_to_mut.range,
             Range {
-                start: ls_types::Position { line: 354, character: 34 },
-                end: ls_types::Position { line: 354, character: 46 },
+                start: ls_types::Position {
+                    line: 354,
+                    character: 34,
+                },
+                end: ls_types::Position {
+                    line: 354,
+                    character: 46,
+                },
             }
         );
     }
