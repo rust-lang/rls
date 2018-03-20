@@ -13,12 +13,9 @@
 use actions::InitActionContext;
 use data;
 use url::Url;
-#[cfg(feature = "rustfmt")]
 use vfs::FileContents;
 use racer;
-#[cfg(feature = "rustfmt")]
 use rustfmt::{FileName, format_input, Input as FmtInput};
-#[cfg(feature = "rustfmt")]
 use rustfmt::config::file_lines::{FileLines, Range as RustfmtRange};
 use serde_json;
 use span;
@@ -674,20 +671,11 @@ impl RequestAction for Formatting {
         ))
     }
 
-    #[cfg(feature = "rustfmt")]
     fn handle(
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
         reformat(&params.text_document, None, &params.options, &ctx)
-    }
-
-    #[cfg(not(feature = "rustfmt"))]
-    fn handle(_: InitActionContext, _: Self::Params) -> Result<Self::Response, ResponseError> {
-        Err(ResponseError::Message(
-            ErrorCode::InternalError,
-            "rustfmt was not distributed with this rls release".into(),
-        ))
     }
 }
 
@@ -701,7 +689,6 @@ impl RequestAction for RangeFormatting {
         ))
     }
 
-    #[cfg(feature = "rustfmt")]
     fn handle(
         ctx: InitActionContext,
         params: Self::Params,
@@ -713,16 +700,8 @@ impl RequestAction for RangeFormatting {
             &ctx,
         )
     }
-    #[cfg(not(feature = "rustfmt"))]
-    fn handle(_: InitActionContext, _: Self::Params) -> Result<Self::Response, ResponseError> {
-        Err(ResponseError::Message(
-            ErrorCode::InternalError,
-            "rustfmt was not distributed with this rls release".into(),
-        ))
-    }
 }
 
-#[cfg(feature = "rustfmt")]
 fn reformat(
     doc: &TextDocumentIdentifier,
     selection: Option<Range>,

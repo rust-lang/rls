@@ -25,7 +25,7 @@ rls-data = { version = "0.15", features = ["serialize-serde"] }
 rls-rustc = "0.2.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4.5", features = ["racer-impls"] }
-rustfmt-nightly = { version = "0.4.0", optional = true }
+rustfmt-nightly = "0.4.0"
 clippy_lints = { version = "0.0.188", optional = true }
 serde = "1.0"
 serde_json = "1.0"
@@ -38,6 +38,5 @@ num_cpus = "1"
 json = "0.11"
 
 [features]
-default = ["rustfmt"]
-rustfmt = ["rustfmt-nightly"]
+default = []
 clippy = ["clippy_lints"]
