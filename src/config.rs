@@ -11,6 +11,11 @@
 //! Configuration for the workspace that RLS is operating within and options for
 //! tweaking the RLS's behavior itself.
 
+use std::marker::PhantomData;
+use std::str::FromStr;
+use std::fmt;
+use build;
+
 use std::env;
 use std::fmt::Debug;
 use std::io::sink;
@@ -21,7 +26,8 @@ use cargo::util::{homedir, important_paths, Config as CargoConfig};
 use cargo::core::{Shell, Workspace};
 
 use failure;
-use serde::de::{Deserialize, Deserializer};
+use serde;
+use serde::de::{Deserialize, Deserializer, Visitor};
 
 use rustfmt::config::Config as RustfmtConfig;
 use rustfmt::config::WriteMode;
@@ -100,7 +106,6 @@ impl<T> AsRef<T> for Inferrable<T> {
         }
     }
 }
-
 /// RLS configuration options.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[allow(missing_docs)]
@@ -132,6 +137,8 @@ pub struct Config {
     pub all_targets: bool,
     /// Enable use of racer for `textDocument/completion` requests
     pub racer_completion: bool,
+    #[serde(deserialize_with = "deserialize_clippy_preference")]
+    pub clippy_preference: ClippyPreference,
 }
 
 impl Default for Config {
@@ -158,6 +165,7 @@ impl Default for Config {
             jobs: None,
             all_targets: false,
             racer_completion: true,
+            clippy_preference: ClippyPreference::OptIn,
         };
         result.normalise();
         result
@@ -288,6 +296,53 @@ impl Config {
 
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ClippyPreference {
+    /// Disable clippy
+    Off,
+    /// Enable clippy, but "allow" clippy lints (ie require "warn" override)
+    OptIn,
+    /// Enable clippy
+    On,
+}
+
+impl FromStr for ClippyPreference {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "off" => Ok(ClippyPreference::Off),
+            "optin" | "opt-in" => Ok(ClippyPreference::OptIn),
+            "on" => Ok(ClippyPreference::On),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Case-insensitive deserialization for `ClippyPreference`
+fn deserialize_clippy_preference<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Deserialize<'de> + FromStr<Err = ()>,
+    D: Deserializer<'de>,
+{
+    struct ClippyPrefDeserializer<T>(PhantomData<fn() -> T>);
+
+    impl<'de, T> Visitor<'de> for ClippyPrefDeserializer<T>
+    where
+        T: Deserialize<'de> + FromStr<Err = ()>,
+    {
+        type Value = T;
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str(r#"on", "opt-in" or "off""#)
+        }
+        fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<T, E> {
+            FromStr::from_str(value)
+                .map_err(|_| serde::de::Error::unknown_variant(value, &["on", "opt-in", "off"]))
+        }
+    }
+    deserializer.deserialize_any(ClippyPrefDeserializer(PhantomData))
 }
 
 /// A rustfmt config (typically specified via rustfmt.toml)
