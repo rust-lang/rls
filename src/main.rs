@@ -43,7 +43,6 @@ extern crate rls_data as data;
 extern crate rls_rustc as rustc_shim;
 extern crate rls_span as span;
 extern crate rls_vfs as vfs;
-#[cfg(feature = "rustfmt")]
 extern crate rustfmt_nightly as rustfmt;
 extern crate serde;
 #[macro_use]
