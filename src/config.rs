@@ -212,7 +212,7 @@ impl Config {
         }
 
         // Note that this may not be equal build_dir when inside a workspace member
-        let manifest_path = important_paths::find_root_manifest_for_wd(None, project_dir)?;
+        let manifest_path = important_paths::find_root_manifest_for_wd(project_dir)?;
         trace!("root manifest_path: {:?}", &manifest_path);
 
         // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"

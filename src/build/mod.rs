@@ -542,7 +542,7 @@ impl Internals {
             let work = {
                 let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
                 let mut cx = self.compilation_cx.lock().unwrap();
-                let manifest_path = important_paths::find_root_manifest_for_wd(None, cx.build_dir.as_ref().unwrap());
+                let manifest_path = important_paths::find_root_manifest_for_wd(cx.build_dir.as_ref().unwrap());
                 let manifest_path = match manifest_path {
                     Ok(mp) => mp,
                     Err(e) => {
