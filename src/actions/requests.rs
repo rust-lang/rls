@@ -106,9 +106,11 @@ impl RequestAction for Symbols {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
+        let analysis = ctx.analysis;
+
         let file_path = parse_file_path!(&params.text_document.uri, "symbols")?;
 
-        let symbols = ctx.analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
+        let symbols = analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
 
         Ok(
             symbols
@@ -118,7 +120,9 @@ impl RequestAction for Symbols {
                         name: s.name,
                         kind: source_kind_from_def_kind(s.kind),
                         location: ls_util::rls_to_location(&s.span),
-                        container_name: None, // FIXME: more info could be added here
+                        container_name: s.parent
+                            .and_then(|id| analysis.get_def(id).ok())
+                            .map(|parent| parent.name),
                     }
                 })
                 .collect(),
