@@ -132,7 +132,7 @@ impl Plan {
         self.units.insert(key.clone(), unit.into());
 
         // Fetch and insert relevant unit dependencies to the forward dep graph.
-        let units = cx.dep_targets(unit)?;
+        let units = cx.dep_targets(unit);
         let dep_keys: HashSet<UnitKey> = units.iter()
             // We might not want certain deps to be added transitively (e.g.
             // when creating only a sub-dep-graph, limiting the scope).
