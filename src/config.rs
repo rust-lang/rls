@@ -11,15 +11,13 @@
 //! Configuration for the workspace that RLS is operating within and options for
 //! tweaking the RLS's behavior itself.
 
-use build;
-
 use std::env;
 use std::fmt::Debug;
 use std::io::sink;
 use std::path::{Path, PathBuf};
 
 use cargo::CargoResult;
-use cargo::util::important_paths;
+use cargo::util::{homedir, important_paths, Config as CargoConfig};
 use cargo::core::{Shell, Workspace};
 
 use failure;
@@ -205,23 +203,45 @@ impl Config {
         }
     }
 
-    /// Auto-detect --lib/--bin switch if working under single package mode.
+    /// Tries to auto-detect certain option values if they were unspecified.
+    /// Specifically, this:
+    /// - tries to infer `build_bin` and `build_lib` under `workspace_mode: false`
+    /// - detects correct `target/` build directory used by Cargo, if not specified.
     pub fn infer_defaults(&mut self, project_dir: &Path) -> CargoResult<()> {
-        if self.workspace_mode {
-            return Ok(());
-        }
-
         // Note that this may not be equal build_dir when inside a workspace member
         let manifest_path = important_paths::find_root_manifest_for_wd(project_dir)?;
         trace!("root manifest_path: {:?}", &manifest_path);
 
-        // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
-        let manifest_dir = manifest_path.parent().unwrap();
         let shell = Shell::from_write(Box::new(sink()));
         let cwd = env::current_dir().expect("failed to get cwd");
-        let cargo_config = build::make_cargo_config(manifest_dir, None, &cwd, shell);
 
-        let ws = Workspace::new(&manifest_path, &cargo_config)?;
+        let config = CargoConfig::new(
+        shell,
+        cwd.to_path_buf(),
+        homedir(project_dir).unwrap(),
+        );
+
+        let ws = Workspace::new(&manifest_path, &config)?;
+
+        // Constructing a `Workspace` also probes the filesystem and detects where to place the
+        // build artifacts. We need to rely on Cargo's behaviour directly not to possibly place our
+        // own artifacts somewhere else (e.g. when analyzing only a single crate in a workspace)
+        if self.target_dir.is_none() {
+            let target_dir = ws.target_dir().clone().into_path_unlocked();
+            self.target_dir = Some(target_dir);
+            trace!(
+                "For project path {:?} Cargo told us to use this target/ dir: {:?}",
+                project_dir,
+                self.target_dir.as_ref().unwrap(),
+            );
+        }
+
+        // Finish if we're in workspace_mode, inferring `build_bin` and
+        // `build_lib` only matters if we're in single package mode.
+        if self.workspace_mode {
+            return Ok(());
+        }
+
         let package = ws.current()?;
 
         trace!(
