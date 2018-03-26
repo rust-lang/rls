@@ -14,8 +14,6 @@
 use std::marker::PhantomData;
 use std::str::FromStr;
 use std::fmt;
-use build;
-
 use std::env;
 use std::fmt::Debug;
 use std::io::sink;
@@ -308,9 +306,10 @@ pub enum ClippyPreference {
     On,
 }
 
+/// Permissive deserialization for `ClippyPreference`
+/// "opt-in", "Optin" -> `ClippyPreference::OptIn`
 impl FromStr for ClippyPreference {
     type Err = ();
-
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "off" => Ok(ClippyPreference::Off),
@@ -321,7 +320,7 @@ impl FromStr for ClippyPreference {
     }
 }
 
-/// Case-insensitive deserialization for `ClippyPreference`
+/// Permissive custom deserialization for `ClippyPreference` using `FromStr`
 fn deserialize_clippy_preference<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     T: Deserialize<'de> + FromStr<Err = ()>,
@@ -384,4 +383,12 @@ impl Default for FmtConfig {
         config.set_rls_options();
         config
     }
+}
+
+#[test]
+fn clippy_preference_from_str() {
+    assert_eq!(ClippyPreference::from_str("Optin"), Ok(ClippyPreference::OptIn));
+    assert_eq!(ClippyPreference::from_str("OFF"), Ok(ClippyPreference::Off));
+    assert_eq!(ClippyPreference::from_str("opt-in"), Ok(ClippyPreference::OptIn));
+    assert_eq!(ClippyPreference::from_str("on"), Ok(ClippyPreference::On));
 }
