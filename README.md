@@ -123,6 +123,11 @@ Currently we accept the following options:
   features
 * `racer_completion` (`bool`, defaults to `true`) enables code completion using
   racer (which is, at the moment, our only code completion backend)
+* `clippy_preference` (`String`, defaults to `"opt-in"`) controls eagerness of clippy
+  diagnostics when available. Valid values are _(case-insensitive)_:
+  - `"off"` Disable clippy lints.
+  - `"opt-in"` Clippy lints are shown when crates specify `#![warn(clippy)]`.
+  - `"on"` Clippy lints enabled for all crates in workspace.
 
 ## Troubleshooting
 

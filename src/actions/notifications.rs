@@ -157,7 +157,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
                 value
             }
             Err(err) => {
-                debug!(
+                warn!(
                     "Received unactionable config: {:?} (error: {:?})",
                     params.settings,
                     err

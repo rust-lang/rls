@@ -24,14 +24,14 @@ use self::rustc::middle::cstore::CrateStore;
 use self::rustc::session::Session;
 use self::rustc::session::config::{self, ErrorOutputType, Input};
 use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
-use self::rustc_driver::driver::{CompileController, CompileState};
+use self::rustc_driver::driver::{CompileController};
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::rustc_trans_utils::trans_crate::TransCrate;
 use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
-use config::Config;
+use config::{ClippyPreference, Config};
 use build::{BufWriter, BuildResult};
 use build::environment::{Environment, EnvironmentLockFacade};
 use data::Analysis;
@@ -68,27 +68,31 @@ pub fn rustc(
         local_envs.insert(String::from("RUST_LOG"), None);
     }
 
+    let clippy_pref = rls_config.lock().unwrap().clippy_preference;
     let (guard, _) = env_lock.lock();
     let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
 
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();
-    let args: Vec<_> = if cfg!(feature = "clippy") {
+    let args: Vec<_> = if cfg!(feature = "clippy") && clippy_pref != ClippyPreference::Off {
+        // Allow feature gating in the same way as `cargo clippy`
+        let mut clippy_args = vec!["--cfg".to_owned(), r#"feature="cargo-clippy""#.to_owned()];
+
+        if clippy_pref == ClippyPreference::OptIn {
+            // `OptIn`: allow clippy require `#![warn(clippy)]` override in each workspace crate
+            clippy_args.push("-Aclippy".to_owned());
+        }
+
         args.iter()
             .map(|s| s.to_owned())
-            .chain(vec![
-                "-Aclippy".to_owned(),
-                "--cfg".to_owned(),
-                r#"feature="cargo-clippy""#.to_owned(),
-            ])
+            .chain(clippy_args)
             .collect()
     } else {
         args.to_owned()
     };
 
     let analysis = Arc::new(Mutex::new(None));
-
-    let mut controller = RlsRustcCalls::new(analysis.clone());
+    let mut controller = RlsRustcCalls::new(Arc::clone(&analysis), clippy_pref);
 
     // rustc explicitly panics in run_compiler() on compile failure, regardless
     // if it encounters an ICE (internal compiler error) or not.
@@ -129,15 +133,58 @@ pub fn rustc(
 struct RlsRustcCalls {
     default_calls: RustcDefaultCalls,
     analysis: Arc<Mutex<Option<Analysis>>>,
+    clippy_preference: ClippyPreference,
 }
 
 impl RlsRustcCalls {
-    fn new(analysis: Arc<Mutex<Option<Analysis>>>) -> RlsRustcCalls {
+    fn new(analysis: Arc<Mutex<Option<Analysis>>>, clippy_preference: ClippyPreference) -> RlsRustcCalls {
         RlsRustcCalls {
             default_calls: RustcDefaultCalls,
             analysis,
+            clippy_preference,
         }
     }
+}
+
+#[cfg(feature = "clippy")]
+fn clippy_after_parse_callback(state: &mut self::rustc_driver::driver::CompileState) {
+    let mut registry = rustc_plugin::registry::Registry::new(
+        state.session,
+        state
+            .krate
+            .as_ref()
+            .expect(
+                "at this compilation stage \
+                    the crate must be parsed",
+            )
+            .span,
+    );
+    registry.args_hidden = Some(Vec::new());
+    clippy_lints::register_plugins(&mut registry);
+
+    let rustc_plugin::registry::Registry {
+        early_lint_passes,
+        late_lint_passes,
+        lint_groups,
+        llvm_passes,
+        attributes,
+        ..
+    } = registry;
+    let sess = &state.session;
+    let mut ls = sess.lint_store.borrow_mut();
+    for pass in early_lint_passes {
+        ls.register_early_pass(Some(sess), true, pass);
+    }
+    for pass in late_lint_passes {
+        ls.register_late_pass(Some(sess), true, pass);
+    }
+
+    for (name, to) in lint_groups {
+        ls.register_group(Some(sess), true, name, to);
+    }
+
+    sess.plugin_llvm_passes.borrow_mut().extend(llvm_passes);
+    sess.plugin_attributes.borrow_mut().extend(attributes);
 }
 
 impl<'a> CompilerCalls<'a> for RlsRustcCalls {
@@ -189,49 +236,11 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         result.keep_ast = true;
         let analysis = self.analysis.clone();
 
-        #[cfg(feature = "clippy")]
-        fn clippy(state: &mut CompileState) {
-            let mut registry = rustc_plugin::registry::Registry::new(
-                state.session,
-                state
-                    .krate
-                    .as_ref()
-                    .expect(
-                        "at this compilation stage \
-                            the crate must be parsed",
-                    )
-                    .span,
-            );
-            registry.args_hidden = Some(Vec::new());
-            clippy_lints::register_plugins(&mut registry);
-
-            let rustc_plugin::registry::Registry {
-                early_lint_passes,
-                late_lint_passes,
-                lint_groups,
-                llvm_passes,
-                attributes,
-                ..
-            } = registry;
-            let sess = &state.session;
-            let mut ls = sess.lint_store.borrow_mut();
-            for pass in early_lint_passes {
-                ls.register_early_pass(Some(sess), true, pass);
+        #[cfg(feature = "clippy")] {
+            if self.clippy_preference != ClippyPreference::Off {
+                result.after_parse.callback = Box::new(clippy_after_parse_callback);
             }
-            for pass in late_lint_passes {
-                ls.register_late_pass(Some(sess), true, pass);
-            }
-
-            for (name, to) in lint_groups {
-                ls.register_group(Some(sess), true, name, to);
-            }
-
-            sess.plugin_llvm_passes.borrow_mut().extend(llvm_passes);
-            sess.plugin_attributes.borrow_mut().extend(attributes);
         }
-        #[cfg(not(feature = "clippy"))]
-        fn clippy(_: &mut CompileState) {}
-        result.after_parse.callback = Box::new(clippy);
 
         result.after_analysis.callback = Box::new(move |state| {
             // There are two ways to move the data from rustc to the RLS, either
