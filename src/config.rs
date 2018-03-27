@@ -234,7 +234,7 @@ impl Config {
         // own artifacts somewhere else (e.g. when analyzing only a single crate in a workspace)
         if self.target_dir.is_none() {
             let target_dir = ws.target_dir().clone().into_path_unlocked();
-            self.target_dir = Some(target_dir);
+            let target_dir = target_dir.join("rls");
             trace!(
                 "For project path {:?} Cargo told us to use this target/ dir: {:?}",
                 project_dir,
