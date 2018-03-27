@@ -371,7 +371,7 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
             text_document: None,
             experimental: None,
         },
-        trace: TraceOption::Off,
+        trace: Some(TraceOption::Off),
     };
     Request {
         id: next_id(),

@@ -59,7 +59,7 @@ pub fn initialize_with_opts<'a>(
             text_document: None,
             experimental: None,
         },
-        trace: TraceOption::Off,
+        trace: Some(TraceOption::Off),
     };
     Request {
         id,
