@@ -140,7 +140,7 @@ fn run_cargo(
     let config = {
         let rls_config = rls_config.lock().unwrap();
 
-        let target_dir = rls_config.target_dir.as_ref().map(|p| p as &Path);
+        let target_dir = rls_config.target_dir.as_ref().as_ref().map(|p| p as &Path);
         make_cargo_config(manifest_dir, target_dir, restore_env.get_old_cwd(), shell)
     };
 
