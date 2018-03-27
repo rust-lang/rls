@@ -299,7 +299,7 @@ fn server_caps() -> ServerCapabilities {
         hover_provider: Some(true),
         completion_provider: Some(CompletionOptions {
             resolve_provider: Some(true),
-            trigger_characters: vec![".".to_string(), ":".to_string()],
+            trigger_characters: Some(vec![".".to_string(), ":".to_string()]),
         }),
         definition_provider: Some(true),
         references_provider: Some(true),
@@ -359,7 +359,7 @@ mod test {
                 text_document: None,
                 experimental: None,
             },
-            trace: ::ls_types::TraceOption::Off,
+            trace: Some(::ls_types::TraceOption::Off),
         }
     }
 
