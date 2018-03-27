@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use analysis;
-use config::Config;
+use config::{Config, Inferrable};
 use env_logger;
 use ls_types;
 use serde_json;
@@ -59,7 +59,7 @@ impl Environment {
             .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
 
         let mut config = Config::default();
-        config.target_dir = Some(target_path.clone());
+        config.target_dir = Inferrable::Specified(Some(target_path.clone()));
         config.unstable_features = true;
 
         let cache = Cache::new(project_path);
