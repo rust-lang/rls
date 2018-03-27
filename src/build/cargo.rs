@@ -671,7 +671,6 @@ pub fn make_cargo_config(build_dir: &Path,
         let target_dir = target_dir
             .map(|d| d.to_str().unwrap().to_owned())
             .unwrap_or_else(|| {
-                // FIXME(#730) should be using the workspace root here, not build_dir
                 build_dir
                     .join("target")
                     .join("rls")
