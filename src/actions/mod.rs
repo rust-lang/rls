@@ -262,8 +262,8 @@ impl InitActionContext {
     }
 
     fn check_change_version(&self, file_path: &Path, version_num: u64) {
-        let mut prev_changes = self.prev_changes.lock().unwrap();
         let file_path = file_path.to_owned();
+        let mut prev_changes = self.prev_changes.lock().unwrap();
 
         if prev_changes.contains_key(&file_path) {
             let prev_version = prev_changes[&file_path];
@@ -271,6 +271,12 @@ impl InitActionContext {
         }
 
         prev_changes.insert(file_path, version_num);
+    }
+
+    fn reset_change_version(&self, file_path: &Path) {
+        let file_path = file_path.to_owned();
+        let mut prev_changes = self.prev_changes.lock().unwrap();
+        prev_changes.remove(&file_path);
     }
 
     fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {

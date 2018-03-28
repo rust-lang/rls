@@ -69,7 +69,7 @@ impl BlockingNotificationAction for DidOpenTextDocument {
         trace!("on_open: {:?}", params.text_document.uri);
         let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_open")?;
-
+        ctx.reset_change_version(&file_path);
         ctx.vfs.set_file(&file_path, &params.text_document.text);
         Ok(())
     }
