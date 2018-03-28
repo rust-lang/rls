@@ -69,10 +69,9 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Inferrable<T> {
 
 impl<T> Inferrable<T> {
     pub fn is_none(&self) -> bool {
-        if let &Inferrable::None = self {
-            return false;
-        } else {
-            return true;
+        match *self {
+            Inferrable::None => true,
+            _ => false,
         }
     }
 }
@@ -214,11 +213,9 @@ impl Config {
 
     /// Is this config incomplete, and needs additional values to be inferred?
     pub fn needs_inference(&self) -> bool {
-        if self.build_bin.is_none() || self.build_lib.is_none() || self.target_dir.is_none() {
-            return true;
-        }
-
-        return true;
+        self.build_bin.is_none() ||
+        self.build_lib.is_none() ||
+        self.target_dir.is_none()
     }
 
     /// Tries to auto-detect certain option values if they were unspecified.
