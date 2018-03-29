@@ -140,7 +140,7 @@ fn run_cargo(
     let config = {
         let rls_config = rls_config.lock().unwrap();
 
-        let target_dir = rls_config.target_dir.as_ref().map(|p| p as &Path);
+        let target_dir = rls_config.target_dir.as_ref().as_ref().map(|p| p as &Path);
         make_cargo_config(manifest_dir, target_dir, restore_env.get_old_cwd(), shell)
     };
 
@@ -671,7 +671,6 @@ pub fn make_cargo_config(build_dir: &Path,
         let target_dir = target_dir
             .map(|d| d.to_str().unwrap().to_owned())
             .unwrap_or_else(|| {
-                // FIXME(#730) should be using the workspace root here, not build_dir
                 build_dir
                     .join("target")
                     .join("rls")

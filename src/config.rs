@@ -67,6 +67,15 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Inferrable<T> {
     }
 }
 
+impl<T> Inferrable<T> {
+    pub fn is_none(&self) -> bool {
+        match *self {
+            Inferrable::None => true,
+            _ => false,
+        }
+    }
+}
+
 impl<T: Clone + Debug> Inferrable<T> {
     /// Combine these inferrable values, preferring our own specified values
     /// when possible, and falling back the given default value.
@@ -104,6 +113,7 @@ impl<T> AsRef<T> for Inferrable<T> {
         }
     }
 }
+
 /// RLS configuration options.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[allow(missing_docs)]
@@ -126,8 +136,7 @@ pub struct Config {
     pub build_on_save: bool,
     pub use_crate_blacklist: bool,
     /// Cargo target dir. If set overrides the default one.
-    #[serde(skip_deserializing, skip_serializing)]
-    pub target_dir: Option<PathBuf>,
+    pub target_dir: Inferrable<Option<PathBuf>>,
     pub features: Vec<String>,
     pub all_features: bool,
     pub no_default_features: bool,
@@ -156,7 +165,7 @@ impl Default for Config {
             clear_env_rust_log: true,
             build_on_save: false,
             use_crate_blacklist: true,
-            target_dir: None,
+            target_dir: Inferrable::Inferred(None),
             features: vec![],
             all_features: false,
             no_default_features: false,
@@ -173,6 +182,7 @@ impl Default for Config {
 impl Config {
     /// Join this configuration with the new config.
     pub fn update(&mut self, mut new: Config) {
+        new.target_dir = self.target_dir.combine_with_default(&new.target_dir, None);
         new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
 
@@ -203,10 +213,9 @@ impl Config {
 
     /// Is this config incomplete, and needs additional values to be inferred?
     pub fn needs_inference(&self) -> bool {
-        match (&self.build_lib, &self.build_bin) {
-            (&Inferrable::None, _) | (_, &Inferrable::None) => true,
-            _ => false,
-        }
+        self.build_bin.is_none() ||
+        self.build_lib.is_none() ||
+        self.target_dir.is_none()
     }
 
     /// Tries to auto-detect certain option values if they were unspecified.
@@ -232,13 +241,21 @@ impl Config {
         // Constructing a `Workspace` also probes the filesystem and detects where to place the
         // build artifacts. We need to rely on Cargo's behaviour directly not to possibly place our
         // own artifacts somewhere else (e.g. when analyzing only a single crate in a workspace)
-        if self.target_dir.is_none() {
+        match self.target_dir {
+            // We require an absolute path, so adjust a relative one if it's passed.
+            Inferrable::Specified(Some(ref mut path)) if path.is_relative() => {
+                *path = project_dir.join(&path);
+            }
+            _ => {},
+        }
+        if self.target_dir.as_ref().is_none() {
             let target_dir = ws.target_dir().clone().into_path_unlocked();
-            self.target_dir = Some(target_dir);
+            let target_dir = target_dir.join("rls");
+            self.target_dir.infer(Some(target_dir));
             trace!(
                 "For project path {:?} Cargo told us to use this target/ dir: {:?}",
                 project_dir,
-                self.target_dir.as_ref().unwrap(),
+                self.target_dir.as_ref().as_ref().unwrap(),
             );
         }
 
