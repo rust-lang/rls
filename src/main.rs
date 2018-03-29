@@ -67,14 +67,6 @@ pub mod server;
 #[cfg(test)]
 mod test;
 
-// Timeout = 1.5s (totally arbitrary).
-#[cfg(not(test))]
-const COMPILER_TIMEOUT: u64 = 1500;
-
-// Timeout for potenially very slow CPU CI boxes
-#[cfg(test)]
-const COMPILER_TIMEOUT: u64 = 3_600_000;
-
 const RUSTC_SHIM_ENV_VAR_NAME: &str = "RLS_RUSTC_SHIM";
 
 type Span = span::Span<span::ZeroIndexed>;
