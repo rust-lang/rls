@@ -22,9 +22,14 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-lazy_static! {
-    pub static ref DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(::COMPILER_TIMEOUT);
-}
+/// Timeout time for request responses. By default a LSP client request not
+/// responded to after this duration will return a fallback response.
+#[cfg(not(test))]
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(1500);
+
+// Timeout lengthened to "never" for potenially very slow CI boxes
+#[cfg(test)]
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(3_600_000);
 
 /// Macro enum `DispatchRequest` packing in various similar `Request` types
 macro_rules! define_dispatch_request_enum {
@@ -166,7 +171,7 @@ pub trait RequestAction: LSPRequest {
 
     /// Max duration this request should finish within, also see `fallback_response()`
     fn timeout() -> Duration {
-        *DEFAULT_REQUEST_TIMEOUT
+        DEFAULT_REQUEST_TIMEOUT
     }
 
     /// Returns a response used in timeout scenarios

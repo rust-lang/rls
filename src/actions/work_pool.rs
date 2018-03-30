@@ -21,7 +21,7 @@ lazy_static! {
     static ref NUM_THREADS: usize = ::num_cpus::get();
 
     /// Duration of work after which we should warn something is taking a long time
-    static ref WARN_TASK_DURATION: Duration = *DEFAULT_REQUEST_TIMEOUT * 5;
+    static ref WARN_TASK_DURATION: Duration = DEFAULT_REQUEST_TIMEOUT * 5;
 
     /// Current work descriptions active on the work pool
     static ref WORK: Mutex<Vec<WorkDescription>> = Mutex::new(vec![]);
