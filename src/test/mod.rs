@@ -899,9 +899,15 @@ fn test_bin_lib_project() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin_lib"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin_lib"),
+            ExpectedMessage::new(None).expect_contains("progress"),
+            ExpectedMessage::new(None).expect_contains("progress"),
+            ExpectedMessage::new(None).expect_contains("progress"),
+            ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+            ExpectedMessage::new(None)
+                .expect_contains(r#"bin_lib/tests/tests.rs"#)
+                .expect_contains(r#"unused variable: `unused_var`"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -1557,7 +1563,6 @@ fn test_all_targets() {
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-
             ExpectedMessage::new(None)
                 .expect_contains(r#"bin_lib/tests/tests.rs"#)
                 .expect_contains(r#"unused variable: `unused_var`"#),

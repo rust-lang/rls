@@ -153,7 +153,7 @@ fn run_cargo(
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
     // it on every relevant configuration change
-    let (opts, rustflags, clear_env_rust_log) =
+    let (opts, rustflags, clear_env_rust_log, cfg_test) =
         {
             // We mustn't lock configuration for the whole build process
             let rls_config = rls_config.lock().unwrap();
@@ -182,7 +182,7 @@ fn run_cargo(
                 }
             }
 
-            (opts, rustflags, rls_config.clear_env_rust_log)
+            (opts, rustflags, rls_config.clear_env_rust_log, rls_config.cfg_test)
         };
 
     let spec = Packages::from_flags(false, Vec::new(), packages)?;
@@ -196,7 +196,7 @@ fn run_cargo(
             opts.bins,
             // TODO: Support more crate target types
             Vec::new(),
-            false,
+            cfg_test, // Check all integration tests under tests/
             Vec::new(),
             false,
             Vec::new(),
@@ -207,7 +207,7 @@ fn run_cargo(
         all_features: opts.all_features,
         no_default_features: opts.no_default_features,
         jobs: opts.jobs,
-        ..CompileOptions::default(&config, CompileMode::Check { test: false })
+        ..CompileOptions::default(&config, CompileMode::Check { test: cfg_test })
     };
 
     // Create a custom environment for running cargo, the environment is reset
@@ -460,7 +460,7 @@ impl Executor for RlsExecutor {
             // Because we only try to emulate `cargo test` using `cargo check`, so for now
             // assume crate_type arg (i.e. in `cargo test` it isn't specified for --test targets)
             // and build test harness only for final crate type
-            let crate_type = if config.all_targets {
+            let crate_type = if config.all_targets || config.cfg_test {
                 // Crate type may be undefined when `all_targets` is true, for example for integration tests
                 crate_type.unwrap_or_else(|| "undefined".to_owned())
             } else {
@@ -470,15 +470,6 @@ impl Executor for RlsExecutor {
             let build_lib = *config.build_lib.as_ref();
             let is_final_crate_type = crate_type == "bin" || (crate_type == "lib" && build_lib);
 
-            if config.cfg_test {
-                // FIXME(#351) allow passing --test to lib crate-type when building a dependency
-                if is_final_crate_type {
-                    args.push("--test".to_owned());
-                } else {
-                    args.push("--cfg".to_owned());
-                    args.push("test".to_owned());
-                }
-            }
             if config.sysroot.is_none() {
                 args.push("--sysroot".to_owned());
                 args.push(sysroot);
