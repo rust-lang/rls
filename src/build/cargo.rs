@@ -26,6 +26,7 @@ use vfs::Vfs;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
+use std::fmt::Write;
 use std::fs::{read_dir, remove_file};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -347,7 +348,9 @@ impl Executor for RlsExecutor {
         self.is_primary_crate(id)
     }
 
-    fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target) -> CargoResult<()> {
+    fn exec(&self, mut cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target) -> CargoResult<()> {
+        // Use JSON output so that we can parse the rustc output.
+        cargo_cmd.arg("--error-format=json");
         // Delete any stale data. We try and remove any json files with
         // the same crate name as Cargo would emit. This includes files
         // with the same crate name but different hashes, e.g., those
@@ -617,18 +620,15 @@ impl CargoOptions {
 }
 
 fn prepare_cargo_rustflags(config: &Config) -> String {
-    let mut flags = "--error-format=json ".to_owned();
+    let mut flags = env::var("RUSTFLAGS").unwrap_or_else(|_| String::new());
 
-    if let Some(ref sysroot) = config.sysroot {
-        flags.push_str(&format!(" --sysroot {}", sysroot));
+    if let Some(config_flags) = &config.rustflags {
+        write!(flags, " {}", config_flags.as_str()).unwrap();
     }
 
-    flags = format!(
-        "{} {} {}",
-        env::var("RUSTFLAGS").unwrap_or_else(|_| String::new()),
-        config.rustflags.as_ref().map(|s| s.as_str()).unwrap_or(""),
-        flags
-    );
+    if let Some(sysroot) = &config.sysroot {
+        write!(flags, " --sysroot {}", sysroot).unwrap();
+    }
 
     dedup_flags(&flags)
 }
@@ -708,7 +708,6 @@ fn current_sysroot() -> Option<String> {
         })
     }
 }
-
 
 /// `flag_str` is a string of command line args for Rust. This function removes any
 /// duplicate flags.
