@@ -10,7 +10,7 @@ categories = ["development-tools"]
 build = "build.rs"
 
 [dependencies]
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "311a5eda6f90d660bb23e97c8ee77090519b9eda" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "b70ab13b31628e91b05961d55c07abf20ad49de6" }
 cargo_metadata = "0.5.2"
 env_logger = "0.5"
 failure = "0.1.1"
