@@ -9,8 +9,8 @@
 // except according to those terms.
 
 use cargo::core::{PackageId, Shell, Target, TargetKind, Verbosity, Workspace};
-use cargo::ops::{compile_with_exec, CompileFilter, CompileMode, CompileOptions, Context, Executor,
-                 Packages, Unit};
+use cargo::core::compiler::{Context, Executor, Unit};
+use cargo::ops::{compile_with_exec, CompileFilter, CompileMode, CompileOptions, Packages};
 use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue,
                   ProcessBuilder};
 use failure;
