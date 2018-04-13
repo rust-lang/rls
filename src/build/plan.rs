@@ -32,7 +32,7 @@ use std::sync::mpsc::Sender;
 
 use build::PackageArg;
 use cargo::core::{PackageId, Profile, Target, TargetKind};
-use cargo::ops::{Context, Kind, Unit};
+use cargo::core::compiler::{Context, Kind, Unit};
 use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
 use lsp_data::parse_file_path;
