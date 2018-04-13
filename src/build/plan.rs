@@ -199,6 +199,9 @@ impl Plan {
                 // Not a build script, so we associate a dirty package with a
                 // dirty file by finding longest (most specified) path prefix
                 let unit = other_targets.iter().max_by_key(|&(_, src_dir)| {
+                    if !modified.as_ref().starts_with(src_dir) {
+                        return 0;
+                    }
                     modified
                         .as_ref()
                         .components()
@@ -337,22 +340,33 @@ impl Plan {
             let graph = self.dirty_rev_dep_graph(&dirties);
             trace!("Constructed dirty rev dep graph: {:?}", graph);
 
+            if graph.is_empty() {
+                return WorkStatus::NeedsCargo(package_arg);
+            }
+
             let queue = self.topological_sort(&graph);
-            trace!("Topologically sorted dirty graph: {:?}", queue);
-            let jobs: Vec<_> = queue
+            trace!("Topologically sorted dirty graph: {:?} {}", queue, self.is_ready());
+            let jobs: Option<Vec<_>> = queue
                 .iter()
                 .map(|x| {
                     self.compiler_jobs
                         .get(x)
-                        .expect("missing key in compiler_jobs")
-                        .clone()
+                        .map(|cj| cj.clone())
                 })
                 .collect();
 
-            if jobs.is_empty() {
-                WorkStatus::NeedsCargo(package_arg)
-            } else {
-                WorkStatus::Execute(JobQueue(jobs))
+            // It is possible that we want a job which is not in our cache (compiler_jobs),
+            // for example we might be building a workspace with an error in a crate and later
+            // crates within the crate that depend on the error-ing one have never been built.
+            // In that case we need to build from scratch so that everything is in our cache, or
+            // we cope with the error. In the error case, jobs will be None.
+
+            match jobs {
+                None => WorkStatus::NeedsCargo(package_arg),
+                Some(jobs) => {
+                    assert!(!jobs.is_empty());
+                    WorkStatus::Execute(JobQueue(jobs))
+                }
             }
         }
     }
@@ -362,6 +376,16 @@ pub enum WorkStatus {
     NeedsCargo(PackageArg),
     Execute(JobQueue),
 }
+
+// The point of the PackageMap is to compute the minimal work for Cargo to do,
+// given a list of changed files. That is, if things have changed all over the
+// place we have to do a `--all` build, but if they've only changed in one
+// package, then we can do `-p foo` which should mean less work.
+//
+// However, when we change package we throw away our build plan and must rebuild
+// it, so we must be careful that compiler jobs we expect to exist will in fact
+// exist. There is some wasted work too, but I don't think we can predict when
+// we definitely need to do this and it should be quick compared to compilation.
 
 // Maps paths to packages.
 #[derive(Debug)]
