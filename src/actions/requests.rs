@@ -603,23 +603,22 @@ fn make_deglob_actions(
 
                 // load the deglob type information
                 ctx.analysis.show_type(&span)
-                // remove all errors
-                .ok()
-                .map(|ty| (ty, span))
+                    .ok()
+                    .map(|ty| (ty, span))
             })
             .map(|(mut deglob_str, span)| {
                 // Handle multiple imports from one *
-                if deglob_str.contains(',') {
-                    deglob_str = format!("{{{}}}", deglob_str);
+                if deglob_str.contains(',') || deglob_str.is_empty() {
+                    deglob_str = format!("{{{}}}", sort_deglob_str(&deglob_str));
                 }
 
-                // build result
+                // Build result
                 let deglob_result = DeglobResult {
                     location: ls_util::rls_to_location(&span),
                     new_text: deglob_str,
                 };
 
-                // convert to json
+                // Convert to json
                 serde_json::to_value(&deglob_result).unwrap()
             })
             .collect();
@@ -628,7 +627,7 @@ fn make_deglob_actions(
             // extend result list
             let cmd = Command {
                 title: format!(
-                    "Deglob Import{}",
+                    "Deglob import{}",
                     if deglob_results.len() > 1 { "s" } else { "" }
                 ),
                 command: "rls.deglobImports".to_owned(),
@@ -637,6 +636,13 @@ fn make_deglob_actions(
             code_actions_result.push(cmd);
         }
     };
+}
+
+// Ideally we'd use Rustfmt for this, but reparsing is a bit of a pain.
+fn sort_deglob_str(s: &str) -> String {
+    let mut substrings = s.split(',').map(|s| s.trim()).collect::<Vec<_>>();
+    substrings.sort();
+    substrings.join(", ")
 }
 
 impl RequestAction for CodeAction {
@@ -855,4 +861,18 @@ fn location_from_racer_match(a_match: &racer::Match) -> Option<Location> {
         let loc = span::Location::new(row.zero_indexed(), col, source_path);
         ls_util::rls_location_to_location(&loc)
     })
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_sort_deglob_str() {
+        assert_eq!(sort_deglob_str(""), "");
+        assert_eq!(sort_deglob_str("foo"), "foo");
+        assert_eq!(sort_deglob_str("a, b"), "a, b");
+        assert_eq!(sort_deglob_str("b, a"), "a, b");
+        assert_eq!(sort_deglob_str("foo, bar, baz"), "bar, baz, foo");
+    }
 }

@@ -1422,7 +1422,7 @@ fn test_deglob() {
         wait_for_n_results!(1, results);
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 100);
-        assert_eq!(response["result"][0]["title"], "Deglob Import");
+        assert_eq!(response["result"][0]["title"], "Deglob import");
         assert_eq!(response["result"][0]["command"], "rls.deglobImports");
         let deglob = &response["result"][0]["arguments"][0];
         assert!(
@@ -1486,7 +1486,7 @@ fn test_deglob() {
         results.clone(),
         &[
             ExpectedMessage::new(Some(1100))
-                .expect_contains(r#""title":"Deglob Imports""#)
+                .expect_contains(r#""title":"Deglob imports""#)
                 .expect_contains(r#""command":"rls.deglobImports""#)
                 .expect_contains(r#"{"location":{"range":{"end":{"character":15,"line":15},"start":{"character":14,"line":15}},"uri":"#)
                 .expect_contains(r#"deglob/src/main.rs"}"#)
