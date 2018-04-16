@@ -20,7 +20,7 @@ lazy_static = "1"
 log = "0.4"
 racer = "2.0.12"
 rls-analysis = "0.12"
-rls-blacklist = "0.1.0"
+rls-blacklist = "0.1.2"
 rls-data = { version = "0.15", features = ["serialize-serde"] }
 rls-rustc = "0.2.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
