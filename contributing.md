@@ -8,7 +8,7 @@ reporting issues, writing documentation, writing tests, writing code, and
 implementing clients are all extremely valuable.
 
 Here is the list of known [issues](https://github.com/rust-lang-nursery/rls/issues).
-These are [good issues to start on](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aissue+is%3Aopen+label%3Agood-first-issue).
+These are [good issues to start on](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 We're happy to help however we can. The best way to get help is either to
 leave a comment on an issue in this repo, or to ping us (nrc) in #rust-dev-tools
