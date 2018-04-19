@@ -25,8 +25,8 @@ rls-data = { version = "0.15", features = ["serialize-serde"] }
 rls-rustc = "0.2.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4.5", features = ["racer-impls"] }
-rustfmt-nightly = { git = "https://github.com/rust-lang-nursery/rustfmt", rev = "cef31b28" }
-clippy_lints = { version = "0.0.194", optional = true }
+rustfmt-nightly = { git = "https://github.com/rust-lang-nursery/rustfmt", rev = "dd807e2" }
+clippy_lints = { version = "0.0.195", optional = true }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
