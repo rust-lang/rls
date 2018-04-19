@@ -267,7 +267,12 @@ impl InitActionContext {
 
         if prev_changes.contains_key(&file_path) {
             let prev_version = prev_changes[&file_path];
-            assert!(version_num > prev_version, "Out of order or duplicate change");
+            if version_num <= prev_version {
+                debug!(
+                    "Out of order or duplicate change {:?}, prev: {}, current: {}",
+                    file_path, prev_version, version_num,
+                );
+            }
         }
 
         prev_changes.insert(file_path, version_num);
