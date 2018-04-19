@@ -10,8 +10,7 @@
 
 //! One-way notifications that the RLS receives from the client.
 
-use actions::ActionContext;
-use actions::FileWatch;
+use actions::{ActionContext, FileWatch, VersionOrdering};
 use vfs::Change;
 use config::Config;
 use serde::Deserialize;
@@ -23,6 +22,7 @@ use std::sync::atomic::Ordering;
 use build::*;
 use lsp_data::*;
 use lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
+use ls_types::notification::ShowMessage;
 use server::Request;
 
 pub use lsp_data::notification::{
@@ -35,7 +35,7 @@ pub use lsp_data::notification::{
     Cancel,
 };
 
-use server::{BlockingNotificationAction, Output};
+use server::{BlockingNotificationAction, Notification, Output};
 
 use std::thread;
 
@@ -92,7 +92,17 @@ impl BlockingNotificationAction for DidChangeTextDocument {
         let file_path = parse_file_path!(&params.text_document.uri, "on_change")?;
         let version_num = params.text_document.version.unwrap();
 
-        ctx.check_change_version(&file_path, version_num);
+        match ctx.check_change_version(&file_path, version_num) {
+            VersionOrdering::Ok => {},
+            VersionOrdering::Duplicate => return Ok(()),
+            VersionOrdering::OutOfOrder => {
+                out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+                    typ: MessageType::Warning,
+                    message: format!("Out of order change in {:?}", file_path),
+                }));
+                return Ok(());
+            }
+        }
 
         let changes: Vec<Change> = params
             .content_changes

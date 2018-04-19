@@ -261,7 +261,8 @@ impl InitActionContext {
         self.active_build_count.load(Ordering::SeqCst) == 0
     }
 
-    fn check_change_version(&self, file_path: &Path, version_num: u64) {
+    /// See docs on VersionOrdering
+    fn check_change_version(&self, file_path: &Path, version_num: u64) -> VersionOrdering {
         let file_path = file_path.to_owned();
         let mut prev_changes = self.prev_changes.lock().unwrap();
 
@@ -272,10 +273,17 @@ impl InitActionContext {
                     "Out of order or duplicate change {:?}, prev: {}, current: {}",
                     file_path, prev_version, version_num,
                 );
+
+                if version_num == prev_version {
+                    return VersionOrdering::Duplicate;
+                } else {
+                    return VersionOrdering::OutOfOrder;
+                }
             }
         }
 
         prev_changes.insert(file_path, version_num);
+        VersionOrdering::Ok
     }
 
     fn reset_change_version(&self, file_path: &Path) {
@@ -300,6 +308,23 @@ impl InitActionContext {
             file_path,
         )
     }
+}
+
+/// Some notifications come with sequence numbers, we check that these are in
+/// order. However, clients might be buggy about sequence numbers so we do cope
+/// with them being wrong.
+///
+/// This enum defines the state of sequence numbers.
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+pub enum VersionOrdering {
+    /// Sequence number is in order (note that we don't currently check that
+    /// sequence numbers are sequential, but we probably should).
+    Ok,
+    /// This indicates the client sent us multiple copies of the same notification
+    /// and some should be ignored.
+    Duplicate,
+    /// Just plain wrong sequence number. No obvious way for us to recover.
+    OutOfOrder,
 }
 
 /// Represents a text cursor between characters, pointing at the next character
