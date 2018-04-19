@@ -363,8 +363,8 @@ fn exit() -> Notification<server::ExitNotification> {
 fn initialize(root_path: String) -> Request<server::InitializeRequest> {
     let params = InitializeParams {
         process_id: None,
-        root_path: Some(root_path), // FIXME(#299): This property is deprecated. Instead Use `root_uri`.
-        root_uri: None,
+        root_path: Some(root_path),
+        root_uri: url(root_path),
         initialization_options: None,
         capabilities: ClientCapabilities {
             workspace: None,
