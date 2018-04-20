@@ -363,8 +363,8 @@ fn exit() -> Notification<server::ExitNotification> {
 fn initialize(root_path: String) -> Request<server::InitializeRequest> {
     let params = InitializeParams {
         process_id: None,
+        root_uri: Some(url(&root_path)),
         root_path: Some(root_path),
-        root_uri: url(root_path),
         initialization_options: None,
         capabilities: ClientCapabilities {
             workspace: None,

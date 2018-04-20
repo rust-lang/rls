@@ -27,8 +27,8 @@ use failure;
 use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
 
-use rustfmt::config::Config as RustfmtConfig;
-use rustfmt::config::WriteMode;
+use rustfmt::Config as RustfmtConfig;
+use rustfmt::{load_config, WriteMode};
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 1500;
 
@@ -372,7 +372,7 @@ impl FmtConfig {
     /// Look for `.rustmt.toml` or `rustfmt.toml` in `path`, falling back
     /// to the default config if neither exist
     pub fn from(path: &Path) -> FmtConfig {
-        if let Ok((config, _)) = RustfmtConfig::from_resolved_toml_path(path) {
+        if let Ok((config, _)) = load_config(Some(path), None) {
             let mut config = FmtConfig(config);
             config.set_rls_options();
             return config;
