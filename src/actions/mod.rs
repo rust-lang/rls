@@ -382,11 +382,15 @@ impl<'ctx> FileWatch<'ctx> {
 
     /// Returns json config for desired file watches
     pub fn watchers_config(&self) -> serde_json::Value {
-        let pattern = format!("{}/Cargo{{.toml,.lock}}", self.project_str);
+        let cargo_toml_pattern = format!("{}/Cargo.toml", self.project_str);
+        let cargo_lock_pattern = format!("{}/Cargo.lock", self.project_str);
         let target_pattern = format!("{}/target", self.project_str);
         // For target, we only watch if it gets deleted.
         json!({
-            "watchers": [{ "globPattern": pattern }, { "globPattern": target_pattern, "kind": 4 }]
+            "watchers": [
+                { "globPattern": cargo_toml_pattern },
+                { "globPattern": cargo_lock_pattern },
+                { "globPattern": target_pattern, "kind": 4 }]
         })
     }
 
