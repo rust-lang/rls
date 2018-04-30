@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "rls"
-version = "0.126.0"
+version = "0.127.0"
 dependencies = [
  "cargo 0.27.0 (git+https://github.com/rust-lang/cargo?rev=008c3690846798d678f4a0a45ee46cc9ff6dc90f)",
  "cargo_metadata 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
