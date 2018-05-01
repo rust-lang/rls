@@ -902,7 +902,6 @@ fn test_bin_lib_project() {
             ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None)
@@ -1556,7 +1555,6 @@ fn test_all_targets() {
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
