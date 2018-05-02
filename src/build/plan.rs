@@ -352,7 +352,7 @@ impl Plan {
                 .map(|x| {
                     self.compiler_jobs
                         .get(x)
-                        .map(|cj| cj.clone())
+                        .cloned()
                 })
                 .collect();
 
@@ -609,7 +609,7 @@ impl<'a> From<&'a Unit<'a>> for OwnedUnit {
         OwnedUnit {
             id: unit.pkg.package_id().to_owned(),
             target: unit.target.clone(),
-            profile: unit.profile.clone(),
+            profile: unit.profile,
             kind: unit.kind,
         }
     }
