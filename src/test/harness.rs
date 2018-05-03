@@ -53,13 +53,19 @@ impl Environment {
                 .to_path_buf()
         };
         let project_path = cur_dir.join("test_data").join(project_dir);
-        let target_path = cur_dir
-            .join("target")
+
+        let target_dir = env::var("CARGO_TARGET_DIR")
+            .map(|s| Path::new(&s).to_owned())
+            .unwrap_or_else(|_| {
+                cur_dir.join("target")
+            });
+
+        let working_dir = target_dir
             .join("tests")
             .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
 
         let mut config = Config::default();
-        config.target_dir = Inferrable::Specified(Some(target_path.clone()));
+        config.target_dir = Inferrable::Specified(Some(working_dir.clone()));
         config.unstable_features = true;
 
         let cache = Cache::new(project_path);
@@ -67,7 +73,7 @@ impl Environment {
         Self {
             config: Some(config),
             cache,
-            target_path,
+            target_path: working_dir,
         }
     }
 }
