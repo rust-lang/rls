@@ -53,7 +53,7 @@ impl BlockingNotificationAction for Initialized {
                 Registration {
                     id: WATCH_ID.to_owned(),
                     method: <DidChangeWatchedFiles as LSPNotification>::METHOD.to_owned(),
-                    register_options: FileWatch::new(&ctx).watchers_config(),
+                    register_options: Some(FileWatch::new(&ctx).watchers_config()),
                 },
             ],
         };
@@ -220,7 +220,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
                         Registration {
                             id: RANGE_FORMATTING_ID.to_owned(),
                             method: <RangeFormatting as LSPRequest>::METHOD.to_owned(),
-                            register_options: serde_json::Value::Null,
+                            register_options: None,
                         },
                     ],
             };

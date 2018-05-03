@@ -91,12 +91,12 @@ impl PostBuildHandler {
             v.clear();
         }
 
-        for (group, msg) in messages.iter().enumerate() {
+        for msg in messages {
             if let Some(FileDiagnostic {
                 file_path,
                 main: (diagnostic, suggestions),
                 secondaries,
-            }) = parse_diagnostics(msg, group as u64)
+            }) = parse_diagnostics(msg)
             {
                 let entry = results.entry(cwd.join(file_path)).or_insert_with(Vec::new);
 
@@ -340,7 +340,7 @@ struct CompilerMessageCode {
     code: String,
 }
 
-fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
+fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     let message = match serde_json::from_str::<CompilerMessage>(message) {
         Ok(m) => m,
         Err(e) => {
@@ -392,11 +392,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
             })),
             source: Some(source.to_owned()),
             message: primary_message.trim().to_owned(),
-            group: if message.spans.iter().any(|x| !x.is_primary) {
-                Some(group)
-            } else {
-                None
-            },
+            related_information: None,
         }
     };
 
@@ -444,7 +440,7 @@ fn parse_diagnostics(message: &str, group: u64) -> Option<FileDiagnostic> {
                 })),
                 source: Some(source.to_owned()),
                 message: secondary_message.trim().to_owned(),
-                group: Some(group),
+                related_information: None,
             };
             (diag, suggestion.map(|s| vec![s]).unwrap_or_default())
         })
@@ -605,7 +601,7 @@ mod diagnostic_message_test {
 
     pub(super) fn parse_compiler_message(compiler_message: &str) -> FileDiagnostic {
         let _ = ::env_logger::try_init();
-        parse_diagnostics(compiler_message, 0).expect("failed to parse compiler message")
+        parse_diagnostics(compiler_message).expect("failed to parse compiler message")
     }
 
     pub(super) trait FileDiagnosticTestExt {
