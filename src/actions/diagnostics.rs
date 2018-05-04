@@ -9,6 +9,10 @@
 // except according to those terms.
 
 //! Conversion of raw rustc-emitted JSON messages into LSP diagnostics.
+//!
+//! Data definitions for diagnostics can be found in the Rust compiler for:
+//! 1. Internal diagnostics at src/librustc_errors/diagnostic.rs.
+//! 2. Emitted JSON format at src/libsyntax/json.rs.
 
 use std::path::{Path, PathBuf};
 
@@ -33,13 +37,24 @@ pub struct FileDiagnostic {
     pub secondaries: Vec<(Diagnostic, Vec<Suggestion>)>,
 }
 
+/// Deserialized JSON diagnostic that was emitted by rustc.
 #[derive(Debug, Deserialize)]
 struct CompilerMessage {
     message: String,
     code: Option<CompilerMessageCode>,
     level: String,
     spans: Vec<DiagnosticSpan>,
-    children: Vec<CompilerMessage>,
+    children: Vec<AssociatedMessage>,
+}
+
+/// Represents an emitted subdiagnostic for a certain message. Rustc also emits
+/// always empty `code`, `children` and `rendered` fields, which we intentionally
+/// ignore here.
+#[derive(Debug, Deserialize)]
+struct AssociatedMessage {
+    message: String,
+    level: String,
+    spans: Vec<DiagnosticSpan>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -160,10 +175,10 @@ pub fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
     })
 }
 
-fn format_notes(children: &[CompilerMessage], primary: &DiagnosticSpan) -> Option<String> {
+fn format_notes(children: &[AssociatedMessage], primary: &DiagnosticSpan) -> Option<String> {
     if !children.is_empty() {
         let mut notes = String::new();
-        for &CompilerMessage {
+        for &AssociatedMessage {
             ref message,
             ref level,
             ref spans,
