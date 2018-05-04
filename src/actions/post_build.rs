@@ -25,7 +25,7 @@ use build::BuildResult;
 use lsp_data::PublishDiagnosticsParams;
 use ls_types::DiagnosticSeverity;
 use actions::progress::DiagnosticsNotifier;
-use actions::diagnostics::{Diagnostic, FileDiagnostic, Suggestion, parse_diagnostics};
+use actions::diagnostics::{Diagnostic, ParsedDiagnostics, Suggestion, parse_diagnostics};
 
 use analysis::AnalysisHost;
 use data::Analysis;
@@ -86,22 +86,17 @@ impl PostBuildHandler {
         let mut results = self.previous_build_results.lock().unwrap();
         // We must not clear the hashmap, just the values in each list.
         // This allows us to save allocated before memory.
-        for v in &mut results.values_mut() {
-            v.clear();
+        for values in &mut results.values_mut() {
+            values.clear();
         }
 
         for msg in messages {
-            if let Some(FileDiagnostic {
-                file_path,
-                main: (diagnostic, suggestions),
-                secondaries,
-            }) = parse_diagnostics(msg)
-            {
-                let entry = results.entry(cwd.join(file_path)).or_insert_with(Vec::new);
-
-                entry.push((diagnostic, suggestions));
-                for (secondary, suggestions) in secondaries {
-                    entry.push((secondary, suggestions));
+            if let Some(ParsedDiagnostics { diagnostics }) = parse_diagnostics(msg, cwd) {
+                for (file_path, diagnostics) in diagnostics {
+                    results
+                        .entry(file_path)
+                        .or_insert_with(Vec::new)
+                        .extend(diagnostics);
                 }
             }
         }
@@ -157,13 +152,11 @@ impl PostBuildHandler {
                 uri: Url::from_file_path(path).unwrap(),
                 diagnostics: diagnostics
                     .iter()
-                    .filter_map(|&(ref d, _)| {
-                        if self.show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
-                            Some(d.clone())
-                        } else {
-                            None
-                        }
+                    .map(|(diag, _)| diag)
+                    .filter(|diag| {
+                        self.show_warnings || diag.severity != Some(DiagnosticSeverity::Warning)
                     })
+                    .cloned()
                     .collect(),
             };
 
