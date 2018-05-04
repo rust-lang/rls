@@ -26,7 +26,7 @@ rls-rustc = "0.2.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4.5", features = ["racer-impls"] }
 rustfmt-nightly = "0.6"
-clippy_lints = { version = "0.0.195", optional = true }
+clippy_lints = { version = "0.0.196", optional = true }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
