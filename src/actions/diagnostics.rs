@@ -63,7 +63,11 @@ struct CompilerMessageCode {
     code: String,
 }
 
-pub fn parse_diagnostics(message: &str, cwd: &Path) -> Option<ParsedDiagnostics> {
+pub fn parse_diagnostics(
+    message: &str,
+    cwd: &Path,
+    related_information_support: bool,
+) -> Option<ParsedDiagnostics> {
     let message = match serde_json::from_str::<CompilerMessage>(message) {
         Ok(m) => m,
         Err(e) => {
@@ -93,18 +97,27 @@ pub fn parse_diagnostics(message: &str, cwd: &Path) -> Option<ParsedDiagnostics>
 
     let mut diagnostics = HashMap::new();
 
-    for (path, diagnostic) in primaries.iter().map(|span| {
+    // If the client doesn't support related information, emit separate diagnostics for secondary spans
+    let diagnostic_spans = if related_information_support {
+        &primaries
+    } else {
+        &message.spans
+    };
+
+    for (path, diagnostic) in diagnostic_spans.iter().map(|span| {
         let children = || message.children.iter().flat_map(|msg| &msg.spans);
         let all_spans = || iter::once(span).chain(&secondaries).chain(children());
 
         let suggestions = make_suggestions(span, all_spans());
-        let related_information = make_related_information(all_spans(), cwd);
+        let related_information = if related_information_support {
+            Some(make_related_information(all_spans(), cwd))
+        } else {
+            None
+        };
 
         let diagnostic_message = {
             let mut diagnostic_message = message.message.clone();
-            // Label from primary span will be included in the related
-            // information, but include the label in case client doesn't support it
-            // TODO: don't do that if client supports related information
+
             if let Some(ref label) = span.label {
                 diagnostic_message.push_str(&format!("\n\n{}", label));
             }
@@ -128,14 +141,14 @@ pub fn parse_diagnostics(message: &str, cwd: &Path) -> Option<ParsedDiagnostics>
 
         let diagnostic = Diagnostic {
             range: ls_util::rls_to_range(rls_span.range),
-            severity: Some(severity(&message.level)),
+            severity: Some(severity(&message.level, span.is_primary)),
             code: Some(NumberOrString::String(match message.code {
                 Some(ref c) => c.code.clone(),
                 None => String::new(),
             })),
             source: Some(source.to_owned()),
             message: diagnostic_message,
-            related_information: Some(related_information),
+            related_information,
         };
 
         (file_path, (diagnostic, suggestions))
@@ -191,11 +204,11 @@ fn format_notes(children: &[AssociatedMessage], primary: &DiagnosticSpan) -> Opt
     }
 }
 
-fn severity(level: &str) -> DiagnosticSeverity {
-    if level == "error" {
-        DiagnosticSeverity::Error
-    } else {
-        DiagnosticSeverity::Warning
+fn severity(level: &str, is_primary_span: bool) -> DiagnosticSeverity {
+    match (level, is_primary_span) {
+        (_, false) => DiagnosticSeverity::Information,
+        ("error", _) => DiagnosticSeverity::Error,
+        (_, _) => DiagnosticSeverity::Warning,
     }
 }
 

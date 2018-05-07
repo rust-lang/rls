@@ -40,6 +40,7 @@ pub struct PostBuildHandler {
     pub project_path: PathBuf,
     pub show_warnings: bool,
     pub use_black_list: bool,
+    pub related_information_support: bool,
     pub shown_cargo_error: Arc<AtomicBool>,
     pub active_build_count: Arc<AtomicUsize>,
     pub notifier: Box<DiagnosticsNotifier>,
@@ -91,7 +92,9 @@ impl PostBuildHandler {
         }
 
         for msg in messages {
-            if let Some(ParsedDiagnostics { diagnostics }) = parse_diagnostics(msg, cwd) {
+            if let Some(ParsedDiagnostics { diagnostics }) =
+                parse_diagnostics(msg, cwd, self.related_information_support)
+            {
                 for (file_path, diagnostics) in diagnostics {
                     results
                         .entry(file_path)
