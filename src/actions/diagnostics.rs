@@ -336,23 +336,31 @@ impl IsWithin for Range {
 mod diagnostic_message_test {
     use super::*;
 
-    pub(super) fn parse_compiler_message(compiler_message: &str) -> ParsedDiagnostics {
+    pub(super) fn parse_compiler_message(
+        compiler_message: &str,
+        with_related_information: bool,
+    ) -> ParsedDiagnostics {
         let _ = ::env_logger::try_init();
         let cwd = ::std::env::current_dir().unwrap();
-        parse_diagnostics(compiler_message, &cwd).expect("failed to parse compiler message")
+        parse_diagnostics(compiler_message, &cwd, with_related_information)
+            .expect("failed to parse compiler message")
     }
 
     pub(super) trait FileDiagnosticTestExt {
+        fn single_file_results(&self) -> &Vec<(Diagnostic, Vec<Suggestion>)>;
         /// Returns (primary message, secondary messages)
         fn to_messages(&self) -> Vec<(String, Vec<String>)>;
+        fn to_primary_messages(&self) -> Vec<String>;
+        fn to_secondary_messages(&self) -> Vec<String>;
     }
 
     impl FileDiagnosticTestExt for ParsedDiagnostics {
+        fn single_file_results(&self) -> &Vec<(Diagnostic, Vec<Suggestion>)> {
+            self.diagnostics.values().nth(0).unwrap()
+        }
+
         fn to_messages(&self) -> Vec<(String, Vec<String>)> {
-            (self.diagnostics
-                .values()
-                .nth(0) // single file results
-                .unwrap()
+            (self.single_file_results()
                 .iter()
                 .map(|(diagnostic, _)| {
                     (
@@ -368,6 +376,17 @@ mod diagnostic_message_test {
                 })
                 .collect())
         }
+
+        fn to_primary_messages(&self) -> Vec<String> {
+            self.to_messages().iter().map(|(p, _)| p.clone()).collect()
+        }
+
+        fn to_secondary_messages(&self) -> Vec<String> {
+            self.to_messages()
+                .iter()
+                .flat_map(|(_, s)| s.clone())
+                .collect()
+        }
     }
 
     /// ```
@@ -379,9 +398,10 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_use_after_move() {
-        let diag = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/use-after-move.json"
-        ));
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/use-after-move.json"),
+            true,
+        );
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
 
@@ -408,9 +428,10 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_type_annotations_needed() {
-        let messages = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/type-annotations-needed.json"
-        )).to_messages();
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/type-annotations-needed.json"),
+            true,
+        ).to_messages();
         assert_eq!(
             messages[0].0,
             "type annotations needed\n\n\
@@ -421,6 +442,26 @@ mod diagnostic_message_test {
             messages[0].1,
             vec!["consider giving `v` a type", "cannot infer type for `T`"]
         );
+
+        // Check if we don't emit related information if it's not supported and
+        // if secondary spans are emitted as separate diagnostics
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/type-annotations-needed.json"),
+            false,
+        );
+
+        assert_eq!(
+            messages.to_primary_messages(),
+            vec![
+                "type annotations needed\n\n\
+                 cannot infer type for `T`",
+                "type annotations needed\n\n\
+                 consider giving `v` a type",
+            ]
+        );
+
+        let secondaries = messages.to_secondary_messages();
+        assert!(secondaries.is_empty(), "{:?}", secondaries);
     }
 
     /// ```
@@ -430,9 +471,10 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_mismatched_types() {
-        let messages = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/mismatched-types.json"
-        )).to_messages();
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/mismatched-types.json"),
+            true,
+        ).to_messages();
         assert_eq!(
             messages[0].0,
             "mismatched types\n\n\
@@ -456,9 +498,10 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_not_mutable() {
-        let messages = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/not-mut.json"
-        )).to_messages();
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/not-mut.json"),
+            true,
+        ).to_messages();
         assert_eq!(
             messages[0].0,
             "cannot borrow immutable local variable `string` as mutable\n\n\
@@ -484,9 +527,10 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_consider_borrowing() {
-        let messages = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/consider-borrowing.json"
-        )).to_messages();
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/consider-borrowing.json"),
+            true,
+        ).to_messages();
         assert_eq!(
             messages[0].0,
             r#"mismatched types
@@ -514,9 +558,10 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_move_out_of_borrow() {
-        let messages = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/move-out-of-borrow.json"
-        )).to_messages();
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/move-out-of-borrow.json"),
+            true,
+        ).to_messages();
         assert_eq!(
             messages[0].0,
             "cannot move out of borrowed content\n\ncannot move out of borrowed content"
@@ -536,9 +581,10 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_unused_use() {
-        let messages = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/unused-use.json"
-        )).to_messages();
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/unused-use.json"),
+            true,
+        ).to_messages();
 
         // Single compiler message with 3 primary spans should emit 3 separate
         // diagnostics.
@@ -555,9 +601,10 @@ help: consider borrowing here: `&string`"#,
 
     #[test]
     fn message_cannot_find_type() {
-        let messages = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/cannot-find-type.json"
-        )).to_messages();
+        let messages = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/cannot-find-type.json"),
+            true,
+        ).to_messages();
         assert_eq!(
             messages[0].0,
             "cannot find type `HashSet` in this scope\n\n\
@@ -572,9 +619,10 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_clippy_identity_op() {
-        let diag = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/clippy-identity-op.json"
-        ));
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/clippy-identity-op.json"),
+            true,
+        );
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
 
@@ -612,9 +660,10 @@ mod diagnostic_suggestion_test {
 
     #[test]
     fn suggest_use_when_cannot_find_type() {
-        let diag = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/cannot-find-type.json"
-        ));
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/cannot-find-type.json"),
+            true,
+        );
 
         let diagnostics = diag.diagnostics.values().nth(0).unwrap();
 
@@ -646,9 +695,10 @@ mod diagnostic_suggestion_test {
 
     #[test]
     fn suggest_mut_when_not_mut() {
-        let diag = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/not-mut.json"
-        ));
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/not-mut.json"),
+            true,
+        );
 
         let diagnostics = diag.diagnostics.values().nth(0).unwrap();
 
@@ -682,9 +732,10 @@ mod diagnostic_suggestion_test {
     /// ```
     #[test]
     fn suggest_clippy_const_static() {
-        let diag = parse_compiler_message(include_str!(
-            "../../test_data/compiler_message/clippy-const-static-lifetime.json"
-        ));
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/clippy-const-static-lifetime.json"),
+            true,
+        );
 
         let diagnostics = diag.diagnostics.values().nth(0).unwrap();
 
