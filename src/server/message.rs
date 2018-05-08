@@ -10,7 +10,7 @@
 
 //! Traits and structs for message handling
 
-
+use actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
 use serde;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
@@ -53,7 +53,7 @@ impl<R: ::serde::Serialize + fmt::Debug> Response for R {
 /// Blocks stdin whilst being handled.
 pub trait BlockingNotificationAction: LSPNotification {
     /// Handle this notification.
-    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()>;
+    fn handle<O: Output>(Self::Params, &mut InitActionContext, O) -> Result<(), ()>;
 }
 
 /// A request that blocks stdin whilst being handled
@@ -174,7 +174,7 @@ impl<A: BlockingRequestAction> Request<A> {
 }
 
 impl<A: BlockingNotificationAction> Notification<A> {
-    pub fn dispatch<O: Output>(self, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    pub fn dispatch<O: Output>(self, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
         A::handle(self.params, ctx, out)?;
         Ok(())
     }

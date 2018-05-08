@@ -12,34 +12,37 @@
 //! interactions (for example, to add support for handling new types of
 //! requests).
 
-use analysis::AnalysisHost;
-use jsonrpc_core::{self as jsonrpc, Id};
-use vfs::Vfs;
-use serde_json;
-
-use version;
-use lsp_data;
-use lsp_data::{LSPNotification, LSPRequest, InitializationOptions};
 use actions::{notifications, requests, ActionContext};
+use analysis::AnalysisHost;
 use config::Config;
+use jsonrpc_core::{self as jsonrpc, Id};
+pub use ls_types::notification::Exit as ExitNotification;
+pub use ls_types::request::Initialize as InitializeRequest;
+pub use ls_types::request::Shutdown as ShutdownRequest;
+use ls_types::{
+    CompletionOptions, ExecuteCommandOptions, InitializeParams, InitializeResult,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+};
+use lsp_data;
+use lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
+use serde_json;
 use server::dispatch::Dispatcher;
 pub use server::dispatch::{RequestAction, ResponseError, DEFAULT_REQUEST_TIMEOUT};
 pub use server::io::{MessageReader, Output};
 use server::io::{StdioMsgReader, StdioOutput};
 use server::message::RawMessage;
-pub use server::message::{Ack, NoResponse, Response, Request, BlockingRequestAction, BlockingNotificationAction, Notification};
-
-pub use ls_types::request::Shutdown as ShutdownRequest;
-pub use ls_types::request::Initialize as InitializeRequest;
-pub use ls_types::notification::Exit as ExitNotification;
-use ls_types::{InitializeResult, InitializeParams, ServerCapabilities, CompletionOptions, TextDocumentSyncCapability, TextDocumentSyncKind, ExecuteCommandOptions};
-
+pub use server::message::{
+    Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
+    Response,
+};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
+use version;
+use vfs::Vfs;
 
-mod io;
 mod dispatch;
+mod io;
 mod message;
 
 /// Run the Rust Language Server.
@@ -66,21 +69,21 @@ impl BlockingRequestAction for ShutdownRequest {
         _out: O,
     ) -> Result<Self::Response, ()> {
         // Currently we don't perform an explicit cleanup, other than storing state
-        ctx.inited().shut_down.store(true, Ordering::SeqCst);
+        ctx.inited()
+            .expect("initialized context: todo -32002 response")
+            .shut_down
+            .store(true, Ordering::SeqCst);
 
         Ok(Ack)
     }
 }
 
-impl BlockingNotificationAction for ExitNotification {
-    fn handle<O: Output>(
-        _params: Self::Params,
-        ctx: &mut ActionContext,
-        _out: O,
-    ) -> Result<(), ()> {
-        let shut_down = ctx.inited().shut_down.load(Ordering::SeqCst);
-        ::std::process::exit(if shut_down { 0 } else { 1 });
-    }
+/// Handles notification `exit`, can handle before an `initialize` request
+fn handle_exit_notification(ctx: &mut ActionContext) -> ! {
+    let received_shut_down = ctx.inited()
+        .map(|ctx| ctx.shut_down.load(Ordering::SeqCst))
+        .unwrap_or(false);
+    ::std::process::exit(if received_shut_down { 0 } else { 1 })
 }
 
 impl BlockingRequestAction for InitializeRequest {
@@ -100,11 +103,14 @@ impl BlockingRequestAction for InitializeRequest {
 
         trace!("init: {:?}", init_options);
 
-        let result = InitializeResult { capabilities: server_caps() };
+        let result = InitializeResult {
+            capabilities: server_caps(),
+        };
         out.success(id, &result);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        ctx.init(get_root_path(&params), &init_options, capabilities, &out);
+        ctx.init(get_root_path(&params), &init_options, capabilities, &out)
+            .expect("context already initialized");
 
         Ok(NoResponse)
     }
@@ -150,19 +156,27 @@ impl<O: Output> LsService<O> {
                 blocking_requests: $($br_action: ty),*;
                 requests: $($request: ty),*;
             ) => {
-                let mut handled = false;
                 trace!("Handling `{}`", $method);
+
+                match $method.as_str() {
                 $(
-                    if $method == <$n_action as LSPNotification>::METHOD {
+                    <$n_action as LSPNotification>::METHOD => {
                         let notification: Notification<$n_action> = msg.parse_as_notification()?;
-                        if notification.dispatch(&mut self.ctx, self.output.clone()).is_err() {
-                            debug!("Error handling notification: {:?}", msg);
+                        if let Ok(mut ctx) = self.ctx.inited() {
+                            if notification.dispatch(&mut ctx, self.output.clone()).is_err() {
+                                debug!("Error handling notification: {:?}", msg);
+                            }
                         }
-                        handled = true;
+                        else {
+                            warn!(
+                                "Server has not yet received an `initialize` request, ignoring {}", <$n_action as LSPNotification>::METHOD,
+                            );
+                        }
                     }
                 )*
+
                 $(
-                    if $method == <$br_action as LSPRequest>::METHOD {
+                    <$br_action as LSPRequest>::METHOD => {
                         let request: Request<$br_action> = msg.parse_as_request()?;
 
                         // block until all nonblocking requests have been handled ensuring ordering
@@ -171,19 +185,22 @@ impl<O: Output> LsService<O> {
                         if request.blocking_dispatch(&mut self.ctx, &self.output).is_err() {
                             debug!("Error handling request: {:?}", msg);
                         }
-                        handled = true;
                     }
                 )*
+
                 $(
-                    if $method == <$request as LSPRequest>::METHOD {
+                    <$request as LSPRequest>::METHOD => {
                         let request: Request<$request> = msg.parse_as_request()?;
-                        let request = (request, self.ctx.inited());
+                        let request = (
+                            request,
+                            self.ctx.inited().expect("initialized context: todo -32002 response"),
+                        );
                         self.dispatcher.dispatch(request);
-                        handled = true;
                     }
                 )*
-                if !handled {
-                    debug!("Method not found: {}", $method);
+                    // exit notification can uniquely handle pre `initialize` request state
+                    ExitNotification::METHOD => handle_exit_notification(&mut self.ctx),
+                    _ => debug!("Method not found: {}", $method)
                 }
             }
         }
@@ -201,7 +218,6 @@ impl<O: Output> LsService<O> {
         match_action!(
             msg.method;
             notifications:
-                ExitNotification,
                 notifications::Initialized,
                 notifications::DidOpenTextDocument,
                 notifications::DidChangeTextDocument,
@@ -267,7 +283,8 @@ impl<O: Output> LsService<O> {
                 _ => false,
             };
 
-            if shutdown_mode && raw_message.method != <ExitNotification as LSPNotification>::METHOD {
+            if shutdown_mode && raw_message.method != <ExitNotification as LSPNotification>::METHOD
+            {
                 trace!("In shutdown mode, ignoring {:?}!", raw_message);
                 return ServerStateChange::Continue;
             }
@@ -295,7 +312,9 @@ pub enum ServerStateChange {
 
 fn server_caps() -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::Incremental)),
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::Incremental,
+        )),
         hover_provider: Some(true),
         completion_provider: Some(CompletionOptions {
             resolve_provider: Some(true),
