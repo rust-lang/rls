@@ -1568,3 +1568,61 @@ fn test_all_targets() {
         ],
     );
 }
+
+/// Test hover continues to work after the source has moved line
+#[test]
+fn ignore_uninitialized_notification() {
+    let mut env = Environment::new("common");
+
+    let source_file_path = Path::new("src").join("main.rs");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
+        .expect("couldn't convert file path to URL");
+
+    let messages = vec![
+        notification::<notifications::DidChangeTextDocument>(
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: url.clone(),
+                    version: Some(2),
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: Some(Range {
+                        start: Position { line: 19, character: 15 },
+                        end: Position { line: 19, character: 15 },
+                    }),
+                    range_length: Some(0),
+                    text: "\n    ".into(),
+                }],
+            },
+        ).to_string(),
+        initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+    ];
+
+    let (mut server, results) = env.mock_server(messages);
+
+    // Ignore notification
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(results.clone(), &[]);
+
+    // Initialize and build
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+        ],
+    );
+}

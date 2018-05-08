@@ -10,7 +10,7 @@
 
 //! One-way notifications that the RLS receives from the client.
 
-use actions::{ActionContext, FileWatch, VersionOrdering};
+use actions::{InitActionContext, FileWatch, VersionOrdering};
 use vfs::Change;
 use config::Config;
 use serde::Deserialize;
@@ -42,10 +42,8 @@ use std::thread;
 impl BlockingNotificationAction for Initialized {
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
-    fn handle<O: Output>(_params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(_params: Self::Params, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
         const WATCH_ID: &str = "rls-watch";
-
-        let ctx = ctx.inited();
 
         let id = out.provide_id() as usize;
         let params = RegistrationParams {
@@ -65,9 +63,8 @@ impl BlockingNotificationAction for Initialized {
 }
 
 impl BlockingNotificationAction for DidOpenTextDocument {
-    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, _out: O) -> Result<(), ()> {
+    fn handle<O: Output>(params: Self::Params, ctx: &mut InitActionContext, _out: O) -> Result<(), ()> {
         trace!("on_open: {:?}", params.text_document.uri);
-        let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_open")?;
         ctx.reset_change_version(&file_path);
         ctx.vfs.set_file(&file_path, &params.text_document.text);
@@ -76,7 +73,7 @@ impl BlockingNotificationAction for DidOpenTextDocument {
 }
 
 impl BlockingNotificationAction for DidChangeTextDocument {
-    fn handle<O: Output>(params: Self::Params, ctx: &mut ActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(params: Self::Params, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
         trace!(
             "on_change: {:?}, thread: {:?}",
             params,
@@ -87,7 +84,6 @@ impl BlockingNotificationAction for DidChangeTextDocument {
             return Ok(());
         }
 
-        let ctx = ctx.inited();
         ctx.quiescent.store(false, Ordering::SeqCst);
         let file_path = parse_file_path!(&params.text_document.uri, "on_change")?;
         let version_num = params.text_document.version.unwrap();
@@ -139,7 +135,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
 impl BlockingNotificationAction for Cancel {
     fn handle<O: Output>(
         _params: CancelParams,
-        _ctx: &mut ActionContext,
+        _ctx: &mut InitActionContext,
         _out: O,
     ) -> Result<(), ()> {
         // Nothing to do.
@@ -150,11 +146,10 @@ impl BlockingNotificationAction for Cancel {
 impl BlockingNotificationAction for DidChangeConfiguration {
     fn handle<O: Output>(
         params: DidChangeConfigurationParams,
-        ctx: &mut ActionContext,
+        ctx: &mut InitActionContext,
         out: O,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
-        let ctx = ctx.inited();
         let config = params
             .settings
             .get("rust")
@@ -247,10 +242,9 @@ impl BlockingNotificationAction for DidChangeConfiguration {
 impl BlockingNotificationAction for DidSaveTextDocument {
     fn handle<O: Output>(
         params: DidSaveTextDocumentParams,
-        ctx: &mut ActionContext,
+        ctx: &mut InitActionContext,
         out: O,
     ) -> Result<(), ()> {
-        let ctx = ctx.inited();
         let file_path = parse_file_path!(&params.text_document.uri, "on_save")?;
 
         ctx.vfs.file_saved(&file_path).unwrap();
@@ -266,12 +260,11 @@ impl BlockingNotificationAction for DidSaveTextDocument {
 impl BlockingNotificationAction for DidChangeWatchedFiles {
     fn handle<O: Output>(
         params: DidChangeWatchedFilesParams,
-        ctx: &mut ActionContext,
+        ctx: &mut InitActionContext,
         out: O,
     ) -> Result<(), ()> {
         trace!("on_cargo_change: thread: {:?}", thread::current().id());
 
-        let ctx = ctx.inited();
         let file_watch = FileWatch::new(&ctx);
 
         if params.changes.iter().any(|c| file_watch.is_relevant(c)) {

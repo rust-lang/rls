@@ -76,14 +76,14 @@ impl ActionContext {
         ActionContext::Uninit(UninitActionContext::new(analysis, vfs, config))
     }
 
-    /// Initialize this context. Panics if it has already been initialized.
+    /// Initialize this context, returns `Err(())` if it has already been initialized.
     pub fn init<O: Output>(
         &mut self,
         current_project: PathBuf,
         init_options: &InitializationOptions,
         client_capabilities: lsp_data::ClientCapabilities,
         out: &O,
-    ) {
+    ) -> Result<(), ()> {
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
                 let ctx = InitActionContext::new(
@@ -96,16 +96,17 @@ impl ActionContext {
                 ctx.init(init_options, out);
                 ctx
             }
-            ActionContext::Init(_) => panic!("ActionContext already initialized"),
+            ActionContext::Init(_) => return Err(()),
         };
         *self = ActionContext::Init(ctx);
+        Ok(())
     }
 
-    /// Returns an initialiased wrapped context, or panics if not initialised.
-    pub fn inited(&self) -> InitActionContext {
+    /// Returns an initialiased wrapped context, or `Err(())` if not initialised.
+    pub fn inited(&self) -> Result<InitActionContext, ()> {
         match *self {
-            ActionContext::Uninit(_) => panic!("ActionContext not initialized"),
-            ActionContext::Init(ref ctx) => ctx.clone(),
+            ActionContext::Uninit(_) => Err(()),
+            ActionContext::Init(ref ctx) => Ok(ctx.clone()),
         }
     }
 }
