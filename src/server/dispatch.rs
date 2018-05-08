@@ -11,13 +11,13 @@
 use super::requests::*;
 use actions::work_pool;
 use actions::work_pool::WorkDescription;
-use jsonrpc_core as jsonrpc;
-use jsonrpc_core::types::ErrorCode;
-use server;
-use server::{Request, Response};
-use server::io::Output;
 use actions::InitActionContext;
+use jsonrpc_core::types::ErrorCode;
 use lsp_data::LSPRequest;
+use server;
+use server::io::Output;
+use server::message::ResponseError;
+use server::{Request, Response};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -182,19 +182,4 @@ pub trait RequestAction: LSPRequest {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError>;
-}
-
-/// Wrapper for a response error
-#[derive(Debug)]
-pub enum ResponseError {
-    /// Error with no special response to the client
-    Empty,
-    /// Error with a response to the client
-    Message(jsonrpc::ErrorCode, String),
-}
-
-impl From<()> for ResponseError {
-    fn from(_: ()) -> Self {
-        ResponseError::Empty
-    }
 }

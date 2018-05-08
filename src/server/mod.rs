@@ -15,7 +15,7 @@
 use actions::{notifications, requests, ActionContext};
 use analysis::AnalysisHost;
 use config::Config;
-use jsonrpc_core::{self as jsonrpc, Id};
+use jsonrpc_core::{self as jsonrpc, Id, types::error::ErrorCode};
 pub use ls_types::notification::Exit as ExitNotification;
 pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::request::Shutdown as ShutdownRequest;
@@ -27,13 +27,13 @@ use lsp_data;
 use lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
 use serde_json;
 use server::dispatch::Dispatcher;
-pub use server::dispatch::{RequestAction, ResponseError, DEFAULT_REQUEST_TIMEOUT};
+pub use server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
 pub use server::io::{MessageReader, Output};
 use server::io::{StdioMsgReader, StdioOutput};
 use server::message::RawMessage;
 pub use server::message::{
     Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
-    Response,
+    Response, ResponseError
 };
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -44,6 +44,8 @@ use vfs::Vfs;
 mod dispatch;
 mod io;
 mod message;
+
+const NOT_INITIALIZED_CODE: ErrorCode = ErrorCode::ServerError(-32002);
 
 /// Run the Rust Language Server.
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
@@ -63,18 +65,21 @@ impl BlockingRequestAction for ShutdownRequest {
     type Response = Ack;
 
     fn handle<O: Output>(
-        _id: usize,
         _params: Self::Params,
         ctx: &mut ActionContext,
         _out: O,
-    ) -> Result<Self::Response, ()> {
-        // Currently we don't perform an explicit cleanup, other than storing state
-        ctx.inited()
-            .expect("initialized context: todo -32002 response")
-            .shut_down
-            .store(true, Ordering::SeqCst);
-
-        Ok(Ack)
+    ) -> Result<Self::Response, ResponseError> {
+        if let Ok(ctx) = ctx.inited() {
+            // Currently we don't perform an explicit cleanup, other than storing state
+            ctx.shut_down.store(true, Ordering::SeqCst);
+            Ok(Ack)
+        }
+        else {
+            Err(ResponseError::Message(
+                NOT_INITIALIZED_CODE,
+                "not yet received `initialize` request".to_owned(),
+            ))
+        }
     }
 }
 
@@ -87,14 +92,13 @@ fn handle_exit_notification(ctx: &mut ActionContext) -> ! {
 }
 
 impl BlockingRequestAction for InitializeRequest {
-    type Response = NoResponse;
+    type Response = InitializeResult;
 
     fn handle<O: Output>(
-        id: usize,
         params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
-    ) -> Result<NoResponse, ()> {
+    ) -> Result<InitializeResult, ResponseError> {
         let init_options: InitializationOptions = params
             .initialization_options
             .as_ref()
@@ -106,13 +110,16 @@ impl BlockingRequestAction for InitializeRequest {
         let result = InitializeResult {
             capabilities: server_caps(),
         };
-        out.success(id, &result);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        ctx.init(get_root_path(&params), &init_options, capabilities, &out)
-            .expect("context already initialized");
-
-        Ok(NoResponse)
+        match ctx.init(get_root_path(&params), &init_options, capabilities, &out) {
+            Ok(_) => Ok(result),
+            Err(_) => Err(ResponseError::Message(
+                // No code in the spec, just use some number
+                ErrorCode::ServerError(123),
+                "Already received an initialize request".to_owned(),
+            )),
+        }
     }
 }
 
@@ -169,7 +176,7 @@ impl<O: Output> LsService<O> {
                         }
                         else {
                             warn!(
-                                "Server has not yet received an `initialize` request, ignoring {}", <$n_action as LSPNotification>::METHOD,
+                                "Server has not yet received an `initialize` request, ignoring {}", $method,
                             );
                         }
                     }
@@ -182,8 +189,21 @@ impl<O: Output> LsService<O> {
                         // block until all nonblocking requests have been handled ensuring ordering
                         self.dispatcher.await_all_dispatched();
 
-                        if request.blocking_dispatch(&mut self.ctx, &self.output).is_err() {
-                            debug!("Error handling request: {:?}", msg);
+                        let req_id = request.id;
+                        match request.blocking_dispatch(&mut self.ctx, &self.output) {
+                            Ok(res) => res.send(req_id, &self.output),
+                            Err(ResponseError::Empty) => {
+                                debug!("error handling {}", $method);
+                                self.output.failure_message(
+                                    req_id,
+                                    ErrorCode::InternalError,
+                                    "An unknown error occurred"
+                                )
+                            }
+                            Err(ResponseError::Message(code, msg)) => {
+                                debug!("error handling {}: {}", $method, msg);
+                                self.output.failure_message(req_id, code, msg)
+                            }
                         }
                     }
                 )*
@@ -191,11 +211,19 @@ impl<O: Output> LsService<O> {
                 $(
                     <$request as LSPRequest>::METHOD => {
                         let request: Request<$request> = msg.parse_as_request()?;
-                        let request = (
-                            request,
-                            self.ctx.inited().expect("initialized context: todo -32002 response"),
-                        );
-                        self.dispatcher.dispatch(request);
+                        if let Ok(ctx) = self.ctx.inited() {
+                            self.dispatcher.dispatch((request, ctx));
+                        }
+                        else {
+                            warn!(
+                                "Server has not yet received an `initialize` request, cannot handle {}", $method,
+                            );
+                            self.output.failure_message(
+                                request.id,
+                                NOT_INITIALIZED_CODE,
+                                "not yet received `initialize` request".to_owned(),
+                            );
+                        }
                     }
                 )*
                     // exit notification can uniquely handle pre `initialize` request state

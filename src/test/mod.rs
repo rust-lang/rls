@@ -1569,7 +1569,8 @@ fn test_all_targets() {
     );
 }
 
-/// Test hover continues to work after the source has moved line
+/// Handle receiving a notification before the `initialize` request by ignoring and
+/// continuing to run
 #[test]
 fn ignore_uninitialized_notification() {
     let mut env = Environment::new("common");
@@ -1610,6 +1611,67 @@ fn ignore_uninitialized_notification() {
     expect_messages(results.clone(), &[]);
 
     // Initialize and build
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+        ],
+    );
+}
+
+/// Handle receiving requests before the `initialize` request by returning an error response
+/// and continuing to run
+#[test]
+fn fail_uninitialized_request() {
+    let mut env = Environment::new("common");
+
+    let source_file_path = Path::new("src").join("main.rs");
+    let root_path = env.cache.abs_path(Path::new("."));
+    let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
+        .expect("couldn't convert file path to URL");
+
+    let messages = vec![
+        request::<requests::Definition>(
+            0,
+            TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier::new(url),
+                position: env.cache
+                    .mk_ls_position(src(&source_file_path, 22, "world")),
+            },
+        ).to_string(),
+        initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+    ];
+
+    let (mut server, results) = env.mock_server(messages);
+
+    // Return error response to pre `initialize` request, keep running.
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    {
+        wait_for_n_results!(1, results);
+        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        assert_eq!(response["id"], 0);
+        assert_eq!(response["error"]["code"], -32002);
+        let message = response["error"]["message"].as_str().unwrap();
+        assert!(
+            message.to_lowercase().contains("initialize"),
+            "Unexpected error.message `{}`",
+            message,
+        );
+    }
+
+    // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
