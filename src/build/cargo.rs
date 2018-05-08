@@ -9,8 +9,8 @@
 // except according to those terms.
 
 use cargo::core::{PackageId, Shell, Target, TargetKind, Verbosity, Workspace};
-use cargo::core::compiler::{Context, Executor, Unit};
-use cargo::ops::{compile_with_exec, CompileFilter, CompileMode, CompileOptions, Packages};
+use cargo::core::compiler::{Context, Executor, Unit, BuildConfig, CompileMode};
+use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue,
                   ProcessBuilder};
 use failure;
@@ -189,7 +189,6 @@ fn run_cargo(
     let spec = Packages::from_flags(false, Vec::new(), packages)?;
 
     let compile_opts = CompileOptions {
-        target: opts.target,
         spec,
         filter: CompileFilter::new(
             opts.lib,
@@ -204,11 +203,16 @@ fn run_cargo(
             false,
             opts.all_targets,
         ),
+        build_config: BuildConfig::new(
+            &config,
+            opts.jobs,
+            &opts.target,
+            CompileMode::Check { test: cfg_test },
+        )?,
         features: opts.features,
         all_features: opts.all_features,
         no_default_features: opts.no_default_features,
-        jobs: opts.jobs,
-        ..CompileOptions::default(&config, CompileMode::Check { test: cfg_test })
+        ..CompileOptions::new(&config, CompileMode::Check { test: cfg_test })?
     };
 
     // Create a custom environment for running cargo, the environment is reset
