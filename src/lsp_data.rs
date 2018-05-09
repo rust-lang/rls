@@ -272,6 +272,7 @@ impl Default for InitializationOptions {
 #[serde(default)]
 pub struct ClientCapabilities {
     pub code_completion_has_snippet_support: bool,
+    pub related_information_support: bool,
 }
 
 impl ClientCapabilities {
@@ -291,8 +292,18 @@ impl ClientCapabilities {
         .unwrap_or(&false)
         .to_owned();
 
+        let related_information_support = params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|doc| doc.publish_diagnostics.as_ref())
+        .and_then(|diag| diag.related_information.as_ref())
+        .unwrap_or(&false)
+        .to_owned();
+
         ClientCapabilities {
             code_completion_has_snippet_support,
+            related_information_support,
         }
     }
 }

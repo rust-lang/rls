@@ -554,11 +554,11 @@ fn make_suggestion_fix_actions(
     code_actions_result: &mut <CodeAction as RequestAction>::Response,
 ) {
     // search for compiler suggestions
-    if let Some(diagnostics) = ctx.previous_build_results.lock().unwrap().get(file_path) {
-        let suggestions = diagnostics
+    if let Some(results) = ctx.previous_build_results.lock().unwrap().get(file_path) {
+        let suggestions = results
             .iter()
-            .filter(|&&(ref d, _)| d.range.overlaps(&params.range))
-            .flat_map(|&(_, ref ss)| ss.iter());
+            .filter(|(diag, _)| diag.range.overlaps(&params.range))
+            .flat_map(|(_, suggestions)| suggestions);
         for s in suggestions {
             let span = Location {
                 uri: params.text_document.uri.clone(),
