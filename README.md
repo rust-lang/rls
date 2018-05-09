@@ -93,14 +93,6 @@ project.
 
 Currently we accept the following options:
 
-* `build_lib` (`bool`, defaults to `false`) checks the project as if you passed
-  the `--lib` argument to cargo. Mutually exclusive with, and preferred over,
-  `build_bin`.
-* `build_bin` (`String`, defaults to `""`) checks the project as if you passed
-  `-- bin <build_bin>` argument to cargo. Mutually exclusive with `build_lib`.
-* `cfg_test` (`bool`, defaults to `false`) checks the project as if you were
-  running `cargo test` rather than `cargo build`. I.e., compiles (but does not
-  run) test code.
 * `unstable_features` (`bool`, defaults to `false`) enables unstable features.
   Currently no option requires this flag.
 * `sysroot` (`String`, defaults to `""`) if the given string is not empty, use
@@ -110,7 +102,7 @@ Currently we accept the following options:
   the given target triple for all rustc invocations
 * `wait_to_build` (`u64`, defaults to `1500`) time in milliseconds between
   receiving a change notification and starting build
-* `all_targets` (`bool`, defaults to `false`) checks the project as if you were
+* `all_targets` (`bool`, defaults to `true`) checks the project as if you were
   running `cargo check --all-targets`. I.e., check all targets and integration
   tests too
 * `use_crate_blacklist` (`bool`, defaults to `true`) if disabled, also indexes
@@ -128,6 +120,18 @@ Currently we accept the following options:
   - `"off"` Disable clippy lints.
   - `"opt-in"` Clippy lints are shown when crates specify `#![warn(clippy)]`.
   - `"on"` Clippy lints enabled for all crates in workspace.
+
+and the following unstable options:
+
+* `build_lib` (`bool`, defaults to `false`) checks the project as if you passed
+  the `--lib` argument to cargo. Mutually exclusive with, and preferred over,
+  `build_bin`.
+* `build_bin` (`String`, defaults to `""`) checks the project as if you passed
+  `-- bin <build_bin>` argument to cargo. Mutually exclusive with `build_lib`.
+* `cfg_test` (`bool`, defaults to `false`) checks the project as if you were
+  running `cargo test` rather than `cargo build`. I.e., compiles (but does not
+  run) test code.
+
 
 ## Troubleshooting
 

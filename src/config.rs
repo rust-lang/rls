@@ -170,7 +170,7 @@ impl Default for Config {
             all_features: false,
             no_default_features: false,
             jobs: None,
-            all_targets: false,
+            all_targets: true,
             racer_completion: true,
             clippy_preference: ClippyPreference::OptIn,
         };
@@ -182,6 +182,7 @@ impl Default for Config {
 impl Config {
     /// Join this configuration with the new config.
     pub fn update(&mut self, mut new: Config) {
+        new.normalise();
         new.target_dir = self.target_dir.combine_with_default(&new.target_dir, None);
         new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
@@ -208,6 +209,9 @@ impl Config {
 
         if !self.unstable_features {
             // Force-set any unstable features here.
+            self.build_bin = Inferrable::Inferred(None);
+            self.build_lib = Inferrable::Inferred(false);
+            self.cfg_test = false;
         }
     }
 
