@@ -390,8 +390,8 @@ mod test {
         let deser: serde_json::Value = serde_json::from_str(&raw).unwrap();
 
         assert!(match deser.get("params") {
-            Some(&serde_json::Value::Array(ref arr)) if arr.len() == 0 => true,
-            Some(&serde_json::Value::Object(ref map)) if map.len() == 0 => true,
+            Some(&serde_json::Value::Array(ref arr)) if arr.is_empty() => true,
+            Some(&serde_json::Value::Object(ref map)) if map.is_empty() => true,
             None => true,
             _ => false,
         });

@@ -21,8 +21,7 @@
 
 #![allow(unknown_lints)]
 #![warn(clippy)]
-#![allow(cyclomatic_complexity)]
-#![allow(needless_pass_by_value)]
+#![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments)]
 
 extern crate cargo;
 extern crate cargo_metadata;
