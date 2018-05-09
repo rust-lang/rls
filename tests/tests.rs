@@ -46,6 +46,7 @@ fn cmd_test_infer_bin() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("foo"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("foo"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
             ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedBin`"),
@@ -130,6 +131,8 @@ fn cmd_test_simple_workspace() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             // order of member_lib/member_bin is undefined
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("member_"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("member_"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("member_"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("member_"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
