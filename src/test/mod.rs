@@ -948,7 +948,6 @@ fn test_bin_lib_project() {
 //         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
 //     ];
 
-//     env.with_config(|c| c.workspace_mode = true);
 //     let (mut server, results) = env.mock_server(messages);
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),

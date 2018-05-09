@@ -23,7 +23,6 @@ use cargo::CargoResult;
 use cargo::util::{homedir, important_paths, Config as CargoConfig};
 use cargo::core::{Shell, Workspace};
 
-use failure;
 use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
 
@@ -129,7 +128,6 @@ pub struct Config {
     pub wait_to_build: u64,
     pub show_warnings: bool,
     pub goto_def_racer_fallback: bool,
-    pub workspace_mode: bool,
     /// Clear the RUST_LOG env variable before calling rustc/cargo? Default: true
     pub clear_env_rust_log: bool,
     /// Build the project only when a file got saved and not on file change. Default: false
@@ -161,7 +159,6 @@ impl Default for Config {
             wait_to_build: DEFAULT_WAIT_TO_BUILD,
             show_warnings: true,
             goto_def_racer_fallback: false,
-            workspace_mode: true,
             clear_env_rust_log: true,
             build_on_save: false,
             use_crate_blacklist: true,
@@ -186,9 +183,6 @@ impl Config {
         new.target_dir = self.target_dir.combine_with_default(&new.target_dir, None);
         new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
-
-        // Ignore requests to disable workspace mode.
-        self.workspace_mode = true;
 
         *self = new;
     }
@@ -224,7 +218,6 @@ impl Config {
 
     /// Tries to auto-detect certain option values if they were unspecified.
     /// Specifically, this:
-    /// - tries to infer `build_bin` and `build_lib` under `workspace_mode: false`
     /// - detects correct `target/` build directory used by Cargo, if not specified.
     pub fn infer_defaults(&mut self, project_dir: &Path) -> CargoResult<()> {
         // Note that this may not be equal build_dir when inside a workspace member
@@ -262,56 +255,6 @@ impl Config {
                 self.target_dir.as_ref().as_ref().unwrap(),
             );
         }
-
-        // Finish if we're in workspace_mode, inferring `build_bin` and
-        // `build_lib` only matters if we're in single package mode.
-        if self.workspace_mode {
-            return Ok(());
-        }
-
-        let package = ws.current()?;
-
-        trace!(
-            "infer_config_defaults: Auto-detected `{}` package",
-            package.name()
-        );
-
-        let targets = package.targets();
-        let (lib, bin) = if targets.iter().any(|x| x.is_lib()) {
-            (true, None)
-        } else {
-            let mut bins = targets.iter().filter(|x| x.is_bin());
-            // No `lib` detected, but also can't find any `bin` target - there's
-            // no sensible target here, so just Err out
-            let first = bins.nth(0)
-                .ok_or_else(|| failure::err_msg("No `bin` or `lib` targets in the package"))?;
-
-            let mut bins = targets.iter().filter(|x| x.is_bin());
-            let target = match bins.find(|x| x.src_path().ends_with("main.rs")) {
-                Some(main_bin) => main_bin,
-                None => first,
-            };
-
-            (false, Some(target.name().to_owned()))
-        };
-
-        trace!(
-            "infer_config_defaults: build_lib: {:?}, build_bin: {:?}",
-            lib,
-            bin
-        );
-
-        // Unless crate target is explicitly specified, mark the values as
-        // inferred, so they're not simply ovewritten on config change without
-        // any specified value
-        let (lib, bin) = match (&self.build_lib, &self.build_bin) {
-            (&Inferrable::Specified(true), _) => (lib, None),
-            (_, &Inferrable::Specified(Some(_))) => (false, bin),
-            _ => (lib, bin),
-        };
-
-        self.build_lib.infer(lib);
-        self.build_bin.infer(bin);
 
         Ok(())
     }

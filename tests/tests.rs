@@ -126,7 +126,6 @@ fn cmd_test_simple_workspace() {
             "capabilities": {}
         }))).unwrap();
 
-        // This is the expected behavior is workspace_mode is on by default
         rls.expect_messages(&[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
