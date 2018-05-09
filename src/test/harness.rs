@@ -13,6 +13,7 @@ use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use analysis;
@@ -117,14 +118,14 @@ impl Drop for Environment {
 
 struct MockMsgReader {
     messages: Vec<String>,
-    cur: Mutex<usize>,
+    cur: AtomicUsize,
 }
 
 impl MockMsgReader {
     fn new(messages: Vec<String>) -> MockMsgReader {
         MockMsgReader {
-            messages: messages,
-            cur: Mutex::new(0),
+            messages,
+            cur: AtomicUsize::new(0),
         }
     }
 }
@@ -133,10 +134,7 @@ impl ls_server::MessageReader for MockMsgReader {
     fn read_message(&self) -> Option<String> {
         // Note that we hold this lock until the end of the function, thus meaning
         // that we must finish processing one message before processing the next.
-        let mut cur = self.cur.lock().unwrap();
-        let index = *cur;
-        *cur += 1;
-
+        let index = self.cur.fetch_add(1, Ordering::SeqCst);
         if index >= self.messages.len() {
             return None;
         }
@@ -187,7 +185,7 @@ pub struct ExpectedMessage {
 impl ExpectedMessage {
     pub fn new(id: Option<u64>) -> ExpectedMessage {
         ExpectedMessage {
-            id: id,
+            id,
             contains: vec![],
         }
     }
@@ -248,7 +246,7 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
                 "Unexpected id"
             );
         }
-        for c in expected.contains.iter() {
+        for c in &expected.contains {
             found
                 .find(c)
                 .expect(&format!("Could not find `{}` in `{}`", c, found));
@@ -268,9 +266,9 @@ pub struct Src<'a, 'b> {
 
 pub fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, 'b> {
     Src {
-        file_name: file_name,
-        line: line,
-        name: name,
+        file_name,
+        line,
+        name,
     }
 }
 
@@ -309,14 +307,13 @@ impl Cache {
             .join(file_name)
             .canonicalize()
             .expect("Couldn't canonicalise path");
-        let result = if cfg!(windows) {
+        if cfg!(windows) {
             // FIXME: If the \\?\ prefix is not stripped from the canonical path, the HTTP server tests fail. Why?
             let result_string = result.to_str().expect("Path contains non-utf8 characters.");
             PathBuf::from(&result_string[r"\\?\".len()..])
         } else {
             result
-        };
-        result
+        }
     }
 
     fn get_line(&mut self, src: Src) -> String {
@@ -331,7 +328,7 @@ impl Cache {
                 lines.collect::<Result<Vec<_>, _>>().unwrap()
             });
 
-        if src.line - 1 >= lines.len() {
+        if src.line > lines.len() {
             panic!("Line {} not in file, found {} lines", src.line, lines.len());
         }
 

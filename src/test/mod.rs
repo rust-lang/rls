@@ -36,14 +36,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use url::Url;
 
-pub fn initialize<'a>(
+pub fn initialize(
     id: usize,
     root_path: Option<String>,
 ) -> Request<ls_server::InitializeRequest> {
     initialize_with_opts(id, root_path, None)
 }
 
-pub fn initialize_with_opts<'a>(
+pub fn initialize_with_opts(
     id: usize,
     root_path: Option<String>,
     initialization_options: Option<InitializationOptions>,
@@ -81,7 +81,7 @@ pub fn blocking_request<T: ls_server::BlockingRequestAction>(
     }
 }
 
-pub fn request<'a, T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request<T> {
+pub fn request<T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request<T> {
     Request {
         id,
         params,
@@ -90,7 +90,7 @@ pub fn request<'a, T: ls_server::RequestAction>(id: usize, params: T::Params) ->
     }
 }
 
-fn notification<'a, A: ls_server::BlockingNotificationAction>(params: A::Params) -> Notification<A> {
+fn notification<A: ls_server::BlockingNotificationAction>(params: A::Params) -> Notification<A> {
     Notification {
         params,
         _action: PhantomData,
