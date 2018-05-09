@@ -49,6 +49,21 @@ impl<R: ::serde::Serialize + fmt::Debug> Response for R {
     }
 }
 
+/// Wrapper for a response error
+#[derive(Debug)]
+pub enum ResponseError {
+    /// Error with no special response to the client
+    Empty,
+    /// Error with a response to the client
+    Message(jsonrpc::ErrorCode, String),
+}
+
+impl From<()> for ResponseError {
+    fn from(_: ()) -> Self {
+        ResponseError::Empty
+    }
+}
+
 /// An action taken in response to some notification from the client.
 /// Blocks stdin whilst being handled.
 pub trait BlockingNotificationAction: LSPNotification {
@@ -60,13 +75,12 @@ pub trait BlockingNotificationAction: LSPNotification {
 pub trait BlockingRequestAction: LSPRequest {
     type Response: Response + fmt::Debug;
 
-    /// Handle request and send its response back along the given output.
+    /// Handle request and return its response. Output is also provided for additional messaging.
     fn handle<O: Output>(
-        id: usize,
         params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
-    ) -> Result<Self::Response, ()>;
+    ) -> Result<Self::Response, ResponseError>;
 }
 
 /// A request that gets JSON serialized in the language server protocol.
@@ -166,10 +180,8 @@ impl<A: BlockingRequestAction> Request<A> {
         self,
         ctx: &mut ActionContext,
         out: &O,
-    ) -> Result<A::Response, ()> {
-        let result = A::handle(self.id, self.params, ctx, out.clone())?;
-        result.send(self.id, out);
-        Ok(result)
+    ) -> Result<A::Response, ResponseError> {
+        A::handle(self.params, ctx, out.clone())
     }
 }
 
