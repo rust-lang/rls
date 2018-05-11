@@ -534,53 +534,28 @@ impl Internals {
 
         // Don't hold this lock when we run Cargo.
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
-        let workspace_mode = self.config.lock().unwrap().workspace_mode;
 
-        if workspace_mode {
-            // If the build plan has already been cached, use it, unless Cargo
-            // has to be specifically rerun (e.g. when build scripts changed)
-            let work = {
-                let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
-                let mut cx = self.compilation_cx.lock().unwrap();
-                let manifest_path = important_paths::find_root_manifest_for_wd(cx.build_dir.as_ref().unwrap());
-                let manifest_path = match manifest_path {
-                    Ok(mp) => mp,
-                    Err(e) => {
-                        let msg = format!("Error reading manifest path: {:?}", e);
-                        return BuildResult::Err(msg, None);
-                    }
-                };
-                cx.build_plan.prepare_work(&manifest_path, &modified, needs_to_run_cargo)
+        // If the build plan has already been cached, use it, unless Cargo
+        // has to be specifically rerun (e.g. when build scripts changed)
+        let work = {
+            let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
+            let mut cx = self.compilation_cx.lock().unwrap();
+            let manifest_path = important_paths::find_root_manifest_for_wd(cx.build_dir.as_ref().unwrap());
+            let manifest_path = match manifest_path {
+                Ok(mp) => mp,
+                Err(e) => {
+                    let msg = format!("Error reading manifest path: {:?}", e);
+                    return BuildResult::Err(msg, None);
+                }
             };
-            return match work {
-                // In workspace_mode, cargo performs the full build and returns
-                // appropriate diagnostics/analysis data
-                WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
-                WorkStatus::Execute(job_queue) => job_queue.execute(self, progress_sender),
-            };
-        // In single package mode Cargo needs to be run to cache args/envs for
-        // future rustc calls
-        } else if needs_to_run_cargo {
-            if let e @ BuildResult::Err(..) = cargo::cargo(self, PackageArg::Unknown, progress_sender) {
-                return e;
-            }
+            cx.build_plan.prepare_work(&manifest_path, &modified, needs_to_run_cargo)
+        };
+        match work {
+            // Cargo performs the full build and returns
+            // appropriate diagnostics/analysis data
+            WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
+            WorkStatus::Execute(job_queue) => job_queue.execute(self, progress_sender),
         }
-
-        let compile_cx = self.compilation_cx.lock().unwrap();
-        let args = &compile_cx.args;
-        assert!(!args.is_empty());
-        let envs = &compile_cx.envs;
-        let build_dir = compile_cx.build_dir.as_ref().unwrap();
-        let env_lock = self.env_lock.as_facade();
-        rustc::rustc(
-            &self.vfs,
-            args,
-            envs,
-            compile_cx.cwd.as_ref().map(|x| &**x),
-            build_dir,
-            Arc::clone(&self.config),
-            &env_lock,
-        )
     }
 }
 
