@@ -468,38 +468,44 @@ fn init() -> Sender<String> {
 
 // Display help message.
 fn help() {
-    println!("RLS command line interface.");
-    println!("\nLine and column numbers are zero indexed");
-    println!("\nSupported commands:");
-    println!("    help          display this message");
-    println!("    quit          exit");
-    println!();
-    println!("    def           file_name line_number column_number");
-    println!("                  textDocument/definition");
-    println!("                  used for 'goto def'");
-    println!();
-    println!("    rename        file_name line_number column_number new_name");
-    println!("                  textDocument/rename");
-    println!("                  used for 'rename'");
-    println!();
-    println!("    hover         file_name line_number column_number");
-    println!("                  textDocument/hover");
-    println!("                  used for 'hover'");
-    println!();
-    println!("    symbol        query");
-    println!("                  workspace/symbol");
-    println!();
-    println!("    format        file_name [tab_size [insert_spaces]]");
-    println!("                  textDocument/formatting");
-    println!("                  tab_size defaults to 4 and insert_spaces to 'true'");
-    println!();
-    println!("    range_format  file_name start_line start_col end_line end_col [tab_size [insert_spaces]]");
-    println!("                  textDocument/rangeFormatting");
-    println!("                  tab_size defaults to 4 and insert_spaces to 'true'");
-    println!();
-    println!("    code_action   file_name start_line start_col end_line end_col");
-    println!("                  textDocument/codeAction");
-    println!();
-    println!("    resolve       label detail");
-    println!("                  completionItem/resolve");
+    println!("\
+RLS command line interface.
+
+Line and column numbers are zero indexed
+
+Supported commands:
+    help          display this message
+    quit          exit
+
+    def           file_name line_number column_number
+                  textDocument/definition
+                  used for 'goto def'
+
+    rename        file_name line_number column_number new_name
+                  textDocument/rename
+                  used for 'rename'
+
+    hover         file_name line_number column_number
+                  textDocument/hover
+                  used for 'hover'
+
+    symbol        query
+                  workspace/symbol
+
+    document      file_name
+                  textDocument/documentSymbol
+
+    format        file_name [tab_size [insert_spaces]]
+                  textDocument/formatting
+                  tab_size defaults to 4 and insert_spaces to 'true'
+
+    range_format  file_name start_line start_col end_line end_col [tab_size [insert_spaces]]
+                  textDocument/rangeFormatting
+                  tab_size defaults to 4 and insert_spaces to 'true'
+
+    code_action   file_name start_line start_col end_line end_col
+                  textDocument/codeAction
+
+    resolve       label detail
+                  completionItem/resolve");
 }
