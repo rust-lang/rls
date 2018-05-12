@@ -21,7 +21,7 @@ use vfs::Vfs;
 use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
                DocumentRangeFormattingParams, FormattingOptions, InitializeParams, Position,
                Range, RenameParams, TextDocumentIdentifier, TextDocumentPositionParams,
-               TraceOption, WorkspaceSymbolParams, CompletionItem};
+               TraceOption, WorkspaceSymbolParams, CompletionItem, DocumentSymbolParams};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -89,6 +89,10 @@ pub fn run() {
             "symbol" => {
                 let query = bits.next().expect("Expected a query");
                 workspace_symbol(query).to_string()
+            }
+            "document" => {
+                let query = bits.next().expect("Expected file name");
+                document_symbol(query).to_string()
             }
             "format" => {
                 let file_name = bits.next().expect("Expected file name");
@@ -264,6 +268,18 @@ fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<reques
             insert_spaces,
             properties,
         },
+    };
+    Request {
+        id: next_id(),
+        params,
+        received: Instant::now(),
+        _action: PhantomData,
+    }
+}
+
+fn document_symbol(file_name: &str) -> Request<requests::Symbols> {
+    let params = DocumentSymbolParams {
+        text_document: TextDocumentIdentifier::new(url(file_name))
     };
     Request {
         id: next_id(),
