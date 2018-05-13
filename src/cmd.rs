@@ -21,7 +21,7 @@ use vfs::Vfs;
 use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
                DocumentRangeFormattingParams, FormattingOptions, InitializeParams, Position,
                Range, RenameParams, TextDocumentIdentifier, TextDocumentPositionParams,
-               TraceOption, WorkspaceSymbolParams, CompletionItem};
+               TraceOption, WorkspaceSymbolParams, CompletionItem, DocumentSymbolParams};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -89,6 +89,10 @@ pub fn run() {
             "symbol" => {
                 let query = bits.next().expect("Expected a query");
                 workspace_symbol(query).to_string()
+            }
+            "document" => {
+                let query = bits.next().expect("Expected file name");
+                document_symbol(query).to_string()
             }
             "format" => {
                 let file_name = bits.next().expect("Expected file name");
@@ -264,6 +268,18 @@ fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<reques
             insert_spaces,
             properties,
         },
+    };
+    Request {
+        id: next_id(),
+        params,
+        received: Instant::now(),
+        _action: PhantomData,
+    }
+}
+
+fn document_symbol(file_name: &str) -> Request<requests::Symbols> {
+    let params = DocumentSymbolParams {
+        text_document: TextDocumentIdentifier::new(url(file_name))
     };
     Request {
         id: next_id(),
@@ -468,38 +484,44 @@ fn init() -> Sender<String> {
 
 // Display help message.
 fn help() {
-    println!("RLS command line interface.");
-    println!("\nLine and column numbers are zero indexed");
-    println!("\nSupported commands:");
-    println!("    help          display this message");
-    println!("    quit          exit");
-    println!();
-    println!("    def           file_name line_number column_number");
-    println!("                  textDocument/definition");
-    println!("                  used for 'goto def'");
-    println!();
-    println!("    rename        file_name line_number column_number new_name");
-    println!("                  textDocument/rename");
-    println!("                  used for 'rename'");
-    println!();
-    println!("    hover         file_name line_number column_number");
-    println!("                  textDocument/hover");
-    println!("                  used for 'hover'");
-    println!();
-    println!("    symbol        query");
-    println!("                  workspace/symbol");
-    println!();
-    println!("    format        file_name [tab_size [insert_spaces]]");
-    println!("                  textDocument/formatting");
-    println!("                  tab_size defaults to 4 and insert_spaces to 'true'");
-    println!();
-    println!("    range_format  file_name start_line start_col end_line end_col [tab_size [insert_spaces]]");
-    println!("                  textDocument/rangeFormatting");
-    println!("                  tab_size defaults to 4 and insert_spaces to 'true'");
-    println!();
-    println!("    code_action   file_name start_line start_col end_line end_col");
-    println!("                  textDocument/codeAction");
-    println!();
-    println!("    resolve       label detail");
-    println!("                  completionItem/resolve");
+    println!("\
+RLS command line interface.
+
+Line and column numbers are zero indexed
+
+Supported commands:
+    help          display this message
+    quit          exit
+
+    def           file_name line_number column_number
+                  textDocument/definition
+                  used for 'goto def'
+
+    rename        file_name line_number column_number new_name
+                  textDocument/rename
+                  used for 'rename'
+
+    hover         file_name line_number column_number
+                  textDocument/hover
+                  used for 'hover'
+
+    symbol        query
+                  workspace/symbol
+
+    document      file_name
+                  textDocument/documentSymbol
+
+    format        file_name [tab_size [insert_spaces]]
+                  textDocument/formatting
+                  tab_size defaults to 4 and insert_spaces to 'true'
+
+    range_format  file_name start_line start_col end_line end_col [tab_size [insert_spaces]]
+                  textDocument/rangeFormatting
+                  tab_size defaults to 4 and insert_spaces to 'true'
+
+    code_action   file_name start_line start_col end_line end_col
+                  textDocument/codeAction
+
+    resolve       label detail
+                  completionItem/resolve");
 }
