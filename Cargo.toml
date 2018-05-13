@@ -15,7 +15,7 @@ cargo_metadata = "0.5.2"
 env_logger = "0.5"
 failure = "0.1.1"
 jsonrpc-core = "8.0.1"
-languageserver-types = "0.40"
+languageserver-types = "0.41"
 lazy_static = "1"
 log = "0.4"
 racer = "2.0.12"
@@ -26,7 +26,7 @@ rls-rustc = "0.2.1"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4.5", features = ["racer-impls"] }
 rustfmt-nightly = "0.6"
-clippy_lints = { version = "0.0.198", optional = true }
+clippy_lints = { version = "0.0.199", optional = true }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
