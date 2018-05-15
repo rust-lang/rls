@@ -77,6 +77,7 @@ pub trait BlockingRequestAction: LSPRequest {
 
     /// Handle request and return its response. Output is also provided for additional messaging.
     fn handle<O: Output>(
+        id: usize,
         params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
@@ -181,7 +182,7 @@ impl<A: BlockingRequestAction> Request<A> {
         ctx: &mut ActionContext,
         out: &O,
     ) -> Result<A::Response, ResponseError> {
-        A::handle(self.params, ctx, out.clone())
+        A::handle(self.id, self.params, ctx, out.clone())
     }
 }
 
