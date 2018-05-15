@@ -158,7 +158,7 @@ dependencies = [
 
 [[package]]
 name = "clippy_lints"
-version = "0.0.199"
+version = "0.0.200"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cargo_metadata 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -985,7 +985,7 @@ version = "0.127.0"
 dependencies = [
  "cargo 0.28.0 (git+https://github.com/rust-lang/cargo?rev=9e53ac6e6525da914cb05a85e5e8eff7b5dca81f)",
  "cargo_metadata 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "clippy_lints 0.0.199 (registry+https://github.com/rust-lang/crates.io-index)",
+ "clippy_lints 0.0.200 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "json 0.11.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1603,7 +1603,7 @@ dependencies = [
 "checksum cc 1.0.15 (registry+https://github.com/rust-lang/crates.io-index)" = "0ebb87d1116151416c0cf66a0e3fb6430cccd120fd6300794b4dfaa050ac40ba"
 "checksum cfg-if 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "405216fd8fe65f718daa7102ea808a946b6ce40c742998fbfd3463645552de18"
 "checksum clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f0f16b89cbb9ee36d87483dc939fe9f1e13c05898d56d7b230a0d4dff033a536"
-"checksum clippy_lints 0.0.199 (registry+https://github.com/rust-lang/crates.io-index)" = "02fc34e5ecdb57b30a9b1b41eb03f5d7c00e386a38b263dfd3fd9285753d16be"
+"checksum clippy_lints 0.0.200 (registry+https://github.com/rust-lang/crates.io-index)" = "d2432663f6bdb90255dcf9df5ca504f99b575bb471281591138f62f9d31f863b"
 "checksum cmake 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)" = "95470235c31c726d72bf2e1f421adc1e65b9d561bf5529612cbe1a72da1467b3"
 "checksum commoncrypto 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d056a8586ba25a1e4d61cb090900e495952c7886786fc55f909ab2f819b69007"
 "checksum commoncrypto-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1fed34f46747aa73dfaa578069fd8279d2818ade2b55f38f22a9401c7f4083e2"
