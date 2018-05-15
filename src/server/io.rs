@@ -46,7 +46,7 @@ impl MessageReader for StdioMsgReader {
             }
         }
 
-        // Read in the "Content-length: xx" part
+        // Read in the "Content-Length: xx" part
         let mut buffer = String::new();
         handle_err!(
             io::stdin().read_line(&mut buffer),
@@ -77,9 +77,14 @@ impl MessageReader for StdioMsgReader {
         );
         trace!("reading: {} bytes", size);
 
-        // Skip the new lines
+        // Skip other header(s) until the empty line.
         let mut tmp = String::new();
-        handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
+        loop {
+            handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
+            if tmp == "\r\n" {
+                break;
+            }
+        }
 
         let mut content = vec![0; size];
         handle_err!(
