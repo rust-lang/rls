@@ -65,6 +65,7 @@ impl BlockingRequestAction for ShutdownRequest {
     type Response = Ack;
 
     fn handle<O: Output>(
+        _id: usize,
         _params: Self::Params,
         ctx: &mut ActionContext,
         _out: O,
@@ -92,13 +93,14 @@ fn handle_exit_notification(ctx: &mut ActionContext) -> ! {
 }
 
 impl BlockingRequestAction for InitializeRequest {
-    type Response = InitializeResult;
+    type Response = NoResponse;
 
     fn handle<O: Output>(
+        id: usize,
         params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
-    ) -> Result<InitializeResult, ResponseError> {
+    ) -> Result<NoResponse, ResponseError> {
         let init_options: InitializationOptions = params
             .initialization_options
             .as_ref()
@@ -107,19 +109,26 @@ impl BlockingRequestAction for InitializeRequest {
 
         trace!("init: {:?}", init_options);
 
+        if ctx.inited().is_ok() {
+            return Err(ResponseError::Message(
+                // No code in the spec, just use some number
+                ErrorCode::ServerError(123),
+                "Already received an initialize request".to_owned(),
+            ));
+        }
+
         let result = InitializeResult {
             capabilities: server_caps(),
         };
 
+        // send response early before `ctx.init` to enforce
+        // initialize-response-before-all-other-messages constraint
+        result.send(id, &out);
+
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        match ctx.init(get_root_path(&params), &init_options, capabilities, &out) {
-            Ok(_) => Ok(result),
-            Err(_) => Err(ResponseError::Message(
-                // No code in the spec, just use some number
-                ErrorCode::ServerError(123),
-                "Already received an initialize request".to_owned(),
-            )),
-        }
+        ctx.init(get_root_path(&params), &init_options, capabilities, &out).unwrap();
+
+        Ok(NoResponse)
     }
 }
 
