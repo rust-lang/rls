@@ -28,6 +28,7 @@ extern crate cargo_metadata;
 extern crate env_logger;
 #[macro_use]
 extern crate failure;
+extern crate jsonrpc_core;
 extern crate languageserver_types as ls_types;
 #[macro_use]
 extern crate lazy_static;
@@ -50,8 +51,8 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
-extern crate jsonrpc_core;
 extern crate url;
+extern crate walkdir;
 
 use std::env;
 use std::sync::Arc;

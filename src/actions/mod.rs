@@ -19,6 +19,7 @@ use serde_json;
 use url::Url;
 use span;
 use Span;
+use walkdir::WalkDir;
 
 use actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
 use actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
@@ -364,7 +365,6 @@ fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
     )
 }
 
-// TODO include workspace Cargo.tomls in watchers / relevant
 /// Client file-watching request / filtering logic
 /// We want to watch workspace 'Cargo.toml', root 'Cargo.lock' & the root 'target' dir
 pub struct FileWatch<'ctx> {
@@ -384,16 +384,37 @@ impl<'ctx> FileWatch<'ctx> {
     }
 
     /// Returns json config for desired file watches
-    pub fn watchers_config(&self) -> serde_json::Value {
-        let cargo_toml_pattern = format!("{}/Cargo.toml", self.project_str);
-        let cargo_lock_pattern = format!("{}/Cargo.lock", self.project_str);
-        let target_pattern = format!("{}/target", self.project_str);
-        // For target, we only watch if it gets deleted.
+    pub fn watchers_config(&self)  -> serde_json::Value {
+        fn watcher(pat: String) -> FileSystemWatcher {
+            FileSystemWatcher {
+                glob_pattern: pat,
+                kind: None,
+            }
+        }
+        fn watcher_with_kind(pat: String, kind: WatchKind) -> FileSystemWatcher {
+            FileSystemWatcher {
+                glob_pattern: pat,
+                kind: Some(kind),
+            }
+        }
+
+        let mut watchers = vec![
+            watcher(format!("{}/Cargo.lock", self.project_str)),
+            // For target, we only watch if it gets deleted.
+            watcher_with_kind(format!("{}/target", self.project_str), WatchKind::Delete),
+        ];
+
+        // Find any Cargo.tomls in the project
+        for entry in WalkDir::new(self.project_str)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name() == "Cargo.toml")
+        {
+            watchers.push(watcher(entry.path().display().to_string()));
+        }
+
         json!({
-            "watchers": [
-                { "globPattern": cargo_toml_pattern },
-                { "globPattern": cargo_lock_pattern },
-                { "globPattern": target_pattern, "kind": 4 }]
+            "watchers": watchers
         })
     }
 
@@ -408,10 +429,13 @@ impl<'ctx> FileWatch<'ctx> {
             return false;
         }
 
+        if path.ends_with("/Cargo.toml") {
+            return true;
+        }
+
         let local = &path[self.project_uri.len()..];
 
-        local == "/Cargo.lock" || local == "/Cargo.toml"
-            || local == "/target" && change.typ == FileChangeType::Deleted
+        local == "/Cargo.lock" || (local == "/target" && change.typ == FileChangeType::Deleted)
     }
 }
 
