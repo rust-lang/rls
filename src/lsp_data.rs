@@ -205,7 +205,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::Module,
         racer::MatchType::Struct => CompletionItemKind::Class,
         racer::MatchType::Enum => CompletionItemKind::Enum,
-        racer::MatchType::StructField | racer::MatchType::EnumVariant => CompletionItemKind::Field,
+        racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => CompletionItemKind::Field,
         racer::MatchType::Macro
         | racer::MatchType::Function
         | racer::MatchType::FnArg
@@ -227,7 +227,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
 /// Convert a racer match into an RLS completion.
 pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
     let mut item = CompletionItem::new_simple(m.matchstr.clone(), m.contextstr.clone());
-    item.kind = Some(completion_kind_from_match_type(m.mtype));
+    item.kind = Some(completion_kind_from_match_type(m.mtype.clone()));
 
     item
 }

@@ -18,7 +18,7 @@ jsonrpc-core = "8.0.1"
 languageserver-types = "0.41"
 lazy_static = "1"
 log = "0.4"
-racer = "2.0.12"
+racer = "2.0.14"
 rls-analysis = "0.13"
 rls-blacklist = "0.1.2"
 rls-data = { version = "0.16", features = ["serialize-serde"] }
