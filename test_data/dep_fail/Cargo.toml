@@ -1,0 +1,7 @@
+[package]
+name = "dep_fail"
+version = "0.1.0"
+authors = ["Nick Cameron <ncameron@mozilla.com>"]
+
+[dependencies]
+compile_fail = { path = "../compile_fail" }

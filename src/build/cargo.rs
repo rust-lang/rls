@@ -31,6 +31,7 @@ use std::fs::{read_dir, remove_file};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::thread;
 
@@ -208,6 +209,8 @@ fn run_cargo(
         restore_env.push_var("RUST_LOG", &None);
     }
 
+    let reached_primary = Arc::new(AtomicBool::new(false));
+
     let exec = RlsExecutor::new(
         &ws,
         Arc::clone(&compilation_cx),
@@ -217,6 +220,7 @@ fn run_cargo(
         compiler_messages,
         analysis,
         progress_sender,
+        reached_primary.clone(),
     );
 
     match compile_with_exec(&ws, &compile_opts, Arc::new(exec)) {
@@ -229,6 +233,10 @@ fn run_cargo(
         Err(e) => {
             debug!("Error running compile_with_exec: {:?}", e);
         }
+    }
+
+    if !reached_primary.load(Ordering::SeqCst) {
+        return Err(format_err!("Error compiling dependent crate"))
     }
 
     Ok(compilation_cx.lock().unwrap().cwd.clone().unwrap_or_else(|| {
@@ -251,6 +259,12 @@ struct RlsExecutor {
     /// JSON compiler messages emitted for each primary compiled crate
     compiler_messages: Arc<Mutex<Vec<String>>>,
     progress_sender: Mutex<Sender<ProgressUpdate>>,
+    /// Set to true if attempt to compile a primary crate. If we don't track
+    /// this then errors which prevent giving type info won't be shown to the
+    /// user. This feels a bit hacky, but I can't see how to otherwise
+    /// distinguish compile errors on dependent crates from the primary crate
+    /// (which are handled directly by the RLS).
+    reached_primary: Arc<AtomicBool>,
 }
 
 impl RlsExecutor {
@@ -263,6 +277,7 @@ impl RlsExecutor {
         compiler_messages: Arc<Mutex<Vec<String>>>,
         analysis: Arc<Mutex<Vec<Analysis>>>,
         progress_sender: Sender<ProgressUpdate>,
+        reached_primary: Arc<AtomicBool>,
     ) -> RlsExecutor {
         let member_packages = ws.members().map(|x| x.package_id().clone()).collect();
 
@@ -275,6 +290,7 @@ impl RlsExecutor {
             member_packages: Mutex::new(member_packages),
             compiler_messages,
             progress_sender: Mutex::new(progress_sender),
+            reached_primary,
         }
     }
 
@@ -417,6 +433,8 @@ impl Executor for RlsExecutor {
             cargo_args,
             cargo_cmd.get_envs()
         );
+
+        self.reached_primary.store(true, Ordering::SeqCst);
 
         let mut args: Vec<_> = cargo_args
             .iter()

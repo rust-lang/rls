@@ -1,0 +1,6 @@
+[package]
+name = "compile_fail"
+version = "0.1.0"
+authors = ["Nick Cameron <ncameron@mozilla.com>"]
+
+[dependencies]

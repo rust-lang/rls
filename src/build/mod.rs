@@ -411,7 +411,7 @@ impl BuildQueue {
                 &build.build_dir,
                 build.priority,
                 &build.built_files,
-                progress_sender
+                progress_sender,
             );
             // Assert that the build was not squashed.
             if let BuildResult::Squashed = result {

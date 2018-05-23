@@ -1710,3 +1710,33 @@ fn fail_uninitialized_request() {
         ],
     );
 }
+
+#[test]
+fn test_dep_fail() {
+    let mut env = Environment::new("dep_fail");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+    ];
+
+    let (mut server, results) = env.mock_server(messages);
+    // Initialize and build.
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+            ExpectedMessage::new(None).expect_contains("message").expect_contains("Cargo failed: Error compiling dependent crate"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+        ],
+    );
+}
