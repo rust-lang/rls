@@ -12,7 +12,7 @@ build = "build.rs"
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "9e53ac6e6525da914cb05a85e5e8eff7b5dca81f" }
 cargo_metadata = "0.5.2"
-clippy_lints = { version = "0.0.202", optional = true }
+clippy_lints = { version = "0.0.204", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
 jsonrpc-core = "8.0.1"
