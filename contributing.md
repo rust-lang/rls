@@ -30,8 +30,8 @@ via `rustup`, which is the currently preferred method. See the
 On Linux, you will need [cmake](https://cmake.org/), [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
 and [zlib](http://zlib.net/):
 
-- On Ubuntu run: `sudo apt-get install cmake pkg-config zlib1g-dev`
-- On Fedora run: `sudo dnf install cmake pkgconfig zlib-devel`
+- On Ubuntu run: `sudo apt-get install cmake pkg-config zlib1g-dev libssl-dev`
+- On Fedora run: `sudo dnf install cmake pkgconfig zlib-devel openssl-devel`
 
 On Windows, you will need to have [cmake](https://cmake.org/) installed.
 
