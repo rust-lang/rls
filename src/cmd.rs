@@ -398,10 +398,17 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
 }
 
 fn url(file_name: &str) -> Url {
-    let path = Path::new(file_name)
+    let canonical = Path::new(file_name)
         .canonicalize()
         .expect("Could not canonicalize file name");
-    Url::parse(&format!("file://{}", path.to_str().unwrap())).expect("Bad file name")
+    let mut path = canonical.to_str().unwrap();
+
+    // workaround for UNC path see https://github.com/rust-lang/rust/issues/42869
+    if path.starts_with(r"\\?\") {
+        path = &path[r"\\?\".len()..];
+    }
+
+    Url::parse(&format!("file://{}", path)).expect("Bad file name")
 }
 
 fn next_id() -> usize {
