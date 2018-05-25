@@ -10,7 +10,7 @@ categories = ["development-tools"]
 build = "build.rs"
 
 [dependencies]
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "9e53ac6e6525da914cb05a85e5e8eff7b5dca81f" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "22c0f22f5621f1b68558d80a0966d073b9b68932" }
 cargo_metadata = "0.5.2"
 clippy_lints = { version = "0.0.204", optional = true }
 env_logger = "0.5"
