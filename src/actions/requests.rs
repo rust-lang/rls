@@ -16,7 +16,7 @@ use url::Url;
 use vfs::FileContents;
 use racer;
 use rustfmt::{FileName, format_input, Input as FmtInput};
-use rustfmt::file_lines::{FileLines, Range as RustfmtRange};
+use rustfmt::config::{FileLines, Range as RustfmtRange};
 use serde_json;
 use span;
 

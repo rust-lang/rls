@@ -27,7 +27,7 @@ use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
 
 use rustfmt::Config as RustfmtConfig;
-use rustfmt::{load_config, Verbosity, WriteMode};
+use rustfmt::{load_config, EmitMode, Verbosity};
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 1500;
 
@@ -336,7 +336,7 @@ impl FmtConfig {
     // options that are always used when formatting with rls
     fn set_rls_options(&mut self) {
         self.0.set().skip_children(true);
-        self.0.set().write_mode(WriteMode::Display);
+        self.0.set().write_mode(EmitMode::Stdout);
         self.0.set().verbose(Verbosity::Quiet);
     }
 }
