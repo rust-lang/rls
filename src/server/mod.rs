@@ -329,7 +329,7 @@ impl<O: Output> LsService<O> {
 
         if let Err(e) = self.dispatch_message(&raw_message) {
             error!("dispatch error, {:?}", e);
-            self.output.failure(raw_message.id.unwrap_or(Id::Null), e);
+            self.output.failure(raw_message.id, e);
             return ServerStateChange::Break;
         }
 
