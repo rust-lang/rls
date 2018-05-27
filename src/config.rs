@@ -336,7 +336,7 @@ impl FmtConfig {
     // options that are always used when formatting with rls
     fn set_rls_options(&mut self) {
         self.0.set().skip_children(true);
-        self.0.set().write_mode(EmitMode::Stdout);
+        self.0.set().emit_mode(EmitMode::Stdout);
         self.0.set().verbose(Verbosity::Quiet);
     }
 }
