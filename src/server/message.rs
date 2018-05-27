@@ -146,7 +146,7 @@ where
         RawMessage {
             method,
             // FIXME: for now we support only numeric ids
-            id: Some(Id::Num(request.id as u64)),
+            id: Id::Num(request.id as u64),
             params
         }
     }
@@ -170,7 +170,7 @@ where
 
         RawMessage {
             method,
-            id: None,
+            id: Id::Null,
             params
         }
     }
@@ -224,7 +224,7 @@ where
 #[derive(Debug, PartialEq)]
 pub(super) struct RawMessage {
     pub method: String,
-    pub id: Option<Id>,
+    pub id: Id,
     pub params: serde_json::Value,
 }
 
@@ -237,9 +237,9 @@ impl RawMessage {
         // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
         // to using jsonrpc_core::Id
         let parsed_numeric_id = match self.id {
-            Some(Id::Num(n)) => Some(n as usize),
-            Some(Id::Str(ref s)) => usize::from_str_radix(s, 10).ok(),
-            _ => None,
+            Id::Num(n) => Some(n as usize),
+            Id::Str(ref s) => usize::from_str_radix(s, 10).ok(),
+            Id::Null => None,
         };
 
         let params = R::Params::deserialize(&self.params).map_err(|e| {
@@ -280,9 +280,10 @@ impl RawMessage {
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
 
         // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
-        let id = ls_command
-            .get("id")
-            .map(|id| serde_json::from_value(id.to_owned()).unwrap());
+        let id = match ls_command.get("id") {
+                Some(id) => serde_json::from_value(id.to_owned()).unwrap(),
+                _ => Id::Null,
+            };
 
         let method = match ls_command.get("method") {
             Some(method) => method,
@@ -316,7 +317,10 @@ impl RawMessage {
 // Should be resolved once https://github.com/serde-rs/serde/issues/760 is fixed.
 impl Serialize for RawMessage {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let serialize_id = self.id.is_some();
+        let serialize_id = match self.id {
+            Id::Null => false,
+            _ => true,
+        };
         let serialize_params = self.params.is_array() || self.params.is_object();
 
         let len = 2 + if serialize_id { 1 } else { 0 }
@@ -345,7 +349,7 @@ mod test {
     fn test_parse_as_notification() {
         let raw = RawMessage {
             method: "initialize".to_owned(),
-            id: None,
+            id: Id::Null,
             params: serde_json::Value::Object(serde_json::Map::new()),
         };
         let notification: Notification<notifications::Initialized> =
@@ -369,7 +373,7 @@ mod test {
         let str_msg = RawMessage {
             method: "someRpcCall".to_owned(),
             // FIXME: for now we support only numeric ids
-            id: Some(Id::Num(1)),
+            id: Id::Num(1),
             // Internally missing parameters are represented as null
             params: serde_json::Value::Null,
         };
