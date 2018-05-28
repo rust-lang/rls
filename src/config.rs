@@ -27,7 +27,7 @@ use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
 
 use rustfmt::Config as RustfmtConfig;
-use rustfmt::{load_config, EmitMode, Verbosity};
+use rustfmt::{load_config, CliOptions, EmitMode, Verbosity};
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 1500;
 
@@ -319,7 +319,18 @@ impl FmtConfig {
     /// Look for `.rustmt.toml` or `rustfmt.toml` in `path`, falling back
     /// to the default config if neither exist
     pub fn from(path: &Path) -> FmtConfig {
-        if let Ok((config, _)) = load_config(Some(path), None) {
+        struct NullOptions;
+
+        impl CliOptions for NullOptions {
+            fn apply_to(self, _: &mut rustfmt::Config) {
+                unreachable!();
+            }
+            fn config_path(&self) -> Option<&Path> {
+                unreachable!();
+            }
+        }
+
+        if let Ok((config, _)) = load_config::<NullOptions>(Some(path), None) {
             let mut config = FmtConfig(config);
             config.set_rls_options();
             return config;
