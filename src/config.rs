@@ -27,7 +27,7 @@ use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
 
 use rustfmt::Config as RustfmtConfig;
-use rustfmt::{load_config, CliOptions, EmitMode, Verbosity};
+use rustfmt::{self, load_config, CliOptions, EmitMode, Verbosity};
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 1500;
 
