@@ -532,3 +532,19 @@ Supported commands:
     resolve       label detail
                   completionItem/resolve");
 }
+
+
+// Reproducible on Windows where current dir can produce a url something like
+// `file:////?\C:\Users\alex\project\rls` which will later cause issues
+#[test]
+fn url_workaround_unc_canonicals() {
+    let current_dir = ::std::env::current_dir().unwrap();
+    let url = url(current_dir.to_str().unwrap());
+
+    let url_str = format!("{}", url);
+    assert!(
+        !url_str.starts_with(r"file:////?\"),
+        "Unexpected UNC url {}",
+        url
+    );
+}
