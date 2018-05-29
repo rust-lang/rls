@@ -19,7 +19,7 @@ mod harness;
 use analysis;
 use actions::{requests, notifications};
 use config::{Config, Inferrable};
-use server::{self as ls_server, Request, ShutdownRequest, Notification};
+use server::{self as ls_server, Request, ShutdownRequest, Notification, RequestId};
 use jsonrpc_core;
 use vfs;
 
@@ -62,7 +62,7 @@ pub fn initialize_with_opts(
         trace: Some(TraceOption::Off),
     };
     Request {
-        id,
+        id: RequestId::Num(id as u64),
         params,
         received: Instant::now(),
         _action: PhantomData,
@@ -74,7 +74,7 @@ pub fn blocking_request<T: ls_server::BlockingRequestAction>(
     params: T::Params,
 ) -> Request<T> {
     Request {
-        id,
+        id: RequestId::Num(id as u64),
         params,
         received: Instant::now(),
         _action: PhantomData,
@@ -83,7 +83,7 @@ pub fn blocking_request<T: ls_server::BlockingRequestAction>(
 
 pub fn request<T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request<T> {
     Request {
-        id,
+        id: RequestId::Num(id as u64),
         params,
         received: Instant::now(),
         _action: PhantomData,

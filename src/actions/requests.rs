@@ -447,11 +447,11 @@ pub enum ExecuteCommandResponse {
 }
 
 impl server::Response for ExecuteCommandResponse {
-    fn send<O: Output>(&self, id: usize, out: &O) {
+    fn send<O: Output>(&self, id: server::RequestId, out: &O) {
         // FIXME should handle the client's responses
         match *self {
             ExecuteCommandResponse::ApplyEdit(ref params) => {
-                let id = out.provide_id() as usize;
+                let id = out.provide_id();
                 let params = ApplyWorkspaceEditParams {
                         edit: params.edit.clone(),
                 };

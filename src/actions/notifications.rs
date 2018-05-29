@@ -45,7 +45,7 @@ impl BlockingNotificationAction for Initialized {
     fn handle<O: Output>(_params: Self::Params, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
         const WATCH_ID: &str = "rls-watch";
 
-        let id = out.provide_id() as usize;
+        let id = out.provide_id();
         let params = RegistrationParams {
             registrations: vec![
                 Registration {
@@ -208,7 +208,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
 
         const RANGE_FORMATTING_ID: &str = "rls-range-formatting";
         // FIXME should handle the response
-        let id = out.provide_id() as usize;
+        let id = out.provide_id();
         if unstable_features {
             let params = RegistrationParams {
                     registrations: vec![

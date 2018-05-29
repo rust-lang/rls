@@ -15,7 +15,7 @@
 use actions::requests;
 use analysis::{AnalysisHost, Target};
 use config::Config;
-use server::{self, LsService, Notification, Request};
+use server::{self, LsService, Notification, Request, RequestId};
 use vfs::Vfs;
 
 use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
@@ -404,11 +404,11 @@ fn url(file_name: &str) -> Url {
     Url::parse(&format!("file://{}", path.to_str().unwrap())).expect("Bad file name")
 }
 
-fn next_id() -> usize {
-    static mut ID: usize = 0;
+fn next_id() -> RequestId {
+    static mut ID: u64 = 0;
     unsafe {
         ID += 1;
-        ID
+        RequestId::Num(ID)
     }
 }
 
@@ -421,11 +421,11 @@ impl server::Output for PrintlnOutput {
         println!("{}", output);
     }
 
-    fn provide_id(&self) -> u32 {
-        0
+    fn provide_id(&self) -> RequestId {
+        RequestId::Num(0)
     }
 
-    fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: usize, data: &D) {
+    fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: RequestId, data: &D) {
         println!("{}: {:#?}", id, data);
     }
 }
