@@ -36,15 +36,15 @@ pub struct NoResponse;
 /// A response to some request.
 pub trait Response {
     /// Send the response along the given output.
-    fn send<O: Output>(&self, id: usize, out: &O);
+    fn send<O: Output>(&self, id: RequestId, out: &O);
 }
 
 impl Response for NoResponse {
-    fn send<O: Output>(&self, _id: usize, _out: &O) {}
+    fn send<O: Output>(&self, _id: RequestId, _out: &O) {}
 }
 
 impl<R: ::serde::Serialize + fmt::Debug> Response for R {
-    fn send<O: Output>(&self, id: usize, out: &O) {
+    fn send<O: Output>(&self, id: RequestId, out: &O) {
         out.success(id, &self);
     }
 }
@@ -77,17 +77,45 @@ pub trait BlockingRequestAction: LSPRequest {
 
     /// Handle request and return its response. Output is also provided for additional messaging.
     fn handle<O: Output>(
-        id: usize,
+        id: RequestId,
         params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
     ) -> Result<Self::Response, ResponseError>;
 }
 
+/// A request ID as defined by language server protocol.
+///
+/// It only describes valid request ids - a case for notification (where id is not specified) is
+/// not included here.
+#[derive(Debug, PartialEq, Clone, Hash, Eq)]
+pub enum RequestId {
+    Str(String),
+    Num(u64),
+}
+
+impl fmt::Display for RequestId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RequestId::Str(ref s) => write!(f, "\"{}\"", s),
+            RequestId::Num(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+impl<'a> From<&'a RequestId> for Id {
+    fn from(request_id: &RequestId) -> Self {
+        match request_id {
+            RequestId::Str(ref s) => Id::Str(s.to_string()),
+            RequestId::Num(n) => Id::Num(*n),
+        }
+    }
+}
+
 /// A request that gets JSON serialized in the language server protocol.
 pub struct Request<A: LSPRequest> {
     /// The unique request id.
-    pub id: usize,
+    pub id: RequestId,
     /// The time the request was received / processed by the main stdin reading thread.
     pub received: Instant,
     /// The extra action-specific parameters.
@@ -98,7 +126,7 @@ pub struct Request<A: LSPRequest> {
 
 impl<A: LSPRequest> Request<A> {
     /// Creates a server `Request` structure with given `params`.
-    pub fn new(id: usize, params: A::Params) -> Request<A> {
+    pub fn new(id: RequestId, params: A::Params) -> Request<A> {
         Request {
             id,
             received: Instant::now(),
@@ -145,8 +173,7 @@ where
 
         RawMessage {
             method,
-            // FIXME: for now we support only numeric ids
-            id: Some(Id::Num(request.id as u64)),
+            id: Id::from(&request.id),
             params
         }
     }
@@ -170,7 +197,7 @@ where
 
         RawMessage {
             method,
-            id: None,
+            id: Id::Null,
             params
         }
     }
@@ -224,7 +251,7 @@ where
 #[derive(Debug, PartialEq)]
 pub(super) struct RawMessage {
     pub method: String,
-    pub id: Option<Id>,
+    pub id: Id,
     pub params: serde_json::Value,
 }
 
@@ -234,12 +261,10 @@ impl RawMessage {
         R: LSPRequest,
         <R as LSPRequest>::Params: serde::Deserialize<'de>,
     {
-        // FIXME: We only support numeric responses, ideally we should switch from using parsed usize
-        // to using jsonrpc_core::Id
-        let parsed_numeric_id = match self.id {
-            Some(Id::Num(n)) => Some(n as usize),
-            Some(Id::Str(ref s)) => usize::from_str_radix(s, 10).ok(),
-            _ => None,
+        let parsed_id = match self.id {
+            Id::Num(n) => Some(RequestId::Num(n)),
+            Id::Str(ref s) => Some(RequestId::Str(s.to_string())),
+            Id::Null => None,
         };
 
         let params = R::Params::deserialize(&self.params).map_err(|e| {
@@ -247,7 +272,7 @@ impl RawMessage {
             jsonrpc::Error::invalid_params(format!("{}", e))
         })?;
 
-        match parsed_numeric_id {
+        match parsed_id {
             Some(id) => Ok(Request {
                 id,
                 params,
@@ -280,9 +305,10 @@ impl RawMessage {
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
 
         // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
-        let id = ls_command
-            .get("id")
-            .map(|id| serde_json::from_value(id.to_owned()).unwrap());
+        let id = match ls_command.get("id") {
+                Some(id) => serde_json::from_value(id.to_owned()).unwrap(),
+                _ => Id::Null,
+            };
 
         let method = match ls_command.get("method") {
             Some(method) => method,
@@ -316,7 +342,10 @@ impl RawMessage {
 // Should be resolved once https://github.com/serde-rs/serde/issues/760 is fixed.
 impl Serialize for RawMessage {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let serialize_id = self.id.is_some();
+        let serialize_id = match self.id {
+            Id::Null => false,
+            _ => true,
+        };
         let serialize_params = self.params.is_array() || self.params.is_object();
 
         let len = 2 + if serialize_id { 1 } else { 0 }
@@ -345,7 +374,7 @@ mod test {
     fn test_parse_as_notification() {
         let raw = RawMessage {
             method: "initialize".to_owned(),
-            id: None,
+            id: Id::Null,
             params: serde_json::Value::Object(serde_json::Map::new()),
         };
         let notification: Notification<notifications::Initialized> =
@@ -359,21 +388,57 @@ mod test {
 
     // http://www.jsonrpc.org/specification#request_object
     #[test]
-    fn parse_raw_message() {
-        let raw_msg = json!({
+    fn raw_message_parses_valid_jsonrpc_request_with_string_id() {
+        let raw_json = json!({
+            "jsonrpc": "2.0",
+            "id": "abc",
+            "method": "someRpcCall",
+        }).to_string();
+
+        let expected_msg = RawMessage {
+            method: "someRpcCall".to_owned(),
+            id: Id::Str("abc".to_owned()),
+            // Internally missing parameters are represented as null
+            params: serde_json::Value::Null,
+        };
+        assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
+    }
+
+    #[test]
+    fn raw_message_parses_valid_jsonrpc_request_with_numeric_id() {
+        let raw_json = json!({
             "jsonrpc": "2.0",
             "id": "1",
             "method": "someRpcCall",
         }).to_string();
 
-        let str_msg = RawMessage {
+        let expected_msg = RawMessage {
             method: "someRpcCall".to_owned(),
-            // FIXME: for now we support only numeric ids
-            id: Some(Id::Num(1)),
+            id: Id::Num(1),
             // Internally missing parameters are represented as null
             params: serde_json::Value::Null,
         };
-        assert_eq!(str_msg, RawMessage::try_parse(&raw_msg).unwrap().unwrap());
+        assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
+    }
+
+    #[test]
+    fn raw_message_with_string_id_parses_into_request() {
+        #[derive(Debug)]
+        pub enum DummyRequest { }
+        impl LSPRequest for DummyRequest {
+            type Params = ();
+            type Result = ();
+            const METHOD: &'static str = "dummyRequest";
+        }
+
+        let raw_msg = RawMessage {
+            method: "dummyRequest".to_owned(),
+            id: Id::Str("abc".to_owned()),
+            params: serde_json::Value::Null,
+        };
+
+        let request: Request<DummyRequest> = raw_msg.parse_as_request().expect("RawMessage with numeric id should parse into request");
+        assert_eq!(RequestId::Str("abc".to_owned()), request.id)
     }
 
     #[test]
