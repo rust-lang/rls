@@ -11,7 +11,7 @@
 use serde;
 use serde_json;
 
-use super::{Notification, Request};
+use super::{Notification, Request, RequestId};
 use lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
@@ -105,7 +105,7 @@ pub trait Output: Sync + Send + Clone + 'static {
     fn response(&self, output: String);
 
     /// Get a new unique ID.
-    fn provide_id(&self) -> u32;
+    fn provide_id(&self) -> RequestId;
 
     /// Notify the client of a failure.
     fn failure(&self, id: jsonrpc::Id, error: jsonrpc::Error) {
@@ -119,17 +119,17 @@ pub trait Output: Sync + Send + Clone + 'static {
     }
 
     /// Notify the client of a failure with the given diagnostic message.
-    fn failure_message<M: Into<String>>(&self, id: usize, code: jsonrpc::ErrorCode, msg: M) {
+    fn failure_message<M: Into<String>>(&self, id: RequestId, code: jsonrpc::ErrorCode, msg: M) {
         let error = jsonrpc::Error {
             code,
             message: msg.into(),
             data: None,
         };
-        self.failure(Id::Num(id as u64), error);
+        self.failure(Id::from(&id), error);
     }
 
     /// Send a successful response or notification along the output.
-    fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: usize, data: &D) {
+    fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: RequestId, data: &D) {
         let data = match serde_json::to_string(data) {
             Ok(data) => data,
             Err(e) => {
@@ -196,7 +196,7 @@ impl Output for StdioOutput {
         stdout_lock.flush().unwrap();
     }
 
-    fn provide_id(&self) -> u32 {
-        self.next_id.fetch_add(1, Ordering::SeqCst)
+    fn provide_id(&self) -> RequestId {
+        RequestId::Num(self.next_id.fetch_add(1, Ordering::SeqCst) as u64)
     }
 }
