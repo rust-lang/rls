@@ -1,0 +1,105 @@
+{
+  "children": [{
+    "children": [],
+    "code": null,
+    "level": "help",
+    "message": "items from traits can only be used if the trait is in scope",
+    "rendered": null,
+    "spans": []
+  }, {
+    "children": [],
+    "code": null,
+    "level": "help",
+    "message": "the following trait is implemented but not in scope, perhaps add a `use` for it:",
+    "rendered": null,
+    "spans": [{
+      "byte_end": 0,
+      "byte_start": 0,
+      "column_end": 1,
+      "column_start": 1,
+      "expansion": null,
+      "file_name": "src/main.rs",
+      "is_primary": true,
+      "label": null,
+      "line_end": 1,
+      "line_start": 1,
+      "suggested_replacement": "use std::fmt::Write;\n\n",
+      "suggestion_applicability": "Unspecified",
+      "text": [{
+        "highlight_end": 1,
+        "highlight_start": 1,
+        "text": "fn main() {"
+      }]
+    }]
+  }],
+  "code": {
+    "code": "E0599",
+    "explanation": "\nThis error occurs when a method is used on a type which doesn't implement it:\n\nErroneous code example:\n\n```compile_fail,E0599\nstruct Mouth;\n\nlet x = Mouth;\nx.chocolate(); // error: no method named `chocolate` found for type `Mouth`\n               //        in the current scope\n```\n"
+  },
+  "level": "error",
+  "message": "no method named `write_fmt` found for type `std::string::String` in the current scope",
+  "rendered": "error[E0599]: no method named `write_fmt` found for type `std::string::String` in the current scope\n --> src/main.rs:3:5\n  |\n3 |     write!(out, \"{}\", 123);\n  |     ^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = help: items from traits can only be used if the trait is in scope\n  = note: this error originates in a macro outside of the current crate (in Nightly builds, run with -Z external-macro-backtrace for more info)\nhelp: the following trait is implemented but not in scope, perhaps add a `use` for it:\n  |\n1 | use std::fmt::Write;\n  |\n\n",
+  "spans": [{
+    "byte_end": 60,
+    "byte_start": 51,
+    "column_end": 18,
+    "column_start": 9,
+    "expansion": {
+      "def_site_span": {
+        "byte_end": 98,
+        "byte_start": 0,
+        "column_end": 56,
+        "column_start": 1,
+        "expansion": null,
+        "file_name": "<write macros>",
+        "is_primary": false,
+        "label": null,
+        "line_end": 2,
+        "line_start": 1,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [{
+          "highlight_end": 43,
+          "highlight_start": 1,
+          "text": "( $ dst : expr , $ ( $ arg : tt ) * ) => ("
+        }, {
+          "highlight_end": 56,
+          "highlight_start": 1,
+          "text": "$ dst . write_fmt ( format_args ! ( $ ( $ arg ) * ) ) )"
+        }]
+      },
+      "macro_decl_name": "write!",
+      "span": {
+        "byte_end": 72,
+        "byte_start": 49,
+        "column_end": 28,
+        "column_start": 5,
+        "expansion": null,
+        "file_name": "src/main.rs",
+        "is_primary": false,
+        "label": null,
+        "line_end": 3,
+        "line_start": 3,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [{
+          "highlight_end": 28,
+          "highlight_start": 5,
+          "text": "    write!(out, \"{}\", 123);"
+        }]
+      }
+    },
+    "file_name": "<write macros>",
+    "is_primary": true,
+    "label": null,
+    "line_end": 2,
+    "line_start": 2,
+    "suggested_replacement": null,
+    "suggestion_applicability": null,
+    "text": [{
+      "highlight_end": 18,
+      "highlight_start": 9,
+      "text": "$ dst . write_fmt ( format_args ! ( $ ( $ arg ) * ) ) )"
+    }]
+  }]
+}
