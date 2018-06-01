@@ -1013,6 +1013,7 @@ dependencies = [
  "clippy_lints 0.0.205 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "itertools 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "json 0.11.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 8.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "languageserver-types 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",

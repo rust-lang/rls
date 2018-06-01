@@ -15,6 +15,7 @@ cargo_metadata = "0.5.2"
 clippy_lints = { version = "0.0.205", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
+itertools = "0.7.3"
 jsonrpc-core = "8.0.1"
 languageserver-types = "0.41"
 lazy_static = "1"

@@ -12,20 +12,21 @@
 
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::panic::RefUnwindSafe;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, Thread};
 
-use build::BuildResult;
-use lsp_data::PublishDiagnosticsParams;
-use ls_types::DiagnosticSeverity;
+use actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
 use actions::progress::DiagnosticsNotifier;
-use actions::diagnostics::{Diagnostic, ParsedDiagnostics, Suggestion, parse_diagnostics};
+use build::BuildResult;
+use ls_types::DiagnosticSeverity;
+use itertools::Itertools;
+use lsp_data::PublishDiagnosticsParams;
 
 use analysis::AnalysisHost;
 use data::Analysis;
@@ -91,17 +92,17 @@ impl PostBuildHandler {
             values.clear();
         }
 
-        for msg in messages {
-            if let Some(ParsedDiagnostics { diagnostics }) =
-                parse_diagnostics(msg, cwd, self.related_information_support)
-            {
-                for (file_path, diagnostics) in diagnostics {
-                    results
-                        .entry(file_path)
-                        .or_insert_with(Vec::new)
-                        .extend(diagnostics);
-                }
-            }
+        let file_diagnostics = messages
+            .iter()
+            .unique()
+            .filter_map(|msg| parse_diagnostics(msg, cwd, self.related_information_support))
+            .flat_map(|ParsedDiagnostics { diagnostics }| diagnostics);
+
+        for (file_path, diagnostics) in file_diagnostics {
+            results
+                .entry(file_path)
+                .or_insert_with(Vec::new)
+                .extend(diagnostics);
         }
 
         self.emit_notifications(&results);

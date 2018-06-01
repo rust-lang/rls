@@ -28,6 +28,7 @@ extern crate cargo_metadata;
 extern crate env_logger;
 #[macro_use]
 extern crate failure;
+extern crate itertools;
 extern crate jsonrpc_core;
 extern crate languageserver_types as ls_types;
 #[macro_use]
