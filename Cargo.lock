@@ -158,8 +158,8 @@ dependencies = [
 
 [[package]]
 name = "clippy_lints"
-version = "0.0.206"
-source = "git+https://github.com/rust-lang-nursery/rust-clippy?rev=1ba6587#1ba658772a580063aaf4ef8ec43c7ce8da928616"
+version = "0.0.207"
+source = "git+https://github.com/rust-lang-nursery/rust-clippy?rev=1c6c79f9#1c6c79f92cad0c0e062ba1ef1d291f140e326cb3"
 dependencies = [
  "cargo_metadata 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "if_chain 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1010,7 +1010,7 @@ version = "0.128.0"
 dependencies = [
  "cargo 0.29.0 (git+https://github.com/rust-lang/cargo?rev=22c0f22f5621f1b68558d80a0966d073b9b68932)",
  "cargo_metadata 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "clippy_lints 0.0.206 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=1ba6587)",
+ "clippy_lints 0.0.207 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=1c6c79f9)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1665,7 +1665,7 @@ dependencies = [
 "checksum cc 1.0.17 (registry+https://github.com/rust-lang/crates.io-index)" = "49ec142f5768efb5b7622aebc3fdbdbb8950a4b9ba996393cb76ef7466e8747d"
 "checksum cfg-if 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "405216fd8fe65f718daa7102ea808a946b6ce40c742998fbfd3463645552de18"
 "checksum clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f0f16b89cbb9ee36d87483dc939fe9f1e13c05898d56d7b230a0d4dff033a536"
-"checksum clippy_lints 0.0.206 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=1ba6587)" = "<none>"
+"checksum clippy_lints 0.0.207 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=1c6c79f9)" = "<none>"
 "checksum cmake 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)" = "95470235c31c726d72bf2e1f421adc1e65b9d561bf5529612cbe1a72da1467b3"
 "checksum commoncrypto 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d056a8586ba25a1e4d61cb090900e495952c7886786fc55f909ab2f819b69007"
 "checksum commoncrypto-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1fed34f46747aa73dfaa578069fd8279d2818ade2b55f38f22a9401c7f4083e2"
