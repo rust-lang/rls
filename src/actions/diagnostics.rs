@@ -136,7 +136,13 @@ pub fn parse_diagnostics(
             "rustc"
         };
 
-        let rls_span = span.rls_span().zero_indexed();
+        let rls_span = if span.file_name.ends_with(" macros>") && span.expansion.is_some() {
+            // span points to a macro, use a more useful source location
+            &span.expansion.as_ref().unwrap().span
+        } else {
+            span
+        }.rls_span().zero_indexed();
+
         let file_path = cwd.join(&rls_span.file);
 
         let diagnostic = Diagnostic {
@@ -335,6 +341,7 @@ impl IsWithin for Range {
 #[cfg(test)]
 mod diagnostic_message_test {
     use super::*;
+    use ls_types::Position;
 
     pub(super) fn parse_compiler_message(
         compiler_message: &str,
@@ -649,6 +656,41 @@ help: consider borrowing here: `&string`"#,
 
         assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
     }
+
+    /// ```
+    /// fn main() {
+    ///     let mut out = String::new();
+    ///     write!(out, "{}", 123);
+    /// }
+    /// ```
+    #[test]
+    fn macro_error_no_trait() {
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/macro-error-no-trait.json"),
+            true,
+        );
+        assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
+
+        let file = &diag.diagnostics.keys().nth(0).unwrap();
+        assert!(file.to_str().unwrap().ends_with("src/main.rs"), "Unexpected file {:?}", file);
+
+        let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
+        assert_eq!(diagnostic.0.source, Some("rustc".into()));
+        assert_eq!(diagnostic.0.range, Range {
+            start: Position::new(2, 4),
+            end: Position::new(2, 27),
+        });
+
+        let messages = diag.to_messages();
+        assert_eq!(
+            messages[0].0,
+            "no method named `write_fmt` found for type `std::string::String` \
+            in the current scope\n\n\
+            help: items from traits can only be used if the trait is in scope"
+        );
+
+        assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
+    }
 }
 
 /// Tests for creating suggestions from the compilers json output
@@ -656,7 +698,7 @@ help: consider borrowing here: `&string`"#,
 mod diagnostic_suggestion_test {
     use self::diagnostic_message_test::*;
     use super::*;
-    use ls_types;
+    use ls_types::Position;
 
     #[test]
     fn suggest_use_when_cannot_find_type() {
@@ -680,15 +722,11 @@ mod diagnostic_suggestion_test {
             "Line 15: Add `use std::collections::HashSet;\n`"
         );
 
-        let expected_position = ls_types::Position {
-            line: 14,
-            character: 0,
-        };
         assert_eq!(
             use_hash_set.range,
             Range {
-                start: expected_position,
-                end: expected_position,
+                start: Position::new(14, 0),
+                end: Position::new(14, 0),
             }
         );
     }
@@ -715,14 +753,8 @@ mod diagnostic_suggestion_test {
         assert_eq!(
             change_to_mut.range,
             Range {
-                start: ls_types::Position {
-                    line: 132,
-                    character: 12,
-                },
-                end: ls_types::Position {
-                    line: 132,
-                    character: 18,
-                },
+                start: Position::new(132, 12),
+                end: Position::new(132, 18),
             }
         );
     }
@@ -752,14 +784,35 @@ mod diagnostic_suggestion_test {
         assert_eq!(
             change_to_mut.range,
             Range {
-                start: ls_types::Position {
-                    line: 354,
-                    character: 34,
-                },
-                end: ls_types::Position {
-                    line: 354,
-                    character: 46,
-                },
+                start: Position::new(354, 34),
+                end: Position::new(354, 46),
+            }
+        );
+    }
+
+    #[test]
+    fn suggest_macro_error_no_trait() {
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/macro-error-no-trait.json"),
+            true,
+        );
+        let diagnostics = diag.diagnostics.values().nth(0).unwrap();
+
+        eprintln!("{:#?}", diagnostics);
+
+        let change_to_mut = diagnostics
+            .iter()
+            .flat_map(|(_, suggestions)| suggestions)
+            .find(|s| s.new_text == "use std::fmt::Write;\n\n")
+            .expect("`use std::fmt::Write;` not found");
+
+        assert_eq!(change_to_mut.label, "Line 1: Add `use std::fmt::Write;\n\n`");
+
+        assert_eq!(
+            change_to_mut.range,
+            Range {
+                start: Position::new(0, 0),
+                end: Position::new(0, 0),
             }
         );
     }
