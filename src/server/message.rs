@@ -13,12 +13,12 @@
 use actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
 use serde;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
 use serde_json;
 
-use lsp_data::{LSPNotification, LSPRequest};
 use actions::ActionContext;
+use lsp_data::{LSPNotification, LSPRequest};
 use server::io::Output;
 
 use std::fmt;
@@ -158,7 +158,7 @@ impl<A: LSPNotification> Notification<A> {
 impl<'a, A> From<&'a Request<A>> for RawMessage
 where
     A: LSPRequest,
-    <A as LSPRequest>::Params: serde::Serialize
+    <A as LSPRequest>::Params: serde::Serialize,
 {
     fn from(request: &Request<A>) -> RawMessage {
         let method = <A as LSPRequest>::METHOD.to_owned();
@@ -174,7 +174,7 @@ where
         RawMessage {
             method,
             id: Id::from(&request.id),
-            params
+            params,
         }
     }
 }
@@ -182,7 +182,7 @@ where
 impl<'a, A> From<&'a Notification<A>> for RawMessage
 where
     A: LSPNotification,
-    <A as LSPNotification>::Params: serde::Serialize
+    <A as LSPNotification>::Params: serde::Serialize,
 {
     fn from(notification: &Notification<A>) -> RawMessage {
         let method = <A as LSPNotification>::METHOD.to_owned();
@@ -198,7 +198,7 @@ where
         RawMessage {
             method,
             id: Id::Null,
-            params
+            params,
         }
     }
 }
@@ -229,7 +229,7 @@ where
         let raw: RawMessage = self.into();
         match serde_json::to_string(&raw) {
             Ok(val) => val.fmt(f),
-            Err(_) => Err(fmt::Error)
+            Err(_) => Err(fmt::Error),
         }
     }
 }
@@ -243,7 +243,7 @@ where
         let raw: RawMessage = self.into();
         match serde_json::to_string(&raw) {
             Ok(val) => val.fmt(f),
-            Err(_) => Err(fmt::Error)
+            Err(_) => Err(fmt::Error),
         }
     }
 }
@@ -305,10 +305,9 @@ impl RawMessage {
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
 
         // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
-        let id = match ls_command.get("id") {
-                Some(id) => serde_json::from_value(id.to_owned()).unwrap(),
-                _ => Id::Null,
-            };
+        let id = ls_command.get("id").map_or(Id::Null, |id| {
+            serde_json::from_value(id.to_owned()).unwrap()
+        });
 
         let method = match ls_command.get("method") {
             Some(method) => method,
@@ -326,8 +325,8 @@ impl RawMessage {
         // (Null being unused value of param by the JSON-RPC 2.0 spec)
         // to unify the type handling – now the parameter type implements Deserialize.
         let params = match ls_command.get("params").map(|p| p.to_owned()) {
-            Some(params @ serde_json::Value::Object(..)) |
-            Some(params @ serde_json::Value::Array(..)) => params,
+            Some(params @ serde_json::Value::Object(..))
+            | Some(params @ serde_json::Value::Array(..)) => params,
             // Null as input value is not allowed by JSON-RPC 2.0,
             // but including it for robustness
             Some(serde_json::Value::Null) | None => serde_json::Value::Null,
@@ -348,8 +347,7 @@ impl Serialize for RawMessage {
         };
         let serialize_params = self.params.is_array() || self.params.is_object();
 
-        let len = 2 + if serialize_id { 1 } else { 0 }
-                    + if serialize_params { 1 } else { 0 };
+        let len = 2 + if serialize_id { 1 } else { 0 } + if serialize_params { 1 } else { 0 };
         let mut msg = serializer.serialize_struct("RawMessage", len)?;
         msg.serialize_field("jsonrpc", "2.0")?;
         msg.serialize_field("method", &self.method)?;
@@ -401,7 +399,10 @@ mod test {
             // Internally missing parameters are represented as null
             params: serde_json::Value::Null,
         };
-        assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
+        assert_eq!(
+            expected_msg,
+            RawMessage::try_parse(&raw_json).unwrap().unwrap()
+        );
     }
 
     #[test]
@@ -418,13 +419,16 @@ mod test {
             // Internally missing parameters are represented as null
             params: serde_json::Value::Null,
         };
-        assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
+        assert_eq!(
+            expected_msg,
+            RawMessage::try_parse(&raw_json).unwrap().unwrap()
+        );
     }
 
     #[test]
     fn raw_message_with_string_id_parses_into_request() {
         #[derive(Debug)]
-        pub enum DummyRequest { }
+        pub enum DummyRequest {}
         impl LSPRequest for DummyRequest {
             type Params = ();
             type Result = ();
@@ -437,14 +441,16 @@ mod test {
             params: serde_json::Value::Null,
         };
 
-        let request: Request<DummyRequest> = raw_msg.parse_as_request().expect("RawMessage with numeric id should parse into request");
+        let request: Request<DummyRequest> = raw_msg
+            .parse_as_request()
+            .expect("RawMessage with string id should parse into request");
         assert_eq!(RequestId::Str("abc".to_owned()), request.id)
     }
 
     #[test]
     fn serialize_message_no_params() {
         #[derive(Debug)]
-        pub enum DummyNotification { }
+        pub enum DummyNotification {}
 
         impl LSPNotification for DummyNotification {
             type Params = ();
@@ -466,7 +472,7 @@ mod test {
     #[test]
     fn serialize_message_empty_params() {
         #[derive(Debug)]
-        pub enum DummyNotification { }
+        pub enum DummyNotification {}
         #[derive(Serialize)]
         pub struct EmptyParams {}
 
@@ -486,6 +492,8 @@ mod test {
     fn deserialize_message_empty_params() {
         let msg = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
         let parsed = RawMessage::try_parse(msg).unwrap().unwrap();
-        parsed.parse_as_notification::<notifications::Initialized>().unwrap();
+        parsed
+            .parse_as_notification::<notifications::Initialized>()
+            .unwrap();
     }
 }
