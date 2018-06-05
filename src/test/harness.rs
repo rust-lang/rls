@@ -169,10 +169,10 @@ impl ls_server::Output for RecordOutput {
         records.push(output);
     }
 
-    fn provide_id(&self) -> u32 {
+    fn provide_id(&self) -> ls_server::RequestId {
         let mut id = self.output_id.lock().unwrap();
         *id += 1;
-        *id
+        ls_server::RequestId::Num(*id as u64)
     }
 }
 

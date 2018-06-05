@@ -33,7 +33,7 @@ use server::io::{StdioMsgReader, StdioOutput};
 use server::message::RawMessage;
 pub use server::message::{
     Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
-    Response, ResponseError
+    Response, ResponseError, RequestId
 };
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -65,7 +65,7 @@ impl BlockingRequestAction for ShutdownRequest {
     type Response = Ack;
 
     fn handle<O: Output>(
-        _id: usize,
+        _id: RequestId,
         _params: Self::Params,
         ctx: &mut ActionContext,
         _out: O,
@@ -96,7 +96,7 @@ impl BlockingRequestAction for InitializeRequest {
     type Response = NoResponse;
 
     fn handle<O: Output>(
-        id: usize,
+        id: RequestId,
         params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
@@ -198,7 +198,7 @@ impl<O: Output> LsService<O> {
                         // block until all nonblocking requests have been handled ensuring ordering
                         self.dispatcher.await_all_dispatched();
 
-                        let req_id = request.id;
+                        let req_id = request.id.clone();
                         match request.blocking_dispatch(&mut self.ctx, &self.output) {
                             Ok(res) => res.send(req_id, &self.output),
                             Err(ResponseError::Empty) => {
@@ -329,7 +329,7 @@ impl<O: Output> LsService<O> {
 
         if let Err(e) = self.dispatch_message(&raw_message) {
             error!("dispatch error, {:?}", e);
-            self.output.failure(raw_message.id.unwrap_or(Id::Null), e);
+            self.output.failure(raw_message.id, e);
             return ServerStateChange::Break;
         }
 
