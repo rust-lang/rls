@@ -26,7 +26,7 @@ rayon = "1"
 rls-analysis = "0.13"
 rls-blacklist = "0.1.2"
 rls-data = { version = "0.16", features = ["serialize-serde"] }
-rls-rustc = "0.3.0"
+rls-rustc = "0.4.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = { version = "0.4.5", features = ["racer-impls"] }
 rustfmt-nightly = { git = "https://github.com/rust-lang-nursery/rustfmt", rev = "f3906267" }

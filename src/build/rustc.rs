@@ -92,7 +92,7 @@ pub fn rustc(
     };
 
     let analysis = Arc::new(Mutex::new(None));
-    let mut controller = RlsRustcCalls::new(Arc::clone(&analysis), clippy_pref);
+    let controller = Box::new(RlsRustcCalls::new(Arc::clone(&analysis), clippy_pref));
 
     // rustc explicitly panics in run_compiler() on compile failure, regardless
     // if it encounters an ICE (internal compiler error) or not.
@@ -103,7 +103,7 @@ pub fn rustc(
             // Replace stderr so we catch most errors.
             run_compiler(
                 &args,
-                &mut controller,
+                controller,
                 Some(Box::new(ReplacedFileLoader::new(changed))),
                 Some(Box::new(BufWriter(buf))),
             )
@@ -131,7 +131,7 @@ pub fn rustc(
 // controller, but use our own callback for save-analysis.
 #[derive(Clone)]
 struct RlsRustcCalls {
-    default_calls: RustcDefaultCalls,
+    default_calls: Box<RustcDefaultCalls>,
     analysis: Arc<Mutex<Option<Analysis>>>,
     clippy_preference: ClippyPreference,
 }
@@ -139,7 +139,7 @@ struct RlsRustcCalls {
 impl RlsRustcCalls {
     fn new(analysis: Arc<Mutex<Option<Analysis>>>, clippy_preference: ClippyPreference) -> RlsRustcCalls {
         RlsRustcCalls {
-            default_calls: RustcDefaultCalls,
+            default_calls: Box::new(RustcDefaultCalls),
             analysis,
             clippy_preference,
         }
@@ -228,13 +228,13 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
     }
 
     fn build_controller(
-        &mut self,
+        self: Box<Self>,
         sess: &Session,
         matches: &getopts::Matches,
     ) -> CompileController<'a> {
+        let analysis = self.analysis.clone();
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
-        let analysis = self.analysis.clone();
 
         #[cfg(feature = "clippy")] {
             if self.clippy_preference != ClippyPreference::Off {
