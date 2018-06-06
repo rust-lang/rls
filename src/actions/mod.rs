@@ -94,6 +94,7 @@ impl ActionContext {
                     uninit.config.clone(),
                     client_capabilities,
                     current_project,
+                    uninit.pid,
                 );
                 ctx.init(init_options, out);
                 ctx
@@ -109,6 +110,13 @@ impl ActionContext {
         match *self {
             ActionContext::Uninit(_) => Err(()),
             ActionContext::Init(ref ctx) => Ok(ctx.clone()),
+        }
+    }
+
+    pub fn pid(&self) -> u32 {
+        match self {
+            ActionContext::Uninit(ctx) => ctx.pid,
+            ActionContext::Init(ctx) => ctx.pid,
         }
     }
 }
@@ -144,6 +152,7 @@ pub struct InitActionContext {
     /// Whether the server is performing cleanup (after having received
     /// 'shutdown' request), just before final 'exit' request.
     pub shut_down: Arc<AtomicBool>,
+    pub pid: u32,
 }
 
 /// Persistent context shared across all requests and actions before the RLS has
@@ -152,6 +161,7 @@ pub struct UninitActionContext {
     analysis: Arc<AnalysisHost>,
     vfs: Arc<Vfs>,
     config: Arc<Mutex<Config>>,
+    pid: u32,
 }
 
 impl UninitActionContext {
@@ -164,6 +174,7 @@ impl UninitActionContext {
             analysis,
             vfs,
             config,
+            pid: ::std::process::id(),
         }
     }
 }
@@ -175,6 +186,7 @@ impl InitActionContext {
         config: Arc<Mutex<Config>>,
         client_capabilities: lsp_data::ClientCapabilities,
         current_project: PathBuf,
+        pid: u32,
     ) -> InitActionContext {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
         let analysis_queue = Arc::new(AnalysisQueue::init());
@@ -192,6 +204,7 @@ impl InitActionContext {
             prev_changes: Arc::new(Mutex::new(HashMap::new())),
             client_capabilities: Arc::new(client_capabilities),
             shut_down: Arc::new(AtomicBool::new(false)),
+            pid,
         }
     }
 

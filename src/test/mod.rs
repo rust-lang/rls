@@ -1366,7 +1366,7 @@ fn test_deglob() {
         request::<requests::ExecuteCommand>(
             200,
             ExecuteCommandParams {
-                command: "rls.deglobImports".into(),
+                command: format!("rls.deglobImports-{}", ::std::process::id()),
                 arguments: vec![
                     serde_json::to_value(&requests::DeglobResult {
                         location: Location {
@@ -1393,7 +1393,7 @@ fn test_deglob() {
         request::<requests::ExecuteCommand>(
             1200,
             ExecuteCommandParams {
-                command: "rls.deglobImports".into(),
+                command: format!("rls.deglobImports-{}", ::std::process::id()),
                 arguments: vec![
                     serde_json::to_value(&requests::DeglobResult {
                         location: Location {
@@ -1423,7 +1423,7 @@ fn test_deglob() {
     expect_messages(
         results.clone(),
         &[
-            ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports"),
+            ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports-"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("deglob"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("deglob"),
@@ -1442,7 +1442,7 @@ fn test_deglob() {
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 100);
         assert_eq!(response["result"][0]["title"], "Deglob import");
-        assert_eq!(response["result"][0]["command"], "rls.deglobImports");
+        assert_eq!(response["result"][0]["command"], &*format!("rls.deglobImports-{}", ::std::process::id()));
         let deglob = &response["result"][0]["arguments"][0];
         assert!(
             deglob["location"]["uri"]
@@ -1506,7 +1506,7 @@ fn test_deglob() {
         &[
             ExpectedMessage::new(Some(1100))
                 .expect_contains(r#""title":"Deglob imports""#)
-                .expect_contains(r#""command":"rls.deglobImports""#)
+                .expect_contains(r#""command":"rls.deglobImports-"#)
                 .expect_contains(r#"{"location":{"range":{"end":{"character":15,"line":15},"start":{"character":14,"line":15}},"uri":"#)
                 .expect_contains(r#"deglob/src/main.rs"}"#)
                 .expect_contains(r#""new_text":"size_of""#)

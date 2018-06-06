@@ -118,7 +118,7 @@ impl BlockingRequestAction for InitializeRequest {
         }
 
         let result = InitializeResult {
-            capabilities: server_caps(),
+            capabilities: server_caps(ctx),
         };
 
         // send response early before `ctx.init` to enforce
@@ -347,7 +347,7 @@ pub enum ServerStateChange {
     Break,
 }
 
-fn server_caps() -> ServerCapabilities {
+fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
     ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(
             TextDocumentSyncKind::Incremental,
@@ -365,9 +365,12 @@ fn server_caps() -> ServerCapabilities {
         code_action_provider: Some(true),
         document_formatting_provider: Some(true),
         execute_command_provider: Some(ExecuteCommandOptions {
+            // We append our pid to the command so that if there are multiple
+            // instances of the RLS then they will have unique names for the
+            // commands.
             commands: vec![
-                "rls.applySuggestion".to_owned(),
-                "rls.deglobImports".to_owned(),
+                format!("rls.applySuggestion-{}", ctx.pid()),
+                format!("rls.deglobImports-{}", ctx.pid()),
             ],
         }),
         rename_provider: Some(true),

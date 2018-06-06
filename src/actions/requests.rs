@@ -478,20 +478,16 @@ impl RequestAction for ExecuteCommand {
         ctx: InitActionContext,
         params: ExecuteCommandParams,
     ) -> Result<Self::Response, ResponseError> {
-        match &*params.command {
-            "rls.applySuggestion" => {
-                apply_suggestion(&params.arguments).map(ExecuteCommandResponse::ApplyEdit)
-            }
-            "rls.deglobImports" => {
-                apply_deglobs(params.arguments, &ctx).map(ExecuteCommandResponse::ApplyEdit)
-            }
-            c => {
-                debug!("Unknown command: {}", c);
-                Err(ResponseError::Message(
-                    ErrorCode::MethodNotFound,
-                    "Unknown command".to_owned(),
-                ))
-            }
+        if params.command.starts_with("rls.applySuggestion") {
+            apply_suggestion(&params.arguments).map(ExecuteCommandResponse::ApplyEdit)
+        } else if params.command.starts_with("rls.deglobImports") {
+            apply_deglobs(params.arguments, &ctx).map(ExecuteCommandResponse::ApplyEdit)
+        } else {
+            debug!("Unknown command: {}", params.command);
+            Err(ResponseError::Message(
+                ErrorCode::MethodNotFound,
+                "Unknown command".to_owned(),
+            ))
         }
     }
 }
@@ -567,7 +563,7 @@ fn make_suggestion_fix_actions(
             let new_text = serde_json::to_value(&s.new_text).unwrap();
             let cmd = Command {
                 title: s.label.clone(),
-                command: "rls.applySuggestion".to_owned(),
+                command: format!("rls.applySuggestion-{}", ctx.pid),
                 arguments: Some(vec![span, new_text]),
             };
             code_actions_result.push(cmd);
@@ -629,7 +625,7 @@ fn make_deglob_actions(
                     "Deglob import{}",
                     if deglob_results.len() > 1 { "s" } else { "" }
                 ),
-                command: "rls.deglobImports".to_owned(),
+                command: format!("rls.deglobImports-{}", ctx.pid),
                 arguments: Some(deglob_results),
             };
             code_actions_result.push(cmd);
