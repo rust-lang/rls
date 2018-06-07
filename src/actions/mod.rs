@@ -26,7 +26,7 @@ use actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
 use build::*;
 use lsp_data;
 use lsp_data::*;
-use server::Output;
+use server::Sender;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -79,12 +79,12 @@ impl ActionContext {
     }
 
     /// Initialize this context, returns `Err(())` if it has already been initialized.
-    pub fn init<O: Output>(
+    pub fn init<S: Sender>(
         &mut self,
         current_project: PathBuf,
         init_options: &InitializationOptions,
         client_capabilities: lsp_data::ClientCapabilities,
-        out: &O,
+        sender: &S,
     ) -> Result<(), ()> {
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
@@ -96,7 +96,7 @@ impl ActionContext {
                     current_project,
                     uninit.pid,
                 );
-                ctx.init(init_options, out);
+                ctx.init(init_options, sender);
                 ctx
             }
             ActionContext::Init(_) => return Err(()),
@@ -212,7 +212,7 @@ impl InitActionContext {
         FmtConfig::from(&self.current_project)
     }
 
-    fn init<O: Output>(&self, init_options: &InitializationOptions, out: &O) {
+    fn init<S: Sender>(&self, init_options: &InitializationOptions, sender: &S) {
         let current_project = self.current_project.clone();
         let config = self.config.clone();
         // Spawn another thread since we're shelling out to Cargo and this can
@@ -228,11 +228,11 @@ impl InitActionContext {
         });
 
         if !init_options.omit_init_build {
-            self.build_current_project(BuildPriority::Cargo, out);
+            self.build_current_project(BuildPriority::Cargo, sender);
         }
     }
 
-    fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: &O) {
+    fn build<S: Sender>(&self, project_path: &Path, priority: BuildPriority, sender: &S) {
 
         let pbh = {
             let config = self.config.lock().unwrap();
@@ -246,20 +246,20 @@ impl InitActionContext {
                 shown_cargo_error: self.shown_cargo_error.clone(),
                 active_build_count: self.active_build_count.clone(),
                 use_black_list: config.use_crate_blacklist,
-                notifier: Box::new(BuildDiagnosticsNotifier::new(out.clone())),
+                notifier: Box::new(BuildDiagnosticsNotifier::new(sender.clone())),
                 blocked_threads: vec![],
             }
         };
 
-        let notifier = Box::new(BuildProgressNotifier::new(out.clone()));
+        let notifier = Box::new(BuildProgressNotifier::new(sender.clone()));
 
         self.active_build_count.fetch_add(1, Ordering::SeqCst);
         self.build_queue
             .request_build(project_path, priority, notifier, pbh);
     }
 
-    fn build_current_project<O: Output>(&self, priority: BuildPriority, out: &O) {
-        self.build(&self.current_project, priority, out);
+    fn build_current_project<S: Sender>(&self, priority: BuildPriority, sender: &S) {
+        self.build(&self.current_project, priority, sender);
     }
 
     /// Block until any builds and analysis tasks are complete.

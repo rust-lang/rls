@@ -23,7 +23,6 @@ use build::*;
 use lsp_data::*;
 use lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
 use ls_types::notification::ShowMessage;
-use server::Request;
 
 pub use lsp_data::notification::{
     Initialized,
@@ -35,17 +34,16 @@ pub use lsp_data::notification::{
     Cancel,
 };
 
-use server::{BlockingNotificationAction, Notification, Output};
+use server::{BlockingNotificationAction, Notification, Sender};
 
 use std::thread;
 
 impl BlockingNotificationAction for Initialized {
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
-    fn handle<O: Output>(_params: Self::Params, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
+    fn handle<S: Sender>(_params: Self::Params, ctx: &mut InitActionContext, sender: S) -> Result<(), ()> {
         const WATCH_ID: &str = "rls-watch";
 
-        let id = out.provide_id();
         let params = RegistrationParams {
             registrations: vec![
                 Registration {
@@ -55,15 +53,14 @@ impl BlockingNotificationAction for Initialized {
                 },
             ],
         };
+        sender.send_request::<RegisterCapability>(params);
 
-        let request = Request::<RegisterCapability>::new(id, params);
-        out.request(request);
         Ok(())
     }
 }
 
 impl BlockingNotificationAction for DidOpenTextDocument {
-    fn handle<O: Output>(params: Self::Params, ctx: &mut InitActionContext, _out: O) -> Result<(), ()> {
+    fn handle<S: Sender>(params: Self::Params, ctx: &mut InitActionContext, _sender: S) -> Result<(), ()> {
         trace!("on_open: {:?}", params.text_document.uri);
         let file_path = parse_file_path!(&params.text_document.uri, "on_open")?;
         ctx.reset_change_version(&file_path);
@@ -73,7 +70,7 @@ impl BlockingNotificationAction for DidOpenTextDocument {
 }
 
 impl BlockingNotificationAction for DidChangeTextDocument {
-    fn handle<O: Output>(params: Self::Params, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
+    fn handle<S: Sender>(params: Self::Params, ctx: &mut InitActionContext, sender: S) -> Result<(), ()> {
         trace!(
             "on_change: {:?}, thread: {:?}",
             params,
@@ -92,7 +89,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
             VersionOrdering::Ok => {},
             VersionOrdering::Duplicate => return Ok(()),
             VersionOrdering::OutOfOrder => {
-                out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+                sender.notify(Notification::<ShowMessage>::new(ShowMessageParams {
                     typ: MessageType::Warning,
                     message: format!("Out of order change in {:?}", file_path),
                 }));
@@ -126,17 +123,17 @@ impl BlockingNotificationAction for DidChangeTextDocument {
         ctx.build_queue.mark_file_dirty(file_path, version_num);
 
         if !ctx.config.lock().unwrap().build_on_save {
-            ctx.build_current_project(BuildPriority::Normal, &out);
+            ctx.build_current_project(BuildPriority::Normal, &sender);
         }
         Ok(())
     }
 }
 
 impl BlockingNotificationAction for Cancel {
-    fn handle<O: Output>(
+    fn handle<S: Sender>(
         _params: CancelParams,
         _ctx: &mut InitActionContext,
-        _out: O,
+        _sender: S,
     ) -> Result<(), ()> {
         // Nothing to do.
         Ok(())
@@ -144,10 +141,10 @@ impl BlockingNotificationAction for Cancel {
 }
 
 impl BlockingNotificationAction for DidChangeConfiguration {
-    fn handle<O: Output>(
+    fn handle<S: Sender>(
         params: DidChangeConfigurationParams,
         ctx: &mut InitActionContext,
-        out: O,
+        sender: S,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
         let config = params
@@ -204,11 +201,10 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         // for Cargo, we'll notice them. But if nothing relevant changes
         // then we don't do unnecessary building (i.e., we don't delete
         // artifacts on disk).
-        ctx.build_current_project(BuildPriority::Cargo, &out);
+        ctx.build_current_project(BuildPriority::Cargo, &sender);
 
         const RANGE_FORMATTING_ID: &str = "rls-range-formatting";
         // FIXME should handle the response
-        let id = out.provide_id();
         if unstable_features {
             let params = RegistrationParams {
                     registrations: vec![
@@ -220,8 +216,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
                     ],
             };
 
-            let request = Request::<RegisterCapability>::new(id, params);
-            out.request(request);
+            sender.send_request::<RegisterCapability>(params);
         } else {
             let params = UnregistrationParams {
                 unregisterations: vec![
@@ -232,25 +227,24 @@ impl BlockingNotificationAction for DidChangeConfiguration {
                 ],
             };
 
-            let request = Request::<UnregisterCapability>::new(id, params);
-            out.request(request);
+            sender.send_request::<UnregisterCapability>(params);
         }
         Ok(())
     }
 }
 
 impl BlockingNotificationAction for DidSaveTextDocument {
-    fn handle<O: Output>(
+    fn handle<S: Sender>(
         params: DidSaveTextDocumentParams,
         ctx: &mut InitActionContext,
-        out: O,
+        sender: S,
     ) -> Result<(), ()> {
         let file_path = parse_file_path!(&params.text_document.uri, "on_save")?;
 
         ctx.vfs.file_saved(&file_path).unwrap();
 
         if ctx.config.lock().unwrap().build_on_save {
-            ctx.build_current_project(BuildPriority::Normal, &out);
+            ctx.build_current_project(BuildPriority::Normal, &sender);
         }
 
         Ok(())
@@ -258,17 +252,17 @@ impl BlockingNotificationAction for DidSaveTextDocument {
 }
 
 impl BlockingNotificationAction for DidChangeWatchedFiles {
-    fn handle<O: Output>(
+    fn handle<S: Sender>(
         params: DidChangeWatchedFilesParams,
         ctx: &mut InitActionContext,
-        out: O,
+        sender: S,
     ) -> Result<(), ()> {
         trace!("on_cargo_change: thread: {:?}", thread::current().id());
 
         let file_watch = FileWatch::new(&ctx);
 
         if params.changes.iter().any(|c| file_watch.is_relevant(c)) {
-            ctx.build_current_project(BuildPriority::Cargo, &out);
+            ctx.build_current_project(BuildPriority::Cargo, &sender);
         }
 
         Ok(())

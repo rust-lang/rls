@@ -11,7 +11,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use lsp_data::{ProgressParams, PublishDiagnosticsParams, Progress, ShowMessageParams, MessageType};
-use server::{Output, Notification};
+use server::{Sender, Notification};
 use ls_types::notification::{PublishDiagnostics, ShowMessage};
 
 /// Trait for communication of build progress back to the client.
@@ -59,26 +59,26 @@ fn new_progress_params(title: String) -> ProgressParams {
 
 /// Notifier of progress for the build (window/progress notifications).
 /// the same instance is used for the entirety of one single build.
-pub struct BuildProgressNotifier<O: Output> {
-    out: O,
+pub struct BuildProgressNotifier<S: Sender> {
+    sender: S,
     // these params are used as a template and are cloned for each
     // message that is actually notified.
     progress_params: ProgressParams,
 }
 
-impl<O: Output> BuildProgressNotifier<O> {
-    pub fn new(out: O) -> BuildProgressNotifier<O> {
+impl<S: Sender> BuildProgressNotifier<S> {
+    pub fn new(sender: S) -> BuildProgressNotifier<S> {
         BuildProgressNotifier {
-            out,
+            sender,
             progress_params: new_progress_params("Building".into()),
         }
     }
 }
 
-impl<O: Output> ProgressNotifier for BuildProgressNotifier<O> {
+impl<S: Sender> ProgressNotifier for BuildProgressNotifier<S> {
     fn notify_begin_progress(&self) {
         let params = self.progress_params.clone();
-        self.out.notify(Notification::<Progress>::new(params));
+        self.sender.notify(Notification::<Progress>::new(params));
     }
     fn notify_progress(&self, update: ProgressUpdate) {
         let mut params = self.progress_params.clone();
@@ -86,28 +86,28 @@ impl<O: Output> ProgressNotifier for BuildProgressNotifier<O> {
             ProgressUpdate::Message(s) => params.message = Some(s),
             ProgressUpdate::Percentage(p) => params.percentage = Some(p),
         }
-        self.out.notify(Notification::<Progress>::new(params));
+        self.sender.notify(Notification::<Progress>::new(params));
     }
     fn notify_end_progress(&self) {
         let mut params = self.progress_params.clone();
         params.done = Some(true);
-        self.out.notify(Notification::<Progress>::new(params));
+        self.sender.notify(Notification::<Progress>::new(params));
     }
 }
 
 
 /// Notifier of diagnostics after the build has completed.
-pub struct BuildDiagnosticsNotifier<O: Output> {
-    out: O,
+pub struct BuildDiagnosticsNotifier<S: Sender> {
+    sender: S,
     // these params are used as a template and are cloned for each
     // message that is actually notified.
     progress_params: ProgressParams,
 }
 
-impl<O: Output> BuildDiagnosticsNotifier<O> {
-    pub fn new(out: O) -> BuildDiagnosticsNotifier<O> {
+impl<S: Sender> BuildDiagnosticsNotifier<S> {
+    pub fn new(sender: S) -> BuildDiagnosticsNotifier<S> {
         BuildDiagnosticsNotifier {
-            out,
+            sender,
             // We emit diagnostics then index, since emitting diagnostics is really
             // quick and always has a message, "indexing" is usually a more useful
             // title.
@@ -116,16 +116,16 @@ impl<O: Output> BuildDiagnosticsNotifier<O> {
     }
 }
 
-impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
+impl<S: Sender> DiagnosticsNotifier for BuildDiagnosticsNotifier<S> {
     fn notify_begin_diagnostics(&self) {
         let params = self.progress_params.clone();
-        self.out.notify(Notification::<Progress>::new(params));
+        self.sender.notify(Notification::<Progress>::new(params));
     }
     fn notify_publish_diagnostics(&self, params: PublishDiagnosticsParams) {
-        self.out.notify(Notification::<PublishDiagnostics>::new(params));
+        self.sender.notify(Notification::<PublishDiagnostics>::new(params));
     }
     fn notify_error_diagnostics(&self, message: String) {
-        self.out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+        self.sender.notify(Notification::<ShowMessage>::new(ShowMessageParams {
              typ: MessageType::Error,
              message: message.to_owned(),
          }));
@@ -133,6 +133,6 @@ impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
     fn notify_end_diagnostics(&self) {
         let mut params = self.progress_params.clone();
         params.done = Some(true);
-        self.out.notify(Notification::<Progress>::new(params));
+        self.sender.notify(Notification::<Progress>::new(params));
     }
 }
