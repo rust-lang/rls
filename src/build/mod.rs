@@ -12,8 +12,8 @@
 
 pub use self::cargo::make_cargo_config;
 
-use actions::progress::{ProgressNotifier, ProgressUpdate};
 use actions::post_build::PostBuildHandler;
+use actions::progress::{ProgressNotifier, ProgressUpdate};
 use cargo::util::important_paths;
 use config::Config;
 use data::Analysis;
@@ -26,16 +26,16 @@ use std::ffi::OsString;
 use std::io::{self, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-pub mod environment;
 mod cargo;
-mod rustc;
+pub mod environment;
 mod plan;
+mod rustc;
 
 use self::plan::{Plan as BuildPlan, WorkStatus};
 
@@ -260,7 +260,7 @@ impl BuildQueue {
         new_build_dir: &Path,
         mut priority: BuildPriority,
         notifier: Box<ProgressNotifier>,
-        pbh: PostBuildHandler
+        pbh: PostBuildHandler,
     ) {
         trace!("request_build {:?}", priority);
         let needs_compilation_ctx_from_cargo = {
@@ -540,7 +540,8 @@ impl Internals {
         let work = {
             let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
             let mut cx = self.compilation_cx.lock().unwrap();
-            let manifest_path = important_paths::find_root_manifest_for_wd(cx.build_dir.as_ref().unwrap());
+            let manifest_path =
+                important_paths::find_root_manifest_for_wd(cx.build_dir.as_ref().unwrap());
             let manifest_path = match manifest_path {
                 Ok(mp) => mp,
                 Err(e) => {
@@ -548,7 +549,8 @@ impl Internals {
                     return BuildResult::Err(msg, None);
                 }
             };
-            cx.build_plan.prepare_work(&manifest_path, &modified, needs_to_run_cargo)
+            cx.build_plan
+                .prepare_work(&manifest_path, &modified, needs_to_run_cargo)
         };
         match work {
             // Cargo performs the full build and returns

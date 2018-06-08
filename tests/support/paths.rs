@@ -8,15 +8,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::env;
 use std::cell::Cell;
+use std::env;
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::sync::{Once, ONCE_INIT};
-use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
-static RLS_INTEGRATION_TEST_DIR : &'static str = "rlsit";
+static RLS_INTEGRATION_TEST_DIR: &'static str = "rlsit";
 static NEXT_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 
 thread_local!(static TASK_ID: usize = NEXT_ID.fetch_add(1, Ordering::SeqCst));
@@ -29,7 +29,7 @@ fn init() {
     });
     LOCAL_INIT.with(|i| {
         if i.get() {
-            return
+            return;
         }
         i.set(true);
         root().rm_rf();
@@ -58,7 +58,6 @@ pub fn root() -> PathBuf {
     global_root().join(&TASK_ID.with(|my_id| format!("t{}", my_id)))
 }
 
-
 pub trait TestPathExt {
     fn rm_rf(&self);
     fn mkdir_p(&self);
@@ -70,7 +69,7 @@ impl TestPathExt for Path {
      */
     fn rm_rf(&self) {
         if !self.exists() {
-            return
+            return;
         }
 
         for file in fs::read_dir(self).unwrap() {
@@ -89,20 +88,18 @@ impl TestPathExt for Path {
     }
 
     fn mkdir_p(&self) {
-        fs::create_dir_all(self).unwrap_or_else(|e| {
-            panic!("failed to mkdir_p {}: {}", self.display(), e)
-        })
+        fs::create_dir_all(self)
+            .unwrap_or_else(|e| panic!("failed to mkdir_p {}: {}", self.display(), e))
     }
-
 }
 
 fn do_op<F>(path: &Path, desc: &str, mut f: F)
-    where F: FnMut(&Path) -> io::Result<()>
+where
+    F: FnMut(&Path) -> io::Result<()>,
 {
     match f(path) {
         Ok(()) => {}
-        Err(ref e) if cfg!(windows) &&
-                      e.kind() == ErrorKind::PermissionDenied => {
+        Err(ref e) if cfg!(windows) && e.kind() == ErrorKind::PermissionDenied => {
             let mut p = path.metadata().unwrap().permissions();
             p.set_readonly(false);
             fs::set_permissions(path, p).unwrap();

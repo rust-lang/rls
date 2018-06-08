@@ -11,17 +11,17 @@
 //! Configuration for the workspace that RLS is operating within and options for
 //! tweaking the RLS's behavior itself.
 
-use std::marker::PhantomData;
-use std::str::FromStr;
-use std::fmt;
 use std::env;
+use std::fmt;
 use std::fmt::Debug;
 use std::io::sink;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use cargo::CargoResult;
-use cargo::util::{homedir, important_paths, Config as CargoConfig};
 use cargo::core::{Shell, Workspace};
+use cargo::util::{homedir, important_paths, Config as CargoConfig};
+use cargo::CargoResult;
 
 use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
@@ -211,9 +211,7 @@ impl Config {
 
     /// Is this config incomplete, and needs additional values to be inferred?
     pub fn needs_inference(&self) -> bool {
-        self.build_bin.is_none() ||
-        self.build_lib.is_none() ||
-        self.target_dir.is_none()
+        self.build_bin.is_none() || self.build_lib.is_none() || self.target_dir.is_none()
     }
 
     /// Tries to auto-detect certain option values if they were unspecified.
@@ -227,11 +225,7 @@ impl Config {
         let shell = Shell::from_write(Box::new(sink()));
         let cwd = env::current_dir().expect("failed to get cwd");
 
-        let config = CargoConfig::new(
-        shell,
-        cwd.to_path_buf(),
-        homedir(project_dir).unwrap(),
-        );
+        let config = CargoConfig::new(shell, cwd.to_path_buf(), homedir(project_dir).unwrap());
 
         let ws = Workspace::new(&manifest_path, &config)?;
 
@@ -243,7 +237,7 @@ impl Config {
             Inferrable::Specified(Some(ref mut path)) if path.is_relative() => {
                 *path = project_dir.join(&path);
             }
-            _ => {},
+            _ => {}
         }
         if self.target_dir.as_ref().is_none() {
             let target_dir = ws.target_dir().clone().into_path_unlocked();
@@ -363,8 +357,14 @@ impl Default for FmtConfig {
 
 #[test]
 fn clippy_preference_from_str() {
-    assert_eq!(ClippyPreference::from_str("Optin"), Ok(ClippyPreference::OptIn));
+    assert_eq!(
+        ClippyPreference::from_str("Optin"),
+        Ok(ClippyPreference::OptIn)
+    );
     assert_eq!(ClippyPreference::from_str("OFF"), Ok(ClippyPreference::Off));
-    assert_eq!(ClippyPreference::from_str("opt-in"), Ok(ClippyPreference::OptIn));
+    assert_eq!(
+        ClippyPreference::from_str("opt-in"),
+        Ok(ClippyPreference::OptIn)
+    );
     assert_eq!(ClippyPreference::from_str("on"), Ok(ClippyPreference::On));
 }

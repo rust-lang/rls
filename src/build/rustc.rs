@@ -8,32 +8,32 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate getopts;
-extern crate rustc;
-extern crate rustc_driver;
-extern crate rustc_plugin;
-extern crate rustc_errors as errors;
-extern crate rustc_resolve;
-extern crate rustc_save_analysis;
-extern crate rustc_codegen_utils;
 #[cfg(feature = "clippy")]
 extern crate clippy_lints;
+extern crate getopts;
+extern crate rustc;
+extern crate rustc_codegen_utils;
+extern crate rustc_driver;
+extern crate rustc_errors as errors;
+extern crate rustc_plugin;
+extern crate rustc_resolve;
+extern crate rustc_save_analysis;
 extern crate syntax;
 
 use self::rustc::middle::cstore::CrateStore;
-use self::rustc::session::Session;
 use self::rustc::session::config::{self, ErrorOutputType, Input};
+use self::rustc::session::Session;
+use self::rustc_codegen_utils::codegen_backend::CodegenBackend;
+use self::rustc_driver::driver::CompileController;
 use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
-use self::rustc_driver::driver::{CompileController};
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
-use self::rustc_codegen_utils::codegen_backend::CodegenBackend;
 use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
-use config::{ClippyPreference, Config};
-use build::{BufWriter, BuildResult};
 use build::environment::{Environment, EnvironmentLockFacade};
+use build::{BufWriter, BuildResult};
+use config::{ClippyPreference, Config};
 use data::Analysis;
 use vfs::Vfs;
 
@@ -117,9 +117,13 @@ pub fn rustc(
     let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();
 
     let analysis = analysis.lock().unwrap().clone();
-    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or_else(Vec::new);
+    let analysis = analysis
+        .map(|analysis| vec![analysis])
+        .unwrap_or_else(Vec::new);
 
-    let cwd = cwd.unwrap_or_else(|| restore_env.get_old_cwd()).to_path_buf();
+    let cwd = cwd
+        .unwrap_or_else(|| restore_env.get_old_cwd())
+        .to_path_buf();
 
     match result {
         Ok(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, true),
@@ -137,7 +141,10 @@ struct RlsRustcCalls {
 }
 
 impl RlsRustcCalls {
-    fn new(analysis: Arc<Mutex<Option<Analysis>>>, clippy_preference: ClippyPreference) -> RlsRustcCalls {
+    fn new(
+        analysis: Arc<Mutex<Option<Analysis>>>,
+        clippy_preference: ClippyPreference,
+    ) -> RlsRustcCalls {
         RlsRustcCalls {
             default_calls: Box::new(RustcDefaultCalls),
             analysis,
@@ -155,7 +162,7 @@ fn clippy_after_parse_callback(state: &mut self::rustc_driver::driver::CompileSt
             .as_ref()
             .expect(
                 "at this compilation stage \
-                    the crate must be parsed",
+                 the crate must be parsed",
             )
             .span,
     );
@@ -236,7 +243,8 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
 
-        #[cfg(feature = "clippy")] {
+        #[cfg(feature = "clippy")]
+        {
             if self.clippy_preference != ClippyPreference::Off {
                 result.after_parse.callback = Box::new(clippy_after_parse_callback);
             }

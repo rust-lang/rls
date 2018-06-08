@@ -15,7 +15,7 @@
 use actions::{notifications, requests, ActionContext};
 use analysis::AnalysisHost;
 use config::Config;
-use jsonrpc_core::{self as jsonrpc, Id, types::error::ErrorCode};
+use jsonrpc_core::{self as jsonrpc, types::error::ErrorCode, Id};
 pub use ls_types::notification::Exit as ExitNotification;
 pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::request::Shutdown as ShutdownRequest;
@@ -33,7 +33,7 @@ use server::io::{StdioMsgReader, StdioOutput};
 use server::message::RawMessage;
 pub use server::message::{
     Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
-    Response, ResponseError, RequestId
+    RequestId, Response, ResponseError,
 };
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -74,8 +74,7 @@ impl BlockingRequestAction for ShutdownRequest {
             // Currently we don't perform an explicit cleanup, other than storing state
             ctx.shut_down.store(true, Ordering::SeqCst);
             Ok(Ack)
-        }
-        else {
+        } else {
             Err(ResponseError::Message(
                 NOT_INITIALIZED_CODE,
                 "not yet received `initialize` request".to_owned(),
@@ -86,7 +85,8 @@ impl BlockingRequestAction for ShutdownRequest {
 
 /// Handles notification `exit`, can handle before an `initialize` request
 fn handle_exit_notification(ctx: &mut ActionContext) -> ! {
-    let received_shut_down = ctx.inited()
+    let received_shut_down = ctx
+        .inited()
         .map(|ctx| ctx.shut_down.load(Ordering::SeqCst))
         .unwrap_or(false);
     ::std::process::exit(if received_shut_down { 0 } else { 1 })
@@ -126,7 +126,8 @@ impl BlockingRequestAction for InitializeRequest {
         result.send(id, &out);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        ctx.init(get_root_path(&params), &init_options, capabilities, &out).unwrap();
+        ctx.init(get_root_path(&params), &init_options, capabilities, &out)
+            .unwrap();
 
         Ok(NoResponse)
     }

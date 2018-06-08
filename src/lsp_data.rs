@@ -10,20 +10,20 @@
 
 //! Types, helpers, and conversions to and from LSP and `racer` types.
 
+use std::error::Error;
 use std::fmt;
 use std::path::PathBuf;
-use std::error::Error;
 
 use analysis::DefKind;
-use url::Url;
-use span;
-use racer;
-use vfs::FileContents;
 use ls_types;
+use racer;
+use span;
+use url::Url;
+use vfs::FileContents;
 
-pub use ls_types::*;
-pub use ls_types::request::Request as LSPRequest;
 pub use ls_types::notification::Notification as LSPNotification;
+pub use ls_types::request::Request as LSPRequest;
+pub use ls_types::*;
 
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
@@ -66,13 +66,12 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
 pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
     let changes = vec![(
         location.uri,
-        vec![
-            TextEdit {
-                range: location.range,
-                new_text,
-            },
-        ],
-    )].into_iter().collect();
+        vec![TextEdit {
+            range: location.range,
+            new_text,
+        }],
+    )].into_iter()
+        .collect();
 
     WorkspaceEdit {
         changes: Some(changes),
@@ -191,7 +190,6 @@ pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
         DefKind::Trait | DefKind::Type | DefKind::ExternType => SymbolKind::Interface,
         DefKind::Local => SymbolKind::Variable,
         DefKind::Field | DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::Field,
-
         // Waiting for languageserver-types be updated to LSP 3 spec
         //DefKind::Struct => SymbolKind::Struct,
         //DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::EnumMember,
@@ -205,7 +203,9 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::Module,
         racer::MatchType::Struct => CompletionItemKind::Class,
         racer::MatchType::Enum => CompletionItemKind::Enum,
-        racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => CompletionItemKind::Field,
+        racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => {
+            CompletionItemKind::Field
+        }
         racer::MatchType::Macro
         | racer::MatchType::Function
         | racer::MatchType::FnArg
@@ -290,23 +290,23 @@ impl ClientCapabilities {
         // using this very simple struct is that it can be kept thread safe
         // without mutex locking it on every request.
         let code_completion_has_snippet_support = params
-        .capabilities
-        .text_document
-        .as_ref()
-        .and_then(|doc| doc.completion.as_ref())
-        .and_then(|comp| comp.completion_item.as_ref())
-        .and_then(|item| item.snippet_support.as_ref())
-        .unwrap_or(&false)
-        .to_owned();
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|doc| doc.completion.as_ref())
+            .and_then(|comp| comp.completion_item.as_ref())
+            .and_then(|item| item.snippet_support.as_ref())
+            .unwrap_or(&false)
+            .to_owned();
 
         let related_information_support = params
-        .capabilities
-        .text_document
-        .as_ref()
-        .and_then(|doc| doc.publish_diagnostics.as_ref())
-        .and_then(|diag| diag.related_information.as_ref())
-        .unwrap_or(&false)
-        .to_owned();
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|doc| doc.publish_diagnostics.as_ref())
+            .and_then(|diag| diag.related_information.as_ref())
+            .unwrap_or(&false)
+            .to_owned();
 
         ClientCapabilities {
             code_completion_has_snippet_support,
@@ -320,7 +320,7 @@ impl ClientCapabilities {
 /// Custom LSP notification sent to client indicating that the server is currently
 /// processing data and may publish new diagnostics on `rustDocument/diagnosticsEnd`.
 #[derive(Debug)]
-pub enum DiagnosticsBegin { }
+pub enum DiagnosticsBegin {}
 
 impl LSPNotification for DiagnosticsBegin {
     type Params = ();
@@ -333,7 +333,7 @@ impl LSPNotification for DiagnosticsBegin {
 /// This means that for multiple active `diagnosticsBegin` messages, there will
 /// be sent multiple `diagnosticsEnd` notifications.
 #[derive(Debug)]
-pub enum DiagnosticsEnd { }
+pub enum DiagnosticsEnd {}
 
 impl LSPNotification for DiagnosticsEnd {
     type Params = ();
@@ -342,7 +342,7 @@ impl LSPNotification for DiagnosticsEnd {
 
 /// Custom LSP notification sent to client indicating that a build process has begun.
 #[derive(Debug)]
-pub enum BeginBuild { }
+pub enum BeginBuild {}
 
 impl LSPNotification for BeginBuild {
     type Params = ();
@@ -353,7 +353,7 @@ impl LSPNotification for BeginBuild {
 
 /// Find all the implementations of a given trait.
 #[derive(Debug)]
-pub enum FindImpls { }
+pub enum FindImpls {}
 
 impl LSPRequest for FindImpls {
     type Params = TextDocumentPositionParams;

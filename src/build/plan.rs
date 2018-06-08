@@ -27,20 +27,20 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 use build::PackageArg;
-use cargo::core::{PackageId, Target, TargetKind};
 use cargo::core::compiler::{Context, Kind, Unit};
 use cargo::core::profiles::Profile;
+use cargo::core::{PackageId, Target, TargetKind};
 use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
 use lsp_data::parse_file_path;
 use url::Url;
 
-use actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
+use actions::progress::ProgressUpdate;
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
 pub type UnitKey = (PackageId, TargetKind);
@@ -174,12 +174,14 @@ impl Plan {
     fn fetch_dirty_units<T: AsRef<Path> + fmt::Debug>(&self, files: &[T]) -> HashSet<UnitKey> {
         let mut result = HashSet::new();
 
-        let build_scripts: HashMap<&Path, UnitKey> = self.units
+        let build_scripts: HashMap<&Path, UnitKey> = self
+            .units
             .iter()
             .filter(|&(&(_, ref kind), _)| *kind == TargetKind::CustomBuild)
             .map(|(key, unit)| (unit.target.src_path(), key.clone()))
             .collect();
-        let other_targets: HashMap<UnitKey, &Path> = self.units
+        let other_targets: HashMap<UnitKey, &Path> = self
+            .units
             .iter()
             .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
             .map(|(key, unit)| {
@@ -238,7 +240,8 @@ impl Plan {
             transitive.insert(top.clone());
 
             // Process every dirty rev dep of the processed node
-            let dirty_rev_deps = self.rev_dep_graph
+            let dirty_rev_deps = self
+                .rev_dep_graph
                 .get(&top)
                 .expect("missing key in rev_dep_graph")
                 .iter()
@@ -311,7 +314,8 @@ impl Plan {
             self.package_map = Some(PackageMap::new(manifest_path));
         }
 
-        let package_arg = self.package_map
+        let package_arg = self
+            .package_map
             .as_ref()
             .unwrap()
             .compute_package_arg(modified);
@@ -346,14 +350,14 @@ impl Plan {
             }
 
             let queue = self.topological_sort(&graph);
-            trace!("Topologically sorted dirty graph: {:?} {}", queue, self.is_ready());
+            trace!(
+                "Topologically sorted dirty graph: {:?} {}",
+                queue,
+                self.is_ready()
+            );
             let jobs: Option<Vec<_>> = queue
                 .iter()
-                .map(|x| {
-                    self.compiler_jobs
-                        .get(x)
-                        .cloned()
-                })
+                .map(|x| self.compiler_jobs.get(x).cloned())
                 .collect();
 
             // It is possible that we want a job which is not in our cache (compiler_jobs),
@@ -503,13 +507,15 @@ impl JobQueue {
         // invocation's compiler messages for diagnostics and analysis data
         while let Some(job) = self.dequeue() {
             trace!("Executing: {:?}", job);
-            let mut args: Vec<_> = job.get_args()
+            let mut args: Vec<_> = job
+                .get_args()
                 .iter()
                 .cloned()
                 .map(|x| x.into_string().expect("cannot stringify job args"))
                 .collect();
 
-            let program = job.get_program()
+            let program = job
+                .get_program()
                 .clone()
                 .into_string()
                 .expect("cannot stringify job program");
@@ -574,7 +580,7 @@ fn key_from_unit(unit: &Unit) -> UnitKey {
 }
 
 macro_rules! print_dep_graph {
-    ($name: expr, $graph: expr, $f: expr) => {
+    ($name:expr, $graph:expr, $f:expr) => {
         $f.write_str(&format!("{}:\n", $name))?;
         for (key, deps) in &$graph {
             $f.write_str(&format!("{:?}\n", key))?;
