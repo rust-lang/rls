@@ -1,0 +1,236 @@
+{
+  "children": [],
+  "code": null,
+  "level": "error",
+  "message": "expected token: `,`",
+  "rendered": "error: expected token: `,`\n --> src/main.rs:5:5\n  |\n5 |     info!(\"forgot comma {}\" 123);\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: this error originates in a macro outside of the current crate (in Nightly builds, run with -Z external-macro-backtrace for more info)\n\n",
+  "spans": [{
+    "byte_end": 228,
+    "byte_start": 197,
+    "column_end": 32,
+    "column_start": 1,
+    "expansion": {
+      "def_site_span": null,
+      "macro_decl_name": "format_args!",
+      "span": {
+        "byte_end": 228,
+        "byte_start": 197,
+        "column_end": 32,
+        "column_start": 1,
+        "expansion": {
+          "def_site_span": {
+            "byte_end": 415,
+            "byte_start": 0,
+            "column_end": 64,
+            "column_start": 1,
+            "expansion": null,
+            "file_name": "<log macros>",
+            "is_primary": false,
+            "label": null,
+            "line_end": 8,
+            "line_start": 1,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [{
+              "highlight_end": 70,
+              "highlight_start": 1,
+              "text": "( target : $ target : expr , $ lvl : expr , $ ( $ arg : tt ) + ) => ("
+            }, {
+              "highlight_end": 2,
+              "highlight_start": 1,
+              "text": "{"
+            }, {
+              "highlight_end": 77,
+              "highlight_start": 1,
+              "text": "let lvl = $ lvl ; if lvl <= $ crate :: STATIC_MAX_LEVEL && lvl <= $ crate ::"
+            }, {
+              "highlight_end": 17,
+              "highlight_start": 1,
+              "text": "max_level (  ) {"
+            }, {
+              "highlight_end": 31,
+              "highlight_start": 1,
+              "text": "$ crate :: __private_api_log ("
+            }, {
+              "highlight_end": 79,
+              "highlight_start": 1,
+              "text": "format_args ! ( $ ( $ arg ) + ) , lvl , $ target , module_path ! (  ) , file !"
+            }, {
+              "highlight_end": 76,
+              "highlight_start": 1,
+              "text": "(  ) , line ! (  ) , ) ; } } ) ; ( $ lvl : expr , $ ( $ arg : tt ) + ) => ("
+            }, {
+              "highlight_end": 64,
+              "highlight_start": 1,
+              "text": "log ! ( target : module_path ! (  ) , $ lvl , $ ( $ arg ) + ) )"
+            }]
+          },
+          "macro_decl_name": "log!",
+          "span": {
+            "byte_end": 413,
+            "byte_start": 352,
+            "column_end": 62,
+            "column_start": 1,
+            "expansion": {
+              "def_site_span": {
+                "byte_end": 415,
+                "byte_start": 0,
+                "column_end": 64,
+                "column_start": 1,
+                "expansion": null,
+                "file_name": "<log macros>",
+                "is_primary": false,
+                "label": null,
+                "line_end": 8,
+                "line_start": 1,
+                "suggested_replacement": null,
+                "suggestion_applicability": null,
+                "text": [{
+                  "highlight_end": 70,
+                  "highlight_start": 1,
+                  "text": "( target : $ target : expr , $ lvl : expr , $ ( $ arg : tt ) + ) => ("
+                }, {
+                  "highlight_end": 2,
+                  "highlight_start": 1,
+                  "text": "{"
+                }, {
+                  "highlight_end": 77,
+                  "highlight_start": 1,
+                  "text": "let lvl = $ lvl ; if lvl <= $ crate :: STATIC_MAX_LEVEL && lvl <= $ crate ::"
+                }, {
+                  "highlight_end": 17,
+                  "highlight_start": 1,
+                  "text": "max_level (  ) {"
+                }, {
+                  "highlight_end": 31,
+                  "highlight_start": 1,
+                  "text": "$ crate :: __private_api_log ("
+                }, {
+                  "highlight_end": 79,
+                  "highlight_start": 1,
+                  "text": "format_args ! ( $ ( $ arg ) + ) , lvl , $ target , module_path ! (  ) , file !"
+                }, {
+                  "highlight_end": 76,
+                  "highlight_start": 1,
+                  "text": "(  ) , line ! (  ) , ) ; } } ) ; ( $ lvl : expr , $ ( $ arg : tt ) + ) => ("
+                }, {
+                  "highlight_end": 64,
+                  "highlight_start": 1,
+                  "text": "log ! ( target : module_path ! (  ) , $ lvl , $ ( $ arg ) + ) )"
+                }]
+              },
+              "macro_decl_name": "log!",
+              "span": {
+                "byte_end": 212,
+                "byte_start": 160,
+                "column_end": 79,
+                "column_start": 27,
+                "expansion": {
+                  "def_site_span": {
+                    "byte_end": 214,
+                    "byte_start": 0,
+                    "column_end": 2,
+                    "column_start": 1,
+                    "expansion": null,
+                    "file_name": "<info macros>",
+                    "is_primary": false,
+                    "label": null,
+                    "line_end": 4,
+                    "line_start": 1,
+                    "suggested_replacement": null,
+                    "suggestion_applicability": null,
+                    "text": [{
+                      "highlight_end": 55,
+                      "highlight_start": 1,
+                      "text": "( target : $ target : expr , $ ( $ arg : tt ) * ) => ("
+                    }, {
+                      "highlight_end": 79,
+                      "highlight_start": 1,
+                      "text": "log ! ( target : $ target , $ crate :: Level :: Info , $ ( $ arg ) * ) ; ) ; ("
+                    }, {
+                      "highlight_end": 79,
+                      "highlight_start": 1,
+                      "text": "$ ( $ arg : tt ) * ) => ( log ! ( $ crate :: Level :: Info , $ ( $ arg ) * ) ;"
+                    }, {
+                      "highlight_end": 2,
+                      "highlight_start": 1,
+                      "text": ")"
+                    }]
+                  },
+                  "macro_decl_name": "info!",
+                  "span": {
+                    "byte_end": 77,
+                    "byte_start": 48,
+                    "column_end": 34,
+                    "column_start": 5,
+                    "expansion": null,
+                    "file_name": "src/main.rs",
+                    "is_primary": false,
+                    "label": null,
+                    "line_end": 5,
+                    "line_start": 5,
+                    "suggested_replacement": null,
+                    "suggestion_applicability": null,
+                    "text": [{
+                      "highlight_end": 34,
+                      "highlight_start": 5,
+                      "text": "    info!(\"forgot comma {}\" 123);"
+                    }]
+                  }
+                },
+                "file_name": "<info macros>",
+                "is_primary": false,
+                "label": null,
+                "line_end": 3,
+                "line_start": 3,
+                "suggested_replacement": null,
+                "suggestion_applicability": null,
+                "text": [{
+                  "highlight_end": 79,
+                  "highlight_start": 27,
+                  "text": "$ ( $ arg : tt ) * ) => ( log ! ( $ crate :: Level :: Info , $ ( $ arg ) * ) ;"
+                }]
+              }
+            },
+            "file_name": "<log macros>",
+            "is_primary": false,
+            "label": null,
+            "line_end": 8,
+            "line_start": 8,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [{
+              "highlight_end": 62,
+              "highlight_start": 1,
+              "text": "log ! ( target : module_path ! (  ) , $ lvl , $ ( $ arg ) + ) )"
+            }]
+          }
+        },
+        "file_name": "<log macros>",
+        "is_primary": false,
+        "label": null,
+        "line_end": 6,
+        "line_start": 6,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [{
+          "highlight_end": 32,
+          "highlight_start": 1,
+          "text": "format_args ! ( $ ( $ arg ) + ) , lvl , $ target , module_path ! (  ) , file !"
+        }]
+      }
+    },
+    "file_name": "<log macros>",
+    "is_primary": true,
+    "label": null,
+    "line_end": 6,
+    "line_start": 6,
+    "suggested_replacement": null,
+    "suggestion_applicability": null,
+    "text": [{
+      "highlight_end": 32,
+      "highlight_start": 1,
+      "text": "format_args ! ( $ ( $ arg ) + ) , lvl , $ target , module_path ! (  ) , file !"
+    }]
+  }]
+}

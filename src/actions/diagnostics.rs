@@ -136,12 +136,15 @@ pub fn parse_diagnostics(
             "rustc"
         };
 
-        let rls_span = if span.file_name.ends_with(" macros>") && span.expansion.is_some() {
-            // span points to a macro, use a more useful source location
-            &span.expansion.as_ref().unwrap().span
-        } else {
-            span
-        }.rls_span().zero_indexed();
+        let rls_span = {
+            let mut span = span;
+            // if span points to a macro, search through the expansions
+            // for a more useful source location
+            while span.file_name.ends_with(" macros>") && span.expansion.is_some() {
+                span = &span.expansion.as_ref().unwrap().span;
+            }
+            span.rls_span().zero_indexed()
+        };
 
         let file_path = cwd.join(&rls_span.file);
 
@@ -687,6 +690,40 @@ help: consider borrowing here: `&string`"#,
             "no method named `write_fmt` found for type `std::string::String` \
             in the current scope\n\n\
             help: items from traits can only be used if the trait is in scope"
+        );
+
+        assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
+    }
+
+    /// ```
+    /// #[macro_use]
+    /// extern crate log;
+    /// fn main() {
+    ///     info!("forgot comma {}" 123);
+    /// }
+    /// ```
+    #[test]
+    fn macro_expected_token_nested_expansion() {
+        let diag = parse_compiler_message(
+            include_str!("../../test_data/compiler_message/macro-expected-token.json"),
+            true,
+        );
+        assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
+
+        let file = &diag.diagnostics.keys().nth(0).unwrap();
+        assert!(file.to_str().unwrap().ends_with("src/main.rs"), "Unexpected file {:?}", file);
+
+        let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
+        assert_eq!(diagnostic.0.source, Some("rustc".into()));
+        assert_eq!(diagnostic.0.range, Range {
+            start: Position::new(4, 4),
+            end: Position::new(4, 33),
+        });
+
+        let messages = diag.to_messages();
+        assert_eq!(
+            messages[0].0,
+            "expected token: `,`"
         );
 
         assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
