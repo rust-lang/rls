@@ -18,10 +18,12 @@ use config::Config;
 use server::{self, LsService, Notification, Request, RequestId};
 use vfs::Vfs;
 
-use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
-               DocumentRangeFormattingParams, FormattingOptions, InitializeParams, Position,
-               Range, RenameParams, TextDocumentIdentifier, TextDocumentPositionParams,
-               TraceOption, WorkspaceSymbolParams, CompletionItem, DocumentSymbolParams};
+use ls_types::{
+    ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
+    DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
+    FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,
+    TextDocumentPositionParams, TraceOption, WorkspaceSymbolParams,
+};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -29,8 +31,8 @@ use std::io::{stdin, stdout, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use url::Url;
@@ -96,11 +98,13 @@ pub fn run() {
             }
             "format" => {
                 let file_name = bits.next().expect("Expected file name");
-                let tab_size: u64 = bits.next()
+                let tab_size: u64 = bits
+                    .next()
                     .unwrap_or("4")
                     .parse()
                     .expect("Tab size should be an unsigned integer");
-                let insert_spaces: bool = bits.next()
+                let insert_spaces: bool = bits
+                    .next()
                     .unwrap_or("true")
                     .parse()
                     .expect("Insert spaces should be 'true' or 'false'");
@@ -108,27 +112,33 @@ pub fn run() {
             }
             "range_format" => {
                 let file_name = bits.next().expect("Expected file name");
-                let start_row: u64 = bits.next()
+                let start_row: u64 = bits
+                    .next()
                     .expect("Expected start line")
                     .parse()
                     .expect("Bad start line");
-                let start_col: u64 = bits.next()
+                let start_col: u64 = bits
+                    .next()
                     .expect("Expected start column")
                     .parse()
                     .expect("Bad start column");
-                let end_row: u64 = bits.next()
+                let end_row: u64 = bits
+                    .next()
                     .expect("Expected end line")
                     .parse()
                     .expect("Bad end line");
-                let end_col: u64 = bits.next()
+                let end_col: u64 = bits
+                    .next()
                     .expect("Expected end column")
                     .parse()
                     .expect("Bad end column");
-                let tab_size: u64 = bits.next()
+                let tab_size: u64 = bits
+                    .next()
                     .unwrap_or("4")
                     .parse()
                     .expect("Tab size should be an unsigned integer");
-                let insert_spaces: bool = bits.next()
+                let insert_spaces: bool = bits
+                    .next()
                     .unwrap_or("true")
                     .parse()
                     .expect("Insert spaces should be 'true' or 'false'");
@@ -144,19 +154,23 @@ pub fn run() {
             }
             "code_action" => {
                 let file_name = bits.next().expect("Expect file name");
-                let start_row: u64 = bits.next()
+                let start_row: u64 = bits
+                    .next()
                     .expect("Expect start line")
                     .parse()
                     .expect("Bad start line");
-                let start_col: u64 = bits.next()
+                let start_col: u64 = bits
+                    .next()
                     .expect("Expect start column")
                     .parse()
                     .expect("Bad start column");
-                let end_row: u64 = bits.next()
+                let end_row: u64 = bits
+                    .next()
                     .expect("Expect end line")
                     .parse()
                     .expect("Bad end line");
-                let end_col: u64 = bits.next()
+                let end_col: u64 = bits
+                    .next()
                     .expect("Expect end column")
                     .parse()
                     .expect("Bad end column");
@@ -279,7 +293,7 @@ fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<reques
 
 fn document_symbol(file_name: &str) -> Request<requests::Symbols> {
     let params = DocumentSymbolParams {
-        text_document: TextDocumentIdentifier::new(url(file_name))
+        text_document: TextDocumentIdentifier::new(url(file_name)),
     };
     Request {
         id: next_id(),
@@ -346,10 +360,7 @@ fn code_action(
     }
 }
 
-fn resolve_completion(
-    label: &str,
-    detail: &str,
-) -> Request<requests::ResolveCompletion> {
+fn resolve_completion(label: &str, detail: &str) -> Request<requests::ResolveCompletion> {
     let params = CompletionItem::new_simple(label.to_owned(), detail.to_owned());
 
     Request {
@@ -491,7 +502,8 @@ fn init() -> Sender<String> {
 
 // Display help message.
 fn help() {
-    println!("\
+    println!(
+        "\
 RLS command line interface.
 
 Line and column numbers are zero indexed
@@ -530,9 +542,9 @@ Supported commands:
                   textDocument/codeAction
 
     resolve       label detail
-                  completionItem/resolve");
+                  completionItem/resolve"
+    );
 }
-
 
 // Reproducible on Windows where current dir can produce a url something like
 // `file:////?\C:\Users\alex\project\rls` which will later cause issues

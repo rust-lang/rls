@@ -129,7 +129,6 @@ impl<'a> EnvironmentLock {
         ENV_LOCK.clone()
     }
 
-
     /// Acquires the first, outer lock and additionally return `InnerLock` interface, through which
     /// user can access the second, inner lock. Does not enforce any guarantees regarding order of
     /// locking, since `InnerLock` can be copied outside 'a lifetime and locked there.

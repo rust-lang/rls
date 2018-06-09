@@ -16,8 +16,8 @@ use lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 use jsonrpc_core::{self as jsonrpc, response, version, Id};
 
@@ -35,7 +35,7 @@ pub(super) struct StdioMsgReader;
 impl MessageReader for StdioMsgReader {
     fn read_message(&self) -> Option<String> {
         macro_rules! handle_err {
-            ($e: expr, $s: expr) => {
+            ($e:expr, $s:expr) => {
                 match $e {
                     Ok(x) => x,
                     Err(_) => {
@@ -43,7 +43,7 @@ impl MessageReader for StdioMsgReader {
                         return None;
                     }
                 }
-            }
+            };
         }
 
         // Read in the "Content-Length: xx" part

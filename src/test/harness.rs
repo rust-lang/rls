@@ -46,7 +46,7 @@ impl Environment {
         // Acquire the current directory, but this is changing when tests are
         // running so we need to be sure to access it in a synchronized fashion.
         let cur_dir = {
-            use build::environment::{EnvironmentLock, Environment};
+            use build::environment::{Environment, EnvironmentLock};
             let env = EnvironmentLock::get();
             let (guard, _other) = env.lock();
             Environment::push_with_lock(&HashMap::new(), None, guard)
@@ -57,9 +57,7 @@ impl Environment {
 
         let target_dir = env::var("CARGO_TARGET_DIR")
             .map(|s| Path::new(&s).to_owned())
-            .unwrap_or_else(|_| {
-                cur_dir.join("target")
-            });
+            .unwrap_or_else(|_| cur_dir.join("target"));
 
         let working_dir = target_dir
             .join("tests")
@@ -198,8 +196,8 @@ impl ExpectedMessage {
 
 macro_rules! wait_for_n_results {
     ($n:expr, $results:expr) => {{
-        use std::time::{Duration, SystemTime};
         use std::thread;
+        use std::time::{Duration, SystemTime};
 
         let timeout = Duration::from_secs(320);
         let start_clock = SystemTime::now();
@@ -221,8 +219,7 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
 
     println!(
         "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
-        *results,
-        expected
+        *results, expected
     );
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
@@ -287,7 +284,8 @@ impl Cache {
 
     pub fn mk_ls_position(&mut self, src: Src) -> ls_types::Position {
         let line = self.get_line(src);
-        let col = line.find(src.name)
+        let col = line
+            .find(src.name)
             .expect(&format!("Line does not contain name {}", src.name));
         ls_types::Position::new((src.line - 1) as u64, char_of_byte_index(&line, col) as u64)
     }
@@ -303,7 +301,8 @@ impl Cache {
     }
 
     pub fn abs_path(&self, file_name: &Path) -> PathBuf {
-        let result = self.base_path
+        let result = self
+            .base_path
             .join(file_name)
             .canonicalize()
             .expect("Couldn't canonicalise path");
@@ -318,7 +317,8 @@ impl Cache {
 
     fn get_line(&mut self, src: Src) -> String {
         let base_path = &self.base_path;
-        let lines = self.files
+        let lines = self
+            .files
             .entry(src.file_name.to_owned())
             .or_insert_with(|| {
                 let file_name = &base_path.join(src.file_name);

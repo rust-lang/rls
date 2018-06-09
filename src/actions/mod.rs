@@ -12,17 +12,17 @@
 //! etc.
 
 use analysis::AnalysisHost;
-use vfs::Vfs;
-use config::FmtConfig;
 use config::Config;
+use config::FmtConfig;
 use serde_json;
-use url::Url;
 use span;
-use Span;
+use url::Url;
+use vfs::Vfs;
 use walkdir::WalkDir;
+use Span;
 
-use actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
-use actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
+use actions::post_build::{AnalysisQueue, BuildResults, PostBuildHandler};
+use actions::progress::{BuildDiagnosticsNotifier, BuildProgressNotifier};
 use build::*;
 use lsp_data;
 use lsp_data::*;
@@ -30,16 +30,15 @@ use server::Output;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use std::thread;
-
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
 // we don't want to crash the RLS in case a client opens a file under different URI scheme
 // like with git:/ or perforce:/ (Probably even http:/? We currently don't support remote schemes).
 macro_rules! ignore_non_file_uri {
-    ($expr: expr, $uri: expr, $log_name: expr) => {
+    ($expr:expr, $uri:expr, $log_name:expr) => {
         $expr.map_err(|_| {
             trace!("{}: Non-`file` URI scheme, ignoring: {:?}", $log_name, $uri);
             ()
@@ -48,17 +47,17 @@ macro_rules! ignore_non_file_uri {
 }
 
 macro_rules! parse_file_path {
-    ($uri: expr, $log_name: expr) => {
+    ($uri:expr, $log_name:expr) => {
         ignore_non_file_uri!(parse_file_path($uri), $uri, $log_name)
-    }
+    };
 }
 
-pub mod work_pool;
-pub mod post_build;
-pub mod requests;
-pub mod notifications;
-pub mod progress;
 pub mod diagnostics;
+pub mod notifications;
+pub mod post_build;
+pub mod progress;
+pub mod requests;
+pub mod work_pool;
 
 /// Persistent context shared across all requests and notifications.
 pub enum ActionContext {
@@ -233,7 +232,6 @@ impl InitActionContext {
     }
 
     fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: &O) {
-
         let pbh = {
             let config = self.config.lock().unwrap();
             PostBuildHandler {
@@ -356,7 +354,8 @@ fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
     let col = pos.0 as usize;
     let is_ident_char = |c: char| c.is_alphanumeric() || c == '_';
 
-    let start = line.chars()
+    let start = line
+        .chars()
         .enumerate()
         .take(col)
         .filter(|&(_, c)| !is_ident_char(c))
@@ -364,7 +363,8 @@ fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
         .map(|(i, _)| i + 1)
         .unwrap_or(0) as u32;
 
-    let end = line.chars()
+    let end = line
+        .chars()
         .enumerate()
         .skip(col)
         .filter(|&(_, c)| !is_ident_char(c))
@@ -397,7 +397,7 @@ impl<'ctx> FileWatch<'ctx> {
     }
 
     /// Returns json config for desired file watches
-    pub fn watchers_config(&self)  -> serde_json::Value {
+    pub fn watchers_config(&self) -> serde_json::Value {
         fn watcher(pat: String) -> FileSystemWatcher {
             FileSystemWatcher {
                 glob_pattern: pat,
@@ -426,9 +426,7 @@ impl<'ctx> FileWatch<'ctx> {
             watchers.push(watcher(entry.path().display().to_string()));
         }
 
-        json!({
-            "watchers": watchers
-        })
+        json!({ "watchers": watchers })
     }
 
     /// Returns if a file change is relevant to the files we actually wanted to watch

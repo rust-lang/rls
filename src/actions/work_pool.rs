@@ -1,8 +1,8 @@
 use rayon;
 use server::DEFAULT_REQUEST_TIMEOUT;
-use std::{fmt, panic};
-use std::time::{Duration, Instant};
 use std::sync::{mpsc, Mutex};
+use std::time::{Duration, Instant};
+use std::{fmt, panic};
 
 /// Description of work on the request work pool. Equality implies two pieces of work are the same
 /// kind of thing. The `str` should be human readable for logging, ie the language server protocol

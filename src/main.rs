@@ -18,7 +18,6 @@
 #![feature(rustc_private)]
 #![feature(integer_atomics)]
 #![feature(drain_filter)]
-
 #![allow(unknown_lints)]
 #![warn(clippy)]
 #![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments)]

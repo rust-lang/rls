@@ -10,9 +10,11 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use lsp_data::{ProgressParams, PublishDiagnosticsParams, Progress, ShowMessageParams, MessageType};
-use server::{Output, Notification};
 use ls_types::notification::{PublishDiagnostics, ShowMessage};
+use lsp_data::{
+    MessageType, Progress, ProgressParams, PublishDiagnosticsParams, ShowMessageParams,
+};
+use server::{Notification, Output};
 
 /// Trait for communication of build progress back to the client.
 pub trait ProgressNotifier: Send {
@@ -40,16 +42,16 @@ pub trait DiagnosticsNotifier: Send {
 
 /// Generate a new progress params with a unique ID and the given title.
 fn new_progress_params(title: String) -> ProgressParams {
-
     // counter to generate unique ID for each chain-of-progress notifications.
     lazy_static! {
-        static ref PROGRESS_ID_COUNTER: AtomicUsize = {
-            AtomicUsize::new(0)
-        };
+        static ref PROGRESS_ID_COUNTER: AtomicUsize = { AtomicUsize::new(0) };
     }
 
     ProgressParams {
-        id: format!("progress_{}", PROGRESS_ID_COUNTER.fetch_add(1, Ordering::SeqCst)),
+        id: format!(
+            "progress_{}",
+            PROGRESS_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
+        ),
         title: Some(title),
         message: None,
         percentage: None,
@@ -95,7 +97,6 @@ impl<O: Output> ProgressNotifier for BuildProgressNotifier<O> {
     }
 }
 
-
 /// Notifier of diagnostics after the build has completed.
 pub struct BuildDiagnosticsNotifier<O: Output> {
     out: O,
@@ -122,13 +123,15 @@ impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
         self.out.notify(Notification::<Progress>::new(params));
     }
     fn notify_publish_diagnostics(&self, params: PublishDiagnosticsParams) {
-        self.out.notify(Notification::<PublishDiagnostics>::new(params));
+        self.out
+            .notify(Notification::<PublishDiagnostics>::new(params));
     }
     fn notify_error_diagnostics(&self, message: String) {
-        self.out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-             typ: MessageType::Error,
-             message: message.to_owned(),
-         }));
+        self.out
+            .notify(Notification::<ShowMessage>::new(ShowMessageParams {
+                typ: MessageType::Error,
+                message: message.to_owned(),
+            }));
     }
     fn notify_end_diagnostics(&self) {
         let mut params = self.progress_params.clone();

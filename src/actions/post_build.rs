@@ -24,8 +24,8 @@ use std::thread::{self, Thread};
 use actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
 use actions::progress::DiagnosticsNotifier;
 use build::BuildResult;
-use ls_types::DiagnosticSeverity;
 use itertools::Itertools;
+use ls_types::DiagnosticSeverity;
 use lsp_data::PublishDiagnosticsParams;
 
 use analysis::AnalysisHost;
@@ -207,10 +207,12 @@ impl AnalysisQueue {
             // Remove any analysis jobs which this job obsoletes.
             trace!("Pre-prune queue len: {}", queue.len());
             if let Some(hash) = job.hash {
-                queue.drain_filter(|j| match *j {
-                    QueuedJob::Job(ref j) if j.hash == Some(hash) => true,
-                    _ => false,
-                }).for_each(|j| j.unwrap_job().handler.finalise())
+                queue
+                    .drain_filter(|j| match *j {
+                        QueuedJob::Job(ref j) if j.hash == Some(hash) => true,
+                        _ => false,
+                    })
+                    .for_each(|j| j.unwrap_job().handler.finalise())
             }
             trace!("Post-prune queue len: {}", queue.len());
 
