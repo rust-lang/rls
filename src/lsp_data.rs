@@ -229,6 +229,13 @@ pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
     let mut item = CompletionItem::new_simple(m.matchstr.clone(), m.contextstr.clone());
     item.kind = Some(completion_kind_from_match_type(m.mtype.clone()));
 
+    if !m.docs.is_empty() {
+        item.documentation = Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: m.docs.clone(),
+        }));
+    }
+
     item
 }
 
