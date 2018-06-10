@@ -28,8 +28,8 @@ use lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
 use serde_json;
 use server::dispatch::Dispatcher;
 pub use server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
-pub use server::io::{MessageReader, Output};
-use server::io::{StdioMsgReader, StdioOutput};
+pub use server::io::{MessageReader, Output, Sender};
+use server::io::{StdioMsgReader, StdioOutput, OutputSender};
 use server::message::RawMessage;
 pub use server::message::{
     Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
@@ -126,7 +126,8 @@ impl BlockingRequestAction for InitializeRequest {
         result.send(id, &out);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        ctx.init(get_root_path(&params), &init_options, capabilities, &out).unwrap();
+        let sender = OutputSender::new(out.clone());
+        ctx.init(get_root_path(&params), &init_options, capabilities, &sender).unwrap();
 
         Ok(NoResponse)
     }
@@ -179,7 +180,8 @@ impl<O: Output> LsService<O> {
                     <$n_action as LSPNotification>::METHOD => {
                         let notification: Notification<$n_action> = msg.parse_as_notification()?;
                         if let Ok(mut ctx) = self.ctx.inited() {
-                            if notification.dispatch(&mut ctx, self.output.clone()).is_err() {
+                            let sender = OutputSender::new(self.output.clone());
+                            if notification.dispatch(&mut ctx, sender).is_err() {
                                 debug!("Error handling notification: {:?}", msg);
                             }
                         }

@@ -16,8 +16,8 @@ use lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 use jsonrpc_core::{self as jsonrpc, response, version, Id};
 
@@ -35,7 +35,7 @@ pub(super) struct StdioMsgReader;
 impl MessageReader for StdioMsgReader {
     fn read_message(&self) -> Option<String> {
         macro_rules! handle_err {
-            ($e: expr, $s: expr) => {
+            ($e:expr, $s:expr) => {
                 match $e {
                     Ok(x) => x,
                     Err(_) => {
@@ -43,7 +43,7 @@ impl MessageReader for StdioMsgReader {
                         return None;
                     }
                 }
-            }
+            };
         }
 
         // Read in the "Content-Length: xx" part
@@ -198,5 +198,147 @@ impl Output for StdioOutput {
 
     fn provide_id(&self) -> RequestId {
         RequestId::Num(self.next_id.fetch_add(1, Ordering::SeqCst) as u64)
+    }
+}
+
+/// Sends JSONRPC requests and notifications to a client.
+pub trait Sender: Send + Clone + 'static {
+    /// Sends given notification to a client.
+    ///
+    /// TODO: Consider passing params instead of the whole notification similar to how send_request
+    /// does it.
+    fn notify<A>(&self, notification: Notification<A>)
+    where
+        A: LSPNotification,
+        <A as LSPNotification>::Params: serde::Serialize;
+
+    /// Sends request with given params to a client.
+    ///
+    /// TODO: Add response handling to this API - client is required to respond to this request,
+    /// but we currently do not wait for it.
+    fn send_request<A>(&self, params: A::Params)
+    where
+        A: LSPRequest,
+        <A as LSPRequest>::Params: serde::Serialize;
+}
+
+/// Sender that can send requests and notifications to a client using given Output.
+#[derive(Clone)]
+pub struct OutputSender<O: Output> {
+    output: O,
+}
+
+impl<O: Output> OutputSender<O> {
+    /// Constructs new sender that will send messages to given output.
+    pub fn new(output: O) -> OutputSender<O> {
+        OutputSender { output: output }
+    }
+}
+
+impl<O: Output> Sender for OutputSender<O> {
+    /// Sends a notification to the client.
+    fn notify<A>(&self, notification: Notification<A>)
+    where
+        A: LSPNotification,
+        <A as LSPNotification>::Params: serde::Serialize,
+    {
+        self.output.notify(notification)
+    }
+
+    /// Sends request with given params to a client.
+    fn send_request<A>(&self, params: A::Params)
+    where
+        A: LSPRequest,
+        <A as LSPRequest>::Params: serde::Serialize,
+    {
+        let id = self.output.provide_id();
+        self.output.request(Request::<A>::new(id, params))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ls_types::notification::ShowMessage;
+    use ls_types::request::ShowMessageRequest;
+    use lsp_data::*;
+    use std::cell::RefCell;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    // Simple fake output object that stores the last written message.
+    #[derive(Clone)]
+    struct FakeOutput {
+        output: Arc<Mutex<RefCell<String>>>,
+    }
+    impl FakeOutput {
+        fn new() -> FakeOutput {
+            FakeOutput {
+                output: Arc::new(Mutex::new(RefCell::new("".to_owned()))),
+            }
+        }
+        fn last_message(&self) -> String {
+            let l = self.output.lock().unwrap();
+            let b = l.borrow();
+            b.clone()
+        }
+    }
+    impl Output for FakeOutput {
+        fn response(&self, output: String) {
+            let l = self.output.lock().unwrap();
+            l.replace(output);
+        }
+
+        fn provide_id(&self) -> RequestId {
+            RequestId::Num(1)
+        }
+    }
+
+    #[test]
+    fn output_sender_notify_sends_correct_jsonrpc_notification() {
+        let output = FakeOutput::new();
+
+        let sender = OutputSender::new(output.clone());
+        sender.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+            typ: MessageType::Warning,
+            message: "test".to_owned(),
+        }));
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&output.last_message()).unwrap(),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "window/showMessage",
+                "params": {
+                    "message": "test",
+                    "type": 2,
+                }
+            })
+        )
+    }
+
+    #[test]
+    fn output_sender_send_request_sends_correct_jsonrpc_request() {
+        let output = FakeOutput::new();
+
+        let sender = OutputSender::new(output.clone());
+        sender.send_request::<ShowMessageRequest>(ShowMessageRequestParams {
+            typ: MessageType::Warning,
+            message: "test".to_owned(),
+            actions: None,
+        });
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&output.last_message()).unwrap(),
+            json!({
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "window/showMessageRequest",
+                "params": {
+                    "message": "test",
+                    "type": 2,
+                }
+            })
+        )
     }
 }

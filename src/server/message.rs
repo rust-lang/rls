@@ -20,6 +20,7 @@ use serde_json;
 use actions::ActionContext;
 use lsp_data::{LSPNotification, LSPRequest};
 use server::io::Output;
+use server::io::Sender;
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -68,7 +69,7 @@ impl From<()> for ResponseError {
 /// Blocks stdin whilst being handled.
 pub trait BlockingNotificationAction: LSPNotification {
     /// Handle this notification.
-    fn handle<O: Output>(Self::Params, &mut InitActionContext, O) -> Result<(), ()>;
+    fn handle<S: Sender>(Self::Params, &mut InitActionContext, S) -> Result<(), ()>;
 }
 
 /// A request that blocks stdin whilst being handled
@@ -214,8 +215,8 @@ impl<A: BlockingRequestAction> Request<A> {
 }
 
 impl<A: BlockingNotificationAction> Notification<A> {
-    pub fn dispatch<O: Output>(self, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
-        A::handle(self.params, ctx, out)?;
+    pub fn dispatch<S: Sender>(self, ctx: &mut InitActionContext, sender: S) -> Result<(), ()> {
+        A::handle(self.params, ctx, sender)?;
         Ok(())
     }
 }
