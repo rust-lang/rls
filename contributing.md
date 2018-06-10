@@ -112,13 +112,18 @@ cargo run
 Though more commonly, you'll use an IDE plugin to invoke it for you
 (see [README.md](README.md) for details).
 
-We recommend using https://github.com/rust-lang-nursery/rls-vscode in VSCode. If
-you are debugging you should set `HIDE_WINDOW_OUTPUT` to `false`, this will send
-logging and other messages to the extensions panel in VSCode. Anything the RLS
-writes to stderr is redirected to VSCode. Do not write to stdout, that will
-cause LSP errors (this means you cannot `println`). You can enable logging using
-[RUST_LOG](https://doc.rust-lang.org/log/env_logger/). For adding your own,
-temporary logging you may find the `eprintln` macro useful.
+We recommend using https://github.com/rust-lang-nursery/rls-vscode in VSCode.
+You can configure `rls-vscode` to use custom built binary by changing the
+`rust-client.rlsPath` setting to a full path to the binary you want to use.
+
+Anything the RLS writes to stderr is redirected to the output pane in
+VSCode - select "Rust Language Server" from the drop down box ("Rust Language
+Server" will only show up if there is any debugging output from RLS). Do not
+write to stdout, that will cause LSP errors (this means you cannot
+`println`). You can enable logging using
+[RUST_LOG](https://doc.rust-lang.org/log/env_logger/) environment variable
+(e.g. `RUST_LOG=rls=debug code`). For adding your own, temporary logging you may
+find the `eprintln` macro useful.
 
 Test using `cargo test`.
 
@@ -126,11 +131,15 @@ Testing is unfortunately minimal. There is support for regression tests, but not
 many actual tests exists yet. There is significant [work to do](https://github.com/rust-lang-nursery/rls/issues/12)
 before we have a comprehensive testing story.
 
-You can run the RLS in command line mode by running with an argument (any
-argument), e.g., `cargo run -- foo`. You need to run it in the root directory of
-the project to be analyzed. This should initialize the RLS (which will take some
+You can run the RLS in command line mode by running with a `--cli` flag,
+e.g., `cargo run -- --cli`. You need to run it in the root directory of the
+project to be analyzed. This should initialize the RLS (which will take some
 time for large projects) and then give you a `>` prompt. Type `help` (or just
 `h`) to see the commands available.
+
+During initialization RLS will print out a number of progress messages to the
+console. Those messages might hide the prompt. Look for `progress[done:true]`
+message.
 
 The command line interface is useful for debugging and testing, especially to
 narrow down a bug to either the RLS or a client.
