@@ -79,6 +79,9 @@ fn read_message<R: BufRead>(input: &mut R) -> Option<String> {
             return None;
         }
 
+        // TODO: Currently we are only supporting `Content-Length` header. We should verify
+        // `Content-Type` header if present as well. It is an open question what to do if unknown
+        // header is present (should we fail or just ignore it?).
         if res[0].to_lowercase() != "content-length:" {
             continue;
         }
@@ -235,7 +238,7 @@ mod tests {
     #[test]
     fn read_message_returns_message_from_input_with_multiple_headers() {
         let mut input =
-            io::Cursor::new("Content-Encoding: utf8\r\nContent-Length: 12\r\n\r\nSome Message");
+            io::Cursor::new("Content-Type: utf-8\r\nContent-Length: 12\r\n\r\nSome Message");
 
         let message =
             read_message(&mut input).expect("Reading a message from valid input should succeed");
@@ -290,7 +293,7 @@ mod tests {
 
         assert!(
             read_message(&mut input).is_none(),
-            "Reading a message with no length header should fail."
+            "Reading a message with length too large to fit into 64bit integer should fail."
         );
     }
 
