@@ -15,18 +15,16 @@ use super::{Notification, Request, RequestId};
 use lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
-use std::io::{self, Read, Write};
-use std::sync::Arc;
+use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 use jsonrpc_core::{self as jsonrpc, response, version, Id};
 
 /// A trait for anything that can read language server input messages.
 pub trait MessageReader {
     /// Read the next input message.
-    fn read_message(&self) -> Option<String> {
-        None
-    }
+    fn read_message(&self) -> Option<String>;
 }
 
 /// A message reader that gets messages from `stdin`.
@@ -34,28 +32,43 @@ pub(super) struct StdioMsgReader;
 
 impl MessageReader for StdioMsgReader {
     fn read_message(&self) -> Option<String> {
-        macro_rules! handle_err {
-            ($e: expr, $s: expr) => {
-                match $e {
-                    Ok(x) => x,
-                    Err(_) => {
-                        debug!($s);
-                        return None;
-                    }
+        let stdin = io::stdin();
+        let mut locked = stdin.lock();
+        read_message(&mut locked)
+    }
+}
+
+// Reads the content of the next message from given input.
+//
+// The input is expected to provide a message as described by "Base Protocol" of Language Server
+// Protocol.
+fn read_message<R: BufRead>(input: &mut R) -> Option<String> {
+    macro_rules! handle_err {
+        ($e:expr, $s:expr) => {
+            match $e {
+                Ok(x) => x,
+                Err(_) => {
+                    debug!($s);
+                    return None;
                 }
             }
+        };
+    }
+
+    // Read in the "Content-Length: xx" part
+    let mut size: Option<usize> = None;
+    loop {
+        let mut buffer = String::new();
+        handle_err!(input.read_line(&mut buffer), "Could not read from stdin");
+
+        // End of input.
+        if buffer.is_empty() {
+            return None;
         }
 
-        // Read in the "Content-Length: xx" part
-        let mut buffer = String::new();
-        handle_err!(
-            io::stdin().read_line(&mut buffer),
-            "Could not read from stdin"
-        );
-
-        if buffer.is_empty() {
-            debug!("Header is empty");
-            return None;
+        // Header section is finished, break from the loop.
+        if buffer == "\r\n" {
+            break;
         }
 
         let res: Vec<&str> = buffer.split(' ').collect();
@@ -66,36 +79,33 @@ impl MessageReader for StdioMsgReader {
             return None;
         }
 
+        // TODO: Currently we are only supporting `Content-Length` header. We should verify
+        // `Content-Type` header if present as well. It is an open question what to do if unknown
+        // header is present (should we fail or just ignore it?).
         if res[0].to_lowercase() != "content-length:" {
+            continue;
+        }
+
+        size = Some(handle_err!(
+            usize::from_str_radix(res[1].trim(), 10),
+            "Couldn't read size"
+        ));
+        trace!("reading: {:?} bytes", size);
+    }
+    let size = match size {
+        Some(size) => size,
+        None => {
             debug!("Header is missing 'content-length'");
             return None;
         }
+    };
 
-        let size = handle_err!(
-            usize::from_str_radix(res[1].trim(), 10),
-            "Couldn't read size"
-        );
-        trace!("reading: {} bytes", size);
+    let mut content = vec![0; size];
+    handle_err!(input.read_exact(&mut content), "Could not read from stdin");
 
-        // Skip other header(s) until the empty line.
-        let mut tmp = String::new();
-        loop {
-            handle_err!(io::stdin().read_line(&mut tmp), "Could not read from stdin");
-            if tmp == "\r\n" {
-                break;
-            }
-        }
+    let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
 
-        let mut content = vec![0; size];
-        handle_err!(
-            io::stdin().read_exact(&mut content),
-            "Could not read from stdin"
-        );
-
-        let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
-
-        Some(content)
-    }
+    Some(content)
 }
 
 /// Anything that can send notifications and responses to a language server
@@ -198,5 +208,112 @@ impl Output for StdioOutput {
 
     fn provide_id(&self) -> RequestId {
         RequestId::Num(self.next_id.fetch_add(1, Ordering::SeqCst) as u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_message_returns_message_from_valid_lsr_input() {
+        let mut input = io::Cursor::new("Content-Length: 7\r\n\r\nMessage");
+
+        let message =
+            read_message(&mut input).expect("Reading a message from valid input should succeed");
+
+        assert_eq!(message, "Message")
+    }
+
+    #[test]
+    fn read_message_fails_on_empty_input() {
+        let mut input = io::Cursor::new("");
+
+        assert!(
+            read_message(&mut input).is_none(),
+            "Empty input should cause failure"
+        );
+    }
+
+    #[test]
+    fn read_message_returns_message_from_input_with_multiple_headers() {
+        let mut input =
+            io::Cursor::new("Content-Type: utf-8\r\nContent-Length: 12\r\n\r\nSome Message");
+
+        let message =
+            read_message(&mut input).expect("Reading a message from valid input should succeed");
+
+        assert_eq!(message, "Some Message")
+    }
+
+    #[test]
+    fn read_message_returns_message_from_input_with_unknown_headers() {
+        let mut input =
+            io::Cursor::new("Unknown-Header: value\r\nContent-Length: 12\r\n\r\nSome Message");
+
+        let message =
+            read_message(&mut input).expect("Reading a message from valid input should succeed");
+
+        assert_eq!(message, "Some Message")
+    }
+
+    #[test]
+    fn read_message_fails_when_length_header_is_missing() {
+        let mut input = io::Cursor::new("Content-Encoding: utf8\r\n\r\nSome Message");
+
+        assert!(
+            read_message(&mut input).is_none(),
+            "Reading a message with no length header should fail."
+        );
+    }
+
+    #[test]
+    fn read_message_fails_when_header_line_is_invalid() {
+        let mut input = io::Cursor::new("Invalid-Header\r\nContent-Length: 12\r\n\r\nSome Message");
+
+        assert!(
+            read_message(&mut input).is_none(),
+            "Reading a message with invalid header should fail."
+        );
+    }
+
+    #[test]
+    fn read_message_fails_when_length_is_not_numeric() {
+        let mut input = io::Cursor::new("Content-Length: abcd\r\n\r\nMessage");
+
+        assert!(
+            read_message(&mut input).is_none(),
+            "Reading a message with no length header should fail."
+        );
+    }
+
+    #[test]
+    fn read_message_fails_when_length_is_too_large_integer() {
+        let mut input = io::Cursor::new("Content-Length: 1000000000000000000000\r\n\r\nMessage");
+
+        assert!(
+            read_message(&mut input).is_none(),
+            "Reading a message with length too large to fit into 64bit integer should fail."
+        );
+    }
+
+    #[test]
+    fn read_message_fails_when_content_is_not_valid_utf8() {
+        let mut input = io::Cursor::new(b"Content-Length: 7\r\n\r\n\x82\xe6\x82\xa8\x82\xb1\x82");
+
+        assert!(
+            read_message(&mut input).is_none(),
+            "Reading a message with content containing invalid utf8 sequences should fail.",
+        );
+    }
+
+    #[test]
+    fn read_message_fails_when_input_contains_only_header() {
+        let mut input = io::Cursor::new(b"Content-Length: 7\r\n");
+
+        assert!(
+            read_message(&mut input).is_none(),
+            "Reading should fail when input ends after header.",
+        );
     }
 }
