@@ -34,7 +34,13 @@ impl MessageReader for StdioMsgReader {
     fn read_message(&self) -> Option<String> {
         let stdin = io::stdin();
         let mut locked = stdin.lock();
-        read_message(&mut locked)
+        match read_message(&mut locked) {
+            Ok(message) => Some(message),
+            Err(err) => {
+                debug!("{:?}", err);
+                None
+            }
+        }
     }
 }
 
@@ -42,28 +48,19 @@ impl MessageReader for StdioMsgReader {
 //
 // The input is expected to provide a message as described by "Base Protocol" of Language Server
 // Protocol.
-fn read_message<R: BufRead>(input: &mut R) -> Option<String> {
-    macro_rules! handle_err {
-        ($e:expr, $s:expr) => {
-            match $e {
-                Ok(x) => x,
-                Err(_) => {
-                    debug!($s);
-                    return None;
-                }
-            }
-        };
-    }
-
+fn read_message<R: BufRead>(input: &mut R) -> Result<String, io::Error> {
     // Read in the "Content-Length: xx" part
     let mut size: Option<usize> = None;
     loop {
         let mut buffer = String::new();
-        handle_err!(input.read_line(&mut buffer), "Could not read from stdin");
+        input.read_line(&mut buffer)?;
 
         // End of input.
         if buffer.is_empty() {
-            return None;
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "EOF encountered in the middle of reading LSP headers",
+            ));
         }
 
         // Header section is finished, break from the loop.
@@ -73,39 +70,49 @@ fn read_message<R: BufRead>(input: &mut R) -> Option<String> {
 
         let res: Vec<&str> = buffer.split(' ').collect();
 
-        // Make sure we see the correct header
+        // Make sure header is valid
         if res.len() != 2 {
-            debug!("Header is malformed");
-            return None;
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Header '{}' is malformed", buffer),
+            ));
         }
+        let header_name = res[0].to_lowercase();
+        let header_value = res[1].trim();
 
-        // TODO: Currently we are only supporting `Content-Length` header. We should verify
-        // `Content-Type` header if present as well. It is an open question what to do if unknown
-        // header is present (should we fail or just ignore it?).
-        if res[0].to_lowercase() != "content-length:" {
-            continue;
+        match header_name.as_ref() {
+            "content-length:" => {
+                size = Some(usize::from_str_radix(header_value, 10).map_err(|_e| {
+                    io::Error::new(io::ErrorKind::InvalidData, "Couldn't read size")
+                })?);
+            }
+            "content-type:" => {
+                if header_value != "utf8" && header_value != "utf-8" {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Content type '{}' is invalid", header_value),
+                    ));
+                }
+            }
+            // Ignore unknown headers (specification doesn't say what to do in this case).
+            _ => (),
         }
-
-        size = Some(handle_err!(
-            usize::from_str_radix(res[1].trim(), 10),
-            "Couldn't read size"
-        ));
-        trace!("reading: {:?} bytes", size);
     }
     let size = match size {
         Some(size) => size,
         None => {
-            debug!("Header is missing 'content-length'");
-            return None;
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Message is missing 'content-length' header",
+            ))
         }
     };
+    trace!("reading: {:?} bytes", size);
 
     let mut content = vec![0; size];
-    handle_err!(input.read_exact(&mut content), "Could not read from stdin");
+    input.read_exact(&mut content)?;
 
-    let content = handle_err!(String::from_utf8(content), "Non-utf8 input");
-
-    Some(content)
+    String::from_utf8(content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 /// Anything that can send notifications and responses to a language server
@@ -222,17 +229,14 @@ mod tests {
         let message =
             read_message(&mut input).expect("Reading a message from valid input should succeed");
 
-        assert_eq!(message, "Message")
+        assert_eq!(message, "Message");
     }
 
     #[test]
     fn read_message_fails_on_empty_input() {
         let mut input = io::Cursor::new("");
 
-        assert!(
-            read_message(&mut input).is_none(),
-            "Empty input should cause failure"
-        );
+        read_message(&mut input).expect_err("Empty input should cause failure");
     }
 
     #[test]
@@ -243,7 +247,7 @@ mod tests {
         let message =
             read_message(&mut input).expect("Reading a message from valid input should succeed");
 
-        assert_eq!(message, "Some Message")
+        assert_eq!(message, "Some Message");
     }
 
     #[test]
@@ -254,46 +258,45 @@ mod tests {
         let message =
             read_message(&mut input).expect("Reading a message from valid input should succeed");
 
-        assert_eq!(message, "Some Message")
+        assert_eq!(message, "Some Message");
     }
 
     #[test]
     fn read_message_fails_when_length_header_is_missing() {
-        let mut input = io::Cursor::new("Content-Encoding: utf8\r\n\r\nSome Message");
+        let mut input = io::Cursor::new("Content-Type: utf8\r\n\r\nSome Message");
 
-        assert!(
-            read_message(&mut input).is_none(),
-            "Reading a message with no length header should fail."
-        );
+        read_message(&mut input).expect_err("Reading a message with no length header should fail.");
+    }
+
+    #[test]
+    fn read_message_fails_when_content_type_is_invalid() {
+        let mut input =
+            io::Cursor::new("Content-Length: 12\r\nContent-Type: invalid\r\n\r\nSome Message");
+
+        read_message(&mut input)
+            .expect_err("Reading a message with invalid content type should fail.");
     }
 
     #[test]
     fn read_message_fails_when_header_line_is_invalid() {
         let mut input = io::Cursor::new("Invalid-Header\r\nContent-Length: 12\r\n\r\nSome Message");
 
-        assert!(
-            read_message(&mut input).is_none(),
-            "Reading a message with invalid header should fail."
-        );
+        read_message(&mut input).expect_err("Reading a message with invalid header should fail.");
     }
 
     #[test]
     fn read_message_fails_when_length_is_not_numeric() {
         let mut input = io::Cursor::new("Content-Length: abcd\r\n\r\nMessage");
 
-        assert!(
-            read_message(&mut input).is_none(),
-            "Reading a message with no length header should fail."
-        );
+        read_message(&mut input).expect_err("Reading a message with no length header should fail.");
     }
 
     #[test]
     fn read_message_fails_when_length_is_too_large_integer() {
         let mut input = io::Cursor::new("Content-Length: 1000000000000000000000\r\n\r\nMessage");
 
-        assert!(
-            read_message(&mut input).is_none(),
-            "Reading a message with length too large to fit into 64bit integer should fail."
+        read_message(&mut input).expect_err(
+            "Reading a message with length too large to fit into 64bit integer should fail.",
         );
     }
 
@@ -301,8 +304,7 @@ mod tests {
     fn read_message_fails_when_content_is_not_valid_utf8() {
         let mut input = io::Cursor::new(b"Content-Length: 7\r\n\r\n\x82\xe6\x82\xa8\x82\xb1\x82");
 
-        assert!(
-            read_message(&mut input).is_none(),
+        read_message(&mut input).expect_err(
             "Reading a message with content containing invalid utf8 sequences should fail.",
         );
     }
@@ -311,9 +313,6 @@ mod tests {
     fn read_message_fails_when_input_contains_only_header() {
         let mut input = io::Cursor::new(b"Content-Length: 7\r\n");
 
-        assert!(
-            read_message(&mut input).is_none(),
-            "Reading should fail when input ends after header.",
-        );
+        read_message(&mut input).expect_err("Reading should fail when input ends after header.");
     }
 }
