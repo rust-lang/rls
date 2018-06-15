@@ -16,12 +16,15 @@ use actions::requests;
 use analysis::{AnalysisHost, Target};
 use config::Config;
 use server::{self, LsService, Notification, Request, RequestId};
+use std::sync::atomic::{AtomicU64, Ordering};
 use vfs::Vfs;
 
-use ls_types::{ClientCapabilities, CodeActionContext, CodeActionParams, DocumentFormattingParams,
-               DocumentRangeFormattingParams, FormattingOptions, InitializeParams, Position,
-               Range, RenameParams, TextDocumentIdentifier, TextDocumentPositionParams,
-               TraceOption, WorkspaceSymbolParams, CompletionItem, DocumentSymbolParams};
+use ls_types::{
+    ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
+    DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
+    FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,
+    TextDocumentPositionParams, TraceOption, WorkspaceSymbolParams,
+};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -29,8 +32,8 @@ use std::io::{stdin, stdout, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use url::Url;
@@ -412,11 +415,8 @@ fn url(file_name: &str) -> Url {
 }
 
 fn next_id() -> RequestId {
-    static mut ID: u64 = 0;
-    unsafe {
-        ID += 1;
-        RequestId::Num(ID)
-    }
+    static ID: AtomicU64 = AtomicU64::new(1);
+    RequestId::Num(ID.fetch_add(1, Ordering::SeqCst))
 }
 
 // Custom reader and output for the RLS server.
