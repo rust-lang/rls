@@ -16,7 +16,7 @@ use lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
 use std::io::{self, BufRead, Write};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use jsonrpc_core::{self as jsonrpc, response, version, Id};
@@ -182,14 +182,14 @@ pub trait Output: Sync + Send + Clone + 'static {
 /// An output that sends notifications and responses on `stdout`.
 #[derive(Clone)]
 pub(super) struct StdioOutput {
-    next_id: Arc<AtomicU32>,
+    next_id: Arc<AtomicU64>,
 }
 
 impl StdioOutput {
     /// Construct a new `stdout` output.
     pub fn new() -> StdioOutput {
         StdioOutput {
-            next_id: Arc::new(AtomicU32::new(1)),
+            next_id: Arc::new(AtomicU64::new(1)),
         }
     }
 }
@@ -207,7 +207,7 @@ impl Output for StdioOutput {
     }
 
     fn provide_id(&self) -> RequestId {
-        RequestId::Num(self.next_id.fetch_add(1, Ordering::SeqCst) as u64)
+        RequestId::Num(self.next_id.fetch_add(1, Ordering::SeqCst))
     }
 }
 
