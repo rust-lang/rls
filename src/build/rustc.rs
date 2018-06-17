@@ -233,11 +233,13 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         matches: &getopts::Matches,
     ) -> CompileController<'a> {
         let analysis = self.analysis.clone();
+        #[cfg(feature = "clippy")]
+        let clippy_preference = self.clippy_preference;
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
 
         #[cfg(feature = "clippy")] {
-            if self.clippy_preference != ClippyPreference::Off {
+            if clippy_preference != ClippyPreference::Off {
                 result.after_parse.callback = Box::new(clippy_after_parse_callback);
             }
         }
