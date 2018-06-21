@@ -202,7 +202,6 @@ fn run_cargo(
     // Create a custom environment for running cargo, the environment is reset
     // afterwards automatically
     restore_env.push_var("RUSTFLAGS", &Some(rustflags.into()));
-    restore_env.push_var("CARGO_INCREMENTAL", &Some("0".into()));
 
     if clear_env_rust_log {
         restore_env.push_var("RUST_LOG", &None);
