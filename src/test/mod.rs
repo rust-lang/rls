@@ -15,6 +15,7 @@ extern crate json;
 
 #[macro_use]
 mod harness;
+mod lens;
 
 use analysis;
 use actions::{requests, notifications};

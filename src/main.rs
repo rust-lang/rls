@@ -54,6 +54,8 @@ extern crate serde_json;
 
 extern crate url;
 extern crate walkdir;
+extern crate regex;
+extern crate ordslice;
 
 use std::env;
 use std::sync::Arc;

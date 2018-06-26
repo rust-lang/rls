@@ -21,6 +21,7 @@ use span;
 
 use actions::work_pool;
 use actions::work_pool::WorkDescription;
+use actions::run::collect_run_actions;
 use lsp_data;
 use lsp_data::*;
 use server;
@@ -42,6 +43,7 @@ pub use lsp_data::request::{
     Formatting,
     RangeFormatting,
     ResolveCompletionItem as ResolveCompletion,
+    CodeLensRequest,
 };
 pub use lsp_data::FindImpls;
 
@@ -856,6 +858,38 @@ fn location_from_racer_match(a_match: &racer::Match) -> Option<Location> {
         let loc = span::Location::new(row.zero_indexed(), col, source_path);
         ls_util::rls_location_to_location(&loc)
     })
+}
+
+impl RequestAction for CodeLensRequest {
+    type Response = Vec<CodeLens>;
+
+    fn fallback_response() -> Result<Self::Response, ResponseError> {
+        Err(ResponseError::Empty)
+    }
+
+    fn handle(
+        ctx: InitActionContext,
+        params: Self::Params,
+    ) -> Result<Self::Response, ResponseError> {
+        let file_path = parse_file_path!(&params.text_document.uri, "code_lens")?;
+        let mut ret = Vec::new();
+
+        for action in collect_run_actions(&ctx, &file_path) {
+            let command = Command {
+                title: action.label,
+                command: "rls.run".to_string(),
+                arguments: Some(vec![serde_json::to_value(&action.cmd).unwrap()]),
+            };
+            let range = ls_util::rls_to_range(action.target_element);
+            let lens = CodeLens {
+                range,
+                command: Some(command),
+                data: None,
+            };
+            ret.push(lens);
+        }
+        Ok(ret)
+    }
 }
 
 #[cfg(test)]

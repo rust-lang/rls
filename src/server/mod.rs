@@ -21,7 +21,7 @@ pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::request::Shutdown as ShutdownRequest;
 use ls_types::{
     CompletionOptions, ExecuteCommandOptions, InitializeParams, InitializeResult,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, CodeLensOptions
 };
 use lsp_data;
 use lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
@@ -279,7 +279,8 @@ impl<O: Output> LsService<O> {
                 requests::WorkspaceSymbol,
                 requests::Definition,
                 requests::References,
-                requests::Completion;
+                requests::Completion,
+                requests::CodeLensRequest;
         );
         Ok(())
     }
@@ -379,7 +380,9 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         // info from the client.
         document_range_formatting_provider: Some(false),
 
-        code_lens_provider: None,
+        code_lens_provider: Some(CodeLensOptions {
+            resolve_provider: Some(false),
+        }),
         document_on_type_formatting_provider: None,
         signature_help_provider: None,
     }

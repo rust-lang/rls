@@ -33,7 +33,7 @@ pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(3_600_000);
 
 /// Macro enum `DispatchRequest` packing in various similar `Request` types
 macro_rules! define_dispatch_request_enum {
-    ($($request_type:ident),*) => {
+    ($($request_type:ident),*$(,)*) => {
         #[allow(large_enum_variant)] // seems ok for a short lived macro-enum
         pub enum DispatchRequest {
             $(
@@ -102,7 +102,8 @@ define_dispatch_request_enum!(
     ResolveCompletion,
     Formatting,
     RangeFormatting,
-    ExecuteCommand
+    ExecuteCommand,
+    CodeLensRequest,
 );
 
 /// Provides ability to dispatch requests to a worker thread that will

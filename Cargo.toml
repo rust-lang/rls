@@ -35,6 +35,8 @@ serde_json = "1.0"
 serde_derive = "1.0"
 url = "1.1.0"
 walkdir = "2.1"
+regex = "1"
+ordslice = "0.3"
 
 [dev-dependencies]
 json = "0.11"
