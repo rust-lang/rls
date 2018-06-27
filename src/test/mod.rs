@@ -1074,6 +1074,7 @@ fn test_omit_init_build() {
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
     let init_options = Some(InitializationOptions {
         omit_init_build: true,
+        cmd_run: true,
     });
     let initialize = initialize_with_opts(0, root_path, init_options);
 

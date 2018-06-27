@@ -871,22 +871,24 @@ impl RequestAction for CodeLensRequest {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        let file_path = parse_file_path!(&params.text_document.uri, "code_lens")?;
-        let mut ret = Vec::new();
 
-        for action in collect_run_actions(&ctx, &file_path) {
-            let command = Command {
-                title: action.label,
-                command: "rls.run".to_string(),
-                arguments: Some(vec![serde_json::to_value(&action.cmd).unwrap()]),
-            };
-            let range = ls_util::rls_to_range(action.target_element);
-            let lens = CodeLens {
-                range,
-                command: Some(command),
-                data: None,
-            };
-            ret.push(lens);
+        let mut ret = Vec::new();
+        if ctx.client_supports_cmd_run {
+            let file_path = parse_file_path!(&params.text_document.uri, "code_lens")?;
+            for action in collect_run_actions(&ctx, &file_path) {
+                let command = Command {
+                    title: action.label,
+                    command: "rls.run".to_string(),
+                    arguments: Some(vec![serde_json::to_value(&action.cmd).unwrap()]),
+                };
+                let range = ls_util::rls_to_range(action.target_element);
+                let lens = CodeLens {
+                    range,
+                    command: Some(command),
+                    data: None,
+                };
+                ret.push(lens);
+            }
         }
         Ok(ret)
     }

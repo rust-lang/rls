@@ -258,17 +258,18 @@ impl RangeExt for Range {
 /// Supported initilization options that can be passed in the `initialize`
 /// request, under `initialization_options` key. These are specific to the RLS.
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, rename_all = "camelCase")]
 pub struct InitializationOptions {
     /// Should the build not be triggered immediately after receiving `initialize`
-    #[serde(rename = "omitInitBuild")]
     pub omit_init_build: bool,
+    pub cmd_run: bool,
 }
 
 impl Default for InitializationOptions {
     fn default() -> Self {
         InitializationOptions {
             omit_init_build: false,
+            cmd_run: false,
         }
     }
 }

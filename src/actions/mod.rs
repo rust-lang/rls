@@ -96,6 +96,7 @@ impl ActionContext {
                     client_capabilities,
                     current_project,
                     uninit.pid,
+                    init_options.cmd_run,
                 );
                 ctx.init(init_options, out);
                 ctx
@@ -150,6 +151,7 @@ pub struct InitActionContext {
 
     config: Arc<Mutex<Config>>,
     client_capabilities: Arc<lsp_data::ClientCapabilities>,
+    client_supports_cmd_run: bool,
     /// Whether the server is performing cleanup (after having received
     /// 'shutdown' request), just before final 'exit' request.
     pub shut_down: Arc<AtomicBool>,
@@ -188,6 +190,7 @@ impl InitActionContext {
         client_capabilities: lsp_data::ClientCapabilities,
         current_project: PathBuf,
         pid: u32,
+        client_supports_cmd_run: bool,
     ) -> InitActionContext {
         let build_queue = BuildQueue::new(vfs.clone(), config.clone());
         let analysis_queue = Arc::new(AnalysisQueue::init());
@@ -204,6 +207,7 @@ impl InitActionContext {
             quiescent: Arc::new(AtomicBool::new(false)),
             prev_changes: Arc::new(Mutex::new(HashMap::new())),
             client_capabilities: Arc::new(client_capabilities),
+            client_supports_cmd_run,
             shut_down: Arc::new(AtomicBool::new(false)),
             pid,
         }
