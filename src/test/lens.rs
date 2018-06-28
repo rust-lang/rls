@@ -17,7 +17,6 @@ use super::{
 };
 
 #[test]
-#[cfg_attr(windows, ignore)]
 fn test_lens_run() {
     let mut env = Environment::new("lens_run");
 
@@ -50,7 +49,8 @@ fn test_lens_run() {
     expect_messages(
         results.clone(),
         &[
-            ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports-"),
+            ExpectedMessage::new(Some(0)).expect_contains(r#""codeLensProvider":{"resolveProvider":false}"#),
+            ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress"),
