@@ -17,6 +17,7 @@ use super::{
 };
 
 #[test]
+#[cfg_attr(windows, ignore)]
 fn test_lens_run() {
     let mut env = Environment::new("lens_run");
 
