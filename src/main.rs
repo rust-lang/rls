@@ -77,6 +77,11 @@ type Span = span::Span<span::ZeroIndexed>;
 /// The main entry point to the RLS. Parses CLI arguments and then runs the
 /// server.
 pub fn main() {
+    let exit_code = main_inner();
+    ::std::process::exit(exit_code);
+}
+
+fn main_inner() -> i32 {
     env_logger::init();
 
     if env::var(RUSTC_SHIM_ENV_VAR_NAME)
@@ -84,27 +89,38 @@ pub fn main() {
         .unwrap_or(false)
     {
         rustc_shim::run();
-        return;
+        return 0;
     }
 
     if let Some(first_arg) = ::std::env::args().nth(1) {
-        match first_arg.as_str() {
-            "--version" | "-V" => println!("rls-preview {}", version()),
-            "--help" | "-h" => println!("{}", help()),
-            "--cli" => cmd::run(),
-            unknown => println!(
-                "Unknown argument '{}'. Supported arguments:\n{}",
-                unknown,
-                help()
-            ),
+        return match first_arg.as_str() {
+            "--version" | "-V" => {
+                println!("rls-preview {}", version());
+                0
+            }
+            "--help" | "-h" => {
+                println!("{}", help());
+                0
+            }
+            "--cli" => {
+                cmd::run();
+                0
+            }
+            unknown => {
+                println!(
+                    "Unknown argument '{}'. Supported arguments:\n{}",
+                    unknown,
+                    help()
+                );
+                101
+            }
         }
-        return;
     }
 
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
 
-    server::run_server(analysis, vfs);
+    server::run_server(analysis, vfs)
 }
 
 fn version() -> &'static str {

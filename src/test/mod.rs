@@ -1120,7 +1120,7 @@ fn test_parse_error_on_malformed_input() {
     );
 
     let result = ls_server::LsService::handle_message(&mut server);
-    assert_eq!(result, ls_server::ServerStateChange::Break);
+    assert_eq!(result, ls_server::ServerStateChange::Break { exit_code: 101 } );
 
     let error = results.lock().unwrap().pop().expect("no error response");
 
