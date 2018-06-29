@@ -27,6 +27,7 @@ use lsp_data::*;
 use server;
 use server::{Ack, Output, Request, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
+use analysis::SymbolQuery;
 
 use lsp_data::request::ApplyWorkspaceEdit;
 pub use lsp_data::request::{
@@ -76,8 +77,9 @@ impl RequestAction for WorkspaceSymbol {
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
         let analysis = ctx.analysis;
-
-        let defs = analysis.matching_defs(&params.query).unwrap_or_else(|_| vec![]);
+        let query = SymbolQuery::subsequence(&params.query)
+            .limit(512);
+        let defs = analysis.query_defs(query).unwrap_or_else(|_| vec![]);
 
         Ok(
             defs.into_iter()
