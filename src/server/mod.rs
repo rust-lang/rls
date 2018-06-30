@@ -48,7 +48,7 @@ mod message;
 const NOT_INITIALIZED_CODE: ErrorCode = ErrorCode::ServerError(-32002);
 
 /// Run the Rust Language Server.
-pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
+pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> i32 {
     debug!("Language Server starting up. Version: {}", version());
     let service = LsService::new(
         analysis,
@@ -57,8 +57,9 @@ pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) {
         Box::new(StdioMsgReader),
         StdioOutput::new(),
     );
-    LsService::run(service);
+    let exit_code = LsService::run(service);
     debug!("Server shutting down");
+    exit_code
 }
 
 impl BlockingRequestAction for ShutdownRequest {
@@ -82,14 +83,6 @@ impl BlockingRequestAction for ShutdownRequest {
             ))
         }
     }
-}
-
-/// Handles notification `exit`, can handle before an `initialize` request
-fn handle_exit_notification(ctx: &mut ActionContext) -> ! {
-    let received_shut_down = ctx.inited()
-        .map(|ctx| ctx.shut_down.load(Ordering::SeqCst))
-        .unwrap_or(false);
-    ::std::process::exit(if received_shut_down { 0 } else { 1 })
 }
 
 impl BlockingRequestAction for InitializeRequest {
@@ -160,8 +153,14 @@ impl<O: Output> LsService<O> {
     }
 
     /// Run this language service.
-    pub fn run(mut self) {
-        while self.handle_message() == ServerStateChange::Continue {}
+    pub fn run(mut self) -> i32 {
+        loop {
+            match self.handle_message() {
+                ServerStateChange::Continue => (),
+                ServerStateChange::Break { exit_code } =>
+                    return exit_code,
+            }
+        }
     }
 
     fn dispatch_message(&mut self, msg: &RawMessage) -> Result<(), jsonrpc::Error> {
@@ -235,8 +234,6 @@ impl<O: Output> LsService<O> {
                         }
                     }
                 )*
-                    // exit notification can uniquely handle pre `initialize` request state
-                    ExitNotification::METHOD => handle_exit_notification(&mut self.ctx),
                     _ => debug!("Method not found: {}", $method)
                 }
             }
@@ -294,7 +291,7 @@ impl<O: Output> LsService<O> {
             None => {
                 error!("Can't read message");
                 self.output.failure(Id::Null, jsonrpc::Error::parse_error());
-                return ServerStateChange::Break;
+                return ServerStateChange::Break { exit_code: 101 };
             }
         };
 
@@ -306,7 +303,7 @@ impl<O: Output> LsService<O> {
             Err(e) => {
                 error!("parsing error, {:?}", e);
                 self.output.failure(Id::Null, jsonrpc::Error::parse_error());
-                return ServerStateChange::Break;
+                return ServerStateChange::Break { exit_code: 101 };
             }
         };
 
@@ -320,9 +317,11 @@ impl<O: Output> LsService<O> {
                 ActionContext::Init(ref ctx) => ctx.shut_down.load(Ordering::SeqCst),
                 _ => false,
             };
-
-            if shutdown_mode && raw_message.method != <ExitNotification as LSPNotification>::METHOD
-            {
+            if raw_message.method == <ExitNotification as LSPNotification>::METHOD {
+                let exit_code = if shutdown_mode { 0 } else { 1 };
+                return ServerStateChange::Break { exit_code };
+            }
+            if shutdown_mode {
                 trace!("In shutdown mode, ignoring {:?}!", raw_message);
                 return ServerStateChange::Continue;
             }
@@ -331,7 +330,7 @@ impl<O: Output> LsService<O> {
         if let Err(e) = self.dispatch_message(&raw_message) {
             error!("dispatch error, {:?}", e);
             self.output.failure(raw_message.id, e);
-            return ServerStateChange::Break;
+            return ServerStateChange::Break { exit_code: 101 };
         }
 
         ServerStateChange::Continue
@@ -345,7 +344,9 @@ pub enum ServerStateChange {
     /// client.
     Continue,
     /// Stop the server.
-    Break,
+    Break {
+        exit_code: i32
+    },
 }
 
 fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
