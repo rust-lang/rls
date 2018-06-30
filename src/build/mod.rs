@@ -270,7 +270,6 @@ impl BuildQueue {
         if needs_compilation_ctx_from_cargo {
             priority = BuildPriority::Cargo;
         }
-
         let build = PendingBuild {
             build_dir: new_build_dir.to_owned(),
             built_files: self.internals.dirty_files.lock().unwrap().clone(),

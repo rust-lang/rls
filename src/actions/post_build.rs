@@ -24,9 +24,10 @@ use std::thread::{self, Thread};
 use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
 use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::BuildResult;
+use crate::lsp_data::PublishDiagnosticsParams;
+use crate::concurrency::JobToken;
 use languageserver_types::DiagnosticSeverity;
 use itertools::Itertools;
-use crate::lsp_data::PublishDiagnosticsParams;
 
 use rls_analysis::AnalysisHost;
 use rls_data::Analysis;
@@ -46,6 +47,8 @@ pub struct PostBuildHandler {
     pub active_build_count: Arc<AtomicUsize>,
     pub notifier: Box<dyn DiagnosticsNotifier>,
     pub blocked_threads: Vec<thread::Thread>,
+    #[allow(unused)] // for drop
+    pub token: JobToken,
 }
 
 impl PostBuildHandler {

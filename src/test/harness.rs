@@ -196,26 +196,13 @@ impl ExpectedMessage {
     }
 }
 
-macro_rules! wait_for_n_results {
-    ($n:expr, $results:expr) => {{
-        use std::time::{Duration, SystemTime};
-        use std::thread;
-
-        let timeout = Duration::from_secs(320);
-        let start_clock = SystemTime::now();
-        let mut results_count = $results.lock().unwrap().len();
-        while results_count < $n {
-            if start_clock.elapsed().unwrap() >= timeout {
-                panic!("Timeout waiting for a result");
-            }
-            thread::sleep(Duration::from_millis(100));
-            results_count = $results.lock().unwrap().len();
-        }
-    }};
+crate fn clear_messages(server: &mut ls_server::LsService<RecordOutput>, results: LsResultList) {
+    server.wait_for_concurrent_jobs();
+    results.lock().unwrap().clear();
 }
 
-crate fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
-    wait_for_n_results!(expected.len(), results);
+crate fn expect_messages(server: &mut ls_server::LsService<RecordOutput>, results: LsResultList, expected: &[&ExpectedMessage]) {
+    server.wait_for_concurrent_jobs();
 
     let mut results = results.lock().unwrap();
 
