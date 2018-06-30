@@ -23,7 +23,7 @@ log = "0.4"
 num_cpus = "1"
 racer = "2.0.14"
 rayon = "1"
-rls-analysis = "0.13"
+rls-analysis = "0.14"
 rls-blacklist = "0.1.2"
 rls-data = { version = "0.16", features = ["serialize-serde"] }
 rls-rustc = "0.4.0"
