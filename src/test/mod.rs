@@ -24,7 +24,7 @@ use crate::server::{self as ls_server, Request, ShutdownRequest, Notification, R
 use jsonrpc_core;
 use rls_vfs::Vfs;
 
-use self::harness::{expect_messages, src, Environment, ExpectedMessage, RecordOutput};
+use self::harness::{compare_json, expect_messages, src, Environment, ExpectedMessage, RecordOutput};
 
 use languageserver_types::*;
 use crate::lsp_data::InitializationOptions;
@@ -426,6 +426,69 @@ fn test_workspace_symbol() {
                                                                      .expect_contains(r#""kind":2"#)
                                                                      .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
                                                                      .expect_contains(r#""containerName":"foo""#)]);
+}
+
+#[test]
+fn test_workspace_symbol_duplicates() {
+    let mut env = Environment::new("workspace_symbol_duplicates");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::WorkspaceSymbol>(
+            42,
+            WorkspaceSymbolParams {
+                query: "Frobnicator".to_owned(),
+            },
+        ).to_string(),
+    ];
+
+    env.with_config(|c| c.cfg_test = true);
+    let (mut server, results) = env.mock_server(messages);
+    // Initialize and build.
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_messages(
+        &mut server,
+        results.clone(),
+        &[
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("workspace_symbol"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+        ],
+    );
+
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+
+    server.wait_for_concurrent_jobs();
+    let result: serde_json::Value =
+        serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
+    let mut result = result.get("result").unwrap().clone();
+    *result.pointer_mut("/0/location/uri").unwrap() = "shared.rs".into();
+    compare_json(
+        &result,
+        r#"[{
+            "containerName": "a",
+            "kind": 5,
+            "location": {
+              "range": {
+                "end": { "line": 11, "character": 18 },
+                "start": { "line": 11, "character": 7 }
+              },
+              "uri": "shared.rs"
+            },
+            "name": "Frobnicator"
+        }]"#,
+    )
 }
 
 #[test]

@@ -18,6 +18,7 @@ use racer;
 use rustfmt_nightly::{format_input, FileLines, FileName, Input as FmtInput, Range as RustfmtRange};
 use serde_json;
 use rls_span as span;
+use itertools::Itertools;
 
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
@@ -83,6 +84,9 @@ impl RequestAction for WorkspaceSymbol {
 
         Ok(
             defs.into_iter()
+                // Sometimes analysis will return duplicate symbols
+                // for the same location, fix that up.
+                .unique_by(|d| (d.span.clone(), d.name.clone()))
                 .map(|d| {
                     SymbolInformation {
                         name: d.name,
