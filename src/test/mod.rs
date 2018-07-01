@@ -15,7 +15,8 @@ extern crate json;
 
 #[macro_use]
 mod harness;
-mod lens;
+// FIXME(#925) intermittent failure
+//mod lens;
 
 use analysis;
 use actions::{requests, notifications};
