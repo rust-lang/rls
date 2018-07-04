@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use cargo::core::{PackageId, Shell, Target, TargetKind, Verbosity, Workspace};
+use cargo::core::{enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace};
 use cargo::core::compiler::{Context, Executor, Unit, BuildConfig, CompileMode};
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue,
@@ -143,6 +143,7 @@ fn run_cargo(
         make_cargo_config(manifest_dir, target_dir, restore_env.get_old_cwd(), shell)
     };
 
+    enable_nightly_features();
     let ws = Workspace::new(&manifest_path, &config)?;
 
     let packages = match package_arg {
