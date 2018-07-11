@@ -17,7 +17,7 @@ env_logger = "0.5"
 failure = "0.1.1"
 itertools = "0.7.3"
 jsonrpc-core = "8.0.1"
-languageserver-types = "0.44"
+languageserver-types = "0.45"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
@@ -44,6 +44,3 @@ json = "0.11"
 [features]
 default = []
 clippy = ["clippy_lints"]
-
-[patch.crates-io]
-languageserver-types = { git = 'https://github.com/dgriffen/languageserver-types', branch = 'server-capabilities-3.6' }
