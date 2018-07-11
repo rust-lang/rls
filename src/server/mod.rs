@@ -20,8 +20,8 @@ pub use ls_types::notification::Exit as ExitNotification;
 pub use ls_types::request::Initialize as InitializeRequest;
 pub use ls_types::request::Shutdown as ShutdownRequest;
 use ls_types::{
-    CompletionOptions, ExecuteCommandOptions, InitializeParams, InitializeResult,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, CodeLensOptions
+    CompletionOptions, ExecuteCommandOptions, ImplementationProviderCapability, InitializeParams, InitializeResult,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, CodeLensOptions,
 };
 use lsp_data;
 use lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
@@ -270,7 +270,7 @@ impl<O: Output> LsService<O> {
                 requests::Rename,
                 requests::CodeAction,
                 requests::DocumentHighlight,
-                requests::FindImpls,
+                requests::Implementation,
                 requests::Symbols,
                 requests::Hover,
                 requests::WorkspaceSymbol,
@@ -360,6 +360,8 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
             trigger_characters: Some(vec![".".to_string(), ":".to_string()]),
         }),
         definition_provider: Some(true),
+        type_definition_provider: None,
+        implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
         references_provider: Some(true),
         document_highlight_provider: Some(true),
         document_symbol_provider: Some(true),
@@ -376,6 +378,8 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
             ],
         }),
         rename_provider: Some(true),
+        color_provider: None,
+
         // These are supported if the `unstable_features` option is set.
         // We'll update these capabilities dynamically when we get config
         // info from the client.

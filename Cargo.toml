@@ -44,3 +44,6 @@ json = "0.11"
 [features]
 default = []
 clippy = ["clippy_lints"]
+
+[patch.crates-io]
+languageserver-types = { git = 'https://github.com/dgriffen/languageserver-types', branch = 'server-capabilities-3.6' }
