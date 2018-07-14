@@ -35,6 +35,7 @@ pub use lsp_data::request::{
     DocumentSymbol as Symbols,
     HoverRequest as Hover,
     GotoDefinition as Definition,
+    GotoImplementation as Implementation,
     References,
     Completion,
     DocumentHighlightRequest as DocumentHighlight,
@@ -46,7 +47,6 @@ pub use lsp_data::request::{
     ResolveCompletionItem as ResolveCompletion,
     CodeLensRequest,
 };
-pub use lsp_data::FindImpls;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -174,7 +174,7 @@ impl RequestAction for Hover {
     }
 }
 
-impl RequestAction for FindImpls {
+impl RequestAction for Implementation {
     type Response = Vec<Location>;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {

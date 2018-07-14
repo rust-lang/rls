@@ -1148,14 +1148,14 @@ fn test_find_impls() {
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-        request::<requests::FindImpls>(
+        request::<requests::Implementation>(
             1,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url.clone()),
                 position: env.cache.mk_ls_position(src(&source_file_path, 13, "Bar")),
             },
         ).to_string(),
-        request::<requests::FindImpls>(
+        request::<requests::Implementation>(
             2,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url.clone()),
@@ -1164,7 +1164,7 @@ fn test_find_impls() {
             },
         ).to_string(),
         // FIXME Does not work on Travis
-        // request::<requests::FindImpls>(
+        // request::<requests::Implementation>(
         //     3,
         //     TextDocumentPositionParams {
         //         text_document: TextDocumentIdentifier::new(url),

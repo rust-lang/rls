@@ -350,18 +350,6 @@ impl LSPNotification for BeginBuild {
     const METHOD: &'static str = "rustDocument/beginBuild";
 }
 
-/* ------------------ Custom JSON-RPC requests ---------------- */
-
-/// Find all the implementations of a given trait.
-#[derive(Debug)]
-pub enum FindImpls { }
-
-impl LSPRequest for FindImpls {
-    type Params = TextDocumentPositionParams;
-    type Result = Vec<Location>;
-    const METHOD: &'static str = "rustDocument/implementations";
-}
-
 /* ----------  Temporary LSP type until window/progress proposal is done --------- */
 
 // Notification from server to client for build progress.

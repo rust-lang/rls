@@ -95,7 +95,7 @@ define_dispatch_request_enum!(
     WorkspaceSymbol,
     Symbols,
     Hover,
-    FindImpls,
+    Implementation,
     DocumentHighlight,
     Rename,
     CodeAction,
