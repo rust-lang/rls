@@ -344,7 +344,7 @@ impl IsWithin for Range {
 #[cfg(test)]
 mod diagnostic_message_test {
     use super::*;
-    use ls_types::Position;
+    use languageserver_types::Position;
 
     pub(super) fn parse_compiler_message(
         compiler_message: &str,
@@ -735,7 +735,7 @@ help: consider borrowing here: `&string`"#,
 mod diagnostic_suggestion_test {
     use self::diagnostic_message_test::*;
     use super::*;
-    use ls_types::Position;
+    use languageserver_types::Position;
 
     #[test]
     fn suggest_use_when_cannot_find_type() {

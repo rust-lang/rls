@@ -16,13 +16,13 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use analysis;
-use config::{Config, Inferrable};
+use rls_analysis::{AnalysisHost, Target};
+use crate::config::{Config, Inferrable};
 use env_logger;
-use languageserver_types;
+use languageserver_types as ls_types;
 use serde_json;
-use server as ls_server;
-use vfs;
+use crate::server as ls_server;
+use rls_vfs::Vfs;
 
 pub struct Environment {
     pub config: Option<Config>,
@@ -46,7 +46,7 @@ impl Environment {
         // Acquire the current directory, but this is changing when tests are
         // running so we need to be sure to access it in a synchronized fashion.
         let cur_dir = {
-            use build::environment::{EnvironmentLock, Environment};
+            use crate::build::environment::{EnvironmentLock, Environment};
             let env = EnvironmentLock::get();
             let (guard, _other) = env.lock();
             Environment::push_with_lock(&HashMap::new(), None, guard)
@@ -93,8 +93,8 @@ impl Environment {
         &mut self,
         messages: Vec<String>,
     ) -> (ls_server::LsService<RecordOutput>, LsResultList) {
-        let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-        let vfs = Arc::new(vfs::Vfs::new());
+        let analysis = Arc::new(AnalysisHost::new(Target::Debug));
+        let vfs = Arc::new(Vfs::new());
         let config = Arc::new(Mutex::new(self.config.take().unwrap()));
         let reader = Box::new(MockMsgReader::new(messages));
         let output = RecordOutput::new();

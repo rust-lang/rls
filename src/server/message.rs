@@ -365,8 +365,8 @@ impl Serialize for RawMessage {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ls_types::InitializedParams;
-    use server::notifications;
+    use languageserver_types::InitializedParams;
+    use crate::server::notifications;
 
     #[test]
     fn test_parse_as_notification() {

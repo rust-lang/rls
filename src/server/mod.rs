@@ -421,12 +421,12 @@ mod test {
             root_path: None,
             root_uri: None,
             initialization_options: None,
-            capabilities: ::ls_types::ClientCapabilities {
+            capabilities: languageserver_types::ClientCapabilities {
                 workspace: None,
                 text_document: None,
                 experimental: None,
             },
-            trace: Some(::ls_types::TraceOption::Off),
+            trace: Some(languageserver_types::TraceOption::Off),
         }
     }
 

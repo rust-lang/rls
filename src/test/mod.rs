@@ -11,24 +11,24 @@
 // Utilities and infrastructure for testing. Tests in this module test the
 // testing infrastructure *not* the RLS.
 
-extern crate json;
+use json;
 
 #[macro_use]
 mod harness;
 // FIXME(#925) intermittent failure
 //mod lens;
 
-use analysis;
-use actions::{requests, notifications};
-use config::{Config, Inferrable};
-use server::{self as ls_server, Request, ShutdownRequest, Notification, RequestId};
+use rls_analysis::{AnalysisHost, Target};
+use crate::actions::{requests, notifications};
+use crate::config::{Config, Inferrable};
+use crate::server::{self as ls_server, Request, ShutdownRequest, Notification, RequestId};
 use jsonrpc_core;
-use vfs;
+use rls_vfs::Vfs;
 
 use self::harness::{expect_messages, src, Environment, ExpectedMessage, RecordOutput};
 
-use ls_types::*;
-use lsp_data::InitializationOptions;
+use languageserver_types::*;
+use crate::lsp_data::InitializationOptions;
 
 use env_logger;
 use serde_json;
@@ -1107,8 +1107,8 @@ fn test_parse_error_on_malformed_input() {
         }
     }
 
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
+    let analysis = Arc::new(AnalysisHost::new(Target::Debug));
+    let vfs = Arc::new(Vfs::new());
     let reader = Box::new(NoneMsgReader);
     let output = RecordOutput::new();
     let results = output.output.clone();

@@ -9,14 +9,13 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate cargo;
 #[macro_use]
 extern crate serde_json;
 
 use std::time::Duration;
 
 mod support;
-use support::{ExpectedMessage, RlsHandle, basic_bin_manifest, project, timeout};
+use self::support::{ExpectedMessage, RlsHandle, basic_bin_manifest, project, timeout};
 
 const TIME_LIMIT_SECS: u64 = 300;
 
