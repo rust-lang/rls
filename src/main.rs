@@ -20,6 +20,7 @@
 #![feature(drain_filter)]
 #![feature(rust_2018_preview)]
 
+#![deny(rust_2018_idioms)]
 #![allow(unknown_lints)]
 #![warn(clippy)]
 #![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments)]
