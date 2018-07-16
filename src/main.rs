@@ -18,6 +18,7 @@
 #![feature(rustc_private)]
 #![feature(integer_atomics)]
 #![feature(drain_filter)]
+#![feature(rust_2018_preview)]
 
 #![allow(unknown_lints)]
 #![warn(clippy)]
