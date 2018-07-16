@@ -11,7 +11,6 @@
 extern crate getopts;
 extern crate rustc;
 extern crate rustc_driver;
-extern crate rustc_plugin;
 extern crate rustc_errors as errors;
 extern crate rustc_resolve;
 extern crate rustc_save_analysis;

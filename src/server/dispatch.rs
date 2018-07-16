@@ -35,7 +35,7 @@ pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(3_600_000);
 macro_rules! define_dispatch_request_enum {
     ($($request_type:ident),*$(,)*) => {
         #[allow(large_enum_variant)] // seems ok for a short lived macro-enum
-        pub enum DispatchRequest {
+        crate enum DispatchRequest {
             $(
                 $request_type(Request<$request_type>, InitActionContext),
             )*
