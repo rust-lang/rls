@@ -18,13 +18,13 @@ use std::collections::HashMap;
 use std::iter;
 use std::path::{Path, PathBuf};
 
-use crate::ls_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range};
+use languageserver_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range};
 use crate::lsp_data::ls_util;
 use serde_json;
-use crate::span::compiler::DiagnosticSpan;
+use rls_span::compiler::DiagnosticSpan;
 use url::Url;
 
-pub use crate::ls_types::Diagnostic;
+pub use languageserver_types::Diagnostic;
 
 #[derive(Debug)]
 pub struct Suggestion {

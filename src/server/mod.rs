@@ -13,13 +13,13 @@
 //! requests).
 
 use crate::actions::{notifications, requests, ActionContext};
-use crate::analysis::AnalysisHost;
+use rls_analysis::AnalysisHost;
 use crate::config::Config;
 use jsonrpc_core::{self as jsonrpc, Id, types::error::ErrorCode};
-pub use crate::ls_types::notification::Exit as ExitNotification;
-pub use crate::ls_types::request::Initialize as InitializeRequest;
-pub use crate::ls_types::request::Shutdown as ShutdownRequest;
-use crate::ls_types::{
+pub use languageserver_types::notification::Exit as ExitNotification;
+pub use languageserver_types::request::Initialize as InitializeRequest;
+pub use languageserver_types::request::Shutdown as ShutdownRequest;
+use languageserver_types::{
     CompletionOptions, ExecuteCommandOptions, ImplementationProviderCapability, InitializeParams, InitializeResult,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, CodeLensOptions,
 };
@@ -39,7 +39,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use crate::version;
-use crate::vfs::Vfs;
+use rls_vfs::Vfs;
 
 mod dispatch;
 mod io;

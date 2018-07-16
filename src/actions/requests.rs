@@ -11,13 +11,13 @@
 //! Requests that the RLS can respond to.
 
 use crate::actions::InitActionContext;
-use data;
+use rls_data as data;
 use url::Url;
-use crate::vfs::FileContents;
+use rls_vfs::FileContents;
 use racer;
-use crate::rustfmt::{format_input, FileLines, FileName, Input as FmtInput, Range as RustfmtRange};
+use rustfmt_nightly::{format_input, FileLines, FileName, Input as FmtInput, Range as RustfmtRange};
 use serde_json;
-use span;
+use rls_span as span;
 
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
@@ -27,7 +27,7 @@ use crate::lsp_data::*;
 use crate::server;
 use crate::server::{Ack, Output, Request, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
-use crate::analysis::SymbolQuery;
+use rls_analysis::SymbolQuery;
 
 use crate::lsp_data::request::ApplyWorkspaceEdit;
 pub use crate::lsp_data::request::{

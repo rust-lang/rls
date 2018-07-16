@@ -11,13 +11,13 @@
 //! Actions that the RLS can perform: responding to requests, watching files,
 //! etc.
 
-use crate::analysis::AnalysisHost;
-use crate::vfs::Vfs;
+use rls_analysis::AnalysisHost;
+use rls_vfs::Vfs;
 use crate::config::FmtConfig;
 use crate::config::Config;
 use serde_json;
 use url::Url;
-use span;
+use rls_span as span;
 use crate::Span;
 use walkdir::WalkDir;
 

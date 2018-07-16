@@ -16,8 +16,8 @@ use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
 use crate::actions::post_build::PostBuildHandler;
 use cargo::util::important_paths;
 use crate::config::Config;
-use crate::data::Analysis;
-use crate::vfs::Vfs;
+use rls_data::Analysis;
+use rls_vfs::Vfs;
 
 use self::environment::EnvironmentLock;
 

@@ -32,42 +32,24 @@
 #[cfg_attr(all(windows, not(target_env = "msvc")), link_args = "-Wl,--stack,16777216")]
 extern {}
 
-extern crate cargo;
-extern crate cargo_metadata;
-extern crate env_logger;
+use env_logger;
 #[macro_use]
 extern crate failure;
-extern crate itertools;
-extern crate jsonrpc_core;
-extern crate languageserver_types as ls_types;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate num_cpus;
-extern crate racer;
-extern crate rayon;
-extern crate rls_analysis as analysis;
-extern crate rls_blacklist as blacklist;
-extern crate rls_data as data;
-extern crate rls_rustc as rustc_shim;
-extern crate rls_span as span;
-extern crate rls_vfs as vfs;
-extern crate rustfmt_nightly as rustfmt;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-
 #[macro_use]
 extern crate serde_json;
 
-extern crate url;
-extern crate walkdir;
-extern crate regex;
-extern crate ordslice;
-
 use std::env;
 use std::sync::Arc;
+
+use rls_analysis::{AnalysisHost, Target};
+use rls_rustc as rustc_shim;
+use rls_vfs::Vfs;
 
 pub mod actions;
 pub mod build;
@@ -81,7 +63,7 @@ mod test;
 
 const RUSTC_SHIM_ENV_VAR_NAME: &str = "RLS_RUSTC_SHIM";
 
-type Span = span::Span<span::ZeroIndexed>;
+type Span = rls_span::Span<rls_span::ZeroIndexed>;
 
 /// The main entry point to the RLS. Parses CLI arguments and then runs the
 /// server.
@@ -126,8 +108,8 @@ fn main_inner() -> i32 {
         }
     }
 
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
+    let analysis = Arc::new(AnalysisHost::new(Target::Debug));
+    let vfs = Arc::new(Vfs::new());
 
     server::run_server(analysis, vfs)
 }

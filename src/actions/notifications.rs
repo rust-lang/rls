@@ -11,7 +11,7 @@
 //! One-way notifications that the RLS receives from the client.
 
 use crate::actions::{InitActionContext, FileWatch, VersionOrdering};
-use crate::vfs::Change;
+use rls_vfs::Change;
 use crate::config::Config;
 use serde::Deserialize;
 use serde::de::Error;
@@ -22,7 +22,7 @@ use std::sync::atomic::Ordering;
 use crate::build::*;
 use crate::lsp_data::*;
 use crate::lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
-use crate::ls_types::notification::ShowMessage;
+use languageserver_types::notification::ShowMessage;
 use crate::server::Request;
 
 pub use crate::lsp_data::notification::{

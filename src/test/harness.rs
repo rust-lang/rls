@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use analysis;
 use config::{Config, Inferrable};
 use env_logger;
-use ls_types;
+use languageserver_types;
 use serde_json;
 use server as ls_server;
 use vfs;

@@ -1,8 +1,8 @@
 use crate::actions::InitActionContext;
 use ordslice::Ext;
 use regex::Regex;
-use crate::span::{Column, Position, Range, Row, ZeroIndexed};
-use crate::vfs::FileContents;
+use rls_span::{Column, Position, Range, Row, ZeroIndexed};
+use rls_vfs::FileContents;
 
 use std::{collections::HashMap, iter, path::Path};
 

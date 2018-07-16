@@ -24,12 +24,12 @@ use std::thread::{self, Thread};
 use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
 use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::BuildResult;
-use crate::ls_types::DiagnosticSeverity;
+use languageserver_types::DiagnosticSeverity;
 use itertools::Itertools;
 use crate::lsp_data::PublishDiagnosticsParams;
 
-use crate::analysis::AnalysisHost;
-use crate::data::Analysis;
+use rls_analysis::AnalysisHost;
+use rls_data::Analysis;
 use url::Url;
 
 pub type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
@@ -111,7 +111,7 @@ impl PostBuildHandler {
     fn reload_analysis_from_disk(&self, cwd: &Path) {
         if self.use_black_list {
             self.analysis
-                .reload_with_blacklist(&self.project_path, cwd, &crate::blacklist::CRATE_BLACKLIST)
+                .reload_with_blacklist(&self.project_path, cwd, &rls_blacklist::CRATE_BLACKLIST)
                 .unwrap();
         } else {
             self.analysis.reload(&self.project_path, cwd).unwrap();
@@ -125,7 +125,7 @@ impl PostBuildHandler {
                     analysis,
                     &self.project_path,
                     cwd,
-                    &crate::blacklist::CRATE_BLACKLIST,
+                    &rls_blacklist::CRATE_BLACKLIST,
                 )
                 .unwrap();
         } else {

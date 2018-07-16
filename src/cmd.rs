@@ -13,13 +13,13 @@
 //! the RLS as usual and prints the JSON result back on the command line.
 
 use crate::actions::requests;
-use crate::analysis::{AnalysisHost, Target};
+use rls_analysis::{AnalysisHost, Target};
 use crate::config::Config;
 use crate::server::{self, LsService, Notification, Request, RequestId};
 use std::sync::atomic::{AtomicU64, Ordering};
-use crate::vfs::Vfs;
+use rls_vfs::Vfs;
 
-use crate::ls_types::{
+use languageserver_types::{
     ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
     DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
     FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,
