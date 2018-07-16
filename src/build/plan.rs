@@ -30,16 +30,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 
-use build::PackageArg;
+use crate::build::PackageArg;
 use cargo::core::{PackageId, Target, TargetKind};
 use cargo::core::compiler::{Context, Kind, Unit};
 use cargo::core::profiles::Profile;
 use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
-use lsp_data::parse_file_path;
+use crate::lsp_data::parse_file_path;
 use url::Url;
 
-use actions::progress::ProgressUpdate;
+use crate::actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.

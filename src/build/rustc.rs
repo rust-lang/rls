@@ -31,11 +31,11 @@ use self::rustc_codegen_utils::codegen_backend::CodegenBackend;
 use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
-use config::{ClippyPreference, Config};
-use build::{BufWriter, BuildResult};
-use build::environment::{Environment, EnvironmentLockFacade};
-use data::Analysis;
-use vfs::Vfs;
+use crate::config::{ClippyPreference, Config};
+use crate::build::{BufWriter, BuildResult};
+use crate::build::environment::{Environment, EnvironmentLockFacade};
+use crate::data::Analysis;
+use crate::vfs::Vfs;
 
 use std::collections::HashMap;
 use std::ffi::OsString;

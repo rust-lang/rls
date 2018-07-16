@@ -9,15 +9,15 @@
 // except according to those terms.
 
 use super::requests::*;
-use actions::work_pool;
-use actions::work_pool::WorkDescription;
-use actions::InitActionContext;
+use crate::actions::work_pool;
+use crate::actions::work_pool::WorkDescription;
+use crate::actions::InitActionContext;
 use jsonrpc_core::types::ErrorCode;
-use lsp_data::LSPRequest;
-use server;
-use server::io::Output;
-use server::message::ResponseError;
-use server::{Request, Response};
+use crate::lsp_data::LSPRequest;
+use crate::server;
+use crate::server::io::Output;
+use crate::server::message::ResponseError;
+use crate::server::{Request, Response};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;

@@ -12,12 +12,12 @@
 
 pub use self::cargo::make_cargo_config;
 
-use actions::progress::{ProgressNotifier, ProgressUpdate};
-use actions::post_build::PostBuildHandler;
+use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
+use crate::actions::post_build::PostBuildHandler;
 use cargo::util::important_paths;
-use config::Config;
-use data::Analysis;
-use vfs::Vfs;
+use crate::config::Config;
+use crate::data::Analysis;
+use crate::vfs::Vfs;
 
 use self::environment::EnvironmentLock;
 

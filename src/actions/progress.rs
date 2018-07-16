@@ -10,9 +10,9 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use lsp_data::{ProgressParams, PublishDiagnosticsParams, Progress, ShowMessageParams, MessageType};
-use server::{Output, Notification};
-use ls_types::notification::{PublishDiagnostics, ShowMessage};
+use crate::lsp_data::{ProgressParams, PublishDiagnosticsParams, Progress, ShowMessageParams, MessageType};
+use crate::server::{Output, Notification};
+use crate::ls_types::notification::{PublishDiagnostics, ShowMessage};
 
 /// Trait for communication of build progress back to the client.
 pub trait ProgressNotifier: Send {

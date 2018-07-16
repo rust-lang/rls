@@ -10,27 +10,27 @@
 
 //! Requests that the RLS can respond to.
 
-use actions::InitActionContext;
+use crate::actions::InitActionContext;
 use data;
 use url::Url;
-use vfs::FileContents;
+use crate::vfs::FileContents;
 use racer;
-use rustfmt::{format_input, FileLines, FileName, Input as FmtInput, Range as RustfmtRange};
+use crate::rustfmt::{format_input, FileLines, FileName, Input as FmtInput, Range as RustfmtRange};
 use serde_json;
 use span;
 
-use actions::work_pool;
-use actions::work_pool::WorkDescription;
-use actions::run::collect_run_actions;
-use lsp_data;
-use lsp_data::*;
-use server;
-use server::{Ack, Output, Request, RequestAction, ResponseError};
+use crate::actions::work_pool;
+use crate::actions::work_pool::WorkDescription;
+use crate::actions::run::collect_run_actions;
+use crate::lsp_data;
+use crate::lsp_data::*;
+use crate::server;
+use crate::server::{Ack, Output, Request, RequestAction, ResponseError};
 use jsonrpc_core::types::ErrorCode;
-use analysis::SymbolQuery;
+use crate::analysis::SymbolQuery;
 
-use lsp_data::request::ApplyWorkspaceEdit;
-pub use lsp_data::request::{
+use crate::lsp_data::request::ApplyWorkspaceEdit;
+pub use crate::lsp_data::request::{
     WorkspaceSymbol,
     DocumentSymbol as Symbols,
     HoverRequest as Hover,

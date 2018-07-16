@@ -10,16 +10,16 @@
 
 //! Traits and structs for message handling
 
-use actions::InitActionContext;
+use crate::actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
 use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
 use serde_json;
 
-use actions::ActionContext;
-use lsp_data::{LSPNotification, LSPRequest};
-use server::io::Output;
+use crate::actions::ActionContext;
+use crate::lsp_data::{LSPNotification, LSPRequest};
+use crate::server::io::Output;
 
 use std::fmt;
 use std::marker::PhantomData;

@@ -26,8 +26,8 @@ use cargo::core::{Shell, Workspace};
 use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
 
-use rustfmt::Config as RustfmtConfig;
-use rustfmt::{self, load_config, CliOptions, EmitMode, Verbosity};
+use crate::rustfmt::Config as RustfmtConfig;
+use crate::rustfmt::{self, load_config, CliOptions, EmitMode, Verbosity};
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 1500;
 

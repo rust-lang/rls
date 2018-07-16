@@ -10,22 +10,22 @@
 
 //! One-way notifications that the RLS receives from the client.
 
-use actions::{InitActionContext, FileWatch, VersionOrdering};
-use vfs::Change;
-use config::Config;
+use crate::actions::{InitActionContext, FileWatch, VersionOrdering};
+use crate::vfs::Change;
+use crate::config::Config;
 use serde::Deserialize;
 use serde::de::Error;
 use serde_json;
-use Span;
+use crate::Span;
 use std::sync::atomic::Ordering;
 
-use build::*;
-use lsp_data::*;
-use lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
-use ls_types::notification::ShowMessage;
-use server::Request;
+use crate::build::*;
+use crate::lsp_data::*;
+use crate::lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
+use crate::ls_types::notification::ShowMessage;
+use crate::server::Request;
 
-pub use lsp_data::notification::{
+pub use crate::lsp_data::notification::{
     Initialized,
     DidOpenTextDocument,
     DidChangeTextDocument,
@@ -35,7 +35,7 @@ pub use lsp_data::notification::{
     Cancel,
 };
 
-use server::{BlockingNotificationAction, Notification, Output};
+use crate::server::{BlockingNotificationAction, Notification, Output};
 
 use std::thread;
 
