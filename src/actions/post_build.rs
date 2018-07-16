@@ -44,7 +44,7 @@ pub struct PostBuildHandler {
     pub related_information_support: bool,
     pub shown_cargo_error: Arc<AtomicBool>,
     pub active_build_count: Arc<AtomicUsize>,
-    pub notifier: Box<DiagnosticsNotifier>,
+    pub notifier: Box<dyn DiagnosticsNotifier>,
     pub blocked_threads: Vec<thread::Thread>,
 }
 

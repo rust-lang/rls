@@ -127,7 +127,7 @@ impl BlockingRequestAction for InitializeRequest {
 
 /// A service implementing a language server.
 pub struct LsService<O: Output> {
-    msg_reader: Box<MessageReader + Send + Sync>,
+    msg_reader: Box<dyn MessageReader + Send + Sync>,
     output: O,
     ctx: ActionContext,
     dispatcher: Dispatcher,
@@ -139,7 +139,7 @@ impl<O: Output> LsService<O> {
         analysis: Arc<AnalysisHost>,
         vfs: Arc<Vfs>,
         config: Arc<Mutex<Config>>,
-        reader: Box<MessageReader + Send + Sync>,
+        reader: Box<dyn MessageReader + Send + Sync>,
         output: O,
     ) -> LsService<O> {
         let dispatcher = Dispatcher::new(output.clone());

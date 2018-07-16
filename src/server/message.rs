@@ -250,13 +250,13 @@ where
 
 #[derive(Debug, PartialEq)]
 pub(super) struct RawMessage {
-    pub method: String,
-    pub id: Id,
-    pub params: serde_json::Value,
+    crate method: String,
+    crate id: Id,
+    crate params: serde_json::Value,
 }
 
 impl RawMessage {
-    pub fn parse_as_request<'de, R>(&'de self) -> Result<Request<R>, jsonrpc::Error>
+    crate fn parse_as_request<'de, R>(&'de self) -> Result<Request<R>, jsonrpc::Error>
     where
         R: LSPRequest,
         <R as LSPRequest>::Params: serde::Deserialize<'de>,
@@ -283,7 +283,7 @@ impl RawMessage {
         }
     }
 
-    pub fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
+    crate fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
     where
         T: LSPNotification,
         <T as LSPNotification>::Params: serde::Deserialize<'de>,
@@ -299,7 +299,7 @@ impl RawMessage {
         })
     }
 
-    pub fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
+    crate fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
         // Parse the message.
         let ls_command: serde_json::Value =
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;

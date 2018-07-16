@@ -44,7 +44,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 // Runs a single instance of rustc. Runs in-process.
-pub fn rustc(
+crate fn rustc(
     vfs: &Vfs,
     args: &[String],
     envs: &HashMap<String, Option<OsString>>,
@@ -215,10 +215,10 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
     fn late_callback(
         &mut self,
-        codegen_backend: &CodegenBackend,
+        codegen_backend: &dyn CodegenBackend,
         matches: &getopts::Matches,
         sess: &Session,
-        cstore: &CrateStore,
+        cstore: &dyn CrateStore,
         input: &Input,
         odir: &Option<PathBuf>,
         ofile: &Option<PathBuf>,

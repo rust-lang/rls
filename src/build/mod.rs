@@ -185,7 +185,7 @@ struct PendingBuild {
     build_dir: PathBuf,
     priority: BuildPriority,
     built_files: HashMap<PathBuf, FileVersion>,
-    notifier: Box<ProgressNotifier>,
+    notifier: Box<dyn ProgressNotifier>,
     pbh: PostBuildHandler,
 }
 
@@ -259,7 +259,7 @@ impl BuildQueue {
         &self,
         new_build_dir: &Path,
         mut priority: BuildPriority,
-        notifier: Box<ProgressNotifier>,
+        notifier: Box<dyn ProgressNotifier>,
         pbh: PostBuildHandler
     ) {
         trace!("request_build {:?}", priority);

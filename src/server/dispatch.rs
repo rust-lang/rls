@@ -110,7 +110,7 @@ define_dispatch_request_enum!(
 /// handle the requests sequentially, without blocking stdin.
 /// Requests dispatched this way are automatically timed out & avoid
 /// processing if have already timed out before starting.
-pub struct Dispatcher {
+crate struct Dispatcher {
     sender: mpsc::Sender<DispatchRequest>,
 
     request_handled_receiver: mpsc::Receiver<()>,
@@ -120,7 +120,7 @@ pub struct Dispatcher {
 
 impl Dispatcher {
     /// Creates a new `Dispatcher` starting a new thread and channel
-    pub fn new<O: Output>(out: O) -> Self {
+    crate fn new<O: Output>(out: O) -> Self {
         let (sender, receiver) = mpsc::channel::<DispatchRequest>();
         let (request_handled_sender, request_handled_receiver) = mpsc::channel::<()>();
 
@@ -142,7 +142,7 @@ impl Dispatcher {
     }
 
     /// Blocks until all dispatched requests have been handled
-    pub fn await_all_dispatched(&mut self) {
+    crate fn await_all_dispatched(&mut self) {
         while self.in_flight_requests != 0 {
             self.request_handled_receiver.recv().unwrap();
             self.in_flight_requests -= 1;
@@ -150,7 +150,7 @@ impl Dispatcher {
     }
 
     /// Sends a request to the dispatch-worker thread, does not block
-    pub fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R) {
+    crate fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R) {
         if let Err(err) = self.sender.send(request.into()) {
             debug!("Failed to dispatch request: {:?}", err);
         } else {
