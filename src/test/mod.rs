@@ -38,14 +38,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use url::Url;
 
-pub fn initialize(
+fn initialize(
     id: usize,
     root_path: Option<String>,
 ) -> Request<ls_server::InitializeRequest> {
     initialize_with_opts(id, root_path, None)
 }
 
-pub fn initialize_with_opts(
+fn initialize_with_opts(
     id: usize,
     root_path: Option<String>,
     initialization_options: Option<InitializationOptions>,
@@ -71,7 +71,7 @@ pub fn initialize_with_opts(
     }
 }
 
-pub fn blocking_request<T: ls_server::BlockingRequestAction>(
+fn blocking_request<T: ls_server::BlockingRequestAction>(
     id: usize,
     params: T::Params,
 ) -> Request<T> {
@@ -83,7 +83,7 @@ pub fn blocking_request<T: ls_server::BlockingRequestAction>(
     }
 }
 
-pub fn request<T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request<T> {
+fn request<T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request<T> {
     Request {
         id: RequestId::Num(id as u64),
         params,

@@ -24,14 +24,14 @@ use serde_json;
 use crate::server as ls_server;
 use rls_vfs::Vfs;
 
-pub struct Environment {
-    pub config: Option<Config>,
-    pub cache: Cache,
-    pub target_path: PathBuf,
+crate struct Environment {
+    crate config: Option<Config>,
+    crate cache: Cache,
+    crate target_path: PathBuf,
 }
 
 impl Environment {
-    pub fn new(project_dir: &str) -> Self {
+    crate fn new(project_dir: &str) -> Self {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         lazy_static! {
@@ -80,7 +80,7 @@ impl Environment {
 }
 
 impl Environment {
-    pub fn with_config<F>(&mut self, f: F)
+    crate fn with_config<F>(&mut self, f: F)
     where
         F: FnOnce(&mut Config),
     {
@@ -89,7 +89,7 @@ impl Environment {
     }
 
     // Initialize and run the internals of an LS protocol RLS server.
-    pub fn mock_server(
+    crate fn mock_server(
         &mut self,
         messages: Vec<String>,
     ) -> (ls_server::LsService<RecordOutput>, LsResultList) {
@@ -148,13 +148,13 @@ impl ls_server::MessageReader for MockMsgReader {
 type LsResultList = Arc<Mutex<Vec<String>>>;
 
 #[derive(Clone)]
-pub struct RecordOutput {
-    pub output: LsResultList,
+crate struct RecordOutput {
+    crate output: LsResultList,
     output_id: Arc<Mutex<u32>>,
 }
 
 impl RecordOutput {
-    pub fn new() -> RecordOutput {
+    crate fn new() -> RecordOutput {
         RecordOutput {
             output: Arc::new(Mutex::new(vec![])),
             // use some distinguishable value
@@ -177,20 +177,20 @@ impl ls_server::Output for RecordOutput {
 }
 
 #[derive(Clone, Debug)]
-pub struct ExpectedMessage {
+crate struct ExpectedMessage {
     id: Option<u64>,
     contains: Vec<String>,
 }
 
 impl ExpectedMessage {
-    pub fn new(id: Option<u64>) -> ExpectedMessage {
+    crate fn new(id: Option<u64>) -> ExpectedMessage {
         ExpectedMessage {
             id,
             contains: vec![],
         }
     }
 
-    pub fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
+    crate fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
         self.contains.push(s.to_owned());
         self
     }
@@ -214,7 +214,7 @@ macro_rules! wait_for_n_results {
     }};
 }
 
-pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
+crate fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
     wait_for_n_results!(expected.len(), results);
 
     let mut results = results.lock().unwrap();
@@ -257,14 +257,14 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Src<'a, 'b> {
-    pub file_name: &'a Path,
+crate struct Src<'a, 'b> {
+    crate file_name: &'a Path,
     // 1 indexed
-    pub line: usize,
-    pub name: &'b str,
+    crate line: usize,
+    crate name: &'b str,
 }
 
-pub fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, 'b> {
+crate fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, 'b> {
     Src {
         file_name,
         line,
@@ -272,7 +272,7 @@ pub fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, '
     }
 }
 
-pub struct Cache {
+crate struct Cache {
     base_path: PathBuf,
     files: HashMap<PathBuf, Vec<String>>,
 }
@@ -285,7 +285,7 @@ impl Cache {
         }
     }
 
-    pub fn mk_ls_position(&mut self, src: Src) -> ls_types::Position {
+    crate fn mk_ls_position(&mut self, src: Src) -> ls_types::Position {
         let line = self.get_line(src);
         let col = line.find(src.name)
             .expect(&format!("Line does not contain name {}", src.name));
@@ -295,14 +295,14 @@ impl Cache {
     /// Create a range convering the initial position on the line
     ///
     /// The line number uses a 0-based index.
-    pub fn mk_ls_range_from_line(&mut self, line: u64) -> ls_types::Range {
+    crate fn mk_ls_range_from_line(&mut self, line: u64) -> ls_types::Range {
         ls_types::Range::new(
             ls_types::Position::new(line, 0),
             ls_types::Position::new(line, 0),
         )
     }
 
-    pub fn abs_path(&self, file_name: &Path) -> PathBuf {
+    crate fn abs_path(&self, file_name: &Path) -> PathBuf {
         let result = self.base_path
             .join(file_name)
             .canonicalize()

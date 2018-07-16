@@ -428,7 +428,7 @@ mod test {
     #[test]
     fn raw_message_with_string_id_parses_into_request() {
         #[derive(Debug)]
-        pub enum DummyRequest {}
+        enum DummyRequest {}
         impl LSPRequest for DummyRequest {
             type Params = ();
             type Result = ();
@@ -450,7 +450,7 @@ mod test {
     #[test]
     fn serialize_message_no_params() {
         #[derive(Debug)]
-        pub enum DummyNotification {}
+        enum DummyNotification {}
 
         impl LSPNotification for DummyNotification {
             type Params = ();
@@ -472,9 +472,9 @@ mod test {
     #[test]
     fn serialize_message_empty_params() {
         #[derive(Debug)]
-        pub enum DummyNotification {}
+        enum DummyNotification {}
         #[derive(Serialize)]
-        pub struct EmptyParams {}
+        struct EmptyParams {}
 
         impl LSPNotification for DummyNotification {
             type Params = EmptyParams;
