@@ -160,7 +160,7 @@ dependencies = [
 [[package]]
 name = "clippy_lints"
 version = "0.0.212"
-source = "git+https://github.com/rust-lang-nursery/rust-clippy?rev=2a016890a0e2ad349423c684f595b71b19572c79#2a016890a0e2ad349423c684f595b71b19572c79"
+source = "git+https://github.com/rust-lang-nursery/rust-clippy?rev=f27aaacb9bf1d0d3492f20f92346bb1aaf45e3d8#f27aaacb9bf1d0d3492f20f92346bb1aaf45e3d8"
 dependencies = [
  "cargo_metadata 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "if_chain 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1014,7 +1014,7 @@ version = "0.129.0"
 dependencies = [
  "cargo 0.30.0 (git+https://github.com/rust-lang/cargo?rev=af9e40c26b4ea2ebd6f31ee86ee61d5ac1c74eb0)",
  "cargo_metadata 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "clippy_lints 0.0.212 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=2a016890a0e2ad349423c684f595b71b19572c79)",
+ "clippy_lints 0.0.212 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=f27aaacb9bf1d0d3492f20f92346bb1aaf45e3d8)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1675,7 +1675,7 @@ dependencies = [
 "checksum cc 1.0.17 (registry+https://github.com/rust-lang/crates.io-index)" = "49ec142f5768efb5b7622aebc3fdbdbb8950a4b9ba996393cb76ef7466e8747d"
 "checksum cfg-if 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "efe5c877e17a9c717a0bf3613b2709f723202c4e4675cc8f12926ded29bcb17e"
 "checksum clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b957d88f4b6a63b9d70d5f454ac8011819c6efa7727858f458ab71c756ce2d3e"
-"checksum clippy_lints 0.0.212 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=2a016890a0e2ad349423c684f595b71b19572c79)" = "<none>"
+"checksum clippy_lints 0.0.212 (git+https://github.com/rust-lang-nursery/rust-clippy?rev=f27aaacb9bf1d0d3492f20f92346bb1aaf45e3d8)" = "<none>"
 "checksum cmake 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)" = "95470235c31c726d72bf2e1f421adc1e65b9d561bf5529612cbe1a72da1467b3"
 "checksum commoncrypto 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d056a8586ba25a1e4d61cb090900e495952c7886786fc55f909ab2f819b69007"
 "checksum commoncrypto-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1fed34f46747aa73dfaa578069fd8279d2818ade2b55f38f22a9401c7f4083e2"
