@@ -11,24 +11,24 @@
 // Utilities and infrastructure for testing. Tests in this module test the
 // testing infrastructure *not* the RLS.
 
-extern crate json;
+use json;
 
 #[macro_use]
 mod harness;
 // FIXME(#925) intermittent failure
 //mod lens;
 
-use analysis;
-use actions::{requests, notifications};
-use config::{Config, Inferrable};
-use server::{self as ls_server, Request, ShutdownRequest, Notification, RequestId};
+use rls_analysis::{AnalysisHost, Target};
+use crate::actions::{requests, notifications};
+use crate::config::{Config, Inferrable};
+use crate::server::{self as ls_server, Request, ShutdownRequest, Notification, RequestId};
 use jsonrpc_core;
-use vfs;
+use rls_vfs::Vfs;
 
 use self::harness::{expect_messages, src, Environment, ExpectedMessage, RecordOutput};
 
-use ls_types::*;
-use lsp_data::InitializationOptions;
+use languageserver_types::*;
+use crate::lsp_data::InitializationOptions;
 
 use env_logger;
 use serde_json;
@@ -38,14 +38,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use url::Url;
 
-pub fn initialize(
+fn initialize(
     id: usize,
     root_path: Option<String>,
 ) -> Request<ls_server::InitializeRequest> {
     initialize_with_opts(id, root_path, None)
 }
 
-pub fn initialize_with_opts(
+fn initialize_with_opts(
     id: usize,
     root_path: Option<String>,
     initialization_options: Option<InitializationOptions>,
@@ -71,7 +71,7 @@ pub fn initialize_with_opts(
     }
 }
 
-pub fn blocking_request<T: ls_server::BlockingRequestAction>(
+fn blocking_request<T: ls_server::BlockingRequestAction>(
     id: usize,
     params: T::Params,
 ) -> Request<T> {
@@ -83,7 +83,7 @@ pub fn blocking_request<T: ls_server::BlockingRequestAction>(
     }
 }
 
-pub fn request<T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request<T> {
+fn request<T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request<T> {
     Request {
         id: RequestId::Num(id as u64),
         params,
@@ -1107,8 +1107,8 @@ fn test_parse_error_on_malformed_input() {
         }
     }
 
-    let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
-    let vfs = Arc::new(vfs::Vfs::new());
+    let analysis = Arc::new(AnalysisHost::new(Target::Debug));
+    let vfs = Arc::new(Vfs::new());
     let reader = Box::new(NoneMsgReader);
     let output = RecordOutput::new();
     let results = output.output.clone();

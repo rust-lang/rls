@@ -8,34 +8,28 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate getopts;
-extern crate rustc;
-extern crate rustc_driver;
-extern crate rustc_plugin;
-extern crate rustc_errors as errors;
-extern crate rustc_resolve;
-extern crate rustc_save_analysis;
-extern crate rustc_codegen_utils;
 #[cfg(feature = "clippy")]
 extern crate clippy_lints;
-extern crate syntax;
 
-use self::rustc::middle::cstore::CrateStore;
-use self::rustc::session::Session;
-use self::rustc::session::config::{self, ErrorOutputType, Input};
-use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
-use self::rustc_driver::driver::{CompileController};
-use self::rustc_save_analysis as save;
-use self::rustc_save_analysis::CallbackHandler;
-use self::rustc_codegen_utils::codegen_backend::CodegenBackend;
-use self::syntax::ast;
-use self::syntax::codemap::{FileLoader, RealFileLoader};
+use getopts;
+use rustc::middle::cstore::CrateStore;
+use rustc::session::Session;
+use rustc::session::config::{self, ErrorOutputType, Input};
+use rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
+use rustc_driver::driver::{CompileController};
+use rustc_errors;
+use rustc_resolve;
+use rustc_save_analysis as save;
+use rustc_save_analysis::CallbackHandler;
+use rustc_codegen_utils::codegen_backend::CodegenBackend;
+use syntax::ast;
+use syntax::codemap::{FileLoader, RealFileLoader};
+use rls_data::Analysis;
+use rls_vfs::Vfs;
 
-use config::{ClippyPreference, Config};
-use build::{BufWriter, BuildResult};
-use build::environment::{Environment, EnvironmentLockFacade};
-use data::Analysis;
-use vfs::Vfs;
+use crate::config::{ClippyPreference, Config};
+use crate::build::{BufWriter, BuildResult};
+use crate::build::environment::{Environment, EnvironmentLockFacade};
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -44,7 +38,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 // Runs a single instance of rustc. Runs in-process.
-pub fn rustc(
+crate fn rustc(
     vfs: &Vfs,
     args: &[String],
     envs: &HashMap<String, Option<OsString>>,
@@ -193,7 +187,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         matches: &getopts::Matches,
         sopts: &config::Options,
         cfg: &ast::CrateConfig,
-        descriptions: &errors::registry::Registry,
+        descriptions: &rustc_errors::registry::Registry,
         output: ErrorOutputType,
     ) -> Compilation {
         self.default_calls
@@ -207,7 +201,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         cfg: &ast::CrateConfig,
         odir: &Option<PathBuf>,
         ofile: &Option<PathBuf>,
-        descriptions: &errors::registry::Registry,
+        descriptions: &rustc_errors::registry::Registry,
     ) -> Option<(Input, Option<PathBuf>)> {
         self.default_calls
             .no_input(matches, sopts, cfg, odir, ofile, descriptions)
@@ -215,10 +209,10 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
     fn late_callback(
         &mut self,
-        codegen_backend: &CodegenBackend,
+        codegen_backend: &dyn CodegenBackend,
         matches: &getopts::Matches,
         sess: &Session,
-        cstore: &CrateStore,
+        cstore: &dyn CrateStore,
         input: &Input,
         odir: &Option<PathBuf>,
         ofile: &Option<PathBuf>,

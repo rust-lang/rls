@@ -12,12 +12,12 @@
 
 pub use self::cargo::make_cargo_config;
 
-use actions::progress::{ProgressNotifier, ProgressUpdate};
-use actions::post_build::PostBuildHandler;
+use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
+use crate::actions::post_build::PostBuildHandler;
 use cargo::util::important_paths;
-use config::Config;
-use data::Analysis;
-use vfs::Vfs;
+use crate::config::Config;
+use rls_data::Analysis;
+use rls_vfs::Vfs;
 
 use self::environment::EnvironmentLock;
 
@@ -185,7 +185,7 @@ struct PendingBuild {
     build_dir: PathBuf,
     priority: BuildPriority,
     built_files: HashMap<PathBuf, FileVersion>,
-    notifier: Box<ProgressNotifier>,
+    notifier: Box<dyn ProgressNotifier>,
     pbh: PostBuildHandler,
 }
 
@@ -259,7 +259,7 @@ impl BuildQueue {
         &self,
         new_build_dir: &Path,
         mut priority: BuildPriority,
-        notifier: Box<ProgressNotifier>,
+        notifier: Box<dyn ProgressNotifier>,
         pbh: PostBuildHandler
     ) {
         trace!("request_build {:?}", priority);

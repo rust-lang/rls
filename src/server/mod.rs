@@ -12,34 +12,34 @@
 //! interactions (for example, to add support for handling new types of
 //! requests).
 
-use actions::{notifications, requests, ActionContext};
-use analysis::AnalysisHost;
-use config::Config;
+use crate::actions::{notifications, requests, ActionContext};
+use rls_analysis::AnalysisHost;
+use crate::config::Config;
 use jsonrpc_core::{self as jsonrpc, Id, types::error::ErrorCode};
-pub use ls_types::notification::Exit as ExitNotification;
-pub use ls_types::request::Initialize as InitializeRequest;
-pub use ls_types::request::Shutdown as ShutdownRequest;
-use ls_types::{
+pub use languageserver_types::notification::Exit as ExitNotification;
+pub use languageserver_types::request::Initialize as InitializeRequest;
+pub use languageserver_types::request::Shutdown as ShutdownRequest;
+use languageserver_types::{
     CompletionOptions, ExecuteCommandOptions, ImplementationProviderCapability, InitializeParams, InitializeResult,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, CodeLensOptions,
 };
-use lsp_data;
-use lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
+use crate::lsp_data;
+use crate::lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
 use serde_json;
-use server::dispatch::Dispatcher;
-pub use server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
-pub use server::io::{MessageReader, Output};
-use server::io::{StdioMsgReader, StdioOutput};
-use server::message::RawMessage;
-pub use server::message::{
+use crate::server::dispatch::Dispatcher;
+pub use crate::server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
+pub use crate::server::io::{MessageReader, Output};
+use crate::server::io::{StdioMsgReader, StdioOutput};
+use crate::server::message::RawMessage;
+pub use crate::server::message::{
     Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
     Response, ResponseError, RequestId
 };
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use version;
-use vfs::Vfs;
+use crate::version;
+use rls_vfs::Vfs;
 
 mod dispatch;
 mod io;
@@ -127,7 +127,7 @@ impl BlockingRequestAction for InitializeRequest {
 
 /// A service implementing a language server.
 pub struct LsService<O: Output> {
-    msg_reader: Box<MessageReader + Send + Sync>,
+    msg_reader: Box<dyn MessageReader + Send + Sync>,
     output: O,
     ctx: ActionContext,
     dispatcher: Dispatcher,
@@ -139,7 +139,7 @@ impl<O: Output> LsService<O> {
         analysis: Arc<AnalysisHost>,
         vfs: Arc<Vfs>,
         config: Arc<Mutex<Config>>,
-        reader: Box<MessageReader + Send + Sync>,
+        reader: Box<dyn MessageReader + Send + Sync>,
         output: O,
     ) -> LsService<O> {
         let dispatcher = Dispatcher::new(output.clone());
@@ -421,12 +421,12 @@ mod test {
             root_path: None,
             root_uri: None,
             initialization_options: None,
-            capabilities: ::ls_types::ClientCapabilities {
+            capabilities: languageserver_types::ClientCapabilities {
                 workspace: None,
                 text_document: None,
                 experimental: None,
             },
-            trace: Some(::ls_types::TraceOption::Off),
+            trace: Some(languageserver_types::TraceOption::Off),
         }
     }
 

@@ -21,15 +21,15 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, Thread};
 
-use actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
-use actions::progress::DiagnosticsNotifier;
-use build::BuildResult;
-use ls_types::DiagnosticSeverity;
+use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
+use crate::actions::progress::DiagnosticsNotifier;
+use crate::build::BuildResult;
+use languageserver_types::DiagnosticSeverity;
 use itertools::Itertools;
-use lsp_data::PublishDiagnosticsParams;
+use crate::lsp_data::PublishDiagnosticsParams;
 
-use analysis::AnalysisHost;
-use data::Analysis;
+use rls_analysis::AnalysisHost;
+use rls_data::Analysis;
 use url::Url;
 
 pub type BuildResults = HashMap<PathBuf, Vec<(Diagnostic, Vec<Suggestion>)>>;
@@ -44,7 +44,7 @@ pub struct PostBuildHandler {
     pub related_information_support: bool,
     pub shown_cargo_error: Arc<AtomicBool>,
     pub active_build_count: Arc<AtomicUsize>,
-    pub notifier: Box<DiagnosticsNotifier>,
+    pub notifier: Box<dyn DiagnosticsNotifier>,
     pub blocked_threads: Vec<thread::Thread>,
 }
 
@@ -111,7 +111,7 @@ impl PostBuildHandler {
     fn reload_analysis_from_disk(&self, cwd: &Path) {
         if self.use_black_list {
             self.analysis
-                .reload_with_blacklist(&self.project_path, cwd, &::blacklist::CRATE_BLACKLIST)
+                .reload_with_blacklist(&self.project_path, cwd, &rls_blacklist::CRATE_BLACKLIST)
                 .unwrap();
         } else {
             self.analysis.reload(&self.project_path, cwd).unwrap();
@@ -125,7 +125,7 @@ impl PostBuildHandler {
                     analysis,
                     &self.project_path,
                     cwd,
-                    &::blacklist::CRATE_BLACKLIST,
+                    &rls_blacklist::CRATE_BLACKLIST,
                 )
                 .unwrap();
         } else {

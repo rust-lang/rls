@@ -12,14 +12,14 @@
 //! versions of commands, turns them into messages the RLS will understand, runs
 //! the RLS as usual and prints the JSON result back on the command line.
 
-use actions::requests;
-use analysis::{AnalysisHost, Target};
-use config::Config;
-use server::{self, LsService, Notification, Request, RequestId};
+use crate::actions::requests;
+use rls_analysis::{AnalysisHost, Target};
+use crate::config::Config;
+use crate::server::{self, LsService, Notification, Request, RequestId};
 use std::sync::atomic::{AtomicU64, Ordering};
-use vfs::Vfs;
+use rls_vfs::Vfs;
 
-use ls_types::{
+use languageserver_types::{
     ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
     DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
     FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,

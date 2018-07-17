@@ -12,7 +12,7 @@ use serde;
 use serde_json;
 
 use super::{Notification, Request, RequestId};
-use lsp_data::{LSPNotification, LSPRequest};
+use crate::lsp_data::{LSPNotification, LSPRequest};
 
 use std::fmt;
 use std::io::{self, BufRead, Write};
@@ -194,7 +194,7 @@ pub(super) struct StdioOutput {
 
 impl StdioOutput {
     /// Construct a new `stdout` output.
-    pub fn new() -> StdioOutput {
+    crate fn new() -> StdioOutput {
         StdioOutput {
             next_id: Arc::new(AtomicU64::new(1)),
         }

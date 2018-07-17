@@ -9,15 +9,15 @@
 // except according to those terms.
 
 use super::requests::*;
-use actions::work_pool;
-use actions::work_pool::WorkDescription;
-use actions::InitActionContext;
+use crate::actions::work_pool;
+use crate::actions::work_pool::WorkDescription;
+use crate::actions::InitActionContext;
 use jsonrpc_core::types::ErrorCode;
-use lsp_data::LSPRequest;
-use server;
-use server::io::Output;
-use server::message::ResponseError;
-use server::{Request, Response};
+use crate::lsp_data::LSPRequest;
+use crate::server;
+use crate::server::io::Output;
+use crate::server::message::ResponseError;
+use crate::server::{Request, Response};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -35,7 +35,7 @@ pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(3_600_000);
 macro_rules! define_dispatch_request_enum {
     ($($request_type:ident),*$(,)*) => {
         #[allow(large_enum_variant)] // seems ok for a short lived macro-enum
-        pub enum DispatchRequest {
+        crate enum DispatchRequest {
             $(
                 $request_type(Request<$request_type>, InitActionContext),
             )*
@@ -110,7 +110,7 @@ define_dispatch_request_enum!(
 /// handle the requests sequentially, without blocking stdin.
 /// Requests dispatched this way are automatically timed out & avoid
 /// processing if have already timed out before starting.
-pub struct Dispatcher {
+crate struct Dispatcher {
     sender: mpsc::Sender<DispatchRequest>,
 
     request_handled_receiver: mpsc::Receiver<()>,
@@ -120,7 +120,7 @@ pub struct Dispatcher {
 
 impl Dispatcher {
     /// Creates a new `Dispatcher` starting a new thread and channel
-    pub fn new<O: Output>(out: O) -> Self {
+    crate fn new<O: Output>(out: O) -> Self {
         let (sender, receiver) = mpsc::channel::<DispatchRequest>();
         let (request_handled_sender, request_handled_receiver) = mpsc::channel::<()>();
 
@@ -142,7 +142,7 @@ impl Dispatcher {
     }
 
     /// Blocks until all dispatched requests have been handled
-    pub fn await_all_dispatched(&mut self) {
+    crate fn await_all_dispatched(&mut self) {
         while self.in_flight_requests != 0 {
             self.request_handled_receiver.recv().unwrap();
             self.in_flight_requests -= 1;
@@ -150,7 +150,7 @@ impl Dispatcher {
     }
 
     /// Sends a request to the dispatch-worker thread, does not block
-    pub fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R) {
+    crate fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R) {
         if let Err(err) = self.sender.send(request.into()) {
             debug!("Failed to dispatch request: {:?}", err);
         } else {

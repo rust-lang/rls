@@ -16,12 +16,12 @@ use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, 
 use failure;
 use serde_json;
 
-use actions::progress::ProgressUpdate;
-use data::Analysis;
-use build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
-use build::environment::{self, Environment, EnvironmentLock};
-use config::Config;
-use vfs::Vfs;
+use crate::actions::progress::ProgressUpdate;
+use rls_data::Analysis;
+use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
+use crate::build::environment::{self, Environment, EnvironmentLock};
+use crate::config::Config;
+use rls_vfs::Vfs;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
@@ -386,7 +386,7 @@ impl Executor for RlsExecutor {
             .or_else(|| env::current_exe().ok().and_then(|x| x.to_str().map(String::from)))
             .expect("Couldn't set executable for RLS rustc shim");
         cmd.program(rustc_shim);
-        cmd.env(::RUSTC_SHIM_ENV_VAR_NAME, "1");
+        cmd.env(crate::RUSTC_SHIM_ENV_VAR_NAME, "1");
 
         // Add args and envs to cmd.
         let mut args: Vec<_> = cargo_args
@@ -430,14 +430,14 @@ impl Executor for RlsExecutor {
                 cmd.get_envs(),
             );
 
-            if ::blacklist::CRATE_BLACKLIST.contains(&&*crate_name) {
+            if rls_blacklist::CRATE_BLACKLIST.contains(&&*crate_name) {
                 // By running the original command (rather than using our shim), we
                 // avoid producing save-analysis data.
                 trace!("crate is blacklisted");
                 return cargo_cmd.exec();
             }
             // Only include public symbols in externally compiled deps data
-            let mut save_config = ::data::config::Config::default();
+            let mut save_config = rls_data::config::Config::default();
             save_config.pub_only = true;
             save_config.reachable_only = true;
             let save_config = serde_json::to_string(&save_config)?;

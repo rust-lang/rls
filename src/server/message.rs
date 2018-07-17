@@ -10,16 +10,16 @@
 
 //! Traits and structs for message handling
 
-use actions::InitActionContext;
+use crate::actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
 use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
 use serde_json;
 
-use actions::ActionContext;
-use lsp_data::{LSPNotification, LSPRequest};
-use server::io::Output;
+use crate::actions::ActionContext;
+use crate::lsp_data::{LSPNotification, LSPRequest};
+use crate::server::io::Output;
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -68,7 +68,7 @@ impl From<()> for ResponseError {
 /// Blocks stdin whilst being handled.
 pub trait BlockingNotificationAction: LSPNotification {
     /// Handle this notification.
-    fn handle<O: Output>(Self::Params, &mut InitActionContext, O) -> Result<(), ()>;
+    fn handle<O: Output>(_: Self::Params, _: &mut InitActionContext, _: O) -> Result<(), ()>;
 }
 
 /// A request that blocks stdin whilst being handled
@@ -250,13 +250,13 @@ where
 
 #[derive(Debug, PartialEq)]
 pub(super) struct RawMessage {
-    pub method: String,
-    pub id: Id,
-    pub params: serde_json::Value,
+    crate method: String,
+    crate id: Id,
+    crate params: serde_json::Value,
 }
 
 impl RawMessage {
-    pub fn parse_as_request<'de, R>(&'de self) -> Result<Request<R>, jsonrpc::Error>
+    crate fn parse_as_request<'de, R>(&'de self) -> Result<Request<R>, jsonrpc::Error>
     where
         R: LSPRequest,
         <R as LSPRequest>::Params: serde::Deserialize<'de>,
@@ -283,7 +283,7 @@ impl RawMessage {
         }
     }
 
-    pub fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
+    crate fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
     where
         T: LSPNotification,
         <T as LSPNotification>::Params: serde::Deserialize<'de>,
@@ -299,7 +299,7 @@ impl RawMessage {
         })
     }
 
-    pub fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
+    crate fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
         // Parse the message.
         let ls_command: serde_json::Value =
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
@@ -365,8 +365,8 @@ impl Serialize for RawMessage {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ls_types::InitializedParams;
-    use server::notifications;
+    use languageserver_types::InitializedParams;
+    use crate::server::notifications;
 
     #[test]
     fn test_parse_as_notification() {
@@ -428,7 +428,7 @@ mod test {
     #[test]
     fn raw_message_with_string_id_parses_into_request() {
         #[derive(Debug)]
-        pub enum DummyRequest {}
+        enum DummyRequest {}
         impl LSPRequest for DummyRequest {
             type Params = ();
             type Result = ();
@@ -450,7 +450,7 @@ mod test {
     #[test]
     fn serialize_message_no_params() {
         #[derive(Debug)]
-        pub enum DummyNotification {}
+        enum DummyNotification {}
 
         impl LSPNotification for DummyNotification {
             type Params = ();
@@ -472,9 +472,9 @@ mod test {
     #[test]
     fn serialize_message_empty_params() {
         #[derive(Debug)]
-        pub enum DummyNotification {}
+        enum DummyNotification {}
         #[derive(Serialize)]
-        pub struct EmptyParams {}
+        struct EmptyParams {}
 
         impl LSPNotification for DummyNotification {
             type Params = EmptyParams;

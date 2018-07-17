@@ -10,9 +10,9 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use lsp_data::{ProgressParams, PublishDiagnosticsParams, Progress, ShowMessageParams, MessageType};
-use server::{Output, Notification};
-use ls_types::notification::{PublishDiagnostics, ShowMessage};
+use crate::lsp_data::{ProgressParams, PublishDiagnosticsParams, Progress, ShowMessageParams, MessageType};
+use crate::server::{Output, Notification};
+use languageserver_types::notification::{PublishDiagnostics, ShowMessage};
 
 /// Trait for communication of build progress back to the client.
 pub trait ProgressNotifier: Send {
@@ -33,7 +33,7 @@ pub enum ProgressUpdate {
 // is not object-safe).
 pub trait DiagnosticsNotifier: Send {
     fn notify_begin_diagnostics(&self);
-    fn notify_publish_diagnostics(&self, PublishDiagnosticsParams);
+    fn notify_publish_diagnostics(&self, _: PublishDiagnosticsParams);
     fn notify_error_diagnostics(&self, msg: String);
     fn notify_end_diagnostics(&self);
 }

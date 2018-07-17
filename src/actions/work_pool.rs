@@ -1,5 +1,5 @@
 use rayon;
-use server::DEFAULT_REQUEST_TIMEOUT;
+use crate::server::DEFAULT_REQUEST_TIMEOUT;
 use std::{fmt, panic};
 use std::time::{Duration, Instant};
 use std::sync::{mpsc, Mutex};

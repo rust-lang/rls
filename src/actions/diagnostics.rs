@@ -18,13 +18,13 @@ use std::collections::HashMap;
 use std::iter;
 use std::path::{Path, PathBuf};
 
-use ls_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range};
-use lsp_data::ls_util;
+use languageserver_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range};
+use crate::lsp_data::ls_util;
 use serde_json;
-use span::compiler::DiagnosticSpan;
+use rls_span::compiler::DiagnosticSpan;
 use url::Url;
 
-pub use ls_types::Diagnostic;
+pub use languageserver_types::Diagnostic;
 
 #[derive(Debug)]
 pub struct Suggestion {
@@ -344,7 +344,7 @@ impl IsWithin for Range {
 #[cfg(test)]
 mod diagnostic_message_test {
     use super::*;
-    use ls_types::Position;
+    use languageserver_types::Position;
 
     pub(super) fn parse_compiler_message(
         compiler_message: &str,
@@ -735,7 +735,7 @@ help: consider borrowing here: `&string`"#,
 mod diagnostic_suggestion_test {
     use self::diagnostic_message_test::*;
     use super::*;
-    use ls_types::Position;
+    use languageserver_types::Position;
 
     #[test]
     fn suggest_use_when_cannot_find_type() {

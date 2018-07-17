@@ -14,16 +14,16 @@ use std::fmt;
 use std::path::PathBuf;
 use std::error::Error;
 
-use analysis::DefKind;
+use rls_analysis::DefKind;
 use url::Url;
-use span;
+use rls_span as span;
 use racer;
-use vfs::FileContents;
-use ls_types;
+use rls_vfs::FileContents;
+use languageserver_types as ls_types;
 
-pub use ls_types::*;
-pub use ls_types::request::Request as LSPRequest;
-pub use ls_types::notification::Notification as LSPNotification;
+pub use languageserver_types::*;
+pub use languageserver_types::request::Request as LSPRequest;
+pub use languageserver_types::notification::Notification as LSPNotification;
 
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
@@ -83,10 +83,10 @@ pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdi
 /// Utilities for working with the language server protocol.
 pub mod ls_util {
     use super::*;
-    use Span;
+    use crate::Span;
 
     use std::path::Path;
-    use vfs::Vfs;
+    use rls_vfs::Vfs;
 
     /// Convert a language server protocol range into an RLS range.
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {

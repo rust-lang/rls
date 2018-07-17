@@ -30,32 +30,32 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 
-use build::PackageArg;
+use crate::build::PackageArg;
 use cargo::core::{PackageId, Target, TargetKind};
 use cargo::core::compiler::{Context, Kind, Unit};
 use cargo::core::profiles::Profile;
 use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
-use lsp_data::parse_file_path;
+use crate::lsp_data::parse_file_path;
 use url::Url;
 
-use actions::progress::ProgressUpdate;
+use crate::actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
-pub type UnitKey = (PackageId, TargetKind);
+crate type UnitKey = (PackageId, TargetKind);
 
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
-pub struct Plan {
+crate struct Plan {
     /// Stores a full Cargo `Unit` data for a first processed unit with a given key.
-    pub units: HashMap<UnitKey, OwnedUnit>,
+    crate units: HashMap<UnitKey, OwnedUnit>,
     /// Main dependency graph between the simplified units.
-    pub dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
+    crate dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
     /// Reverse dependency graph that's used to construct a dirty compiler call queue.
-    pub rev_dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
+    crate rev_dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
     /// Cached compiler calls used when creating a compiler call queue.
-    pub compiler_jobs: HashMap<UnitKey, ProcessBuilder>,
+    crate compiler_jobs: HashMap<UnitKey, ProcessBuilder>,
     // An object for finding the package which a file belongs to and this inferring
     // a package argument.
     package_map: Option<PackageMap>,
@@ -64,7 +64,7 @@ pub struct Plan {
 }
 
 impl Plan {
-    pub fn new() -> Plan {
+    crate fn new() -> Plan {
         Plan {
             units: HashMap::new(),
             dep_graph: HashMap::new(),
@@ -75,7 +75,7 @@ impl Plan {
         }
     }
 
-    pub fn clear(&mut self) {
+    crate fn clear(&mut self) {
         self.units = HashMap::new();
         self.dep_graph = HashMap::new();
         self.rev_dep_graph = HashMap::new();
@@ -84,14 +84,14 @@ impl Plan {
 
     /// Returns whether a build plan has cached compiler invocations and dep
     /// graph so it's at all able to return a job queue via `prepare_work`.
-    pub fn is_ready(&self) -> bool {
+    crate fn is_ready(&self) -> bool {
         !self.compiler_jobs.is_empty()
     }
 
     /// Cache a given compiler invocation in `ProcessBuilder` for a given
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
-    pub fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, cmd: &ProcessBuilder) {
+    crate fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, cmd: &ProcessBuilder) {
         let pkg_key = (id.clone(), target.kind().clone());
         self.compiler_jobs.insert(pkg_key, cmd.clone());
     }
@@ -99,7 +99,7 @@ impl Plan {
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
     /// into the dependency graph.
     #[allow(dead_code)]
-    pub fn emplace_dep(&mut self, unit: &Unit, cx: &Context) -> CargoResult<()> {
+    crate fn emplace_dep(&mut self, unit: &Unit, cx: &Context) -> CargoResult<()> {
         let null_filter = |_unit: &Unit| true;
         self.emplace_dep_with_filter(unit, cx, &null_filter)
     }
@@ -107,7 +107,7 @@ impl Plan {
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
     /// into the dependency graph as long as the passed `Unit` isn't filtered
     /// out by the `filter` closure.
-    pub fn emplace_dep_with_filter<Filter>(
+    crate fn emplace_dep_with_filter<Filter>(
         &mut self,
         unit: &Unit,
         cx: &Context,
@@ -301,7 +301,7 @@ impl Plan {
         }
     }
 
-    pub fn prepare_work<T: AsRef<Path> + fmt::Debug>(
+    crate fn prepare_work<T: AsRef<Path> + fmt::Debug>(
         &mut self,
         manifest_path: &Path,
         modified: &[T],
@@ -373,7 +373,7 @@ impl Plan {
     }
 }
 
-pub enum WorkStatus {
+crate enum WorkStatus {
     NeedsCargo(PackageArg),
     Execute(JobQueue),
 }
@@ -470,10 +470,10 @@ impl PackageMap {
     }
 }
 
-pub struct JobQueue(Vec<ProcessBuilder>);
+crate struct JobQueue(Vec<ProcessBuilder>);
 
 impl JobQueue {
-    pub fn dequeue(&mut self) -> Option<ProcessBuilder> {
+    crate fn dequeue(&mut self) -> Option<ProcessBuilder> {
         self.0.pop()
     }
 
@@ -597,11 +597,11 @@ impl fmt::Debug for Plan {
 
 #[derive(Hash, PartialEq, Eq, Debug)]
 /// An owned version of `cargo::core::Unit`.
-pub struct OwnedUnit {
-    pub id: PackageId,
-    pub target: Target,
-    pub profile: Profile,
-    pub kind: Kind,
+crate struct OwnedUnit {
+    crate id: PackageId,
+    crate target: Target,
+    crate profile: Profile,
+    crate kind: Kind,
 }
 
 impl<'a> From<&'a Unit<'a>> for OwnedUnit {

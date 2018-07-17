@@ -21,7 +21,7 @@ use std::thread;
 use std::time::Duration;
 use std::panic;
 
-use support::paths::TestPathExt;
+use self::paths::TestPathExt;
 
 pub mod paths;
 

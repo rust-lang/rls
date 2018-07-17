@@ -11,22 +11,22 @@
 //! Actions that the RLS can perform: responding to requests, watching files,
 //! etc.
 
-use analysis::AnalysisHost;
-use vfs::Vfs;
-use config::FmtConfig;
-use config::Config;
+use rls_analysis::AnalysisHost;
+use rls_vfs::Vfs;
+use crate::config::FmtConfig;
+use crate::config::Config;
 use serde_json;
 use url::Url;
-use span;
-use Span;
+use rls_span as span;
+use crate::Span;
 use walkdir::WalkDir;
 
-use actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
-use actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
-use build::*;
-use lsp_data;
-use lsp_data::*;
-use server::Output;
+use crate::actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
+use crate::actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
+use crate::build::*;
+use crate::lsp_data;
+use crate::lsp_data::*;
+use crate::server::Output;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
