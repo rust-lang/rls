@@ -46,5 +46,5 @@ crossbeam-channel = "0.2.1"
 json = "0.11"
 
 [features]
-default = ["clippy_lints"]
+default = ["clippy"]
 clippy = ["clippy_lints"]
