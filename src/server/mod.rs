@@ -195,7 +195,7 @@ impl<O: Output> LsService<O> {
                         let request: Request<$br_action> = msg.parse_as_request()?;
 
                         // block until all nonblocking requests have been handled ensuring ordering
-                        self.dispatcher.await_all_dispatched();
+                        self.wait_for_concurrent_jobs();
 
                         let req_id = request.id.clone();
                         match request.blocking_dispatch(&mut self.ctx, &self.output) {
@@ -220,7 +220,7 @@ impl<O: Output> LsService<O> {
                     <$request as LSPRequest>::METHOD => {
                         let request: Request<$request> = msg.parse_as_request()?;
                         if let Ok(ctx) = self.ctx.inited() {
-                            self.dispatcher.dispatch((request, ctx));
+                            self.dispatcher.dispatch(request, ctx);
                         }
                         else {
                             warn!(
@@ -334,6 +334,15 @@ impl<O: Output> LsService<O> {
         }
 
         ServerStateChange::Continue
+    }
+
+    pub fn wait_for_concurrent_jobs(&mut self) {
+        match &self.ctx {
+            ActionContext::Init(ctx) => {
+                ctx.wait_for_concurrent_jobs()
+            }
+            ActionContext::Uninit(_) => {}
+        }
     }
 }
 

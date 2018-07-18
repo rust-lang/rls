@@ -27,6 +27,7 @@ use crate::build::*;
 use crate::lsp_data;
 use crate::lsp_data::*;
 use crate::server::Output;
+use crate::concurrency::{ConcurrentJob, Jobs};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -150,6 +151,7 @@ pub struct InitActionContext {
     prev_changes: Arc<Mutex<HashMap<PathBuf, u64>>>,
 
     config: Arc<Mutex<Config>>,
+    jobs: Arc<Mutex<Jobs>>,
     client_capabilities: Arc<lsp_data::ClientCapabilities>,
     client_supports_cmd_run: bool,
     /// Whether the server is performing cleanup (after having received
@@ -199,6 +201,7 @@ impl InitActionContext {
             analysis_queue,
             vfs,
             config,
+            jobs: Arc::new(Mutex::new(Jobs::new())),
             current_project,
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
@@ -238,6 +241,8 @@ impl InitActionContext {
     }
 
     fn build<O: Output>(&self, project_path: &Path, priority: BuildPriority, out: &O) {
+        let (job, token) = ConcurrentJob::new();
+        self.add_job(job);
 
         let pbh = {
             let config = self.config.lock().unwrap();
@@ -253,6 +258,7 @@ impl InitActionContext {
                 use_black_list: config.use_crate_blacklist,
                 notifier: Box::new(BuildDiagnosticsNotifier::new(out.clone())),
                 blocked_threads: vec![],
+                token,
             }
         };
 
@@ -265,6 +271,14 @@ impl InitActionContext {
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: &O) {
         self.build(&self.current_project, priority, out);
+    }
+
+    pub fn add_job(&self, job: ConcurrentJob) {
+        self.jobs.lock().unwrap().add(job);
+    }
+
+    pub fn wait_for_concurrent_jobs(&self) {
+        self.jobs.lock().unwrap().wait_for_all();
     }
 
     /// Block until any builds and analysis tasks are complete.

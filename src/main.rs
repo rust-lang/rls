@@ -43,6 +43,8 @@ extern crate log;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+#[macro_use]
+extern crate crossbeam_channel;
 
 use std::env;
 use std::sync::Arc;
@@ -57,6 +59,7 @@ pub mod cmd;
 pub mod config;
 pub mod lsp_data;
 pub mod server;
+pub mod concurrency;
 
 #[cfg(test)]
 mod test;

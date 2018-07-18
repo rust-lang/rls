@@ -18,6 +18,7 @@ use crate::server;
 use crate::server::io::Output;
 use crate::server::message::ResponseError;
 use crate::server::{Request, Response};
+use crate::concurrency::{ConcurrentJob, JobToken};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -37,23 +38,23 @@ macro_rules! define_dispatch_request_enum {
         #[allow(large_enum_variant)] // seems ok for a short lived macro-enum
         crate enum DispatchRequest {
             $(
-                $request_type(Request<$request_type>, InitActionContext),
+                $request_type(Request<$request_type>),
             )*
         }
 
         $(
-            impl From<(Request<$request_type>, InitActionContext)> for DispatchRequest {
-                fn from((req, ctx): (Request<$request_type>, InitActionContext)) -> Self {
-                    DispatchRequest::$request_type(req, ctx)
+            impl From<Request<$request_type>> for DispatchRequest {
+                fn from(req: Request<$request_type>) -> Self {
+                    DispatchRequest::$request_type(req)
                 }
             }
         )*
 
         impl DispatchRequest {
-            fn handle<O: Output>(self, out: &O) {
+            fn handle<O: Output>(self, ctx: InitActionContext, out: &O) {
                 match self {
                 $(
-                    DispatchRequest::$request_type(req, ctx) => {
+                    DispatchRequest::$request_type(req) => {
                         let Request { id, params, received, .. } = req;
                         let timeout = $request_type::timeout();
 
@@ -111,55 +112,33 @@ define_dispatch_request_enum!(
 /// Requests dispatched this way are automatically timed out & avoid
 /// processing if have already timed out before starting.
 crate struct Dispatcher {
-    sender: mpsc::Sender<DispatchRequest>,
-
-    request_handled_receiver: mpsc::Receiver<()>,
-    /// Number of as-yet-unhandled requests dispatched to the worker thread
-    in_flight_requests: usize,
+    sender: mpsc::Sender<(DispatchRequest, InitActionContext, JobToken)>,
 }
 
 impl Dispatcher {
     /// Creates a new `Dispatcher` starting a new thread and channel
     crate fn new<O: Output>(out: O) -> Self {
-        let (sender, receiver) = mpsc::channel::<DispatchRequest>();
-        let (request_handled_sender, request_handled_receiver) = mpsc::channel::<()>();
+        let (sender, receiver) = mpsc::channel::<(DispatchRequest, InitActionContext, JobToken)>();
 
         thread::Builder::new()
             .name("dispatch-worker".into())
             .spawn(move || {
-                while let Ok(request) = receiver.recv() {
-                    request.handle(&out);
-                    let _ = request_handled_sender.send(());
+                while let Ok((request, ctx, token)) = receiver.recv() {
+                    request.handle(ctx, &out);
+                    drop(token);
                 }
             })
             .unwrap();
 
-        Self {
-            sender,
-            request_handled_receiver,
-            in_flight_requests: 0,
-        }
-    }
-
-    /// Blocks until all dispatched requests have been handled
-    crate fn await_all_dispatched(&mut self) {
-        while self.in_flight_requests != 0 {
-            self.request_handled_receiver.recv().unwrap();
-            self.in_flight_requests -= 1;
-        }
+        Self { sender }
     }
 
     /// Sends a request to the dispatch-worker thread, does not block
-    crate fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R) {
-        if let Err(err) = self.sender.send(request.into()) {
+    crate fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R, ctx: InitActionContext) {
+        let (job, token) = ConcurrentJob::new();
+        ctx.add_job(job);
+        if let Err(err) = self.sender.send((request.into(), ctx, token)) {
             debug!("Failed to dispatch request: {:?}", err);
-        } else {
-            self.in_flight_requests += 1;
-        }
-
-        // Clear the handled queue if possible in a non-blocking way
-        while self.request_handled_receiver.try_recv().is_ok() {
-            self.in_flight_requests -= 1;
         }
     }
 }

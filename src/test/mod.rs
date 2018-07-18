@@ -15,8 +15,7 @@ use json;
 
 #[macro_use]
 mod harness;
-// FIXME(#925) intermittent failure
-//mod lens;
+mod lens;
 
 use rls_analysis::{AnalysisHost, Target};
 use crate::actions::{requests, notifications};
@@ -117,6 +116,7 @@ fn test_shutdown() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -133,7 +133,7 @@ fn test_shutdown() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(results.clone(), &[&ExpectedMessage::new(Some(1))]);
+    expect_messages(&mut server, results.clone(), &[&ExpectedMessage::new(Some(1))]);
 }
 
 #[test]
@@ -165,6 +165,7 @@ fn test_goto_def() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -183,6 +184,7 @@ fn test_goto_def() {
     );
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#),
@@ -219,6 +221,7 @@ fn test_hover() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -236,6 +239,7 @@ fn test_hover() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(11))
@@ -305,6 +309,7 @@ fn test_hover_after_src_line_change() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -323,6 +328,7 @@ fn test_hover_after_src_line_change() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(11))
@@ -337,6 +343,7 @@ fn test_hover_after_src_line_change() {
     );
 
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
@@ -354,6 +361,7 @@ fn test_hover_after_src_line_change() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(None)
@@ -386,6 +394,7 @@ fn test_workspace_symbol() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -402,7 +411,8 @@ fn test_workspace_symbol() {
         ls_server::ServerStateChange::Continue
     );
 
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
+    expect_messages(
+        &mut server,results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
                                                                      // in main.rs
                                                                      .expect_contains(r#"main.rs"#)
                                                                      .expect_contains(r#""name":"nemo""#)
@@ -450,6 +460,7 @@ fn test_find_all_refs() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -466,6 +477,7 @@ fn test_find_all_refs() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(42))
@@ -514,6 +526,7 @@ fn test_find_all_refs_no_cfg_test() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -530,6 +543,7 @@ fn test_find_all_refs_no_cfg_test() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(42))
@@ -559,6 +573,7 @@ fn test_borrow_error() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -604,6 +619,7 @@ fn test_highlight() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -621,6 +637,7 @@ fn test_highlight() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(42))
@@ -664,6 +681,7 @@ fn test_rename() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -681,6 +699,7 @@ fn test_rename() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(42))
@@ -727,6 +746,7 @@ fn test_reformat() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -743,7 +763,8 @@ fn test_reformat() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":12,"character":0}}"#)
+    expect_messages(
+        &mut server,results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":12,"character":0}}"#)
                                             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)]);
 }
 
@@ -789,6 +810,7 @@ fn test_reformat_with_range() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -805,7 +827,7 @@ fn test_reformat_with_range() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
+    expect_messages(&mut server, results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
                                             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"#)]);
 }
 
@@ -828,6 +850,7 @@ fn test_multiple_binaries() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -909,6 +932,7 @@ fn test_bin_lib_project() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -993,6 +1017,7 @@ fn test_infer_lib() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1023,6 +1048,7 @@ fn test_infer_bin() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1053,6 +1079,7 @@ fn test_infer_custom_bin() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1087,7 +1114,7 @@ fn test_omit_init_build() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_messages(&mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1179,7 +1206,7 @@ fn test_find_impls() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_messages(&mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1197,7 +1224,7 @@ fn test_find_impls() {
         ls_server::ServerStateChange::Continue
     );
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(results.clone(), &[
+    expect_messages(&mut server, results.clone(), &[
         ExpectedMessage::new(Some(1))
             .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
             .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
@@ -1206,7 +1233,7 @@ fn test_find_impls() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(results.clone(), &[
+    expect_messages(&mut server, results.clone(), &[
         ExpectedMessage::new(Some(2))
             .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
             .expect_contains(r#""range":{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#)
@@ -1238,6 +1265,7 @@ fn test_features() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1271,6 +1299,7 @@ fn test_all_features() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1304,6 +1333,7 @@ fn test_no_default_features() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1424,6 +1454,7 @@ fn test_deglob() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports-"),
@@ -1441,7 +1472,7 @@ fn test_deglob() {
         ls_server::ServerStateChange::Continue
     );
     {
-        wait_for_n_results!(1, results);
+        server.wait_for_concurrent_jobs();
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 100);
         assert_eq!(response["result"][0]["title"], "Deglob import");
@@ -1474,7 +1505,7 @@ fn test_deglob() {
         ls_server::ServerStateChange::Continue
     );
     {
-        wait_for_n_results!(2, results);
+        server.wait_for_concurrent_jobs();
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 0x0100_0001);
         assert_eq!(response["method"], "workspace/applyEdit");
@@ -1505,6 +1536,7 @@ fn test_deglob() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(1100))
@@ -1525,7 +1557,7 @@ fn test_deglob() {
     );
 
         {
-        wait_for_n_results!(1, results);
+        server.wait_for_concurrent_jobs();
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 0x0100_0002);
         assert_eq!(response["method"], "workspace/applyEdit");
@@ -1546,6 +1578,7 @@ fn test_deglob() {
     }
 
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
@@ -1574,6 +1607,7 @@ fn test_all_targets() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
@@ -1631,7 +1665,8 @@ fn ignore_uninitialized_notification() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(results.clone(), &[]);
+    expect_messages(
+        &mut server,results.clone(), &[]);
 
     // Initialize and build
     assert_eq!(
@@ -1639,6 +1674,7 @@ fn ignore_uninitialized_notification() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
@@ -1683,7 +1719,7 @@ fn fail_uninitialized_request() {
         ls_server::ServerStateChange::Continue
     );
     {
-        wait_for_n_results!(1, results);
+        server.wait_for_concurrent_jobs();
         let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 0);
         assert_eq!(response["error"]["code"], -32002);
@@ -1701,6 +1737,7 @@ fn fail_uninitialized_request() {
         ls_server::ServerStateChange::Continue
     );
     expect_messages(
+        &mut server,
         results.clone(),
         &[
             ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
