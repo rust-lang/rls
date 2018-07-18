@@ -7,10 +7,6 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-
-#[cfg(feature = "clippy")]
-extern crate clippy_lints;
-
 use getopts;
 use rustc::middle::cstore::CrateStore;
 use rustc::session::Session;
@@ -141,8 +137,10 @@ impl RlsRustcCalls {
 }
 
 #[cfg(feature = "clippy")]
-fn clippy_after_parse_callback(state: &mut self::rustc_driver::driver::CompileState) {
-    let mut registry = rustc_plugin::registry::Registry::new(
+fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState) {
+    use rustc_plugin::registry::Registry;
+
+    let mut registry = Registry::new(
         state.session,
         state
             .krate
@@ -156,7 +154,7 @@ fn clippy_after_parse_callback(state: &mut self::rustc_driver::driver::CompileSt
     registry.args_hidden = Some(Vec::new());
     clippy_lints::register_plugins(&mut registry);
 
-    let rustc_plugin::registry::Registry {
+    let Registry {
         early_lint_passes,
         late_lint_passes,
         lint_groups,
