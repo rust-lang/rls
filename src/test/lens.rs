@@ -1,9 +1,7 @@
-use std::{
-    path::Path,
-};
+use std::path::Path;
 
-use url::Url;
 use serde_json;
+use url::Url;
 use languageserver_types::{TextDocumentIdentifier, CodeLensParams};
 
 use crate::{
@@ -12,7 +10,7 @@ use crate::{
     lsp_data::InitializationOptions,
     test::{
         request, initialize_with_opts,
-        harness::{expect_messages, Environment, ExpectedMessage},
+        harness::{expect_messages, compare_json, Environment, ExpectedMessage},
     },
 };
 
@@ -29,10 +27,14 @@ fn test_lens_run() {
         .expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url.clone());
     let messages = vec![
-        initialize_with_opts(0, root_path, Some(InitializationOptions {
-            omit_init_build: false,
-            cmd_run: true,
-        })).to_string(),
+        initialize_with_opts(
+            0,
+            root_path,
+            Some(InitializationOptions {
+                omit_init_build: false,
+                cmd_run: true,
+            }),
+        ).to_string(),
         request::<requests::CodeLensRequest>(
             100,
             CodeLensParams {
@@ -51,7 +53,8 @@ fn test_lens_run() {
         &mut server,
         results.clone(),
         &[
-            ExpectedMessage::new(Some(0)).expect_contains(r#""codeLensProvider":{"resolveProvider":false}"#),
+            ExpectedMessage::new(Some(0))
+                .expect_contains(r#""codeLensProvider":{"resolveProvider":false}"#),
             ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress"),
             ExpectedMessage::new(None).expect_contains("progress"),
@@ -83,17 +86,6 @@ fn test_lens_run() {
               "start": { "character": 3, "line": 14 },
               "end": { "character": 11, "line": 14 }
             }
-        }]"#
+        }]"#,
     )
-}
-
-fn compare_json(actual: &serde_json::Value, expected: &str) {
-    let expected: serde_json::Value = serde_json::from_str(expected).unwrap();
-    if actual != &expected {
-        panic!(
-            "JSON differs\nExpected:\n{}\nActual:\n{}\n",
-            serde_json::to_string_pretty(&expected).unwrap(),
-            serde_json::to_string_pretty(actual).unwrap(),
-        );
-    }
 }
