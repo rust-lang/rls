@@ -196,11 +196,6 @@ impl ExpectedMessage {
     }
 }
 
-crate fn clear_messages(server: &mut ls_server::LsService<RecordOutput>, results: LsResultList) {
-    server.wait_for_concurrent_jobs();
-    results.lock().unwrap().clear();
-}
-
 crate fn expect_messages(server: &mut ls_server::LsService<RecordOutput>, results: LsResultList, expected: &[&ExpectedMessage]) {
     server.wait_for_concurrent_jobs();
 

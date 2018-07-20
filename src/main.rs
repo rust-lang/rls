@@ -23,7 +23,7 @@
 #![warn(rust_2018_idioms)]
 #![allow(unknown_lints)]
 #![warn(clippy)]
-#![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments)]
+#![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments, unused_extern_crates)]
 
 // See rustc/rustc.rs in rust repo for explanation of stack adjustments.
 #![feature(link_args)]
