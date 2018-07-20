@@ -1,6 +1,7 @@
-use std::{thread};
-
-use crossbeam_channel::{bounded, Receiver, Sender};
+use std::{
+    thread,
+    sync::{Arc, Mutex, Condvar},
+};
 
 /// `ConcurrentJob` is a handle for some long-running computation
 /// off the main thread. It can be used, indirectly, to wait for
@@ -18,12 +19,17 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 /// a `JobToken` signals that the corresponding job has finished.
 #[must_use]
 pub struct ConcurrentJob {
-    chan: Receiver<Never>,
+    is_done: Arc<AtomicFlag>,
 }
 
 pub struct JobToken {
-    #[allow(unused)] // for drop
-    chan: Sender<Never>,
+    is_done: Arc<AtomicFlag>
+}
+
+impl Drop for JobToken {
+    fn drop(&mut self) {
+        self.is_done.set()
+    }
 }
 
 pub struct Jobs {
@@ -42,17 +48,8 @@ impl Jobs {
 
     /// Blocks the current thread until all pending jobs are finished.
     pub fn wait_for_all(&mut self) {
-        while !self.jobs.is_empty() {
-            let done: usize = {
-                let chans = self.jobs.iter().map(|j| &j.chan);
-                select! {
-                    recv(chans, msg, from) => {
-                        assert!(msg.is_none());
-                        self.jobs.iter().position(|j| &j.chan == from).unwrap()
-                    }
-                }
-            };
-            drop(self.jobs.swap_remove(done));
+        for job in self.jobs.drain(..) {
+            job.wait();
         }
     }
 
@@ -63,14 +60,18 @@ impl Jobs {
 
 impl ConcurrentJob {
     pub fn new() -> (ConcurrentJob, JobToken) {
-        let (tx, rx) = bounded(0);
-        let job = ConcurrentJob { chan: rx };
-        let token = JobToken { chan: tx };
+        let is_done = Arc::new(AtomicFlag::new());
+        let job = ConcurrentJob { is_done: is_done.clone() };
+        let token = JobToken { is_done };
         (job, token)
     }
 
+    fn wait(&self) {
+        self.is_done.wait()
+    }
+
     fn is_completed(&self) -> bool {
-        is_closed(&self.chan)
+        self.is_done.is_set()
     }
 }
 
@@ -83,18 +84,32 @@ impl Drop for ConcurrentJob {
     }
 }
 
-// We don't actually send messages through the channels,
-// and instead just check if the channel is closed,
-// so we use uninhabited enum as a message type
-enum Never {}
+struct AtomicFlag {
+    flag: Mutex<bool>,
+    cvar: Condvar,
+}
 
-/// Nonblocking
-fn is_closed(chan: &Receiver<Never>) -> bool {
-    select! {
-        recv(chan, msg) => match msg {
-            None => true,
-            Some(never) => match never {}
+impl AtomicFlag {
+    fn new() -> AtomicFlag {
+        AtomicFlag {
+            flag: Mutex::new(false),
+            cvar: Condvar::new(),
         }
-        default => false,
+    }
+
+    fn is_set(&self) -> bool {
+        *self.flag.lock().unwrap()
+    }
+
+    fn set(&self) {
+        *self.flag.lock().unwrap() = true;
+        self.cvar.notify_all();
+    }
+
+    fn wait(&self) {
+        let mut is_set = self.flag.lock().unwrap();
+        while !*is_set {
+            is_set = self.cvar.wait(is_set).unwrap();
+        }
     }
 }
