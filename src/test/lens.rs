@@ -15,7 +15,6 @@ use crate::{
 };
 
 #[test]
-#[ignore] // FIXME(#925) intermittent failure
 fn test_lens_run() {
     let mut env = Environment::new("lens_run");
 
