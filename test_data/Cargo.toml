@@ -1,0 +1,5 @@
+# Make sure that test are not accidentally become members of
+# the main workspace in the rust-lang/rust repository
+[workspace]
+members = ["./*/"]
+exclude = ["./compiler_message", "./target"]
