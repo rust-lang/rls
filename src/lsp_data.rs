@@ -219,7 +219,8 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         | racer::MatchType::For
         | racer::MatchType::MatchArm
         | racer::MatchType::Const
-        | racer::MatchType::Static => CompletionItemKind::Variable,
+            | racer::MatchType::Static => CompletionItemKind::Variable,
+        racer::MatchType::TypeParameter(_) => CompletionItemKind::TypeParameter,
         racer::MatchType::Builtin => CompletionItemKind::Keyword,
     }
 }
