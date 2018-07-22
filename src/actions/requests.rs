@@ -837,22 +837,16 @@ impl RequestAction for ResolveCompletion {
 }
 
 fn racer_coord(
-    line: span::Row<span::OneIndexed>,
-    column: span::Column<span::ZeroIndexed>,
+    row: span::Row<span::OneIndexed>,
+    col: span::Column<span::ZeroIndexed>,
 ) -> racer::Coordinate {
-    racer::Coordinate {
-        line: line.0 as usize,
-        column: column.0 as usize,
-    }
+    racer::Coordinate { row, col }
 }
 
 fn from_racer_coord(
     coord: racer::Coordinate,
 ) -> (span::Row<span::OneIndexed>, span::Column<span::ZeroIndexed>) {
-    (
-        span::Row::new_one_indexed(coord.line as u32),
-        span::Column::new_zero_indexed(coord.column as u32),
-    )
+    (coord.row, coord.col)
 }
 
 fn pos_to_racer_location(pos: Position) -> racer::Location {
