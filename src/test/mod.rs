@@ -7,16 +7,11 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-
-// Utilities and infrastructure for testing. Tests in this module test the
-// testing infrastructure *not* the RLS.
-
-use json;
-
 #[macro_use]
 mod harness;
 mod lens;
 
+use serde_json::Value;
 use rls_analysis::{AnalysisHost, Target};
 use crate::actions::{requests, notifications};
 use crate::config::{Config, Inferrable};
@@ -1536,7 +1531,7 @@ fn test_deglob() {
     );
     {
         server.wait_for_concurrent_jobs();
-        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        let response: Value = serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 100);
         assert_eq!(response["result"][0]["title"], "Deglob import");
         assert_eq!(response["result"][0]["command"], &*format!("rls.deglobImports-{}", ::std::process::id()));
@@ -1569,10 +1564,15 @@ fn test_deglob() {
     );
     {
         server.wait_for_concurrent_jobs();
-        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        let response: Value = serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 0x0100_0001);
         assert_eq!(response["method"], "workspace/applyEdit");
-        let (key, changes) = response["params"]["edit"]["changes"].entries().next().unwrap();
+        let (key, changes) = response["params"]["edit"]["changes"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .next()
+            .unwrap();
         assert!(key.ends_with("deglob/src/main.rs"));
         let change = &changes[0];
         assert_eq!(change["range"]["start"]["line"], 12);
@@ -1589,7 +1589,7 @@ fn test_deglob() {
         imports.sort();
         assert_eq!(imports, vec!["Stdin", "Stdout"]);
 
-        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        let response: Value = serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 200);
         assert!(response["result"].is_null());
     }
@@ -1619,12 +1619,17 @@ fn test_deglob() {
         ls_server::ServerStateChange::Continue
     );
 
-        {
+    {
         server.wait_for_concurrent_jobs();
-        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        let response: Value = serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 0x0100_0002);
         assert_eq!(response["method"], "workspace/applyEdit");
-        let (key, changes) = response["params"]["edit"]["changes"].entries().next().unwrap();
+        let (key, changes) = response["params"]["edit"]["changes"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .next()
+            .unwrap();
         assert!(key.ends_with("deglob/src/main.rs"));
         let change = &changes[0];
         assert_eq!(change["range"]["start"]["line"], 15);
@@ -1783,7 +1788,7 @@ fn fail_uninitialized_request() {
     );
     {
         server.wait_for_concurrent_jobs();
-        let response = json::parse(&results.lock().unwrap().remove(0)).unwrap();
+        let response: Value = serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 0);
         assert_eq!(response["error"]["code"], -32002);
         let message = response["error"]["message"].as_str().unwrap();
