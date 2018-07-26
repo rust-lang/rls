@@ -95,7 +95,7 @@ pub enum RequestId {
 }
 
 impl fmt::Display for RequestId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RequestId::Str(ref s) => write!(f, "\"{}\"", s),
             RequestId::Num(n) => write!(f, "{}", n),
@@ -225,7 +225,7 @@ where
     A: LSPRequest,
     <A as LSPRequest>::Params: serde::Serialize,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let raw: RawMessage = self.into();
         match serde_json::to_string(&raw) {
             Ok(val) => val.fmt(f),
@@ -239,7 +239,7 @@ where
     A: LSPNotification,
     <A as LSPNotification>::Params: serde::Serialize,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let raw: RawMessage = self.into();
         match serde_json::to_string(&raw) {
             Ok(val) => val.fmt(f),

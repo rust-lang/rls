@@ -3,6 +3,7 @@ use crate::server::DEFAULT_REQUEST_TIMEOUT;
 use std::{fmt, panic};
 use std::time::{Duration, Instant};
 use std::sync::{mpsc, Mutex};
+use lazy_static::lazy_static;
 
 /// Description of work on the request work pool. Equality implies two pieces of work are the same
 /// kind of thing. The `str` should be human readable for logging, ie the language server protocol
@@ -11,7 +12,7 @@ use std::sync::{mpsc, Mutex};
 pub struct WorkDescription(pub &'static str);
 
 impl fmt::Display for WorkDescription {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }

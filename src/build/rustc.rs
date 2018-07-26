@@ -137,7 +137,7 @@ impl RlsRustcCalls {
 }
 
 #[cfg(feature = "clippy")]
-fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState) {
+fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<'_, '_>) {
     use rustc_plugin::registry::Registry;
 
     let mut registry = Registry::new(
