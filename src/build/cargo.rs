@@ -19,6 +19,7 @@ use serde_json;
 use crate::actions::progress::ProgressUpdate;
 use rls_data::Analysis;
 use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
+use crate::build::plan::Plan;
 use crate::build::environment::{self, Environment, EnvironmentLock};
 use crate::config::Config;
 use rls_vfs::Vfs;
@@ -123,7 +124,7 @@ fn run_cargo(
         let mut compilation_cx = compilation_cx.lock().unwrap();
         // Since Cargo build routine will try to regenerate the unit dep graph,
         // we need to clear the existing dep graph.
-        compilation_cx.build_plan.clear();
+        compilation_cx.build_plan = Plan::for_packages(package_arg.clone());
 
         compilation_cx.build_dir.as_ref().unwrap().clone()
     };
@@ -147,9 +148,9 @@ fn run_cargo(
     enable_nightly_features();
     let ws = Workspace::new(&manifest_path, &config)?;
 
-    let packages = match package_arg {
-        PackageArg::All => vec![],
-        PackageArg::Package(s) => vec![s]
+    let (all, packages) = match package_arg {
+        PackageArg::All => (true, vec![]),
+        PackageArg::Package(s) => (false, vec![s])
     };
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
@@ -172,7 +173,7 @@ fn run_cargo(
             (opts, rustflags, rls_config.clear_env_rust_log, rls_config.cfg_test)
         };
 
-    let spec = Packages::from_flags(false, Vec::new(), packages)?;
+    let spec = Packages::from_flags(all, Vec::new(), packages)?;
 
     let compile_opts = CompileOptions {
         spec,

@@ -60,27 +60,25 @@ crate struct Plan {
     // An object for finding the package which a file belongs to and this inferring
     // a package argument.
     package_map: Option<PackageMap>,
-    // The package argument used in the last Cargo build.
-    prev_package_arg: Option<PackageArg>,
+    /// Packages for which this build plan was prepared.
+    /// Used to detect if the plan can reused when building certain packages.
+    built_packages: PackageArg,
 }
 
 impl Plan {
     crate fn new() -> Plan {
+        Self::for_packages(PackageArg::All)
+    }
+
+    crate fn for_packages(pkgs: PackageArg) -> Plan {
         Plan {
             units: HashMap::new(),
             dep_graph: HashMap::new(),
             rev_dep_graph: HashMap::new(),
             compiler_jobs: HashMap::new(),
             package_map: None,
-            prev_package_arg: None,
+            built_packages: pkgs,
         }
-    }
-
-    crate fn clear(&mut self) {
-        self.units = HashMap::new();
-        self.dep_graph = HashMap::new();
-        self.rev_dep_graph = HashMap::new();
-        self.compiler_jobs = HashMap::new();
     }
 
     /// Returns whether a build plan has cached compiler invocations and dep
@@ -315,11 +313,7 @@ impl Plan {
             .as_ref()
             .unwrap()
             .compute_package_arg(modified);
-        let package_arg_changed = match self.prev_package_arg {
-            Some(ref ppa) => ppa != &package_arg,
-            None => true,
-        };
-        self.prev_package_arg = Some(package_arg.clone());
+        let package_arg_changed = self.built_packages != package_arg;
 
         if !self.is_ready() || requested_cargo || package_arg_changed {
             return WorkStatus::NeedsCargo(package_arg);
@@ -405,7 +399,7 @@ impl PackageMap {
         }
     }
 
-    // Fine each package in the workspace and record the root directory and package name.
+    // Find each package in the workspace and record the root directory and package name.
     fn discover_package_paths(manifest_path: &Path) -> HashMap<PathBuf, String> {
         trace!("read metadata {:?}", manifest_path);
         let metadata = match cargo_metadata::metadata(Some(manifest_path)) {
