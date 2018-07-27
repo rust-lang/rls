@@ -99,8 +99,8 @@ impl Plan {
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
     /// into the dependency graph.
     #[allow(dead_code)]
-    crate fn emplace_dep(&mut self, unit: &Unit, cx: &Context) -> CargoResult<()> {
-        let null_filter = |_unit: &Unit| true;
+    crate fn emplace_dep(&mut self, unit: &Unit<'_>, cx: &Context<'_, '_>) -> CargoResult<()> {
+        let null_filter = |_unit: &Unit<'_>| true;
         self.emplace_dep_with_filter(unit, cx, &null_filter)
     }
 
@@ -109,12 +109,12 @@ impl Plan {
     /// out by the `filter` closure.
     crate fn emplace_dep_with_filter<Filter>(
         &mut self,
-        unit: &Unit,
-        cx: &Context,
+        unit: &Unit<'_>,
+        cx: &Context<'_, '_>,
         filter: &Filter,
     ) -> CargoResult<()>
     where
-        Filter: Fn(&Unit) -> bool,
+        Filter: Fn(&Unit<'_>) -> bool,
     {
         if !filter(unit) {
             return Ok(());
@@ -569,7 +569,7 @@ impl JobQueue {
     }
 }
 
-fn key_from_unit(unit: &Unit) -> UnitKey {
+fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
     (unit.pkg.package_id().clone(), unit.target.kind().clone())
 }
 
@@ -586,7 +586,7 @@ macro_rules! print_dep_graph {
 }
 
 impl fmt::Debug for Plan {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&format!("Units: {:?}\n", self.units))?;
         print_dep_graph!("Dependency graph", self.dep_graph, f);
         print_dep_graph!("Reverse dependency graph", self.rev_dep_graph, f);

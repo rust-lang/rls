@@ -13,6 +13,7 @@ use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
+use lazy_static::lazy_static;
 
 // Ensures we don't race on the env vars. This is only also important in tests,
 // where we have multiple copies of the RLS running in the same process.

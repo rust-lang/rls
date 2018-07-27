@@ -13,7 +13,7 @@ use cargo::core::compiler::{Context, Executor, Unit, BuildConfig, CompileMode};
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue,
                   ProcessBuilder};
-use failure;
+use failure::{self, format_err};
 use serde_json;
 
 use crate::actions::progress::ProgressUpdate;
@@ -268,7 +268,7 @@ struct RlsExecutor {
 
 impl RlsExecutor {
     fn new(
-        ws: &Workspace,
+        ws: &Workspace<'_>,
         compilation_cx: Arc<Mutex<CompilationContext>>,
         config: Arc<Mutex<Config>>,
         env_lock: environment::InnerLock,
@@ -305,17 +305,17 @@ impl Executor for RlsExecutor {
     /// unit of work (may still be modified for runtime-known dependencies, when
     /// the work is actually executed). This is called even for a target that
     /// is fresh and won't be compiled.
-    fn init(&self, cx: &Context, unit: &Unit) {
+    fn init(&self, cx: &Context<'_, '_>, unit: &Unit<'_>) {
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
         let plan = &mut compilation_cx.build_plan;
-        let only_primary = |unit: &Unit| self.is_primary_crate(unit.pkg.package_id());
+        let only_primary = |unit: &Unit<'_>| self.is_primary_crate(unit.pkg.package_id());
 
         if let Err(err) = plan.emplace_dep_with_filter(unit, cx, &only_primary) {
             error!("{:?}", err);
         }
     }
 
-    fn force_rebuild(&self, unit: &Unit) -> bool {
+    fn force_rebuild(&self, unit: &Unit<'_>) -> bool {
         // We need to force rebuild every package in the
         // workspace, even if it's not dirty at a time, to cache compiler
         // invocations in the build plan.

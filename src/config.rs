@@ -297,7 +297,7 @@ where
         T: Deserialize<'de> + FromStr<Err = ()>,
     {
         type Value = T;
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             formatter.write_str("`on`, `opt-in` or `off`")
         }
         fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<T, E> {

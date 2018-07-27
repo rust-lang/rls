@@ -23,6 +23,7 @@ use languageserver_types as ls_types;
 use serde_json;
 use crate::server as ls_server;
 use rls_vfs::Vfs;
+use lazy_static::lazy_static;
 
 crate struct Environment {
     crate config: Option<Config>,
@@ -278,7 +279,7 @@ impl Cache {
         }
     }
 
-    crate fn mk_ls_position(&mut self, src: Src) -> ls_types::Position {
+    crate fn mk_ls_position(&mut self, src: Src<'_, '_>) -> ls_types::Position {
         let line = self.get_line(src);
         let col = line.find(src.name)
             .expect(&format!("Line does not contain name {}", src.name));
@@ -309,7 +310,7 @@ impl Cache {
         }
     }
 
-    fn get_line(&mut self, src: Src) -> String {
+    fn get_line(&mut self, src: Src<'_, '_>) -> String {
         let base_path = &self.base_path;
         let lines = self.files
             .entry(src.file_name.to_owned())
