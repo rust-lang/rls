@@ -22,6 +22,7 @@ use syntax::ast;
 use syntax::codemap::{FileLoader, RealFileLoader};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
+use log::{log, trace};
 
 use crate::config::{ClippyPreference, Config};
 use crate::build::{BufWriter, BuildResult};

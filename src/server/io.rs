@@ -10,6 +10,7 @@
 
 use serde;
 use serde_json;
+use log::{debug, trace, log};
 
 use super::{Notification, Request, RequestId};
 use crate::lsp_data::{LSPNotification, LSPRequest};

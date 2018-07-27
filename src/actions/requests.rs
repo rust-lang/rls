@@ -19,6 +19,8 @@ use rustfmt_nightly::{Session, FileLines, FileName, Input as FmtInput, Range as 
 use serde_json;
 use rls_span as span;
 use itertools::Itertools;
+use serde_derive::{Serialize, Deserialize};
+use log::{debug, log, trace};
 
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
