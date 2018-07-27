@@ -22,8 +22,7 @@ pub struct ConcurrentJob {
 }
 
 pub struct JobToken {
-    #[allow(unused)] // for drop
-    chan: Sender<Never>,
+    _chan: Sender<Never>,
 }
 
 pub struct Jobs {
@@ -65,7 +64,7 @@ impl ConcurrentJob {
     pub fn new() -> (ConcurrentJob, JobToken) {
         let (tx, rx) = bounded(0);
         let job = ConcurrentJob { chan: rx };
-        let token = JobToken { chan: tx };
+        let token = JobToken { _chan: tx };
         (job, token)
     }
 

@@ -47,8 +47,7 @@ pub struct PostBuildHandler {
     pub active_build_count: Arc<AtomicUsize>,
     pub notifier: Box<dyn DiagnosticsNotifier>,
     pub blocked_threads: Vec<thread::Thread>,
-    #[allow(unused)] // for drop
-    pub token: JobToken,
+    pub _token: JobToken,
 }
 
 impl PostBuildHandler {

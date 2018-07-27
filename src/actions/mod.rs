@@ -258,7 +258,7 @@ impl InitActionContext {
                 use_black_list: config.use_crate_blacklist,
                 notifier: Box::new(BuildDiagnosticsNotifier::new(out.clone())),
                 blocked_threads: vec![],
-                token,
+                _token: token,
             }
         };
 
