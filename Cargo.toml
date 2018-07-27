@@ -24,15 +24,15 @@ languageserver-types = "0.45"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = "2.1.0"
+racer = "2.1.2"
 rayon = "1"
 rls-analysis = "0.14"
 rls-blacklist = "0.1.2"
 rls-data = { version = "0.16", features = ["serialize-serde"] }
 rls-rustc = "0.4.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
-rls-vfs = { git = "https://github.com/kngwyu/rls-vfs", branch = "upd-racer", features = ["racer-impls"] }
-rustfmt-nightly = { git = "https://github.com/rust-lang-nursery/rustfmt", rev = "5e5992517d3591e2708d4ca6b155dfcbdf3344b9" }
+rls-vfs = { version = "0.4.6", features = ["racer-impls"] }
+rustfmt-nightly = { git = "https://github.com/rust-lang-nursery/rustfmt", rev = "7e3dc8fae7ed84cc1879ef4e0bc6f00dfe059e1b" }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
