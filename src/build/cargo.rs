@@ -22,6 +22,7 @@ use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, Packag
 use crate::build::environment::{self, Environment, EnvironmentLock};
 use crate::config::Config;
 use rls_vfs::Vfs;
+use log::{debug, error, log, trace, warn};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;

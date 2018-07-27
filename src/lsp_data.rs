@@ -20,6 +20,7 @@ use rls_span as span;
 use racer;
 use rls_vfs::FileContents;
 use languageserver_types as ls_types;
+use serde_derive::{Serialize, Deserialize};
 
 pub use languageserver_types::*;
 pub use languageserver_types::request::Request as LSPRequest;

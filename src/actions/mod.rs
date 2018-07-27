@@ -15,11 +15,12 @@ use rls_analysis::AnalysisHost;
 use rls_vfs::Vfs;
 use crate::config::FmtConfig;
 use crate::config::Config;
-use serde_json;
+use serde_json::{self, json, json_internal};
 use url::Url;
 use rls_span as span;
 use crate::Span;
 use walkdir::WalkDir;
+use log::{debug, log, trace};
 
 use crate::actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
 use crate::actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
@@ -42,6 +43,7 @@ use std::thread;
 macro_rules! ignore_non_file_uri {
     ($expr: expr, $uri: expr, $log_name: expr) => {
         $expr.map_err(|_| {
+            use log::{log, trace};
             trace!("{}: Non-`file` URI scheme, ignoring: {:?}", $log_name, $uri);
             ()
         })

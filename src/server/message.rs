@@ -16,6 +16,8 @@ use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
 use serde_json;
+use serde_derive::Serialize;
+use log::{debug, log};
 
 use crate::actions::ActionContext;
 use crate::lsp_data::{LSPNotification, LSPRequest};
@@ -367,6 +369,7 @@ mod test {
     use super::*;
     use languageserver_types::InitializedParams;
     use crate::server::notifications;
+    use serde_json::{json, json_internal};
 
     #[test]
     fn test_parse_as_notification() {

@@ -18,6 +18,7 @@ use cargo::util::important_paths;
 use crate::config::Config;
 use rls_data::Analysis;
 use rls_vfs::Vfs;
+use log::{log, trace};
 
 use self::environment::EnvironmentLock;
 

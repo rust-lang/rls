@@ -38,6 +38,7 @@ use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
 use crate::lsp_data::parse_file_path;
 use url::Url;
+use log::{log, trace};
 
 use crate::actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
