@@ -42,9 +42,6 @@ regex = "1"
 ordslice = "0.3"
 crossbeam-channel = "0.2.3"
 
-[dev-dependencies]
-json = "0.11"
-
 [features]
 default = ["clippy"]
 clippy = ["clippy_lints"]
