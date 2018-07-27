@@ -31,7 +31,7 @@ rls-blacklist = "0.1.2"
 rls-data = { version = "0.16", features = ["serialize-serde"] }
 rls-rustc = "0.4.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
-rls-vfs = { version = "0.4.6", features = ["racer-impls"] }
+rls-vfs = { version = "0.4.6" }
 rustfmt-nightly = { git = "https://github.com/rust-lang-nursery/rustfmt", rev = "7e3dc8fae7ed84cc1879ef4e0bc6f00dfe059e1b" }
 serde = "1.0"
 serde_json = "1.0"
