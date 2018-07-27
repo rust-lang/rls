@@ -172,7 +172,7 @@ impl Plan {
     /// never do work and always offload to Cargo in such case.
     /// Because of that, build scripts are checked separately and only other
     /// crate targets are checked with path prefixes.
-    fn fetch_dirty_units<T: AsRef<Path> + fmt::Debug>(&self, files: &[T]) -> HashSet<UnitKey> {
+    fn fetch_dirty_units<T: AsRef<Path>>(&self, files: &[T]) -> HashSet<UnitKey> {
         let mut result = HashSet::new();
 
         let build_scripts: HashMap<&Path, UnitKey> = self.units
@@ -194,18 +194,17 @@ impl Plan {
             })
             .collect();
 
-        for modified in files {
-            if let Some(unit) = build_scripts.get(modified.as_ref()) {
+        for modified in files.iter().map(|x| x.as_ref()) {
+            if let Some(unit) = build_scripts.get(modified) {
                 result.insert(unit.clone());
             } else {
                 // Not a build script, so we associate a dirty package with a
                 // dirty file by finding longest (most specified) path prefix
                 let unit = other_targets.iter().max_by_key(|&(_, src_dir)| {
-                    if !modified.as_ref().starts_with(src_dir) {
+                    if !modified.starts_with(src_dir) {
                         return 0;
                     }
                     modified
-                        .as_ref()
                         .components()
                         .zip(src_dir.components())
                         .take_while(|&(a, b)| a == b)
@@ -214,7 +213,7 @@ impl Plan {
                 match unit {
                     None => trace!(
                         "Modified file {:?} doesn't correspond to any package!",
-                        modified
+                        modified.display()
                     ),
                     Some(unit) => {
                         result.insert(unit.0.clone());
