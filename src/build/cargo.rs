@@ -148,7 +148,7 @@ fn run_cargo(
     let ws = Workspace::new(&manifest_path, &config)?;
 
     let packages = match package_arg {
-        PackageArg::Unknown | PackageArg::All => vec![],
+        PackageArg::All => vec![],
         PackageArg::Package(s) => vec![s]
     };
 

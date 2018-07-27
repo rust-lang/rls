@@ -160,7 +160,6 @@ impl CompilationContext {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PackageArg {
-    Unknown,
     // --all
     All,
     // -p ...
