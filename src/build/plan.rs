@@ -381,6 +381,7 @@ impl Plan {
     }
 }
 
+#[derive(Debug)]
 crate enum WorkStatus {
     NeedsCargo(PackageArg),
     Execute(JobQueue),
@@ -467,6 +468,7 @@ impl PackageMap {
     }
 }
 
+#[derive(Debug)]
 crate struct JobQueue(Vec<ProcessBuilder>);
 
 impl JobQueue {
