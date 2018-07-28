@@ -120,14 +120,7 @@ fn run_cargo(
 
     let mut restore_env = Environment::push_with_lock(&HashMap::new(), None, lock_guard);
 
-    let build_dir = {
-        let mut compilation_cx = compilation_cx.lock().unwrap();
-        // Since Cargo build routine will try to regenerate the unit dep graph,
-        // we need to clear the existing dep graph.
-        compilation_cx.build_plan = Plan::for_packages(package_arg.clone());
-
-        compilation_cx.build_dir.as_ref().unwrap().clone()
-    };
+    let build_dir = compilation_cx.lock().unwrap().build_dir.clone().unwrap();
 
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(&build_dir)?;
@@ -149,8 +142,8 @@ fn run_cargo(
     let ws = Workspace::new(&manifest_path, &config)?;
 
     let (all, packages) = match package_arg {
-        PackageArg::All => (true, vec![]),
-        PackageArg::Package(s) => (false, vec![s])
+        PackageArg::Default => (false, vec![]),
+        PackageArg::Packages(pkgs) => (false, pkgs.into_iter().collect())
     };
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
@@ -174,6 +167,14 @@ fn run_cargo(
         };
 
     let spec = Packages::from_flags(all, Vec::new(), packages)?;
+
+    let pkg_names = spec.into_package_id_specs(&ws)?.iter()
+        .map(|pkg_spec| pkg_spec.name().to_owned())
+        .collect();
+
+    // Since Cargo build routine will try to regenerate the unit dep graph,
+    // we need to clear the existing dep graph.
+    compilation_cx.lock().unwrap().build_plan = Plan::for_packages(pkg_names);
 
     let compile_opts = CompileOptions {
         spec,

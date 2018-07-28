@@ -22,7 +22,7 @@ use log::{log, trace};
 
 use self::environment::EnvironmentLock;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::io::{self, Write};
 use std::mem;
@@ -159,11 +159,10 @@ impl CompilationContext {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+/// Specified set of packages to be built by Cargo.
 pub enum PackageArg {
-    // --all
-    All,
-    // -p ...
-    Package(String),
+    Default,
+    Packages(HashSet<String>),
 }
 
 /// Status of the build queue.

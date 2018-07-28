@@ -60,17 +60,17 @@ crate struct Plan {
     // An object for finding the package which a file belongs to and this inferring
     // a package argument.
     package_map: Option<PackageMap>,
-    /// Packages for which this build plan was prepared.
+    /// Packages (names) for which this build plan was prepared.
     /// Used to detect if the plan can reused when building certain packages.
-    built_packages: PackageArg,
+    built_packages: HashSet<String>,
 }
 
 impl Plan {
     crate fn new() -> Plan {
-        Self::for_packages(PackageArg::All)
+        Self::for_packages(HashSet::new())
     }
 
-    crate fn for_packages(pkgs: PackageArg) -> Plan {
+    crate fn for_packages(pkgs: HashSet<String>) -> Plan {
         Plan {
             units: HashMap::new(),
             dep_graph: HashMap::new(),
@@ -309,14 +309,29 @@ impl Plan {
             self.package_map = Some(PackageMap::new(manifest_path));
         }
 
-        let package_arg = self.package_map
+        if !self.is_ready() || requested_cargo {
+            return WorkStatus::NeedsCargo(PackageArg::Default);
+        }
+
+        let dirty_packages = self.package_map
             .as_ref()
             .unwrap()
-            .compute_package_arg(modified);
-        let package_arg_changed = self.built_packages != package_arg;
+            .compute_dirty_packages(modified);
 
-        if !self.is_ready() || requested_cargo || package_arg_changed {
-            return WorkStatus::NeedsCargo(package_arg);
+        let needs_more_packages = dirty_packages
+            .difference(&self.built_packages)
+            .next()
+            .is_some();
+
+        let needed_packages = self.built_packages
+            .union(&dirty_packages)
+            .cloned()
+            .collect();
+
+        // We modified a file from a packages, that are not included in the
+        // cached build plan - run Cargo to recreate the build plan including them
+        if needs_more_packages {
+            return WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages));
         }
 
         let dirties = self.fetch_dirty_units(modified);
@@ -330,13 +345,13 @@ impl Plan {
             .iter()
             .any(|&(_, ref kind)| *kind == TargetKind::CustomBuild)
         {
-            WorkStatus::NeedsCargo(package_arg)
+            WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages))
         } else {
             let graph = self.dirty_rev_dep_graph(&dirties);
             trace!("Constructed dirty rev dep graph: {:?}", graph);
 
             if graph.is_empty() {
-                return WorkStatus::NeedsCargo(package_arg);
+                return WorkStatus::NeedsCargo(PackageArg::Default);
             }
 
             let queue = self.topological_sort(&graph);
@@ -355,9 +370,8 @@ impl Plan {
             // crates within the crate that depend on the error-ing one have never been built.
             // In that case we need to build from scratch so that everything is in our cache, or
             // we cope with the error. In the error case, jobs will be None.
-
             match jobs {
-                None => WorkStatus::NeedsCargo(package_arg),
+                None => WorkStatus::NeedsCargo(PackageArg::Default),
                 Some(jobs) => {
                     assert!(!jobs.is_empty());
                     WorkStatus::Execute(JobQueue(jobs))
@@ -372,17 +386,13 @@ crate enum WorkStatus {
     Execute(JobQueue),
 }
 
-// The point of the PackageMap is to compute the minimal work for Cargo to do,
-// given a list of changed files. That is, if things have changed all over the
-// place we have to do a `--all` build, but if they've only changed in one
-// package, then we can do `-p foo` which should mean less work.
-//
-// However, when we change package we throw away our build plan and must rebuild
-// it, so we must be careful that compiler jobs we expect to exist will in fact
-// exist. There is some wasted work too, but I don't think we can predict when
-// we definitely need to do this and it should be quick compared to compilation.
-
-// Maps paths to packages.
+/// Maps paths to packages.
+///
+/// The point of the PackageMap is detect if additional packages need to be
+/// included in the cached build plan. The cache can represent only a subset of
+/// the entire workspace, hence why we need to detect if a package was modified
+/// that's outside the cached build plan - if so, we need to recreate it,
+/// including the new package.
 #[derive(Debug)]
 struct PackageMap {
     // A map from a manifest directory to the package name.
@@ -418,19 +428,12 @@ impl PackageMap {
             .collect()
     }
 
-    // Compute the `-p` argument to pass to Cargo by examining the current dirty
-    // set of files and finding their package.
-    fn compute_package_arg<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> PackageArg {
-        let mut packages: Option<HashSet<String>> = modified_files
+    /// Given modified set of files, returns a set of corresponding dirty packages.
+    fn compute_dirty_packages<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> HashSet<String> {
+        modified_files
             .iter()
-            .map(|p| self.map(p.as_ref()))
-            .collect();
-        match packages {
-            Some(ref mut packages) if packages.len() == 1 => {
-                PackageArg::Package(packages.drain().next().unwrap())
-            }
-            _ => PackageArg::All,
-        }
+            .filter_map(|p| self.map(p.as_ref()))
+            .collect()
     }
 
     // Map a file to the package which it belongs to.
