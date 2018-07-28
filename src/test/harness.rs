@@ -50,9 +50,11 @@ impl Environment {
             use crate::build::environment::{EnvironmentLock, Environment};
             let env = EnvironmentLock::get();
             let (guard, _other) = env.lock();
-            Environment::push_with_lock(&HashMap::new(), None, guard)
-                .get_old_cwd()
-                .to_path_buf()
+            let env = Environment::push_with_lock(&HashMap::new(), None, guard);
+            match env::var_os("RLS_TEST_WORKSPACE_DIR") {
+                Some(cur_dir) => cur_dir.into(),
+                None => env.get_old_cwd().to_path_buf(),
+            }
         };
         let project_path = cur_dir.join("test_data").join(project_dir);
 
