@@ -481,11 +481,10 @@ crate struct JobQueue(Vec<ProcessBuilder>);
 
 fn proc_arg<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
     let args = prc.get_args();
-    args.iter().enumerate()
-        .find(|(_, arg)| arg.as_os_str() == key.as_ref())
-        .map(|(idx, _)| idx + 1)
-        .and_then(|idx| args.get(idx))
-        .map(|x| x.as_os_str())
+    let (idx, _) = args.iter().enumerate()
+        .find(|(_, arg)| arg.as_os_str() == key.as_ref())?;
+
+    Some(args.get(idx + 1)?.as_os_str())
 }
 
 impl fmt::Debug for JobQueue {
