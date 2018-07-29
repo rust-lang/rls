@@ -39,7 +39,7 @@ use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
 use crate::lsp_data::parse_file_path;
 use url::Url;
-use log::{log, trace};
+use log::{log, trace, error};
 
 use crate::actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
@@ -94,8 +94,8 @@ impl Plan {
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
     crate fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, mode: CompileMode, cmd: &ProcessBuilder) {
-        let pkg_key = (id.clone(), target.clone(), mode);
-        self.compiler_jobs.insert(pkg_key, cmd.clone());
+        let unit_key = (id.clone(), target.clone(), mode);
+        self.compiler_jobs.insert(unit_key, cmd.clone());
     }
 
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
@@ -213,17 +213,18 @@ impl Plan {
                 // collect every unit having the longest path prefix.
                 let max_matching_prefix = other_targets.values()
                     .map(|src_dir| matching_prefix_components(modified, src_dir))
-                    .max().unwrap();
+                    .max();
 
-                if max_matching_prefix == 0 {
-                    trace!("Modified file didn't correspond to any buildable unit!");
-                } else {
-                    let dirty_units = other_targets.iter()
-                        .filter(|(_, src_dir)| max_matching_prefix ==
-                            matching_prefix_components(modified, src_dir)
-                        ).map(|(unit, _)| unit);
+                match max_matching_prefix {
+                    Some(0) => error!("Modified file didn't correspond to any buildable unit!"),
+                    Some(max) => {
+                        let dirty_units = other_targets.iter()
+                            .filter(|(_, dir)| max == matching_prefix_components(modified, dir))
+                            .map(|(unit, _)| unit);
 
-                    result.extend(dirty_units.cloned());
+                        result.extend(dirty_units.cloned());
+                    }
+                    None => {} // Possible that only build scripts were modified
                 }
             }
         }
