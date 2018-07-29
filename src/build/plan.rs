@@ -471,6 +471,15 @@ impl PackageMap {
 #[derive(Debug)]
 crate struct JobQueue(Vec<ProcessBuilder>);
 
+fn proc_arg<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
+    let args = prc.get_args();
+    args.iter().enumerate()
+        .find(|(_, arg)| arg.as_os_str() == key.as_ref())
+        .map(|(idx, _)| idx + 1)
+        .and_then(|idx| args.get(idx))
+        .map(|x| x.as_os_str())
+}
+
 impl JobQueue {
     crate fn dequeue(&mut self) -> Option<ProcessBuilder> {
         self.0.pop()
@@ -514,16 +523,19 @@ impl JobQueue {
                 .expect("cannot stringify job program");
             args.insert(0, program.clone());
 
-            // Send a window/progress notification. At this point we know the percentage
-            // started out of the entire cached build.
-            // FIXME. We could communicate the "program" being built here, but
-            // it seems window/progress notification should have message OR percentage.
+            // Send a window/progress notification.
             {
-                // divide by zero is avoided by earlier assert!
-                let percentage = compiler_messages.len() as f64 / self.0.len() as f64;
-                progress_sender
-                    .send(ProgressUpdate::Percentage(percentage))
-                    .expect("Failed to send progress update");
+                let crate_name = proc_arg(&job, "--crate-name").and_then(|x| x.to_str());
+                let update = match crate_name {
+                    Some(name) => ProgressUpdate::Message(name.to_owned()),
+                    None => {
+                        // divide by zero is avoided by earlier assert!
+                        let percentage = compiler_messages.len() as f64 / self.0.len() as f64;
+                        ProgressUpdate::Percentage(percentage)
+                    }
+                };
+
+                progress_sender.send(update).expect("Failed to send progress update");
             }
 
             match super::rustc::rustc(
