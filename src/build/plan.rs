@@ -25,6 +25,7 @@
 //! build scripts).
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -468,7 +469,6 @@ impl PackageMap {
     }
 }
 
-#[derive(Debug)]
 crate struct JobQueue(Vec<ProcessBuilder>);
 
 fn proc_arg<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
@@ -478,6 +478,19 @@ fn proc_arg<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::
         .map(|(idx, _)| idx + 1)
         .and_then(|idx| args.get(idx))
         .map(|x| x.as_os_str())
+}
+
+impl fmt::Debug for JobQueue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "JobQueue: [")?;
+        for prog in self.0.iter().rev() {
+            let name = proc_arg(prog, "--crate-name").unwrap();
+            let typ_ = proc_arg(prog, "--crate-type").unwrap_or_else(|| OsStr::new("<unknown>"));
+            write!(f, "{:?} ({:?}), ", name, typ_);
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
 }
 
 impl JobQueue {

@@ -548,6 +548,8 @@ impl Internals {
             };
             cx.build_plan.prepare_work(&manifest_path, &modified, needs_to_run_cargo)
         };
+        trace!("Specified work: {:?}", work);
+
         match work {
             // Cargo performs the full build and returns
             // appropriate diagnostics/analysis data

@@ -171,6 +171,7 @@ fn run_cargo(
     let pkg_names = spec.into_package_id_specs(&ws)?.iter()
         .map(|pkg_spec| pkg_spec.name().to_owned())
         .collect();
+    trace!("Specified packages to be built by Cargo: {:#?}", pkg_names);
 
     // Since Cargo build routine will try to regenerate the unit dep graph,
     // we need to clear the existing dep graph.
