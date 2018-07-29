@@ -403,6 +403,7 @@ fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
 /// Client file-watching request / filtering logic
 /// We want to watch workspace 'Cargo.toml', root 'Cargo.lock' & the root 'target' dir
 pub struct FileWatch<'ctx> {
+    project_path: PathBuf,
     project_str: &'ctx str,
     project_uri: String,
 }
@@ -411,6 +412,7 @@ impl<'ctx> FileWatch<'ctx> {
     /// Construct a new `FileWatch`.
     pub fn new(ctx: &'ctx InitActionContext) -> Self {
         Self {
+            project_path: ctx.current_project.clone(),
             project_str: ctx.current_project.to_str().unwrap(),
             project_uri: Url::from_file_path(&ctx.current_project)
                 .unwrap()
@@ -460,7 +462,20 @@ impl<'ctx> FileWatch<'ctx> {
     pub fn is_relevant(&self, change: &FileEvent) -> bool {
         let path = change.uri.as_str();
 
-        if !path.starts_with(&self.project_uri) {
+        // Prefix-matching file URLs on Windows require special attention -
+        // - either file:c/... and file:///c:/ works
+        // - drive letters are case-insensitive
+        // - also protects against naive scheme-independent parsing
+        //   (https://github.com/Microsoft/vscode-languageserver-node/issues/105)
+        if cfg!(windows) {
+            let changed_path = match change.uri.to_file_path() {
+                Ok(path) => path,
+                Err(_) => return false,
+            };
+            if !changed_path.starts_with(&self.project_path) {
+                return false;
+            }
+        } else if !path.starts_with(&self.project_uri) {
             return false;
         }
 
