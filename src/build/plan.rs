@@ -33,7 +33,7 @@ use std::sync::mpsc::Sender;
 
 use crate::build::PackageArg;
 use cargo::core::{PackageId, Target, TargetKind};
-use cargo::core::compiler::{Context, Kind, Unit};
+use cargo::core::compiler::{CompileMode, Context, Kind, Unit};
 use cargo::core::profiles::Profile;
 use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
@@ -45,7 +45,9 @@ use crate::actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
-crate type UnitKey = (PackageId, TargetKind);
+/// In Target we're mostly interested in TargetKind (Lib, Bin, ...) and name
+/// (e.g. we can have 2 binary targets with different names).
+crate type UnitKey = (PackageId, Target, CompileMode);
 
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
@@ -91,8 +93,8 @@ impl Plan {
     /// Cache a given compiler invocation in `ProcessBuilder` for a given
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
-    crate fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, cmd: &ProcessBuilder) {
-        let pkg_key = (id.clone(), target.kind().clone());
+    crate fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, mode: CompileMode, cmd: &ProcessBuilder) {
+        let pkg_key = (id.clone(), target.clone(), mode);
         self.compiler_jobs.insert(pkg_key, cmd.clone());
     }
 
@@ -176,12 +178,12 @@ impl Plan {
 
         let build_scripts: HashMap<&Path, UnitKey> = self.units
             .iter()
-            .filter(|&(&(_, ref kind), _)| *kind == TargetKind::CustomBuild)
+            .filter(|&(&(_, ref target, _), _)| *target.kind() == TargetKind::CustomBuild)
             .map(|(key, unit)| (unit.target.src_path(), key.clone()))
             .collect();
         let other_targets: HashMap<UnitKey, &Path> = self.units
             .iter()
-            .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
+            .filter(|&(&(_, ref target, _), _)| *target.kind() != TargetKind::CustomBuild)
             .map(|(key, unit)| {
                 (
                     key.clone(),
@@ -197,27 +199,32 @@ impl Plan {
             if let Some(unit) = build_scripts.get(modified) {
                 result.insert(unit.clone());
             } else {
-                // Not a build script, so we associate a dirty package with a
-                // dirty file by finding longest (most specified) path prefix
-                let unit = other_targets.iter().max_by_key(|&(_, src_dir)| {
-                    if !modified.starts_with(src_dir) {
-                        return 0;
-                    }
-                    modified
-                        .components()
-                        .zip(src_dir.components())
-                        .take_while(|&(a, b)| a == b)
+                // Not a build script, so we associate a dirty file with a
+                // package by finding longest (most specified) path prefix.
+                let matching_prefix_components = |a: &Path, b: &Path| -> usize {
+                    assert!(a.is_absolute() && b.is_absolute());
+                    a.components().zip(b.components())
+                        .skip(1) // Skip RootDir
+                        .take_while(|&(x, y)| x == y)
                         .count()
-                });
-                match unit {
-                    None => trace!(
-                        "Modified file {:?} doesn't correspond to any package!",
-                        modified.display()
-                    ),
-                    Some(unit) => {
-                        result.insert(unit.0.clone());
-                    }
                 };
+                // Since a package can correspond to many units (e.g. compiled
+                // as a regular binary or a test harness for unit tests), we
+                // collect every unit having the longest path prefix.
+                let max_matching_prefix = other_targets.values()
+                    .map(|src_dir| matching_prefix_components(modified, src_dir))
+                    .max().unwrap();
+
+                if max_matching_prefix == 0 {
+                    trace!("Modified file didn't correspond to any buildable unit!");
+                } else {
+                    let dirty_units = other_targets.iter()
+                        .filter(|(_, src_dir)| max_matching_prefix ==
+                            matching_prefix_components(modified, src_dir)
+                        ).map(|(unit, _)| unit);
+
+                    result.extend(dirty_units.cloned());
+                }
             }
         }
         result
@@ -344,7 +351,7 @@ impl Plan {
 
         if dirties
             .iter()
-            .any(|&(_, ref kind)| *kind == TargetKind::CustomBuild)
+            .any(|&(_, ref target, _)| *target.kind() == TargetKind::CustomBuild)
         {
             WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages))
         } else {
@@ -594,7 +601,7 @@ impl JobQueue {
 }
 
 fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
-    (unit.pkg.package_id().clone(), unit.target.kind().clone())
+    (unit.pkg.package_id().clone(), unit.target.clone(), unit.mode)
 }
 
 macro_rules! print_dep_graph {
@@ -626,6 +633,7 @@ crate struct OwnedUnit {
     crate target: Target,
     crate profile: Profile,
     crate kind: Kind,
+    crate mode: CompileMode,
 }
 
 impl<'a> From<&'a Unit<'a>> for OwnedUnit {
@@ -635,6 +643,7 @@ impl<'a> From<&'a Unit<'a>> for OwnedUnit {
             target: unit.target.clone(),
             profile: unit.profile,
             kind: unit.kind,
+            mode: unit.mode,
         }
     }
 }

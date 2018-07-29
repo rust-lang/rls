@@ -333,7 +333,7 @@ impl Executor for RlsExecutor {
         self.is_primary_crate(id)
     }
 
-    fn exec(&self, mut cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target) -> CargoResult<()> {
+    fn exec(&self, mut cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target, mode: CompileMode) -> CargoResult<()> {
         // Use JSON output so that we can parse the rustc output.
         cargo_cmd.arg("--error-format=json");
         // Delete any stale data. We try and remove any json files with
@@ -464,7 +464,7 @@ impl Executor for RlsExecutor {
         // Cache executed command for the build plan
         {
             let mut cx = self.compilation_cx.lock().unwrap();
-            cx.build_plan.cache_compiler_job(id, target, &cmd);
+            cx.build_plan.cache_compiler_job(id, target, mode, &cmd);
         }
 
         // Prepare modified cargo-generated args/envs for future rustc calls
