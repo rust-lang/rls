@@ -147,6 +147,17 @@ pub struct Config {
     pub racer_completion: bool,
     #[serde(deserialize_with = "deserialize_clippy_preference")]
     pub clippy_preference: ClippyPreference,
+    /// Instructs cargo to enable full documentation extraction during save-analysis
+    /// while building the crate. This has no effect on the pre-built standard library,
+    /// which is built without full_docs enabled. Hover tooltips currently extract 
+    /// documentation from source due this limitation. The docs provided by the save-analysis
+    /// are used in the event that source extraction fails. This may prove to be more useful 
+    /// in the future.
+    pub full_docs: Inferrable<bool>,
+    /// Show additional context in hover tooltips when available. This is often the type
+    /// local variable declaration. When set to false, the content is only availabe when
+    /// holding the `ctrl` key in some editors.
+    pub show_hover_context: bool,
 }
 
 impl Default for Config {
@@ -173,6 +184,8 @@ impl Default for Config {
             all_targets: true,
             racer_completion: true,
             clippy_preference: ClippyPreference::OptIn,
+            full_docs: Inferrable::Inferred(false),
+            show_hover_context: true,
         };
         result.normalise();
         result

@@ -22,6 +22,7 @@ use itertools::Itertools;
 use serde_derive::{Serialize, Deserialize};
 use log::{debug, log, trace};
 
+use crate::actions::hover;
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
 use crate::actions::run::collect_run_actions;
@@ -159,28 +160,10 @@ impl RequestAction for Hover {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        let file_path = parse_file_path!(&params.text_document.uri, "hover")?;
-        let span = ctx.convert_pos_to_span(file_path, params.position);
+        let tooltip = hover::tooltip(&ctx, &params)?;
 
-        trace!("hover: {:?}", span);
-
-        let analysis = ctx.analysis;
-        let ty = analysis.show_type(&span).unwrap_or_else(|_| String::new());
-        let docs = analysis.docs(&span).unwrap_or_else(|_| String::new());
-        let doc_url = analysis.doc_url(&span).unwrap_or_else(|_| String::new());
-
-        let mut contents = vec![];
-        if !docs.is_empty() {
-            contents.push(MarkedString::from_markdown(docs));
-        }
-        if !doc_url.is_empty() {
-            contents.push(MarkedString::from_markdown(doc_url));
-        }
-        if !ty.is_empty() {
-            contents.push(MarkedString::from_language_code("rust".into(), ty));
-        }
         Ok(lsp_data::Hover {
-            contents: HoverContents::Array(contents),
+            contents: HoverContents::Array(tooltip),
             range: None, // TODO: maybe add?
         })
     }
@@ -846,14 +829,14 @@ impl RequestAction for ResolveCompletion {
     }
 }
 
-fn racer_coord(
+pub(crate) fn racer_coord(
     row: span::Row<span::OneIndexed>,
     col: span::Column<span::ZeroIndexed>,
 ) -> racer::Coordinate {
     racer::Coordinate { row, col }
 }
 
-fn from_racer_coord(
+pub(crate) fn from_racer_coord(
     coord: racer::Coordinate,
 ) -> (span::Row<span::OneIndexed>, span::Column<span::ZeroIndexed>) {
     (coord.row, coord.col)
@@ -908,7 +891,7 @@ impl RequestAction for CodeLensRequest {
     }
 }
 
-fn racer_cache(vfs: Arc<Vfs>) -> racer::FileCache {
+pub(crate) fn racer_cache(vfs: Arc<Vfs>) -> racer::FileCache {
     struct RacerVfs(Arc<Vfs>);
     impl racer::FileLoader for RacerVfs {
         fn load_file(&self, path: &Path) -> io::Result<String> {
