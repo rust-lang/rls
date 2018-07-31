@@ -22,6 +22,8 @@ use rls_vfs::FileContents;
 use languageserver_types as ls_types;
 use serde_derive::{Serialize, Deserialize};
 
+use crate::actions::hover;
+
 pub use languageserver_types::*;
 pub use languageserver_types::request::Request as LSPRequest;
 pub use languageserver_types::notification::Notification as LSPNotification;
@@ -234,7 +236,7 @@ pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
     if !m.docs.is_empty() {
         item.documentation = Some(Documentation::MarkupContent(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: m.docs.clone(),
+            value: hover::process_docs(&m.docs)
         }));
     }
 

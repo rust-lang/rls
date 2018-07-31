@@ -22,6 +22,7 @@ install:
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
   # Required for Racer autoconfiguration
   - rustup component add rust-src
+  - rustup component add rust-analysis
   # Print version info
   - rustc -Vv
   - cargo -V

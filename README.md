@@ -114,7 +114,8 @@ Currently we accept the following options:
 * `no_default_features` (`bool`, defaults to `false`) disables default Cargo
   features
 * `racer_completion` (`bool`, defaults to `true`) enables code completion using
-  racer (which is, at the moment, our only code completion backend)
+  racer (which is, at the moment, our only code completion backend). Also enables
+  hover tooltips to fall back to racer when save-analysis data is unavailable.
 * `clippy_preference` (`String`, defaults to `"opt-in"`) controls eagerness of clippy
   diagnostics when available. Valid values are _(case-insensitive)_:
   - `"off"` Disable clippy lints.
@@ -131,6 +132,14 @@ and the following unstable options:
 * `cfg_test` (`bool`, defaults to `false`) checks the project as if you were
   running `cargo test` rather than `cargo build`. I.e., compiles (but does not
   run) test code.
+* `full_docs` (`bool`, defaults to `false`) instructs rustc to populate the
+  save-analysis data with full source documentation. When set to `false`, only the
+  first paragraph is recorded. This option _currently_ has little to no effect on
+  hover tooltips. The save-analysis docs are only used if source extraction fails.
+  This option has no effect on the standard library.
+* `show_hover_context` show additional context in hover tooltips when available.
+  This is often the local variable declaration. When set to false the content is
+  only availabe when holding the `ctrl` key in some editors.
 
 
 ## Troubleshooting

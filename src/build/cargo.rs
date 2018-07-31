@@ -441,6 +441,9 @@ impl Executor for RlsExecutor {
             let mut save_config = rls_data::config::Config::default();
             save_config.pub_only = true;
             save_config.reachable_only = true;
+            save_config.full_docs = self.config.lock()
+                .map(|config| *config.full_docs.as_ref())
+                .unwrap();
             let save_config = serde_json::to_string(&save_config)?;
             cmd.env("RUST_SAVE_ANALYSIS_CONFIG", &OsString::from(save_config));
 
