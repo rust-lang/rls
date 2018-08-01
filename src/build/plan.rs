@@ -216,7 +216,8 @@ impl Plan {
                     .max();
 
                 match max_matching_prefix {
-                    Some(0) => error!("Modified file didn't correspond to any buildable unit!"),
+                    Some(0) => error!("Modified file {} didn't correspond to any buildable unit!",
+                        modified.display()),
                     Some(max) => {
                         let dirty_units = other_targets.iter()
                             .filter(|(_, dir)| max == matching_prefix_components(modified, dir))
@@ -479,7 +480,13 @@ impl PackageMap {
 
 crate struct JobQueue(Vec<ProcessBuilder>);
 
-fn proc_arg<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
+/// Returns an immediately next argument to the one specified in a given
+/// ProcessBuilder (or `None` if the searched or the next argument could not be found).
+///
+/// This is useful for returning values for arguments of `--key <value>` format.
+/// For example, if `[.., "--crate-name", "rls", ...]` arguments are specified,
+/// then proc_arg(prc, "--crate-name") returns Some(&OsStr::new("rls"));
+fn proc_argument_value<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
     let args = prc.get_args();
     let (idx, _) = args.iter().enumerate()
         .find(|(_, arg)| arg.as_os_str() == key.as_ref())?;
@@ -491,8 +498,9 @@ impl fmt::Debug for JobQueue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "JobQueue: [")?;
         for prog in self.0.iter().rev() {
-            let name = proc_arg(prog, "--crate-name").unwrap();
-            let typ_ = proc_arg(prog, "--crate-type").unwrap_or_else(|| OsStr::new("<unknown>"));
+            let name = proc_argument_value(prog, "--crate-name").unwrap();
+            let typ_ = proc_argument_value(prog, "--crate-type")
+                .unwrap_or_else(|| OsStr::new("<unknown>"));
             write!(f, "{:?} ({:?}), ", name, typ_);
         }
         write!(f, "]")?;
@@ -545,7 +553,8 @@ impl JobQueue {
 
             // Send a window/progress notification.
             {
-                let crate_name = proc_arg(&job, "--crate-name").and_then(|x| x.to_str());
+                let crate_name = proc_argument_value(&job, "--crate-name")
+                    .and_then(|x| x.to_str());
                 let update = match crate_name {
                     Some(name) => ProgressUpdate::Message(name.to_owned()),
                     None => {
