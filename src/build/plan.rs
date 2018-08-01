@@ -25,6 +25,7 @@
 //! build scripts).
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -32,19 +33,21 @@ use std::sync::mpsc::Sender;
 
 use crate::build::PackageArg;
 use cargo::core::{PackageId, Target, TargetKind};
-use cargo::core::compiler::{Context, Kind, Unit};
+use cargo::core::compiler::{CompileMode, Context, Kind, Unit};
 use cargo::core::profiles::Profile;
 use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
 use crate::lsp_data::parse_file_path;
 use url::Url;
-use log::{log, trace};
+use log::{log, trace, error};
 
 use crate::actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
-crate type UnitKey = (PackageId, TargetKind);
+/// In Target we're mostly interested in TargetKind (Lib, Bin, ...) and name
+/// (e.g. we can have 2 binary targets with different names).
+crate type UnitKey = (PackageId, Target, CompileMode);
 
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
@@ -60,27 +63,25 @@ crate struct Plan {
     // An object for finding the package which a file belongs to and this inferring
     // a package argument.
     package_map: Option<PackageMap>,
-    // The package argument used in the last Cargo build.
-    prev_package_arg: Option<PackageArg>,
+    /// Packages (names) for which this build plan was prepared.
+    /// Used to detect if the plan can reused when building certain packages.
+    built_packages: HashSet<String>,
 }
 
 impl Plan {
     crate fn new() -> Plan {
+        Self::for_packages(HashSet::new())
+    }
+
+    crate fn for_packages(pkgs: HashSet<String>) -> Plan {
         Plan {
             units: HashMap::new(),
             dep_graph: HashMap::new(),
             rev_dep_graph: HashMap::new(),
             compiler_jobs: HashMap::new(),
             package_map: None,
-            prev_package_arg: None,
+            built_packages: pkgs,
         }
-    }
-
-    crate fn clear(&mut self) {
-        self.units = HashMap::new();
-        self.dep_graph = HashMap::new();
-        self.rev_dep_graph = HashMap::new();
-        self.compiler_jobs = HashMap::new();
     }
 
     /// Returns whether a build plan has cached compiler invocations and dep
@@ -92,9 +93,9 @@ impl Plan {
     /// Cache a given compiler invocation in `ProcessBuilder` for a given
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
-    crate fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, cmd: &ProcessBuilder) {
-        let pkg_key = (id.clone(), target.kind().clone());
-        self.compiler_jobs.insert(pkg_key, cmd.clone());
+    crate fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, mode: CompileMode, cmd: &ProcessBuilder) {
+        let unit_key = (id.clone(), target.clone(), mode);
+        self.compiler_jobs.insert(unit_key, cmd.clone());
     }
 
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
@@ -172,17 +173,17 @@ impl Plan {
     /// never do work and always offload to Cargo in such case.
     /// Because of that, build scripts are checked separately and only other
     /// crate targets are checked with path prefixes.
-    fn fetch_dirty_units<T: AsRef<Path> + fmt::Debug>(&self, files: &[T]) -> HashSet<UnitKey> {
+    fn fetch_dirty_units<T: AsRef<Path>>(&self, files: &[T]) -> HashSet<UnitKey> {
         let mut result = HashSet::new();
 
         let build_scripts: HashMap<&Path, UnitKey> = self.units
             .iter()
-            .filter(|&(&(_, ref kind), _)| *kind == TargetKind::CustomBuild)
+            .filter(|&(&(_, ref target, _), _)| *target.kind() == TargetKind::CustomBuild)
             .map(|(key, unit)| (unit.target.src_path(), key.clone()))
             .collect();
         let other_targets: HashMap<UnitKey, &Path> = self.units
             .iter()
-            .filter(|&(&(_, ref kind), _)| *kind != TargetKind::CustomBuild)
+            .filter(|&(&(_, ref target, _), _)| *target.kind() != TargetKind::CustomBuild)
             .map(|(key, unit)| {
                 (
                     key.clone(),
@@ -194,32 +195,38 @@ impl Plan {
             })
             .collect();
 
-        for modified in files {
-            if let Some(unit) = build_scripts.get(modified.as_ref()) {
+        for modified in files.iter().map(|x| x.as_ref()) {
+            if let Some(unit) = build_scripts.get(modified) {
                 result.insert(unit.clone());
             } else {
-                // Not a build script, so we associate a dirty package with a
-                // dirty file by finding longest (most specified) path prefix
-                let unit = other_targets.iter().max_by_key(|&(_, src_dir)| {
-                    if !modified.as_ref().starts_with(src_dir) {
-                        return 0;
-                    }
-                    modified
-                        .as_ref()
-                        .components()
-                        .zip(src_dir.components())
-                        .take_while(|&(a, b)| a == b)
+                // Not a build script, so we associate a dirty file with a
+                // package by finding longest (most specified) path prefix.
+                let matching_prefix_components = |a: &Path, b: &Path| -> usize {
+                    assert!(a.is_absolute() && b.is_absolute());
+                    a.components().zip(b.components())
+                        .skip(1) // Skip RootDir
+                        .take_while(|&(x, y)| x == y)
                         .count()
-                });
-                match unit {
-                    None => trace!(
-                        "Modified file {:?} doesn't correspond to any package!",
-                        modified
-                    ),
-                    Some(unit) => {
-                        result.insert(unit.0.clone());
-                    }
                 };
+                // Since a package can correspond to many units (e.g. compiled
+                // as a regular binary or a test harness for unit tests), we
+                // collect every unit having the longest path prefix.
+                let max_matching_prefix = other_targets.values()
+                    .map(|src_dir| matching_prefix_components(modified, src_dir))
+                    .max();
+
+                match max_matching_prefix {
+                    Some(0) => error!("Modified file {} didn't correspond to any buildable unit!",
+                        modified.display()),
+                    Some(max) => {
+                        let dirty_units = other_targets.iter()
+                            .filter(|(_, dir)| max == matching_prefix_components(modified, dir))
+                            .map(|(unit, _)| unit);
+
+                        result.extend(dirty_units.cloned());
+                    }
+                    None => {} // Possible that only build scripts were modified
+                }
             }
         }
         result
@@ -312,18 +319,29 @@ impl Plan {
             self.package_map = Some(PackageMap::new(manifest_path));
         }
 
-        let package_arg = self.package_map
+        if !self.is_ready() || requested_cargo {
+            return WorkStatus::NeedsCargo(PackageArg::Default);
+        }
+
+        let dirty_packages = self.package_map
             .as_ref()
             .unwrap()
-            .compute_package_arg(modified);
-        let package_arg_changed = match self.prev_package_arg {
-            Some(ref ppa) => ppa != &package_arg,
-            None => true,
-        };
-        self.prev_package_arg = Some(package_arg.clone());
+            .compute_dirty_packages(modified);
 
-        if !self.is_ready() || requested_cargo || package_arg_changed {
-            return WorkStatus::NeedsCargo(package_arg);
+        let needs_more_packages = dirty_packages
+            .difference(&self.built_packages)
+            .next()
+            .is_some();
+
+        let needed_packages = self.built_packages
+            .union(&dirty_packages)
+            .cloned()
+            .collect();
+
+        // We modified a file from a packages, that are not included in the
+        // cached build plan - run Cargo to recreate the build plan including them
+        if needs_more_packages {
+            return WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages));
         }
 
         let dirties = self.fetch_dirty_units(modified);
@@ -335,15 +353,15 @@ impl Plan {
 
         if dirties
             .iter()
-            .any(|&(_, ref kind)| *kind == TargetKind::CustomBuild)
+            .any(|&(_, ref target, _)| *target.kind() == TargetKind::CustomBuild)
         {
-            WorkStatus::NeedsCargo(package_arg)
+            WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages))
         } else {
             let graph = self.dirty_rev_dep_graph(&dirties);
             trace!("Constructed dirty rev dep graph: {:?}", graph);
 
             if graph.is_empty() {
-                return WorkStatus::NeedsCargo(package_arg);
+                return WorkStatus::NeedsCargo(PackageArg::Default);
             }
 
             let queue = self.topological_sort(&graph);
@@ -362,9 +380,8 @@ impl Plan {
             // crates within the crate that depend on the error-ing one have never been built.
             // In that case we need to build from scratch so that everything is in our cache, or
             // we cope with the error. In the error case, jobs will be None.
-
             match jobs {
-                None => WorkStatus::NeedsCargo(package_arg),
+                None => WorkStatus::NeedsCargo(PackageArg::Default),
                 Some(jobs) => {
                     assert!(!jobs.is_empty());
                     WorkStatus::Execute(JobQueue(jobs))
@@ -374,22 +391,19 @@ impl Plan {
     }
 }
 
+#[derive(Debug)]
 crate enum WorkStatus {
     NeedsCargo(PackageArg),
     Execute(JobQueue),
 }
 
-// The point of the PackageMap is to compute the minimal work for Cargo to do,
-// given a list of changed files. That is, if things have changed all over the
-// place we have to do a `--all` build, but if they've only changed in one
-// package, then we can do `-p foo` which should mean less work.
-//
-// However, when we change package we throw away our build plan and must rebuild
-// it, so we must be careful that compiler jobs we expect to exist will in fact
-// exist. There is some wasted work too, but I don't think we can predict when
-// we definitely need to do this and it should be quick compared to compilation.
-
-// Maps paths to packages.
+/// Maps paths to packages.
+///
+/// The point of the PackageMap is detect if additional packages need to be
+/// included in the cached build plan. The cache can represent only a subset of
+/// the entire workspace, hence why we need to detect if a package was modified
+/// that's outside the cached build plan - if so, we need to recreate it,
+/// including the new package.
 #[derive(Debug)]
 struct PackageMap {
     // A map from a manifest directory to the package name.
@@ -406,7 +420,7 @@ impl PackageMap {
         }
     }
 
-    // Fine each package in the workspace and record the root directory and package name.
+    // Find each package in the workspace and record the root directory and package name.
     fn discover_package_paths(manifest_path: &Path) -> HashMap<PathBuf, String> {
         trace!("read metadata {:?}", manifest_path);
         let metadata = match cargo_metadata::metadata(Some(manifest_path)) {
@@ -425,19 +439,12 @@ impl PackageMap {
             .collect()
     }
 
-    // Compute the `-p` argument to pass to Cargo by examining the current dirty
-    // set of files and finding their package.
-    fn compute_package_arg<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> PackageArg {
-        let mut packages: Option<HashSet<String>> = modified_files
+    /// Given modified set of files, returns a set of corresponding dirty packages.
+    fn compute_dirty_packages<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> HashSet<String> {
+        modified_files
             .iter()
-            .map(|p| self.map(p.as_ref()))
-            .collect();
-        match packages {
-            Some(ref mut packages) if packages.len() == 1 => {
-                PackageArg::Package(packages.drain().next().unwrap())
-            }
-            _ => PackageArg::All,
-        }
+            .filter_map(|p| self.map(p.as_ref()))
+            .collect()
     }
 
     // Map a file to the package which it belongs to.
@@ -472,6 +479,34 @@ impl PackageMap {
 }
 
 crate struct JobQueue(Vec<ProcessBuilder>);
+
+/// Returns an immediately next argument to the one specified in a given
+/// ProcessBuilder (or `None` if the searched or the next argument could not be found).
+///
+/// This is useful for returning values for arguments of `--key <value>` format.
+/// For example, if `[.., "--crate-name", "rls", ...]` arguments are specified,
+/// then proc_arg(prc, "--crate-name") returns Some(&OsStr::new("rls"));
+fn proc_argument_value<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
+    let args = prc.get_args();
+    let (idx, _) = args.iter().enumerate()
+        .find(|(_, arg)| arg.as_os_str() == key.as_ref())?;
+
+    Some(args.get(idx + 1)?.as_os_str())
+}
+
+impl fmt::Debug for JobQueue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "JobQueue: [")?;
+        for prog in self.0.iter().rev() {
+            let name = proc_argument_value(prog, "--crate-name").unwrap();
+            let typ_ = proc_argument_value(prog, "--crate-type")
+                .unwrap_or_else(|| OsStr::new("<unknown>"));
+            write!(f, "{:?} ({:?}), ", name, typ_);
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
+}
 
 impl JobQueue {
     crate fn dequeue(&mut self) -> Option<ProcessBuilder> {
@@ -516,16 +551,20 @@ impl JobQueue {
                 .expect("cannot stringify job program");
             args.insert(0, program.clone());
 
-            // Send a window/progress notification. At this point we know the percentage
-            // started out of the entire cached build.
-            // FIXME. We could communicate the "program" being built here, but
-            // it seems window/progress notification should have message OR percentage.
+            // Send a window/progress notification.
             {
-                // divide by zero is avoided by earlier assert!
-                let percentage = compiler_messages.len() as f64 / self.0.len() as f64;
-                progress_sender
-                    .send(ProgressUpdate::Percentage(percentage))
-                    .expect("Failed to send progress update");
+                let crate_name = proc_argument_value(&job, "--crate-name")
+                    .and_then(|x| x.to_str());
+                let update = match crate_name {
+                    Some(name) => ProgressUpdate::Message(name.to_owned()),
+                    None => {
+                        // divide by zero is avoided by earlier assert!
+                        let percentage = compiler_messages.len() as f64 / self.0.len() as f64;
+                        ProgressUpdate::Percentage(percentage)
+                    }
+                };
+
+                progress_sender.send(update).expect("Failed to send progress update");
             }
 
             match super::rustc::rustc(
@@ -571,7 +610,7 @@ impl JobQueue {
 }
 
 fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
-    (unit.pkg.package_id().clone(), unit.target.kind().clone())
+    (unit.pkg.package_id().clone(), unit.target.clone(), unit.mode)
 }
 
 macro_rules! print_dep_graph {
@@ -603,6 +642,7 @@ crate struct OwnedUnit {
     crate target: Target,
     crate profile: Profile,
     crate kind: Kind,
+    crate mode: CompileMode,
 }
 
 impl<'a> From<&'a Unit<'a>> for OwnedUnit {
@@ -612,6 +652,7 @@ impl<'a> From<&'a Unit<'a>> for OwnedUnit {
             target: unit.target.clone(),
             profile: unit.profile,
             kind: unit.kind,
+            mode: unit.mode,
         }
     }
 }

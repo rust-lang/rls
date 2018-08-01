@@ -58,7 +58,7 @@ fn cmd_test_infer_bin() {
 
 #[test]
 fn cmd_test_simple_workspace() {
-    timeout(Duration::from_secs(300), ||{
+    timeout(Duration::from_secs(TIME_LIMIT_SECS), ||{
         let p = project("simple_workspace")
             .file("Cargo.toml", r#"
                 [workspace]
@@ -139,6 +139,174 @@ fn cmd_test_simple_workspace() {
             ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
             ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+        ]);
+
+        rls.shutdown_exit();
+    });
+}
+
+#[test]
+fn changing_workspace_lib_retains_bin_diagnostics() {
+    timeout(Duration::from_secs(TIME_LIMIT_SECS), ||{
+        let p = project("simple_workspace")
+            .file("Cargo.toml", r#"
+                [workspace]
+                members = [
+                "library",
+                "binary",
+                ]
+            "#)
+            .file("library/Cargo.toml", r#"
+                [package]
+                name = "library"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#)
+            .file("library/src/lib.rs", r#"
+                pub fn fetch_u32() -> u32 {
+                    let unused = ();
+                    42
+                }
+                #[cfg(test)]
+                mod test {
+                    #[test]
+                    fn my_test() {
+                        let test_val: u32 = super::fetch_u32();
+                    }
+                }
+            "#)
+            .file("binary/Cargo.toml", r#"
+                [package]
+                name = "binary"
+                version = "0.1.0"
+                authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
+
+                [dependencies]
+                library = { path = "../library" }
+            "#)
+            .file("binary/src/main.rs", r#"
+                extern crate library;
+
+                fn main() {
+                    let val: u32 = library::fetch_u32();
+                }
+            "#)
+            .build();
+
+        let root_path = p.root();
+        let rls_child = p.rls().spawn().unwrap();
+        let mut rls = RlsHandle::new(rls_child);
+
+        rls.request(0, "initialize", Some(json!({
+            "rootPath": root_path,
+            "capabilities": {}
+        }))).unwrap();
+
+        rls.expect_messages(&[
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+        ]);
+        rls.expect_messages_unordered(&[
+            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("library/src/lib.rs")
+                .expect_contains("unused variable: `unused`")
+                .expect_contains("unused variable: `test_val`"),
+            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("binary/src/main.rs")
+                .expect_contains("unused variable: `val`"),
+        ]);
+        rls.expect_messages(&[
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+        ]);
+
+        rls.notify("textDocument/didChange", Some(json!({
+            "contentChanges": [
+                {
+                    "range": {
+                        "start": {
+                            "line": 1,
+                            "character": 38,
+                        },
+                        "end": {
+                            "line": 1,
+                            "character": 41,
+                        }
+                    },
+                    "rangeLength": 3,
+                    "text": "u64"
+                }
+            ],
+            "textDocument": {
+                "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
+                "version": 0
+            }
+        }))).unwrap();
+
+        rls.expect_messages(&[
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+        ]);
+        rls.expect_messages_unordered(&[
+            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("library/src/lib.rs")
+                .expect_contains("unused variable: `unused`") // Regular lib compiles
+                .expect_contains("expected u32, found u64"), // lib unit tests have compile errors
+            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("binary/src/main.rs")
+                .expect_contains("expected u32, found u64"), // bin depending on lib picks up type mismatch
+        ]);
+        rls.expect_messages(&[
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#).expect_contains(r#""done":true"#),
+        ]);
+
+        rls.notify("textDocument/didChange", Some(json!({
+            "contentChanges": [
+                {
+                    "range": {
+                        "start": {
+                            "line": 1,
+                            "character": 38,
+                        },
+                        "end": {
+                            "line": 1,
+                            "character": 41,
+                        }
+                    },
+                    "rangeLength": 3,
+                    "text": "u32"
+                }
+            ],
+            "textDocument": {
+                "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
+                "version": 1
+            }
+        }))).unwrap();
+
+        rls.expect_messages(&[
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#).expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+        ]);
+        rls.expect_messages_unordered(&[
+            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("library/src/lib.rs")
+                .expect_contains("unused variable: `unused`")
+                .expect_contains("unused variable: `test_val`"),
+            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("binary/src/main.rs")
+                .expect_contains("unused variable: `val`"),
+        ]);
+        rls.expect_messages(&[
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#).expect_contains(r#""done":true"#),
         ]);
 
         rls.shutdown_exit();

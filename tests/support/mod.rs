@@ -71,6 +71,29 @@ pub struct ExpectedMessage {
     contains: Vec<String>,
 }
 
+#[derive(Debug)]
+pub enum MsgMatchError {
+    ParseError,
+    MissingJsonrpc,
+    BadJsonrpc,
+    MissingId,
+    BadId,
+    StringNotFound(String, String),
+}
+
+impl<'a, 'b> ToString for MsgMatchError {
+    fn to_string(&self) -> String {
+        match self {
+            MsgMatchError::ParseError => "JSON parsing failed".into(),
+            MsgMatchError::MissingJsonrpc => "Missing jsonrpc field".into(),
+            MsgMatchError::BadJsonrpc => "Bad jsonrpc field".into(),
+            MsgMatchError::MissingId => "Missing id field".into(),
+            MsgMatchError::BadId => "Unexpected id".into(),
+            MsgMatchError::StringNotFound(n, h) => format!("Could not find `{}` in `{}`", n, h),
+        }
+    }
+}
+
 impl ExpectedMessage {
     pub fn new(id: Option<u64>) -> ExpectedMessage {
         ExpectedMessage {
@@ -82,6 +105,36 @@ impl ExpectedMessage {
     pub fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
         self.contains.push(s.to_owned());
         self
+    }
+
+    // Err is the expected message that was not found in the given string.
+    pub fn try_match(&self, msg: &str) -> Result<(), MsgMatchError> {
+        use self::MsgMatchError::*;
+
+        let values: serde_json::Value = serde_json::from_str(msg).map_err(|_| ParseError)?;
+        let jsonrpc = values.get("jsonrpc").ok_or(MissingJsonrpc)?;
+        if jsonrpc != "2.0" {
+            return Err(BadJsonrpc);
+        }
+
+        if let Some(id) = self.id {
+            let values_id = values.get("id").ok_or(MissingId)?;
+            if id != values_id.as_u64().unwrap() {
+                return Err(BadId)
+            };
+        }
+
+        self.try_match_raw(msg)
+    }
+
+    pub fn try_match_raw(&self, s: &str) -> Result<(), MsgMatchError> {
+        for c in &self.contains {
+            s
+                .find(c)
+                .ok_or(MsgMatchError::StringNotFound(c.to_owned(), s.to_owned()))
+                .map(|_| ())?;
+        }
+        Ok(())
     }
 }
 
@@ -112,12 +165,12 @@ pub fn read_message<R: Read>(reader: &mut BufReader<R>) -> io::Result<String> {
     Ok(result)
 }
 
+pub fn read_messages<R: Read>(reader: &mut BufReader<R>, count: usize) -> Vec<String> {
+    (0..count).map(|_| read_message(reader).unwrap()).collect()
+}
+
 pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&ExpectedMessage]) {
-    let mut results: Vec<String> = Vec::new();
-    while results.len() < expected.len() {
-        let msg = read_message(reader).unwrap();
-        results.push(msg);
-    }
+    let results = read_messages(reader, expected.len());
 
     println!(
         "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
@@ -126,30 +179,38 @@ pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&Expected
     );
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
-        let values: serde_json::Value = serde_json::from_str(found).unwrap();
-        assert!(
-            values
-                .get("jsonrpc")
-                .expect("Missing jsonrpc field")
-                .as_str()
-                .unwrap() == "2.0",
-            "Bad jsonrpc field"
-        );
-        if let Some(id) = expected.id {
-            assert_eq!(
-                values
-                    .get("id")
-                    .expect("Missing id field")
-                    .as_u64()
-                    .unwrap(),
-                id,
-                "Unexpected id"
-            );
+        if let Err(err) = expected.try_match(&found) {
+            panic!(err.to_string());
         }
-        for c in &expected.contains {
-            found
-                .find(c)
-                .expect(&format!("Could not find `{}` in `{}`", c, found));
+    }
+}
+
+pub fn expect_messages_unordered<R: Read>(reader: &mut BufReader<R>, expected: &[&ExpectedMessage]) {
+    let mut results = read_messages(reader, expected.len());
+    let mut expected: Vec<&ExpectedMessage> = expected.to_owned();
+
+    println!(
+        "expect_messages_unordered:\n  results: {:#?},\n  expected: {:#?}",
+        results,
+        expected
+    );
+    assert_eq!(results.len(), expected.len());
+
+    while !results.is_empty() && !expected.is_empty() {
+        let first = expected[0];
+
+        let opt = results.iter()
+            .map(|r| first.try_match(r))
+            .enumerate()
+            .find(|(_, res)| res.is_ok());
+
+        match opt {
+            Some((idx, Ok(()))) => {
+                expected.remove(0);
+                results.remove(idx);
+            },
+            Some((_, Err(err))) => panic!(err.to_string()),
+            None => panic!(format!("Could not find `{:?}` among `{:?}", first, results))
         }
     }
 }
@@ -231,6 +292,10 @@ impl RlsHandle {
 
     pub fn expect_messages(&mut self, expected: &[&ExpectedMessage]) {
         expect_messages(&mut self.stdout, expected);
+    }
+
+    pub fn expect_messages_unordered(&mut self, expected: &[&ExpectedMessage]) {
+        expect_messages_unordered(&mut self.stdout, expected);
     }
 }
 

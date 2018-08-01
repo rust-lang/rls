@@ -19,6 +19,7 @@ use serde_json;
 use crate::actions::progress::ProgressUpdate;
 use rls_data::Analysis;
 use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
+use crate::build::plan::Plan;
 use crate::build::environment::{self, Environment, EnvironmentLock};
 use crate::config::Config;
 use rls_vfs::Vfs;
@@ -119,14 +120,7 @@ fn run_cargo(
 
     let mut restore_env = Environment::push_with_lock(&HashMap::new(), None, lock_guard);
 
-    let build_dir = {
-        let mut compilation_cx = compilation_cx.lock().unwrap();
-        // Since Cargo build routine will try to regenerate the unit dep graph,
-        // we need to clear the existing dep graph.
-        compilation_cx.build_plan.clear();
-
-        compilation_cx.build_dir.as_ref().unwrap().clone()
-    };
+    let build_dir = compilation_cx.lock().unwrap().build_dir.clone().unwrap();
 
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(&build_dir)?;
@@ -147,9 +141,9 @@ fn run_cargo(
     enable_nightly_features();
     let ws = Workspace::new(&manifest_path, &config)?;
 
-    let packages = match package_arg {
-        PackageArg::Unknown | PackageArg::All => vec![],
-        PackageArg::Package(s) => vec![s]
+    let (all, packages) = match package_arg {
+        PackageArg::Default => (false, vec![]),
+        PackageArg::Packages(pkgs) => (false, pkgs.into_iter().collect())
     };
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
@@ -172,7 +166,16 @@ fn run_cargo(
             (opts, rustflags, rls_config.clear_env_rust_log, rls_config.cfg_test)
         };
 
-    let spec = Packages::from_flags(false, Vec::new(), packages)?;
+    let spec = Packages::from_flags(all, Vec::new(), packages)?;
+
+    let pkg_names = spec.into_package_id_specs(&ws)?.iter()
+        .map(|pkg_spec| pkg_spec.name().to_owned())
+        .collect();
+    trace!("Specified packages to be built by Cargo: {:#?}", pkg_names);
+
+    // Since Cargo build routine will try to regenerate the unit dep graph,
+    // we need to clear the existing dep graph.
+    compilation_cx.lock().unwrap().build_plan = Plan::for_packages(pkg_names);
 
     let compile_opts = CompileOptions {
         spec,
@@ -330,7 +333,7 @@ impl Executor for RlsExecutor {
         self.is_primary_crate(id)
     }
 
-    fn exec(&self, mut cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target) -> CargoResult<()> {
+    fn exec(&self, mut cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target, mode: CompileMode) -> CargoResult<()> {
         // Use JSON output so that we can parse the rustc output.
         cargo_cmd.arg("--error-format=json");
         // Delete any stale data. We try and remove any json files with
@@ -461,7 +464,7 @@ impl Executor for RlsExecutor {
         // Cache executed command for the build plan
         {
             let mut cx = self.compilation_cx.lock().unwrap();
-            cx.build_plan.cache_compiler_job(id, target, &cmd);
+            cx.build_plan.cache_compiler_job(id, target, mode, &cmd);
         }
 
         // Prepare modified cargo-generated args/envs for future rustc calls

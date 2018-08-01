@@ -22,7 +22,7 @@ use log::{log, trace};
 
 use self::environment::EnvironmentLock;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::io::{self, Write};
 use std::mem;
@@ -159,12 +159,10 @@ impl CompilationContext {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+/// Specified set of packages to be built by Cargo.
 pub enum PackageArg {
-    Unknown,
-    // --all
-    All,
-    // -p ...
-    Package(String),
+    Default,
+    Packages(HashSet<String>),
 }
 
 /// Status of the build queue.
@@ -550,6 +548,8 @@ impl Internals {
             };
             cx.build_plan.prepare_work(&manifest_path, &modified, needs_to_run_cargo)
         };
+        trace!("Specified work: {:?}", work);
+
         match work {
             // Cargo performs the full build and returns
             // appropriate diagnostics/analysis data
