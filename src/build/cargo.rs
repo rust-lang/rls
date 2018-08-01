@@ -168,7 +168,7 @@ fn run_cargo(
 
     let spec = Packages::from_flags(all, Vec::new(), packages)?;
 
-    let pkg_names = spec.into_package_id_specs(&ws)?.iter()
+    let pkg_names = spec.to_package_id_specs(&ws)?.iter()
         .map(|pkg_spec| pkg_spec.name().to_owned())
         .collect();
     trace!("Specified packages to be built by Cargo: {:#?}", pkg_names);
@@ -226,7 +226,8 @@ fn run_cargo(
         reached_primary.clone(),
     );
 
-    match compile_with_exec(&ws, &compile_opts, Arc::new(exec)) {
+    let exec = Arc::new(exec) as Arc<dyn Executor>;
+    match compile_with_exec(&ws, &compile_opts, &exec) {
         Ok(_) => {
             trace!(
                 "Created build plan after Cargo compilation routine: {:?}",
