@@ -21,3 +21,6 @@ script: |
   cargo build -v
   cargo test -v
   set +e
+env:
+  global:
+    - RUTFLAGS=--cfg=enable_tooltip_tests

@@ -1965,6 +1965,8 @@ pub mod test {
     }
 
     #[test]
+    // doesn't work in the rust-lang/rust repo, enable on CI
+    #[cfg_attr(not(enable_tooltip_tests), ignore)]
     fn test_tooltip() -> Result<(), Box<dyn std::error::Error>> {
         use self::test::{LineOutput, Test, TooltipTestHarness};
         use std::env;
