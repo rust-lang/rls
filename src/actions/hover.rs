@@ -35,7 +35,7 @@ pub fn process_docs(docs: &str) -> String {
     let mut processed_docs = Vec::new();
     let mut last_line_ignored = false;
     for line in docs.lines() {
-        let mut trimmed = line.trim();
+        let trimmed = line.trim();
         if trimmed.starts_with("```") {
             in_rust_codeblock = trimmed == "```"
                 || trimmed.contains("rust")
@@ -48,7 +48,7 @@ pub fn process_docs(docs: &str) -> String {
                 in_rust_codeblock = false;
             }
         }
-        let mut line = if in_rust_codeblock && trimmed.starts_with("```") {
+        let line = if in_rust_codeblock && trimmed.starts_with("```") {
             "```rust".into()
         } else {
             line.to_string()
