@@ -2,7 +2,7 @@ cargo-features = ["edition"]
 
 [package]
 name = "rls"
-version = "0.130.0"
+version = "0.130.1"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>", "The RLS developers"]
 description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
@@ -15,7 +15,7 @@ build = "build.rs"
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "0b80061cacce00dabe8ca25448517d4ac27de2ab" }
 cargo_metadata = "0.5.2"
-clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "1f656173723dce4efc3fc90ff5763a2186ec9089", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "dde49f34a8c48981ce337f681f90c1e3b05e05ca", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
 itertools = "0.7.3"
@@ -32,7 +32,7 @@ rls-data = { version = "0.16", features = ["serialize-serde"] }
 rls-rustc = "0.4.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.4.6"
-rustfmt-nightly = "0.99.0"
+rustfmt-nightly = "0.99.1"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
