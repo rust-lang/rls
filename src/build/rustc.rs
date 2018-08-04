@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 use getopts;
-use rustc::middle::cstore::CrateStore;
+use rustc_metadata::cstore::CStore;
 use rustc::session::Session;
 use rustc::session::config::{self, ErrorOutputType, Input};
 use rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
@@ -211,7 +211,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         codegen_backend: &dyn CodegenBackend,
         matches: &getopts::Matches,
         sess: &Session,
-        cstore: &dyn CrateStore,
+        cstore: &CStore,
         input: &Input,
         odir: &Option<PathBuf>,
         ofile: &Option<PathBuf>,

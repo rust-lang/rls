@@ -2,7 +2,7 @@ cargo-features = ["edition"]
 
 [package]
 name = "rls"
-version = "0.130.1"
+version = "0.130.2"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>", "The RLS developers"]
 description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
@@ -29,7 +29,7 @@ rayon = "1"
 rls-analysis = "0.14"
 rls-blacklist = "0.1.2"
 rls-data = { version = "0.16", features = ["serialize-serde"] }
-rls-rustc = "0.4.0"
+rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.4.6"
 rustfmt-nightly = "0.99.1"
