@@ -160,6 +160,13 @@ pub struct Config {
     /// Use provided rustfmt binary instead of the statically linked one.
     /// (requires unstable features)
     pub rustfmt_path: Option<String>,
+    /// EXPERIMENTAL (needs unstable features)
+    /// If set, executes a given program responsible for rebuilding save-analysis
+    /// to be loaded by the RLS. The program given should output a list of
+    /// resulting .json files on stdout.
+    /// Currently also requires `build_on_save` to be set to true, since external
+    /// commands have no insight into in-memory text buffers (unsaved files).
+    pub build_command: Option<String>,
 }
 
 impl Default for Config {
@@ -189,6 +196,7 @@ impl Default for Config {
             full_docs: Inferrable::Inferred(false),
             show_hover_context: true,
             rustfmt_path: None,
+            build_command: None,
         };
         result.normalise();
         result
@@ -226,6 +234,10 @@ impl Config {
             self.build_lib = Inferrable::Inferred(false);
             self.cfg_test = false;
             self.rustfmt_path = None;
+            self.build_command = None;
+        } else if !self.build_on_save {
+            self.build_command = None;
+            eprintln!("`build_command` also requires enabled `build_on_save` option");
         }
     }
 

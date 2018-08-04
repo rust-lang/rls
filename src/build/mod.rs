@@ -37,6 +37,7 @@ pub mod environment;
 mod cargo;
 mod rustc;
 mod plan;
+mod external;
 
 use self::plan::{Plan as BuildPlan, WorkStatus};
 
@@ -529,6 +530,12 @@ impl Internals {
         // Our 'short' rustc build runs rustc directly and in-process (we must
         // do this so we can load changed code from the VFS, rather than from
         // disk).
+
+        // Check if an override setting was provided and execute that, instead.
+        if let Some(ref cmd) = self.config.lock().unwrap().build_command {
+            let build_dir = self.compilation_cx.lock().unwrap().build_dir.clone();
+            return external::build_with_external_cmd(cmd, build_dir.unwrap());
+        }
 
         // Don't hold this lock when we run Cargo.
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
