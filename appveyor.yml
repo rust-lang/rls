@@ -6,6 +6,7 @@ branches:
 environment:
   global:
     PROJECT_NAME: rls
+    RUSTFLAGS: --cfg=enable_tooltip_tests
   matrix:
     - TARGET: i686-pc-windows-msvc
       CHANNEL: nightly

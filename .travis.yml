@@ -23,4 +23,4 @@ script: |
   set +e
 env:
   global:
-    - RUTFLAGS=--cfg=enable_tooltip_tests
+    - RUSTFLAGS=--cfg=enable_tooltip_tests
