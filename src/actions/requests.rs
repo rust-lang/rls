@@ -118,14 +118,14 @@ impl RequestAction for Symbols {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        let analysis = ctx.analysis;
+        eprintln!("DOC SYMBOLS");
+        let analysis = &ctx.analysis;
 
         let file_path = parse_file_path!(&params.text_document.uri, "symbols")?;
 
-        let symbols = analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
-
-        Ok(
-            symbols
+        let symbols = if let Ok(analysis_symbols) = analysis.symbols(&file_path) {
+            eprintln!("#analysis symbols = {}", analysis_symbols.len());
+            analysis_symbols
                 .into_iter()
                 .filter(|s| {
                     let range = ls_util::rls_to_range(s.span.range);
@@ -141,9 +141,43 @@ impl RequestAction for Symbols {
                             .map(|parent| parent.name),
                     }
                 })
-                .collect(),
-        )
+                .collect()
+        } else {
+            let s = symbols_fallback(&ctx, &file_path);
+            eprintln!("#libeditor symbols = {}", s.len());
+            s
+        };
+
+        Ok(symbols)
     }
+}
+
+pub fn symbols_fallback(ctx: &InitActionContext, file: &Path) -> Vec<SymbolInformation> {
+    let text = match ctx.vfs.load_file(file) {
+        Ok(FileContents::Text(text)) => text,
+        _ => return Vec::new(),
+    };
+    let uri = Url::from_file_path(file).unwrap();
+    let line_index = crate::actions::run::LineIndex::new(&text);
+    let file = libeditor::File::new(&text);
+    file.symbols()
+        .into_iter()
+        .map(|s| {
+            let range = rls_span::Range::from_positions(
+                line_index.offset_to_position(u32::from(s.range.start()) as usize),
+                line_index.offset_to_position(u32::from(s.range.end()) as usize),
+            );
+            SymbolInformation {
+                name: s.name,
+                kind: languageserver_types::SymbolKind::Function,
+                location: languageserver_types::Location {
+                    uri: uri.clone(),
+                    range: ls_util::rls_to_range(range),
+                },
+                container_name: None,
+            }
+        })
+        .collect()
 }
 
 impl RequestAction for Hover {
