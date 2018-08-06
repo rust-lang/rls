@@ -224,8 +224,9 @@ impl RequestAction for Definition {
         let racer_receiver = {
             if ctx.config.lock().unwrap().goto_def_racer_fallback {
                 Some(work_pool::receive_from_thread(move || {
-                    let cache = racer_cache(vfs);
-                    let session = racer::Session::new(&cache);
+                    let cache = racer_cache(vfs.clone());
+                    let project_model = crate::project_model::cargo_project_model(vfs);
+                    let session = racer::Session::with_project_model(&cache, project_model);
                     let location = pos_to_racer_location(params.position);
 
                     racer::find_definition(file_path, location, &session)
@@ -308,8 +309,9 @@ impl RequestAction for Completion {
         let vfs = ctx.vfs;
         let file_path = parse_file_path!(&params.text_document.uri, "complete")?;
 
-        let cache = racer_cache(vfs);
-        let session = racer::Session::new(&cache);
+        let cache = racer_cache(vfs.clone());
+        let project_model = crate::project_model::cargo_project_model(vfs);
+        let session = racer::Session::with_project_model(&cache, project_model);
 
         let location = pos_to_racer_location(params.position);
         let results = racer::complete_from_file(file_path, location, &session);

@@ -48,6 +48,7 @@ pub mod config;
 pub mod lsp_data;
 pub mod server;
 pub mod concurrency;
+pub mod project_model;
 
 #[cfg(test)]
 mod test;
