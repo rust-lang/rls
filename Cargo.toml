@@ -24,7 +24,7 @@ languageserver-types = "0.45"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = "2.1.2"
+racer = { version = "2.1.3", default-features = false }
 rayon = "1"
 rls-analysis = "0.14"
 rls-blacklist = "0.1.2"
