@@ -402,21 +402,23 @@ fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
 
 /// Client file-watching request / filtering logic
 /// We want to watch workspace 'Cargo.toml', root 'Cargo.lock' & the root 'target' dir
-pub struct FileWatch<'ctx> {
+pub struct FileWatch {
     project_path: PathBuf,
-    project_str: &'ctx str,
     project_uri: String,
 }
 
-impl<'ctx> FileWatch<'ctx> {
+impl FileWatch {
     /// Construct a new `FileWatch`.
-    pub fn new(ctx: &'ctx InitActionContext) -> Self {
+    pub fn new(ctx: &InitActionContext) -> Self {
+        Self::from_project_root(ctx.current_project.clone())
+    }
+
+    pub fn from_project_root(root: PathBuf) -> Self {
         Self {
-            project_path: ctx.current_project.clone(),
-            project_str: ctx.current_project.to_str().unwrap(),
-            project_uri: Url::from_file_path(&ctx.current_project)
+            project_uri: Url::from_file_path(&root)
                 .unwrap()
                 .into_string(),
+            project_path: root,
         }
     }
 
@@ -435,14 +437,16 @@ impl<'ctx> FileWatch<'ctx> {
             }
         }
 
+        let project_str = self.project_path.to_str().unwrap();
+
         let mut watchers = vec![
-            watcher(format!("{}/Cargo.lock", self.project_str)),
+            watcher(format!("{}/Cargo.lock", project_str)),
             // For target, we only watch if it gets deleted.
-            watcher_with_kind(format!("{}/target", self.project_str), WatchKind::Delete),
+            watcher_with_kind(format!("{}/target", project_str), WatchKind::Delete),
         ];
 
         // Find any Cargo.tomls in the project
-        for entry in WalkDir::new(self.project_str)
+        for entry in WalkDir::new(project_str)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_name() == "Cargo.toml")
@@ -526,5 +530,45 @@ mod test {
         assert_range("span::Position|<T>", (6, 14));
         assert_range("span::Position<|T>", (15, 16));
         assert_range("span::Position<T|>", (15, 16));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn file_watch_relevant_files() {
+        fn change(url: &str) -> FileEvent {
+            FileEvent::new(Url::parse(url).unwrap(), FileChangeType::Changed)
+        }
+
+        let watch = FileWatch::from_project_root("C:/some/dir".into());
+
+        assert!(watch.is_relevant(&change("file:c:/some/dir/Cargo.toml")));
+        assert!(watch.is_relevant(&change("file:///c:/some/dir/Cargo.toml")));
+        assert!(watch.is_relevant(&change("file:///C:/some/dir/Cargo.toml")));
+        assert!(watch.is_relevant(&change("file:///c%3A/some/dir/Cargo.toml")));
+
+        assert!(watch.is_relevant(&change("file:///c:/some/dir/Cargo.lock")));
+        assert!(watch.is_relevant(&change("file:///c:/some/dir/inner/Cargo.toml")));
+
+        assert!(!watch.is_relevant(&change("file:///c:/some/dir/inner/Cargo.lock")));
+        assert!(!watch.is_relevant(&change("file:///c:/Cargo.toml")));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn file_watch_relevant_files() {
+        fn change(url: &str) -> FileEvent {
+            FileEvent::new(Url::parse(url).unwrap(), FileChangeType::Changed)
+        }
+
+        let watch = FileWatch::from_project_root("/some/dir".into());
+
+        assert!(watch.is_relevant(&change("file://localhost/some/dir/Cargo.toml")));
+        assert!(watch.is_relevant(&change("file:///some/dir/Cargo.toml")));
+
+        assert!(watch.is_relevant(&change("file:///some/dir/Cargo.lock")));
+        assert!(watch.is_relevant(&change("file:///some/dir/inner/Cargo.toml")));
+
+        assert!(!watch.is_relevant(&change("file:///some/dir/inner/Cargo.lock")));
+        assert!(!watch.is_relevant(&change("file:///Cargo.toml")));
     }
 }
