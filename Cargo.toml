@@ -2,7 +2,7 @@ cargo-features = ["edition"]
 
 [package]
 name = "rls"
-version = "0.130.3"
+version = "0.130.4"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>", "The RLS developers"]
 description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
@@ -24,7 +24,7 @@ languageserver-types = "0.45"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { git = "https://github.com/racer-rust/racer", rev = "2af3ab88420e968500fcfc75418be7e852debfa0" }
+racer = "2.1.4"
 rayon = "1"
 rls-analysis = "0.14"
 rls-blacklist = "0.1.2"
