@@ -48,7 +48,7 @@ fn cmd_test_infer_bin() {
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("foo"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedBin`"),
+            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedBin`"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ]);
 

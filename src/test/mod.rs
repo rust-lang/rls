@@ -1084,7 +1084,7 @@ fn test_infer_lib() {
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_lib"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedLib`"),
+            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedLib`"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -1115,7 +1115,7 @@ fn test_infer_bin() {
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_bin"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedBin`"),
+            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedBin`"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
@@ -1146,7 +1146,7 @@ fn test_infer_custom_bin() {
             ExpectedMessage::new(None).expect_contains("progress").expect_contains("custom_bin"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedCustomBin`"),
+            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedCustomBin`"),
             ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
         ],
     );
