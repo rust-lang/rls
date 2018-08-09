@@ -23,7 +23,6 @@ use cargo::CargoResult;
 use cargo::util::{homedir, important_paths, Config as CargoConfig};
 use cargo::core::{Shell, Workspace};
 
-use serde;
 use serde::de::{Deserialize, Deserializer, Visitor};
 use serde_derive::{Serialize, Deserialize};
 

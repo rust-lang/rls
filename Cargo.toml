@@ -2,7 +2,7 @@ cargo-features = ["edition"]
 
 [package]
 name = "rls"
-version = "0.130.4"
+version = "0.130.5"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>", "The RLS developers"]
 description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
@@ -15,7 +15,7 @@ build = "build.rs"
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "0b80061cacce00dabe8ca25448517d4ac27de2ab" }
 cargo_metadata = "0.5.2"
-clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "99dcc70dcdd8760cb5c4de56f3701920339b6f29", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "99a087bea59c8f808b5485c6113edf9ce774e94a", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
 itertools = "0.7.3"
