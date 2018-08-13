@@ -157,6 +157,9 @@ pub struct Config {
     /// local variable declaration. When set to false, the content is only availabe when
     /// holding the `ctrl` key in some editors.
     pub show_hover_context: bool,
+    /// Use provided rustfmt binary instead of the statically linked one.
+    /// (requires unstable features)
+    pub rustfmt_path: Option<String>,
 }
 
 impl Default for Config {
@@ -185,6 +188,7 @@ impl Default for Config {
             clippy_preference: ClippyPreference::OptIn,
             full_docs: Inferrable::Inferred(false),
             show_hover_context: true,
+            rustfmt_path: None,
         };
         result.normalise();
         result
@@ -221,6 +225,7 @@ impl Config {
             self.build_bin = Inferrable::Inferred(None);
             self.build_lib = Inferrable::Inferred(false);
             self.cfg_test = false;
+            self.rustfmt_path = None;
         }
     }
 

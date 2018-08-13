@@ -66,6 +66,7 @@ pub mod progress;
 pub mod diagnostics;
 pub mod run;
 pub mod hover;
+pub mod format;
 
 /// Persistent context shared across all requests and notifications.
 pub enum ActionContext {
