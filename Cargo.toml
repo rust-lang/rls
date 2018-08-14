@@ -12,6 +12,9 @@ categories = ["development-tools"]
 
 build = "build.rs"
 
+[patch.crates-io]
+rustfmt-nightly = { git = "https://github.com/Xanewok/rustfmt", branch = "file-lines-ser-json" }
+
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "6a7672ef5344c1bb570610f2574250fbee932355" }
 cargo_metadata = "0.6"

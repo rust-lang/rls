@@ -758,8 +758,9 @@ fn reformat(
         config.set().file_lines(file_lines);
     };
 
-    let rustfmt_path = ctx.config.lock().unwrap().rustfmt_path.clone();
-    let formatter = Rustfmt::from(rustfmt_path);
+    let rustfmt = ctx.config.lock().unwrap().rustfmt_path.clone()
+        .map(|path| (path, ctx.current_project.clone()));
+    let formatter = Rustfmt::from(rustfmt);
     let formatted_text = formatter.format(input, config)
         .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg))?;
 
