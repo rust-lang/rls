@@ -120,7 +120,6 @@ impl Formatter for Rustfmt {
     }
 }
 
-#[allow(dead_code)]
 fn random_file() -> Result<(File, PathBuf), String> {
     const SUFFIX_LEN: usize = 10;
 
@@ -132,17 +131,15 @@ fn random_file() -> Result<(File, PathBuf), String> {
         .map_err(|_| "Config file could not be created".to_string())?)
 }
 
-#[allow(dead_code)]
 fn gen_config_file(config: &Config) -> Result<(File, PathBuf), String> {
     let (mut file, path) = random_file()?;
-    let toml = config.used_options().to_toml()?;
+    let toml = config.all_options().to_toml()?;
     file.write(toml.as_bytes())
         .map_err(|_| "Could not write config TOML file contents".to_string())?;
 
     Ok((file, path))
 }
 
-#[allow(unused_variables)]
 fn rustfmt_args(config: &Config, config_path: &Path) -> Vec<String> {
     let mut args = vec![
         "--unstable-features".into(),
@@ -157,15 +154,8 @@ fn rustfmt_args(config: &Config, config_path: &Path) -> Vec<String> {
     let lines: String = serde_json::to_string(&file_lines_json).unwrap();
     args.push(lines);
 
-    // We will spawn Rustfmt at the project directory and so it should pick up
-    // appropriate config file on its own.
-    // FIXME: Since in format request handling we modify some of the config and
-    // pass it via `Formatter::format()`, we should ideally fix `gen_config_file`
-    // and make it so that `used_options()` will give accurate TOML
-    // representation for the current format request.
-
-    // args.push("--config-path".into());
-    // args.push(config_path.to_str().map(|x| x.to_string()).unwrap());
+    args.push("--config-path".into());
+    args.push(config_path.to_str().map(|x| x.to_string()).unwrap());
 
     args
 }
