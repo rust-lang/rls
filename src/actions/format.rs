@@ -26,6 +26,7 @@ struct External<'a>(&'a Path, &'a Path);
 struct Internal;
 
 /// Specified which `rustfmt` to use.
+#[derive(Clone)]
 pub enum Rustfmt {
     /// (Path to external `rustfmt`, cwd where it should be spawned at)
     External(PathBuf, PathBuf),

@@ -8,6 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use crate::actions::format::{Rustfmt, Formatter};
 use crate::actions::requests;
 use crate::actions::InitActionContext;
 use crate::config::FmtConfig;
@@ -18,7 +19,7 @@ use racer;
 use rls_analysis::{Def, DefKind};
 use rls_span::{Column, Row, Span, ZeroIndexed};
 use rls_vfs::{self as vfs, Vfs};
-use rustfmt_nightly::{Session as FmtSession, Input as FmtInput, NewlineStyle};
+use rustfmt_nightly::NewlineStyle;
 
 use std::path::{Path, PathBuf};
 use log::*;
@@ -327,6 +328,7 @@ fn tooltip_struct_enum_union_trait(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
+    let fmt = ctx.formatter();
 
     // fallback in case source extration fails
     let the_type = || match def.kind {
@@ -339,7 +341,7 @@ fn tooltip_struct_enum_union_trait(
 
     let decl = def_decl(def, &vfs, the_type);
 
-    let the_type = format_object(&fmt_config, decl);
+    let the_type = format_object(fmt.clone(), &fmt_config, decl);
     let docs = def_docs(def, &vfs);
     let context = None;
 
@@ -380,6 +382,7 @@ fn tooltip_function_method(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
+    let fmt = ctx.formatter();
 
     let the_type = || {
         def.value
@@ -391,7 +394,7 @@ fn tooltip_function_method(
 
     let decl = def_decl(def, &vfs, the_type);
 
-    let the_type = format_method(&fmt_config, decl);
+    let the_type = format_method(fmt.clone(), &fmt_config, decl);
     let docs = def_docs(def, &vfs);
     let context = None;
 
@@ -725,7 +728,7 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
 
 /// Formats a struct, enum, union, or trait. The original type is returned
 /// in the event of an error.
-fn format_object(fmt_config: &FmtConfig, the_type: String) -> String {
+fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> String {
     debug!("format_object: {}", the_type);
     let mut config = fmt_config.get_rustfmt_config().clone();
     config.set().newline_style(NewlineStyle::Unix);
@@ -743,21 +746,11 @@ fn format_object(fmt_config: &FmtConfig, the_type: String) -> String {
         format!("{}{{}}", trimmed)
     };
 
-    let mut out = Vec::<u8>::with_capacity(the_type.len());
-    let input = FmtInput::Text(object.clone());
-    let mut session = FmtSession::new(config, Some(&mut out));
-    let formatted = match session.format(input) {
-        Ok(_) => {
-            let utf8 = session.out
-                .as_ref()
-                .map(|out| String::from_utf8(out.to_vec()))
-                .unwrap_or_else(|| Ok(trimmed.to_string()));
-            match utf8.map(|lines| (lines.rfind('{'), lines)) {
-                Ok((Some(pos), lines)) => lines[0..pos].into(),
-                Ok((None, lines)) => lines,
-                _ => trimmed.into(),
-            }
-        }
+    let formatted = match rustfmt.format(object.clone(), config) {
+        Ok(lines) => match lines.rfind('{') {
+            Some(pos) => lines[0..pos].into(),
+            None => lines,
+        },
         Err(e) => {
             error!("format_object: error: {:?}, input: {:?}", e, object);
             trimmed.to_string()
@@ -802,44 +795,37 @@ fn format_object(fmt_config: &FmtConfig, the_type: String) -> String {
 
 /// Formats a method or function. The original type is returned
 /// in the event of an error.
-fn format_method(fmt_config: &FmtConfig, the_type: String) -> String {
+fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> String {
     trace!("format_method: {}", the_type);
     let the_type = the_type.trim().trim_right_matches(';').to_string();
+
     let mut config = fmt_config.get_rustfmt_config().clone();
     config.set().newline_style(NewlineStyle::Unix);
     let tab_spaces = config.tab_spaces();
-    let method = format!("impl Dummy {{ {} {{ unimplmented!() }} }}", the_type);
-    let mut out = Vec::<u8>::with_capacity(the_type.len());
-    let input = FmtInput::Text(method.clone());
-    let mut session = FmtSession::new(config, Some(&mut out));
-    let result = match session.format(input) {
-        Ok(_) => {
-            let lines = session.out
-                .as_ref()
-                .map(|out| String::from_utf8(out.to_vec()));
-            if let Some(Ok(mut lines)) = lines {
-                if let Some(front_pos) = lines.find('{') {
-                    lines = lines[front_pos..].chars().skip(1).collect();
-                }
-                if let Some(back_pos) = lines.rfind('{') {
-                    lines = lines[0..back_pos].into();
-                }
-                lines
-                    .lines()
-                    .filter(|line| line.trim() != "")
-                    .map(|line| {
-                        let mut spaces = tab_spaces + 1;
-                        let should_trim = |c: char| {
-                            spaces = spaces.saturating_sub(1);
-                            spaces > 0 && c.is_whitespace()
-                        };
-                        let line = line.trim_left_matches(should_trim);
-                        format!("{}\n", line)
-                    })
-                    .collect()
-            } else {
-                the_type
+
+    let method = format!("impl Dummy {{ {} {{ unimplemented!() }} }}", the_type);
+
+    let result = match rustfmt.format(method.clone(), config) {
+        Ok(mut lines) => {
+            if let Some(front_pos) = lines.find('{') {
+                lines = lines[front_pos..].chars().skip(1).collect();
             }
+            if let Some(back_pos) = lines.rfind('{') {
+                lines = lines[0..back_pos].into();
+            }
+            lines
+                .lines()
+                .filter(|line| line.trim() != "")
+                .map(|line| {
+                    let mut spaces = tab_spaces + 1;
+                    let should_trim = |c: char| {
+                        spaces = spaces.saturating_sub(1);
+                        spaces > 0 && c.is_whitespace()
+                    };
+                    let line = line.trim_left_matches(should_trim);
+                    format!("{}\n", line)
+                })
+                .collect()
         }
         Err(e) => {
             error!("format_method: error: {:?}, input: {:?}", e, method);
@@ -947,6 +933,7 @@ pub fn tooltip(
 pub mod test {
     use super::*;
 
+    use crate::actions::format::Rustfmt;
     use crate::build::BuildPriority;
     use crate::config;
     use crate::lsp_data::{ClientCapabilities, InitializationOptions};
@@ -1479,25 +1466,26 @@ pub mod test {
 
     #[test]
     fn test_format_method() {
+        let fmt = Rustfmt::Internal;
         let config = &FmtConfig::default();
 
         let input = "fn foo() -> ()";
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(input, &result, "function explicit void return");
 
         let input = "fn foo()";
         let expected = "fn foo()";
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(expected, &result, "function");
 
         let input = "fn foo() -> Thing";
         let expected = "fn foo() -> Thing";
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(expected, &result, "function with return");
 
         let input = "fn foo(&self);";
         let expected = "fn foo(&self)";
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(expected, &result, "method");
 
         let input = "fn foo<T>(t: T) where T: Copy";
@@ -1508,7 +1496,7 @@ pub mod test {
                 T: Copy,
         ",
         );
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(expected, result, "function with generic parameters");
 
         let input = "fn foo<T>(&self, t: T) where T: Copy";
@@ -1519,7 +1507,7 @@ pub mod test {
                 T: Copy,
         ",
         );
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(expected, result, "method with type parameters");
 
         let input = noindent(
@@ -1538,7 +1526,7 @@ pub mod test {
                 T: Copy,
         ",
         );
-        let result = format_method(config, input);
+        let result = format_method(fmt.clone(), config, input);
         assert_eq!(
             expected, result,
             "method with type parameters; corrected spacing"
@@ -1556,7 +1544,7 @@ pub mod test {
             ) -> Thing
         ",
         );
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(expected, result, "long function signature");
 
         let input = "fn really_really_really_really_long_name(&self, foo_thing: String, bar_thing: Thing, baz_thing: Vec<T>, foo_other: u32, bar_other: i32) -> Thing";
@@ -1572,7 +1560,7 @@ pub mod test {
             ) -> Thing
         ",
         );
-        let result = format_method(config, input.into());
+        let result = format_method(fmt.clone(), config, input.into());
         assert_eq!(expected, result, "long method signature with generic");
 
         let input = noindent(
@@ -1595,7 +1583,7 @@ pub mod test {
             )
         ",
         );
-        let result = format_method(config, input);
+        let result = format_method(fmt.clone(), config, input);
         assert_eq!(expected, result, "function with multiline args");
     }
 
@@ -1697,57 +1685,58 @@ pub mod test {
 
     #[test]
     fn test_format_object() {
+        let fmt = Rustfmt::Internal;
         let config = &FmtConfig::default();
 
         let input = "pub struct Box<T: ?Sized>(Unique<T>);";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!(
             "pub struct Box<T: ?Sized>", &result,
             "tuple struct with all private fields has hidden components"
         );
 
         let input = "pub struct Thing(pub u32);";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!(
             "pub struct Thing(pub u32)", &result,
             "tuple struct with trailing ';' from racer"
         );
 
         let input = "pub struct Thing(pub u32)";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!("pub struct Thing(pub u32)", &result, "pub tuple struct");
 
         let input = "pub struct Thing(pub u32, i32)";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!(
             "pub struct Thing(pub u32, _)", &result,
             "non-pub components of pub tuples should be hidden"
         );
 
         let input = "struct Thing(u32, i32)";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!(
             "struct Thing(u32, i32)", &result,
             "private tuple struct may show private components"
         );
 
         let input = "pub struct Thing<T: Copy>";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!("pub struct Thing<T: Copy>", &result, "pub struct");
 
         let input = "pub struct Thing<T: Copy> {";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!(
             "pub struct Thing<T: Copy>", &result,
             "pub struct with trailing '{{' from racer"
         );
 
         let input = "pub struct Thing { x: i32 }";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!("pub struct Thing", &result, "pub struct with body");
 
         let input = "pub enum Foobar { Foo, Bar }";
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!("pub enum Foobar", &result, "pub enum with body");
 
         let input = "pub trait Thing<T, U> where T: Copy + Sized, U: Clone";
@@ -1759,7 +1748,7 @@ pub mod test {
                 U: Clone,
         ",
         );
-        let result = format_object(config, input.into());
+        let result = format_object(fmt.clone(), config, input.into());
         assert_eq!(expected, result, "trait with where clause");
     }
 

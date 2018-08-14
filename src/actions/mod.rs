@@ -22,6 +22,7 @@ use crate::Span;
 use walkdir::WalkDir;
 use log::{debug, log, trace, error, info};
 
+use crate::actions::format::Rustfmt;
 use crate::actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
 use crate::actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
 use crate::build::*;
@@ -267,6 +268,16 @@ impl InitActionContext {
             }
         };
         racer::Session::with_project_model(cache, pm)
+    }
+
+    /// Since external Rustfmt can be specified, this returns an enum specifying
+    /// which one to use and which implements the String-formatting `Formatter`
+    /// trait.
+    fn formatter(&self) -> Rustfmt {
+        let rustfmt = self.config.lock().unwrap().rustfmt_path.clone()
+            .map(|path| (path, self.current_project.clone()));
+
+        Rustfmt::from(rustfmt)
     }
 
     fn fmt_config(&self) -> FmtConfig {

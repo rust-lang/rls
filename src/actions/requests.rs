@@ -22,7 +22,7 @@ use itertools::Itertools;
 use serde_derive::{Serialize, Deserialize};
 use log::{debug, log, trace};
 
-use crate::actions::format::{Rustfmt, Formatter};
+use crate::actions::format::Formatter;
 use crate::actions::hover;
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
@@ -758,10 +758,7 @@ fn reformat(
         config.set().file_lines(file_lines);
     };
 
-    let rustfmt = ctx.config.lock().unwrap().rustfmt_path.clone()
-        .map(|path| (path, ctx.current_project.clone()));
-    let formatter = Rustfmt::from(rustfmt);
-    let formatted_text = formatter.format(input, config)
+    let formatted_text = ctx.formatter().format(input, config)
         .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg))?;
 
     // Note that we don't need to update the VFS, the client echos back the
