@@ -270,6 +270,7 @@ impl BlockingNotificationAction for DidChangeWatchedFiles {
 
         if params.changes.iter().any(|c| file_watch.is_relevant(c)) {
             ctx.build_current_project(BuildPriority::Cargo, &out);
+            ctx.invalidate_project_model();
         }
 
         Ok(())

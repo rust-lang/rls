@@ -12,7 +12,7 @@
 //! etc.
 
 use rls_analysis::AnalysisHost;
-use rls_vfs::Vfs;
+use rls_vfs::{Vfs, FileContents};
 use crate::config::FmtConfig;
 use crate::config::Config;
 use serde_json::{self, json};
@@ -20,7 +20,7 @@ use url::Url;
 use rls_span as span;
 use crate::Span;
 use walkdir::WalkDir;
-use log::{debug, log, trace};
+use log::{debug, log, trace, error, info};
 
 use crate::actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
 use crate::actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
@@ -29,12 +29,14 @@ use crate::lsp_data;
 use crate::lsp_data::*;
 use crate::server::Output;
 use crate::concurrency::{ConcurrentJob, Jobs};
+use crate::project_model::{ProjectModel, RacerProjectModel, RacerFallbackModel};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use std::thread;
+use std::io;
 
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
@@ -137,6 +139,7 @@ pub struct InitActionContext {
     analysis_queue: Arc<AnalysisQueue>,
 
     current_project: PathBuf,
+    project_model: Arc<Mutex<Option<Arc<ProjectModel>>>>,
 
     previous_build_results: Arc<Mutex<BuildResults>>,
     build_queue: BuildQueue,
@@ -206,6 +209,7 @@ impl InitActionContext {
             config,
             jobs: Arc::new(Mutex::new(Jobs::new())),
             current_project,
+            project_model: Arc::new(Mutex::new(None)),
             previous_build_results: Arc::new(Mutex::new(HashMap::new())),
             build_queue,
             active_build_count: Arc::new(AtomicUsize::new(0)),
@@ -217,6 +221,51 @@ impl InitActionContext {
             shut_down: Arc::new(AtomicBool::new(false)),
             pid,
         }
+    }
+
+    pub fn invalidate_project_model(&self) {
+        *self.project_model.lock().unwrap() = None;
+    }
+
+    pub fn project_model(&self) -> Result<Arc<ProjectModel>, failure::Error> {
+        let cached: Option<Arc<ProjectModel>> = self.project_model.lock().unwrap().clone();
+        match cached {
+            Some(pm) => Ok(pm),
+            None => {
+                info!("loading cargo project model");
+                let pm = ProjectModel::load(&self.current_project.join("Cargo.toml"), &self.vfs)?;
+                let pm = Arc::new(pm);
+                *self.project_model.lock().unwrap() = Some(pm.clone());
+                Ok(pm)
+            }
+        }
+    }
+
+    pub fn racer_cache(&self) -> racer::FileCache {
+        struct RacerVfs(Arc<Vfs>);
+        impl racer::FileLoader for RacerVfs {
+            fn load_file(&self, path: &Path) -> io::Result<String> {
+                match self.0.load_file(path) {
+                    Ok(FileContents::Text(t)) => Ok(t),
+                    Ok(FileContents::Binary(_)) => Err(
+                        io::Error::new(io::ErrorKind::Other, rls_vfs::Error::BadFileKind),
+                    ),
+                    Err(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
+                }
+            }
+        }
+        racer::FileCache::new(RacerVfs(self.vfs.clone()))
+    }
+
+    pub fn racer_session<'c>(&self, cache: &'c racer::FileCache) -> racer::Session<'c> {
+        let pm: Box<dyn racer::ProjectModelProvider> = match self.project_model() {
+            Ok(pm) => Box::new(RacerProjectModel(pm)),
+            Err(e) => {
+                error!("failed to fetch project model, using fallback: {}", e);
+                Box::new(RacerFallbackModel)
+            }
+        };
+        racer::Session::with_project_model(cache, pm)
     }
 
     fn fmt_config(&self) -> FmtConfig {

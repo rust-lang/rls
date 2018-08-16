@@ -13,7 +13,7 @@
 use crate::actions::InitActionContext;
 use rls_data as data;
 use url::Url;
-use rls_vfs::{self, Vfs, FileContents};
+use rls_vfs::{FileContents};
 use racer;
 use rustfmt_nightly::{Session, FileLines, FileName, Input as FmtInput, Range as RustfmtRange};
 use serde_json;
@@ -55,8 +55,6 @@ pub use crate::lsp_data::request::{
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::io;
 
 
 /// Represent the result of a deglob action for a single wildcard import.
@@ -217,15 +215,14 @@ impl RequestAction for Definition {
         // Save-analysis thread.
         let file_path = parse_file_path!(&params.text_document.uri, "goto_def")?;
         let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
-        let analysis = ctx.analysis;
-        let vfs = ctx.vfs;
+        let analysis = ctx.analysis.clone();
 
         // If configured start racer concurrently and fallback to racer result
         let racer_receiver = {
             if ctx.config.lock().unwrap().goto_def_racer_fallback {
                 Some(work_pool::receive_from_thread(move || {
-                    let cache = racer_cache(vfs);
-                    let session = racer::Session::new(&cache);
+                    let cache = ctx.racer_cache();
+                    let session = ctx.racer_session(&cache);
                     let location = pos_to_racer_location(params.position);
 
                     racer::find_definition(file_path, location, &session)
@@ -305,11 +302,10 @@ impl RequestAction for Completion {
             return Self::fallback_response();
         }
 
-        let vfs = ctx.vfs;
         let file_path = parse_file_path!(&params.text_document.uri, "complete")?;
 
-        let cache = racer_cache(vfs);
-        let session = racer::Session::new(&cache);
+        let cache = ctx.racer_cache();
+        let session = ctx.racer_session(&cache);
 
         let location = pos_to_racer_location(params.position);
         let results = racer::complete_from_file(file_path, location, &session);
@@ -890,23 +886,6 @@ impl RequestAction for CodeLensRequest {
         Ok(ret)
     }
 }
-
-pub(crate) fn racer_cache(vfs: Arc<Vfs>) -> racer::FileCache {
-    struct RacerVfs(Arc<Vfs>);
-    impl racer::FileLoader for RacerVfs {
-        fn load_file(&self, path: &Path) -> io::Result<String> {
-            match self.0.load_file(path) {
-                Ok(FileContents::Text(t)) => Ok(t),
-                Ok(FileContents::Binary(_)) => Err(
-                    io::Error::new(io::ErrorKind::Other, rls_vfs::Error::BadFileKind),
-                ),
-                Err(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
-            }
-        }
-    }
-    racer::FileCache::new(RacerVfs(vfs))
-}
-
 
 #[cfg(test)]
 mod test {
