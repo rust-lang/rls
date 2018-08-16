@@ -328,7 +328,8 @@ fn tooltip_struct_enum_union_trait(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
-    let fmt = ctx.formatter();
+    // We hover often so use the in-process one to speed things up
+    let fmt = Rustfmt::Internal;
 
     // fallback in case source extration fails
     let the_type = || match def.kind {
@@ -341,7 +342,7 @@ fn tooltip_struct_enum_union_trait(
 
     let decl = def_decl(def, &vfs, the_type);
 
-    let the_type = format_object(fmt.clone(), &fmt_config, decl);
+    let the_type = format_object(fmt, &fmt_config, decl);
     let docs = def_docs(def, &vfs);
     let context = None;
 
@@ -382,7 +383,8 @@ fn tooltip_function_method(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
-    let fmt = ctx.formatter();
+    // We hover often so use the in-process one to speed things up
+    let fmt = Rustfmt::Internal;
 
     let the_type = || {
         def.value
@@ -394,7 +396,7 @@ fn tooltip_function_method(
 
     let decl = def_decl(def, &vfs, the_type);
 
-    let the_type = format_method(fmt.clone(), &fmt_config, decl);
+    let the_type = format_method(fmt, &fmt_config, decl);
     let docs = def_docs(def, &vfs);
     let context = None;
 
