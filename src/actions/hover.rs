@@ -698,8 +698,8 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
     debug!("racer_def: name: {:?}", name);
 
     let results = ::std::panic::catch_unwind(move || {
-        let cache = requests::racer_cache(vfs);
-        let session = racer::Session::new(&cache);
+        let cache = ctx.racer_cache();
+        let session = ctx.racer_session(&cache);
         let row = span.range.row_end.one_indexed();
         let coord = requests::racer_coord(row, span.range.col_end);
         let location = racer::Location::Coords(coord);
