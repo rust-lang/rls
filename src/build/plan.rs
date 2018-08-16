@@ -431,10 +431,10 @@ impl PackageMap {
             .workspace_members
             .into_iter()
             .map(|wm| {
-                assert!(wm.url.starts_with("path+"));
-                let url = Url::parse(&wm.url[5..]).expect("Bad URL");
+                assert!(wm.url().starts_with("path+"));
+                let url = Url::parse(&wm.url()[5..]).expect("Bad URL");
                 let path = parse_file_path(&url).expect("URL not a path");
-                (path, wm.name)
+                (path, wm.name().into())
             })
             .collect()
     }

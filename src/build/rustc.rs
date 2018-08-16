@@ -153,7 +153,10 @@ fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<
             .span,
     );
     registry.args_hidden = Some(Vec::new());
-    clippy_lints::register_plugins(&mut registry);
+
+    // TODO handle clippy toml config
+    let empty_clippy_conf = clippy_lints::utils::conf::read(None).0;
+    clippy_lints::register_plugins(&mut registry, &empty_clippy_conf);
 
     let Registry {
         early_lint_passes,

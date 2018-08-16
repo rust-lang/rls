@@ -15,7 +15,7 @@ use rls_analysis::AnalysisHost;
 use rls_vfs::Vfs;
 use crate::config::FmtConfig;
 use crate::config::Config;
-use serde_json::{self, json, json_internal};
+use serde_json::{self, json};
 use url::Url;
 use rls_span as span;
 use crate::Span;
