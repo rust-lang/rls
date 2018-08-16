@@ -369,7 +369,7 @@ mod test {
     use super::*;
     use languageserver_types::InitializedParams;
     use crate::server::notifications;
-    use serde_json::{json, json_internal};
+    use serde_json::{json};
 
     #[test]
     fn test_parse_as_notification() {
