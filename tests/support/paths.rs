@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![allow(unknown_lints)]
+
 use std::env;
 use std::cell::Cell;
 use std::fs;
@@ -64,6 +66,7 @@ pub trait TestPathExt {
     fn mkdir_p(&self);
 }
 
+#[allow(redundant_closure)] // &Path is not AsRef<Path>
 impl TestPathExt for Path {
     /* Technically there is a potential race condition, but we don't
      * care all that much for our tests

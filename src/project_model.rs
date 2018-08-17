@@ -129,7 +129,7 @@ impl racer::ProjectModelProvider for RacerProjectModel {
             Ok(val) => Some(val),
             Err(err) => {
                 warn!("Error in cargo: {}", err);
-                return None;
+                None
             }
         }
     }

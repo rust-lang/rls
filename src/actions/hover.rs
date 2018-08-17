@@ -943,6 +943,7 @@ pub fn tooltip(
 }
 
 #[cfg(test)]
+#[allow(expect_fun_call)]
 pub mod test {
     use super::*;
 
@@ -1537,7 +1538,7 @@ pub mod test {
                 T: Copy,
         ",
         );
-        let result = format_method(config, input.into());
+        let result = format_method(config, input);
         assert_eq!(
             expected, result,
             "method with type parameters; corrected spacing"
@@ -1594,7 +1595,7 @@ pub mod test {
             )
         ",
         );
-        let result = format_method(config, input.into());
+        let result = format_method(config, input);
         assert_eq!(expected, result, "function with multiline args");
     }
 

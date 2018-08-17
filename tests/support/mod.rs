@@ -131,7 +131,7 @@ impl ExpectedMessage {
         for c in &self.contains {
             s
                 .find(c)
-                .ok_or(MsgMatchError::StringNotFound(c.to_owned(), s.to_owned()))
+                .ok_or_else(|| MsgMatchError::StringNotFound(c.to_owned(), s.to_owned()))
                 .map(|_| ())?;
         }
         Ok(())
