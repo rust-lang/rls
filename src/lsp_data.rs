@@ -185,10 +185,10 @@ pub mod ls_util {
 pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     match k {
         DefKind::Enum | DefKind::Union => SymbolKind::Enum,
-        DefKind::Static | DefKind::Const => SymbolKind::Constant,
+        DefKind::Static | DefKind::Const | DefKind::ForeignStatic => SymbolKind::Constant,
         DefKind::Tuple => SymbolKind::Array,
         DefKind::Struct => SymbolKind::Class,
-        DefKind::Function | DefKind::Macro => SymbolKind::Function,
+        DefKind::Function | DefKind::Macro | DefKind::ForeignFunction => SymbolKind::Function,
         DefKind::Method => SymbolKind::Method,
         DefKind::Mod => SymbolKind::Module,
         DefKind::Trait | DefKind::Type | DefKind::ExternType => SymbolKind::Interface,
