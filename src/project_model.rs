@@ -81,17 +81,23 @@ impl ProjectModel {
             })
         }
         for pkg_id in resolve.iter() {
-            let deps = resolve.deps(&pkg_id)
-                .filter_map(|(dep_id, dep_specs)| {
-                    let crate_name = dep_specs.iter()
-                        .map(|d| d.name_in_toml().to_string())
-                        .next()?;
-                    Some(Dep {
-                        crate_name,
-                        pkg: pkg_id_to_pkg[dep_id],
-                    })
-                }).collect::<Vec<_>>();
-            packages[pkg_id_to_pkg[pkg_id].0].deps = deps;
+            for (dep_id, _) in resolve.deps(&pkg_id) {
+                let pkg = cargo_packages.get(dep_id)?;
+                let lib = pkg.targets().iter().find(|t| t.is_lib());
+                if let Some(lib) = lib {
+                    let crate_name = resolve.extern_crate_name(
+                        &pkg_id,
+                        &dep_id,
+                        &lib,
+                    )?;
+                    packages[pkg_id_to_pkg[pkg_id].0].deps.push(
+                        Dep {
+                            crate_name,
+                            pkg: pkg_id_to_pkg[dep_id],
+                        }
+                    )
+                }
+            }
         }
         Ok(ProjectModel { packages })
     }
