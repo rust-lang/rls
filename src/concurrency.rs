@@ -26,15 +26,12 @@ pub struct JobToken {
     _chan: Sender<Never>,
 }
 
+#[derive(Default)]
 pub struct Jobs {
     jobs: Vec<ConcurrentJob>,
 }
 
 impl Jobs {
-    pub fn new() -> Jobs {
-        Jobs { jobs: Vec::new() }
-    }
-
     pub fn add(&mut self, job: ConcurrentJob) {
         self.gc();
         self.jobs.push(job);

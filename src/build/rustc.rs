@@ -223,6 +223,8 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             .late_callback(codegen_backend, matches, sess, cstore, input, odir, ofile)
     }
 
+
+    #[allow(boxed_local)] // https://github.com/rust-lang-nursery/rust-clippy/issues/1123
     fn build_controller(
         self: Box<Self>,
         sess: &Session,

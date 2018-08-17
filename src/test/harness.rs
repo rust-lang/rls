@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![allow(expect_fun_call)]
+
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -153,7 +155,7 @@ type LsResultList = Arc<Mutex<Vec<String>>>;
 #[derive(Clone)]
 crate struct RecordOutput {
     crate output: LsResultList,
-    output_id: Arc<Mutex<u32>>,
+    output_id: Arc<Mutex<u64>>,
 }
 
 impl RecordOutput {
@@ -175,7 +177,7 @@ impl ls_server::Output for RecordOutput {
     fn provide_id(&self) -> ls_server::RequestId {
         let mut id = self.output_id.lock().unwrap();
         *id += 1;
-        ls_server::RequestId::Num(*id as u64)
+        ls_server::RequestId::Num(*id)
     }
 }
 

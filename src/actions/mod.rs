@@ -207,15 +207,15 @@ impl InitActionContext {
             analysis_queue,
             vfs,
             config,
-            jobs: Arc::new(Mutex::new(Jobs::new())),
+            jobs: Arc::default(),
             current_project,
-            project_model: Arc::new(Mutex::new(None)),
-            previous_build_results: Arc::new(Mutex::new(HashMap::new())),
+            project_model: Arc::default(),
+            previous_build_results: Arc::default(),
             build_queue,
             active_build_count: Arc::new(AtomicUsize::new(0)),
             shown_cargo_error: Arc::new(AtomicBool::new(false)),
             quiescent: Arc::new(AtomicBool::new(false)),
-            prev_changes: Arc::new(Mutex::new(HashMap::new())),
+            prev_changes: Arc::default(),
             client_capabilities: Arc::new(client_capabilities),
             client_supports_cmd_run,
             shut_down: Arc::new(AtomicBool::new(false)),
@@ -387,7 +387,7 @@ impl InitActionContext {
         let line = self.vfs.load_line(&file_path, pos.row).unwrap();
         trace!("line: `{}`", line);
 
-        let (start, end) = find_word_at_pos(&line, &pos.col);
+        let (start, end) = find_word_at_pos(&line, pos.col);
         trace!("start: {}, end: {}", start.0, end.0);
 
         Span::from_positions(
@@ -423,7 +423,7 @@ type Column = span::Column<span::ZeroIndexed>;
 /// text cursor points to. Resulting type represents a (`start`, `end`) range
 /// between `start` and `end` cursors.
 /// For example (4, 4) means an empty selection starting after first 4 characters.
-fn find_word_at_pos(line: &str, pos: &Column) -> (Column, Column) {
+fn find_word_at_pos(line: &str, pos: Column) -> (Column, Column) {
     let col = pos.0 as usize;
     let is_ident_char = |c: char| c.is_alphanumeric() || c == '_';
 
@@ -552,10 +552,11 @@ mod test {
             assert!(test_str.chars().filter(|c| *c == '|').count() == 1);
             let col = test_str.find('|').unwrap() as u32;
             let line = test_str.replace('|', "");
-            let (start, end) = find_word_at_pos(&line, &Column::new_zero_indexed(col));
+            let (start, end) = find_word_at_pos(&line, Column::new_zero_indexed(col));
+            let actual = (start.0, end.0);
             assert_eq!(
                 range,
-                (start.0, end.0),
+                actual,
                 "Assertion failed for {:?}",
                 test_str
             );

@@ -15,15 +15,10 @@
 //! functionality such as 'goto definition', symbol search, reformatting, and
 //! code completion, and enables renaming and refactorings.
 
-#![feature(rustc_private)]
-#![feature(integer_atomics)]
-#![feature(drain_filter)]
-#![feature(rust_2018_preview)]
-
-#![warn(rust_2018_idioms)]
+#![feature(rust_2018_preview, rustc_private, integer_atomics, drain_filter)]
 #![allow(unknown_lints)]
-#![warn(clippy)]
-#![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments, unused_extern_crates)]
+#![warn(clippy, rust_2018_idioms)]
+#![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments)]
 
 // See rustc/rustc.rs in rust repo for explanation of stack adjustments.
 #![feature(link_args)]

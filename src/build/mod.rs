@@ -124,8 +124,8 @@ pub enum BuildPriority {
 }
 
 impl BuildPriority {
-    fn is_cargo(&self) -> bool {
-        match *self {
+    fn is_cargo(self) -> bool {
+        match self {
             BuildPriority::Cargo => true,
             _ => false,
         }
@@ -174,7 +174,7 @@ enum Build {
     // A build is in progress.
     InProgress,
     // A build is queued.
-    Pending(PendingBuild),
+    Pending(Box<PendingBuild>),
     // No build.
     None,
 }
@@ -208,7 +208,7 @@ impl Build {
 
     fn try_into_pending(self) -> Result<PendingBuild, ()> {
         match self {
-            Build::Pending(b) => Ok(b),
+            Build::Pending(b) => Ok(*b),
             _ => Err(()),
         }
     }
@@ -324,11 +324,11 @@ impl BuildQueue {
     fn push_build(queued: &mut (Build, Build), build: PendingBuild) {
         if build.priority == BuildPriority::Normal {
             Self::squash_build(&mut queued.0);
-            queued.0 = Build::Pending(build);
+            queued.0 = Build::Pending(build.into());
         } else {
             Self::squash_build(&mut queued.0);
             Self::squash_build(&mut queued.1);
-            queued.1 = Build::Pending(build);
+            queued.1 = Build::Pending(build.into());
         }
     }
 
