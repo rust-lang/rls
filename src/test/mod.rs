@@ -19,7 +19,7 @@ use crate::server::{self as ls_server, Request, ShutdownRequest, Notification, R
 use jsonrpc_core;
 use rls_vfs::Vfs;
 
-use self::harness::{compare_json, expect_messages, src, Environment, ExpectedMessage, RecordOutput};
+use self::harness::{compare_json, expect_message, expect_fuzzy, expect_messages, src, Environment, ExpectedMessage, RecordOutput};
 
 use languageserver_types::*;
 use crate::lsp_data::InitializationOptions;
@@ -110,25 +110,20 @@ fn test_shutdown() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(&mut server, results.clone(), &[&ExpectedMessage::new(Some(1))]);
+    expect_message(&mut server, results.clone(), &ExpectedMessage::new(Some(1)));
 }
 
 #[test]

@@ -237,7 +237,11 @@ fn soft_expect_message(
     server.wait_for_concurrent_jobs();
     let mut results = results.lock().unwrap();
 
-    let found = results.get(0).unwrap();
+    let found = match results.get(0) {
+        Some(s) => s,
+        None => return Err("No message found!".into())
+    };
+
     let values: serde_json::Value = serde_json::from_str(&found).unwrap();
     if values
         .get("jsonrpc")
