@@ -201,10 +201,9 @@ impl ExpectedMessage {
     }
 }
 
-/// This function works similarly to `expect_messages` except that it only matches
-/// on a single string that needs to be present in a series of messages. It also
-/// doesn't panic when encountering an unknown message, instead yielding to the
-/// next expect-block
+/// This function checks for messages with a series of constraints (expecrations)
+/// to appear in the buffer, removing valid messages and returning when encountering
+/// some that didn't meet the expectation
 crate fn expect_fuzzy(
     server: &mut ls_server::LsService<RecordOutput>,
     results: LsResultList,
@@ -217,7 +216,10 @@ crate fn expect_fuzzy(
     while soft_expect_message(server, results.clone(), &expected).is_ok() {}
 }
 
-/// Expect a single message – panic if not present and removes message from buffer if it is
+/// Expect a single message
+///
+/// It panics if the message wasn't valid and removes it from the buffer
+/// if it was
 crate fn expect_message(
     server: &mut ls_server::LsService<RecordOutput>,
     results: LsResultList,
@@ -228,7 +230,10 @@ crate fn expect_message(
     }
 }
 
-/// Check if a message is contained in the first buffer position without crashing
+/// Check a single message without panicking
+///
+/// A valid message is removed from the buffer while invalid messages
+/// are left in place
 fn soft_expect_message(
     server: &mut ls_server::LsService<RecordOutput>,
     results: LsResultList,
@@ -271,7 +276,6 @@ fn soft_expect_message(
         }
     }
 
-    // The message is only removed if it's OK
     results.remove(0);
     Ok(())
 }
