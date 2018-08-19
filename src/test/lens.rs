@@ -10,7 +10,7 @@ use crate::{
     lsp_data::InitializationOptions,
     test::{
         request, initialize_with_opts,
-        harness::{expect_messages, compare_json, Environment, ExpectedMessage},
+        harness::{expect_message, expect_fuzzy, compare_json, Environment, ExpectedMessage},
     },
 };
 
@@ -48,20 +48,14 @@ fn test_lens_run() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0))
-                .expect_contains(r#""codeLensProvider":{"resolveProvider":false}"#),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-        ],
+        &ExpectedMessage::new(Some(0))
+            .expect_contains(r#""codeLensProvider":{"resolveProvider":false}"#),
     );
+
+    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),

@@ -280,47 +280,47 @@ fn soft_expect_message(
     Ok(())
 }
 
-crate fn expect_messages(server: &mut ls_server::LsService<RecordOutput>, results: LsResultList, expected: &[&ExpectedMessage]) {
-    server.wait_for_concurrent_jobs();
+// crate fn expect_messages(server: &mut ls_server::LsService<RecordOutput>, results: LsResultList, expected: &[&ExpectedMessage]) {
+//     server.wait_for_concurrent_jobs();
 
-    let mut results = results.lock().unwrap();
+//     let mut results = results.lock().unwrap();
 
-    println!(
-        "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
-        *results,
-        expected
-    );
-    assert_eq!(results.len(), expected.len());
-    for (found, expected) in results.iter().zip(expected.iter()) {
-        let values: serde_json::Value = serde_json::from_str(found).unwrap();
-        assert!(
-            values
-                .get("jsonrpc")
-                .expect("Missing jsonrpc field")
-                .as_str()
-                .unwrap() == "2.0",
-            "Bad jsonrpc field"
-        );
-        if let Some(id) = expected.id {
-            assert_eq!(
-                values
-                    .get("id")
-                    .expect("Missing id field")
-                    .as_u64()
-                    .unwrap(),
-                id,
-                "Unexpected id"
-            );
-        }
-        for c in &expected.contains {
-            found
-                .find(c)
-                .expect(&format!("Could not find `{}` in `{}`", c, found));
-        }
-    }
+//     println!(
+//         "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
+//         *results,
+//         expected
+//     );
+//     assert_eq!(results.len(), expected.len());
+//     for (found, expected) in results.iter().zip(expected.iter()) {
+//         let values: serde_json::Value = serde_json::from_str(found).unwrap();
+//         assert!(
+//             values
+//                 .get("jsonrpc")
+//                 .expect("Missing jsonrpc field")
+//                 .as_str()
+//                 .unwrap() == "2.0",
+//             "Bad jsonrpc field"
+//         );
+//         if let Some(id) = expected.id {
+//             assert_eq!(
+//                 values
+//                     .get("id")
+//                     .expect("Missing id field")
+//                     .as_u64()
+//                     .unwrap(),
+//                 id,
+//                 "Unexpected id"
+//             );
+//         }
+//         for c in &expected.contains {
+//             found
+//                 .find(c)
+//                 .expect(&format!("Could not find `{}` in `{}`", c, found));
+//         }
+//     }
 
-    *results = vec![];
-}
+//     *results = vec![];
+// }
 
 crate fn compare_json(actual: &serde_json::Value, expected: &str) {
     let expected: serde_json::Value = serde_json::from_str(expected).unwrap();
