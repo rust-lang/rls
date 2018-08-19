@@ -201,6 +201,77 @@ impl ExpectedMessage {
     }
 }
 
+/// This function works similarly to `expect_messages` except that it only matches
+/// on a single string that needs to be present in a series of messages. It also
+/// doesn't panic when encountering an unknown message, instead yielding to the
+/// next expect-block
+crate fn expect_fuzzy(
+    server: &mut ls_server::LsService<RecordOutput>,
+    results: LsResultList,
+    contains: Vec<&str>,
+) {
+    let mut expected = ExpectedMessage::new(None);
+    for c in contains {
+        expected.expect_contains(c);
+    }
+    while soft_expect_message(server, results.clone(), &expected).is_ok() {}
+}
+
+/// Expect a single message – panic if not present and removes message from buffer if it is
+crate fn expect_message(
+    server: &mut ls_server::LsService<RecordOutput>,
+    results: LsResultList,
+    expected: &ExpectedMessage,
+) {
+    if let Err(e) = soft_expect_message(server, results, expected) {
+        panic!("Assert failed: {}", e);
+    }
+}
+
+/// Check if a message is contained in the first buffer position without crashing
+fn soft_expect_message(
+    server: &mut ls_server::LsService<RecordOutput>,
+    results: LsResultList,
+    expected: &ExpectedMessage,
+) -> Result<(), String> {
+    server.wait_for_concurrent_jobs();
+    let mut results = results.lock().unwrap();
+
+    let found = results.get(0).unwrap();
+    let values: serde_json::Value = serde_json::from_str(&found).unwrap();
+    if values
+        .get("jsonrpc")
+        .expect("Missing jsonrpc field")
+        .as_str()
+        .unwrap()
+        != "2.0"
+    {
+        return Err("Bad jsonrpc field".into());
+    }
+
+    if let Some(id) = expected.id {
+        if values
+            .get("id")
+            .expect("Missing id field")
+            .as_u64()
+            .unwrap()
+            != id
+        {
+            return Err("Unexpected id".into());
+        }
+    }
+
+    for c in &expected.contains {
+        if found.find(c).is_none() {
+            return Err(format!("Could not find `{}` in `{}`", c, found));
+        }
+    }
+
+    // The message is only removed if it's OK
+    results.remove(0);
+    Ok(())
+}
+
 crate fn expect_messages(server: &mut ls_server::LsService<RecordOutput>, results: LsResultList, expected: &[&ExpectedMessage]) {
     server.wait_for_concurrent_jobs();
 
