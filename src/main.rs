@@ -15,7 +15,7 @@
 //! functionality such as 'goto definition', symbol search, reformatting, and
 //! code completion, and enables renaming and refactorings.
 
-#![feature(rust_2018_preview, rustc_private, integer_atomics, drain_filter)]
+#![feature(rustc_private, integer_atomics, drain_filter)]
 #![allow(unknown_lints)]
 #![warn(clippy, rust_2018_idioms)]
 #![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments)]
