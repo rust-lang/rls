@@ -19,7 +19,7 @@ use crate::server::{self as ls_server, Request, ShutdownRequest, Notification, R
 use jsonrpc_core;
 use rls_vfs::Vfs;
 
-use self::harness::{compare_json, expect_message, expect_fuzzy, src, Environment, ExpectedMessage, RecordOutput};
+use self::harness::{compare_json, expect_message, expect_series, src, Environment, ExpectedMessage, RecordOutput};
 
 use languageserver_types::*;
 use crate::lsp_data::InitializationOptions;
@@ -117,7 +117,7 @@ fn test_shutdown() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);;
+    expect_series(&mut server, results.clone(), vec!["progress"]);;
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -161,7 +161,7 @@ fn test_goto_def() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);;
+    expect_series(&mut server, results.clone(), vec!["progress"]);;
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -209,7 +209,7 @@ fn test_hover() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);;
+    expect_series(&mut server, results.clone(), vec!["progress"]);;
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -289,7 +289,7 @@ fn test_hover_after_src_line_change() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     // first hover over unmodified
     assert_eq!(
@@ -309,7 +309,7 @@ fn test_hover_after_src_line_change() {
         ls_server::ServerStateChange::Continue
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     // hover after line change should work at the new line
     assert_eq!(
@@ -353,7 +353,7 @@ fn test_workspace_symbol() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -407,7 +407,7 @@ fn test_workspace_symbol_duplicates() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -473,7 +473,7 @@ fn test_find_all_refs() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -530,7 +530,7 @@ fn test_find_all_refs_no_cfg_test() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -569,7 +569,7 @@ fn test_borrow_error() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -578,7 +578,7 @@ fn test_borrow_error() {
             .expect_contains(r#""message":"cannot borrow `x` as mutable more than once at a time"#),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 #[test]
@@ -615,7 +615,7 @@ fn test_highlight() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -668,7 +668,7 @@ fn test_rename() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -723,7 +723,7 @@ fn test_reformat() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -784,7 +784,7 @@ fn test_reformat_with_range() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -821,7 +821,7 @@ fn test_multiple_binaries() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server,results.clone(),vec!["progress"]);
+    expect_series(&mut server,results.clone(),vec!["progress"]);
 
     // These messages should be about bin_name1 and bin_name2, but the order is
     // not deterministic FIXME(#606)
@@ -835,7 +835,7 @@ fn test_multiple_binaries() {
         results.clone(),
         ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
     );
-    expect_fuzzy(&mut server,results.clone(),vec!["progress"]);
+    expect_series(&mut server,results.clone(),vec!["progress"]);
 }
 
 // FIXME Requires rust-src component, which would break Rust CI
@@ -904,7 +904,7 @@ fn test_bin_lib_project() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -994,7 +994,7 @@ fn test_infer_lib() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -1031,7 +1031,7 @@ fn test_infer_bin() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -1068,7 +1068,7 @@ fn test_infer_custom_bin() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -1200,7 +1200,7 @@ fn test_find_impls() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1253,7 +1253,7 @@ fn test_features() {
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -1292,7 +1292,7 @@ fn test_all_features() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 #[test]
@@ -1320,7 +1320,7 @@ fn test_no_default_features() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -1447,7 +1447,7 @@ fn test_deglob() {
         ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports-"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1600,7 +1600,7 @@ fn test_all_targets() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     expect_message(
         &mut server,
@@ -1669,7 +1669,7 @@ fn ignore_uninitialized_notification() {
         ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 /// Handle receiving requests before the `initialize` request by returning an error response
@@ -1726,7 +1726,7 @@ fn fail_uninitialized_request() {
         ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
     );
 
-    expect_fuzzy(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 // FIXME disabled since it is failing in the Rust repo.

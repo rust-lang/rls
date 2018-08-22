@@ -204,7 +204,7 @@ impl ExpectedMessage {
 /// This function checks for messages with a series of constraints (expecrations)
 /// to appear in the buffer, removing valid messages and returning when encountering
 /// some that didn't meet the expectation
-crate fn expect_fuzzy(
+crate fn expect_series(
     server: &mut ls_server::LsService<RecordOutput>,
     results: LsResultList,
     contains: Vec<&str>,
@@ -213,7 +213,7 @@ crate fn expect_fuzzy(
     for c in contains {
         expected.expect_contains(c);
     }
-    while soft_expect_message(server, results.clone(), &expected).is_ok() {}
+    while try_expect_message(server, results.clone(), &expected).is_ok() {}
 }
 
 /// Expect a single message
@@ -225,7 +225,7 @@ crate fn expect_message(
     results: LsResultList,
     expected: &ExpectedMessage,
 ) {
-    if let Err(e) = soft_expect_message(server, results, expected) {
+    if let Err(e) = try_expect_message(server, results, expected) {
         panic!("Assert failed: {}", e);
     }
 }
@@ -234,7 +234,7 @@ crate fn expect_message(
 ///
 /// A valid message is removed from the buffer while invalid messages
 /// are left in place
-fn soft_expect_message(
+fn try_expect_message(
     server: &mut ls_server::LsService<RecordOutput>,
     results: LsResultList,
     expected: &ExpectedMessage,
