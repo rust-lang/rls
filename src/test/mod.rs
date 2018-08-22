@@ -19,7 +19,7 @@ use crate::server::{self as ls_server, Request, ShutdownRequest, Notification, R
 use jsonrpc_core;
 use rls_vfs::Vfs;
 
-use self::harness::{compare_json, expect_messages, src, Environment, ExpectedMessage, RecordOutput};
+use self::harness::{compare_json, expect_message, expect_series, src, Environment, ExpectedMessage, RecordOutput};
 
 use languageserver_types::*;
 use crate::lsp_data::InitializationOptions;
@@ -110,25 +110,20 @@ fn test_shutdown() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);;
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(&mut server, results.clone(), &[&ExpectedMessage::new(Some(1))]);
+    expect_message(&mut server, results.clone(), &ExpectedMessage::new(Some(1)));
 }
 
 #[test]
@@ -159,31 +154,24 @@ fn test_goto_def() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);;
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#),
-        ],
+        ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#),
     );
 }
 
@@ -215,31 +203,23 @@ fn test_hover() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);;
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(11))
-                .expect_contains(r#"[{"language":"rust","value":"&str"},{"language":"rust","value":"let world = \"world\";"}]"#),
-        ],
+        ExpectedMessage::new(Some(11))
+                .expect_contains(r#"[{"language":"rust","value":"&str"},{"language":"rust","value":"let world = \"world\";"}]"#)
     );
 }
 
@@ -303,32 +283,24 @@ fn test_hover_after_src_line_change() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     // first hover over unmodified
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(11))
+        ExpectedMessage::new(Some(11))
                 .expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
-        ],
     );
 
     // handle didChange notification and wait for rebuild
@@ -337,31 +309,18 @@ fn test_hover_after_src_line_change() {
         ls_server::ServerStateChange::Continue
     );
 
-    expect_messages(
-        &mut server,
-        results.clone(),
-        &[
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
-    );
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     // hover after line change should work at the new line
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(None)
-                .expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
-        ],
+        ExpectedMessage::new(None)
+                .expect_contains(r#"[{"language":"rust","value":"&str"}]"#)
     );
 }
 
@@ -388,39 +347,35 @@ fn test_workspace_symbol() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("workspace_symbol"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
 
-    expect_messages(
-        &mut server,results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
-                                                                     // in main.rs
-                                                                     .expect_contains(r#"main.rs"#)
-                                                                     .expect_contains(r#""name":"nemo""#)
-                                                                     .expect_contains(r#""kind":12"#)
-                                                                     .expect_contains(r#""range":{"start":{"line":11,"character":11},"end":{"line":11,"character":15}}"#)
-                                                                     .expect_contains(r#""containerName":"x""#)
+    expect_message(
+        &mut server,results.clone(),
+            ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
+            // in main.rs
+            .expect_contains(r#"main.rs"#)
+            .expect_contains(r#""name":"nemo""#)
+            .expect_contains(r#""kind":12"#)
+            .expect_contains(r#""range":{"start":{"line":11,"character":11},"end":{"line":11,"character":15}}"#)
+            .expect_contains(r#""containerName":"x""#)
 
-                                                                     // in foo.rs
-                                                                     .expect_contains(r#"foo.rs"#)
-                                                                     .expect_contains(r#""name":"nemo""#)
-                                                                     .expect_contains(r#""kind":2"#)
-                                                                     .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
-                                                                     .expect_contains(r#""containerName":"foo""#)]);
+            // in foo.rs
+            .expect_contains(r#"foo.rs"#)
+            .expect_contains(r#""name":"nemo""#)
+            .expect_contains(r#""kind":2"#)
+            .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
+            .expect_contains(r#""containerName":"foo""#));
 }
 
 #[test]
@@ -446,18 +401,13 @@ fn test_workspace_symbol_duplicates() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("workspace_symbol"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -517,38 +467,29 @@ fn test_find_all_refs() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(42))
-                .expect_contains(
-                    r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
-                )
-                .expect_contains(
-                    r#"{"start":{"line":15,"character":14},"end":{"line":15,"character":17}}"#,
-                )
-                .expect_contains(
-                    r#"{"start":{"line":23,"character":15},"end":{"line":23,"character":18}}"#,
-                ),
-        ],
+        ExpectedMessage::new(Some(42))
+            .expect_contains(
+                r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
+            ).expect_contains(
+                r#"{"start":{"line":15,"character":14},"end":{"line":15,"character":17}}"#,
+            ).expect_contains(
+                r#"{"start":{"line":23,"character":15},"end":{"line":23,"character":18}}"#,
+            ),
     );
 }
 
@@ -583,35 +524,27 @@ fn test_find_all_refs_no_cfg_test() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("find_all_refs_no_cfg_test"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(42))
-                .expect_contains(
-                    r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
-                )
-                .expect_contains(
-                    r#"{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#,
-                ),
-        ],
+        ExpectedMessage::new(Some(42))
+            .expect_contains(
+                r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
+            ).expect_contains(
+                r#"{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#,
+            ),
     );
 }
 
@@ -630,22 +563,22 @@ fn test_borrow_error() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("borrow_error"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("borrow_error"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains(
-                r#""message":"cannot borrow `x` as mutable more than once at a time"#,
-            ),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains(r#""message":"cannot borrow `x` as mutable more than once at a time"#),
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 #[test]
@@ -676,36 +609,27 @@ fn test_highlight() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(42))
-                .expect_contains(
-                    r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
-                )
-                .expect_contains(
-                    r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#,
-                ),
-        ],
+        ExpectedMessage::new(Some(42))
+            .expect_contains(
+                r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
+            ).expect_contains(
+                r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#,
+            ),
     );
 }
 
@@ -738,37 +662,27 @@ fn test_rename() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(42))
-                .expect_contains(
-                    r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
-                )
-                .expect_contains(
-                    r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#,
-                )
-                .expect_contains(r#"{"changes""#),
-        ],
+        ExpectedMessage::new(Some(42))
+            .expect_contains(
+                r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
+            ).expect_contains(
+                r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#,
+            ).expect_contains(r#"{"changes""#),
     );
 }
 
@@ -803,27 +717,24 @@ fn test_reformat() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("reformat"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("reformat"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
-        &mut server,results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":12,"character":0}}"#)
-                                            .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)]);
+    expect_message(
+        &mut server,results.clone(), 
+        ExpectedMessage::new(Some(42))
+            .expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":12,"character":0}}"#)
+            .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)
+        );
 }
 
 #[test]
@@ -867,26 +778,22 @@ fn test_reformat_with_range() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("reformat_with_range"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("reformat_with_range"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(&mut server, results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
-                                            .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"#)]);
+    expect_message(&mut server, results.clone(),
+        ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
+            .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"#)
+    );
 }
 
 #[test]
@@ -907,26 +814,28 @@ fn test_multiple_binaries() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-                                                                                           // order of these is random
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin"), // "bin1"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin"), // "bin1"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin"), // "bin2"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin"), // "bin2"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            // These messages should be about bin_name1 and bin_name2, but the order is
-            // not deterministic FIXME(#606)
-            ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
-            ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server,results.clone(),vec!["progress"]);
+
+    // These messages should be about bin_name1 and bin_name2, but the order is
+    // not deterministic FIXME(#606)
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
+    );
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
+    );
+    expect_series(&mut server,results.clone(),vec!["progress"]);
 }
 
 // FIXME Requires rust-src component, which would break Rust CI
@@ -956,17 +865,17 @@ fn test_multiple_binaries() {
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
-//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//     expect_message(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#)]);
 
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
-//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"label":"world","kind":6,"detail":"let world = \"world\";"}]"#)]);
+//     expect_message(results.clone(), &[ExpectedMessage::new(Some(11)).expect_contains(r#"[{"label":"world","kind":6,"detail":"let world = \"world\";"}]"#)]);
 
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
-//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(22)).expect_contains(r#"{"label":"x","kind":5,"detail":"u64"#)]);
+//     expect_message(results.clone(), &[ExpectedMessage::new(Some(22)).expect_contains(r#"{"label":"x","kind":5,"detail":"u64"#)]);
 // }
 
 #[test]
@@ -989,23 +898,28 @@ fn test_bin_lib_project() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("bin_lib"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None)
-                .expect_contains(r#"bin_lib/tests/tests.rs"#)
-                .expect_contains(r#"unused variable: `unused_var`"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains(r#"bin_lib/tests/tests.rs"#)
+            .expect_contains(r#"unused variable: `unused_var`"#),
+    );
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("progress")
+            .expect_contains(r#""done":true"#),
     );
 }
 
@@ -1028,7 +942,7 @@ fn test_bin_lib_project() {
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
-//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//     expect_message(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib`"),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#)]);
@@ -1049,7 +963,7 @@ fn test_bin_lib_project() {
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
-//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//     expect_message(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        // TODO: Ideally we should check for message contents for different crates/targets,
 //                                        // however order of received messages is non-deterministic and this
@@ -1074,19 +988,25 @@ fn test_infer_lib() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_lib"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_lib"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedLib`"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedLib`"),
+    );
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("progress")
+            .expect_contains(r#""done":true"#),
     );
 }
 
@@ -1105,19 +1025,25 @@ fn test_infer_bin() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_bin"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("infer_bin"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedBin`"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedBin`"),
+    );
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("progress")
+            .expect_contains(r#""done":true"#),
     );
 }
 
@@ -1136,19 +1062,26 @@ fn test_infer_custom_bin() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("custom_bin"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("custom_bin"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedCustomBin`"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("struct is never constructed: `UnusedCustomBin`"),
+    );
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("progress")
+            .expect_contains(r#""done":true"#),
     );
 }
 
@@ -1172,11 +1105,9 @@ fn test_omit_init_build() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(&mut server,
+    expect_message(&mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 }
 
@@ -1264,42 +1195,36 @@ fn test_find_impls() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(&mut server,
+    expect_message(&mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("find_impls"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("find_impls"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities")
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_messages(&mut server, results.clone(), &[
+    expect_message(&mut server, results.clone(),
         ExpectedMessage::new(Some(1))
             .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
             .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
-    ]);
+    );
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(&mut server, results.clone(), &[
+    expect_message(&mut server, results.clone(),
         ExpectedMessage::new(Some(2))
             .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
             .expect_contains(r#""range":{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#)
-    ]);
+    );
     // FIXME Does not work on Travis
     // assert_eq!(ls_server::LsService::handle_message(&mut server),
     //            ls_server::ServerStateChange::Continue);
-    // expect_messages(results.clone(), &[
+    // expect_message(results.clone(), &[
     //     // TODO assert that only one position is returned
     //     ExpectedMessage::new(Some(3))
     //         .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
@@ -1322,21 +1247,27 @@ fn test_features() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains(
-                r#""message":"cannot find struct, variant or union type `Bar` in this scope"#,
-            ),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None).expect_contains(
+            r#""message":"cannot find struct, variant or union type `Bar` in this scope"#,
+        ),
+    );
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("progress")
+            .expect_contains(r#""done":true"#),
     );
 }
 
@@ -1345,9 +1276,8 @@ fn test_all_features() {
     let mut env = Environment::new("features");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| c.all_features = true);
     let (mut server, results) = env.mock_server(messages);
@@ -1356,19 +1286,13 @@ fn test_all_features() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 #[test]
@@ -1390,21 +1314,27 @@ fn test_no_default_features() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("features"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains(
-                r#""message":"cannot find struct, variant or union type `Baz` in this scope"#,
-            ),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None).expect_contains(
+            r#""message":"cannot find struct, variant or union type `Baz` in this scope"#,
+        ),
+    );
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("progress")
+            .expect_contains(r#""done":true"#),
     );
 }
 
@@ -1422,7 +1352,7 @@ fn test_no_default_features() {
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
-//     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//     expect_message(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
 //                                        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
 //                                        ExpectedMessage::new(None)
 //                                            .expect_contains(root_url.path())
@@ -1511,19 +1441,13 @@ fn test_deglob() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports-"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("deglob"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("deglob"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("rls.deglobImports-"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1598,20 +1522,18 @@ fn test_deglob() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(1100))
-                .expect_contains(r#""title":"Deglob imports""#)
-                .expect_contains(r#""command":"rls.deglobImports-"#)
-                .expect_contains(r#"{"location":{"range":{"end":{"character":15,"line":15},"start":{"character":14,"line":15}},"uri":"#)
-                .expect_contains(r#"deglob/src/main.rs"}"#)
-                .expect_contains(r#""new_text":"size_of""#)
-                .expect_contains(r#"{"location":{"range":{"end":{"character":32,"line":15},"start":{"character":31,"line":15}},"uri":"#)
-                .expect_contains(r#"deglob/src/main.rs"}"#)
-                .expect_contains(r#""new_text":"max""#)
-        ],
+        ExpectedMessage::new(Some(1100))
+            .expect_contains(r#""title":"Deglob imports""#)
+            .expect_contains(r#""command":"rls.deglobImports-"#)
+            .expect_contains(r#"{"location":{"range":{"end":{"character":15,"line":15},"start":{"character":14,"line":15}},"uri":"#)
+            .expect_contains(r#"deglob/src/main.rs"}"#)
+            .expect_contains(r#""new_text":"size_of""#)
+            .expect_contains(r#"{"location":{"range":{"end":{"character":32,"line":15},"start":{"character":31,"line":15}},"uri":"#)
+            .expect_contains(r#"deglob/src/main.rs"}"#)
+            .expect_contains(r#""new_text":"max""#)
     );
 
     assert_eq!(
@@ -1645,12 +1567,10 @@ fn test_deglob() {
         assert_eq!(change["newText"], "max");
     }
 
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
             ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
-        ],
     );
 }
 
@@ -1674,23 +1594,27 @@ fn test_all_targets() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("message"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None)
-                .expect_contains(r#"bin_lib/tests/tests.rs"#)
-                .expect_contains(r#"unused variable: `unused_var`"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+    );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
+
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains(r#"bin_lib/tests/tests.rs"#)
+            .expect_contains(r#"unused variable: `unused_var`"#),
+    );
+    expect_message(
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(None)
+            .expect_contains("progress")
+            .expect_contains(r#""done":true"#),
     );
 }
 
@@ -1733,27 +1657,19 @@ fn ignore_uninitialized_notification() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
-        &mut server,results.clone(), &[]);
-
+    
     // Initialize and build
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 /// Handle receiving requests before the `initialize` request by returning an error response
@@ -1804,19 +1720,13 @@ fn fail_uninitialized_request() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_messages(
+    expect_message(
         &mut server,
         results.clone(),
-        &[
-            ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains("completion"),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
-        ],
+        ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
     );
+
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 // FIXME disabled since it is failing in the Rust repo.
@@ -1836,7 +1746,7 @@ fn fail_uninitialized_request() {
 //         ls_server::LsService::handle_message(&mut server),
 //         ls_server::ServerStateChange::Continue
 //     );
-//     expect_messages(
+//     expect_message(
 //         results.clone(),
 //         &[
 //             ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
