@@ -26,9 +26,9 @@ log = "0.4"
 num_cpus = "1"
 racer = { version = "2.1.4", default-features = false }
 rayon = "1"
-rls-analysis = "0.14"
+rls-analysis = "0.16"
 rls-blacklist = "0.1.2"
-rls-data = { version = "0.16", features = ["serialize-serde"] }
+rls-data = { version = "0.18", features = ["serialize-serde"] }
 rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.4.6"
