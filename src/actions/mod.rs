@@ -270,9 +270,9 @@ impl InitActionContext {
         racer::Session::with_project_model(cache, pm)
     }
 
-    /// Since external Rustfmt can be specified, this returns an enum specifying
-    /// which one to use and which implements the String-formatting `Formatter`
-    /// trait.
+    /// Depending on user configuration, we might use either external Rustfmt or
+    /// the one we're shipping with.
+    /// Locks config to read `rustfmt_path` key.
     fn formatter(&self) -> Rustfmt {
         let rustfmt = self.config.lock().unwrap().rustfmt_path.clone()
             .map(|path| (path, self.current_project.clone()));

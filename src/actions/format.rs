@@ -22,9 +22,6 @@ use log::{log, debug};
 use rustfmt_nightly::{Config, Session, Input};
 use serde_json;
 
-struct External<'a>(&'a Path, &'a Path);
-struct Internal;
-
 /// Specified which `rustfmt` to use.
 #[derive(Clone)]
 pub enum Rustfmt {
@@ -43,81 +40,68 @@ impl From<Option<(String, PathBuf)>> for Rustfmt {
     }
 }
 
-
-pub trait Formatter {
-    fn format(&self, input: String, cfg: Config) -> Result<String, String>;
-}
-
-impl Formatter for External<'_> {
-    fn format(&self, input: String, cfg: Config) -> Result<String, String> {
-        let External(path, cwd) = self;
-
-        let (_file_handle, config_path) = gen_config_file(&cfg)?;
-        let args = rustfmt_args(&cfg, &config_path);
-
-        let mut rustfmt = Command::new(path)
-            .args(args)
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|_| format!("Couldn't spawn `{}`", path.display()))?;
-
-        {
-            let stdin = rustfmt.stdin.as_mut()
-                .ok_or_else(|| "Failed to open rustfmt stdin".to_string())?;
-            stdin.write_all(input.as_bytes())
-                .map_err(|_| "Failed to pass input to rustfmt".to_string())?;
+impl Rustfmt {
+    pub fn format(&self, input: String, cfg: Config) -> Result<String, String> {
+        match self {
+            Rustfmt::Internal => format_internal(input, cfg),
+            Rustfmt::External(path, cwd) => format_external(path, cwd, input, cfg),
         }
-
-        rustfmt.wait_with_output()
-            .map_err(|err| format!("Error running rustfmt: {}", err))
-            .and_then(|out| String::from_utf8(out.stdout)
-                .map_err(|_| "Formatted code is not valid UTF-8".to_string()))
     }
 }
 
-impl Formatter for Internal {
-    fn format(&self, input: String, config: Config) -> Result<String, String> {
-        let mut buf = Vec::<u8>::new();
+fn format_external(path: &PathBuf, cwd: &PathBuf, input: String, cfg: Config) -> Result<String, String> {
+    let (_file_handle, config_path) = gen_config_file(&cfg)?;
+    let args = rustfmt_args(&cfg, &config_path);
 
-        {
-            let mut session = Session::new(config, Some(&mut buf));
+    let mut rustfmt = Command::new(path)
+        .args(args)
+        .current_dir(cwd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|_| format!("Couldn't spawn `{}`", path.display()))?;
 
-            match session.format(Input::Text(input)) {
-                Ok(report) => {
-                    // Session::format returns Ok even if there are any errors, i.e., parsing errors.
-                    if session.has_operational_errors() || session.has_parsing_errors() {
-                        debug!(
-                            "reformat: format_input failed: has errors, report = {}",
-                            report
-                        );
+    {
+        let stdin = rustfmt.stdin.as_mut()
+            .ok_or_else(|| "Failed to open rustfmt stdin".to_string())?;
+        stdin.write_all(input.as_bytes())
+            .map_err(|_| "Failed to pass input to rustfmt".to_string())?;
+    }
 
-                        return Err("Reformat failed to complete successfully".into());
-                    }
-                }
-                Err(e) => {
-                    debug!("Reformat failed: {:?}", e);
+    rustfmt.wait_with_output()
+        .map_err(|err| format!("Error running rustfmt: {}", err))
+        .and_then(|out| String::from_utf8(out.stdout)
+            .map_err(|_| "Formatted code is not valid UTF-8".to_string()))
+}
+
+fn format_internal(input: String, config:Config) -> Result<String, String> {
+    let mut buf = Vec::<u8>::new();
+
+    {
+        let mut session = Session::new(config, Some(&mut buf));
+
+        match session.format(Input::Text(input)) {
+            Ok(report) => {
+                // Session::format returns Ok even if there are any errors, i.e., parsing errors.
+                if session.has_operational_errors() || session.has_parsing_errors() {
+                    debug!(
+                        "reformat: format_input failed: has errors, report = {}",
+                        report
+                    );
 
                     return Err("Reformat failed to complete successfully".into());
                 }
             }
-        }
+            Err(e) => {
+                debug!("Reformat failed: {:?}", e);
 
-        String::from_utf8(buf)
-            .map_err(|_| "Reformat output is not a valid UTF-8".into())
-    }
-}
-
-impl Formatter for Rustfmt {
-    fn format(&self, input: String, cfg: Config) -> Result<String, String> {
-        match self {
-            Rustfmt::Internal => Internal.format(input, cfg),
-            Rustfmt::External(path, cwd) => {
-                External(path.as_path(), cwd.as_path()).format(input, cfg)
+                return Err("Reformat failed to complete successfully".into());
             }
         }
     }
+
+    String::from_utf8(buf)
+        .map_err(|_| "Reformat output is not a valid UTF-8".into())
 }
 
 fn random_file() -> Result<(File, PathBuf), String> {

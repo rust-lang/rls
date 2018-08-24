@@ -22,7 +22,6 @@ use itertools::Itertools;
 use serde_derive::{Serialize, Deserialize};
 use log::{debug, log, trace};
 
-use crate::actions::format::Formatter;
 use crate::actions::hover;
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;

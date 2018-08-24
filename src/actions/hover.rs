@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::actions::format::{Rustfmt, Formatter};
+use crate::actions::format::Rustfmt;
 use crate::actions::requests;
 use crate::actions::InitActionContext;
 use crate::config::FmtConfig;
