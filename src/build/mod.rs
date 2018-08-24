@@ -10,12 +10,10 @@
 
 //! Running builds as-needed for the server to answer questions.
 
-pub use self::cargo::make_cargo_config;
-
 use self::environment::EnvironmentLock;
-use self::plan::{Plan as BuildPlan, WorkStatus};
+use self::plan::{BuildGraph, BuildPlan, WorkStatus};
 
-use ::cargo::util::{CargoError, important_paths};
+use ::cargo::util::CargoError;
 use crate::actions::post_build::PostBuildHandler;
 use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
 use crate::config::Config;
@@ -34,6 +32,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 mod cargo;
+mod cargo_plan;
 pub mod environment;
 mod external;
 mod plan;
@@ -147,7 +146,7 @@ struct CompilationContext {
     /// Whether needs to perform a Cargo rebuild
     needs_rebuild: bool,
     /// Build plan, which should know all the inter-package/target dependencies
-    /// along with args/envs. Only contains inter-package dep-graph for now.
+    /// along with args/envs.
     build_plan: BuildPlan,
 }
 
@@ -523,37 +522,56 @@ impl Internals {
         // do this so we can load changed code from the VFS, rather than from
         // disk).
 
-        // Check if an override setting was provided and execute that, instead.
-        if let Some(ref cmd) = self.config.lock().unwrap().build_command {
-            let build_dir = self.compilation_cx.lock().unwrap().build_dir.clone();
-            return external::build_with_external_cmd(cmd, build_dir.unwrap());
-        }
-
         // If the build plan has already been cached, use it, unless Cargo
         // has to be specifically rerun (e.g. when build scripts changed)
         let work = {
             let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
 
             let mut cx = self.compilation_cx.lock().unwrap();
-            let needs_to_run_cargo = cx.needs_rebuild;
-            let build_dir = cx.build_dir.as_ref().unwrap();
+            let build_dir = cx.build_dir.clone().unwrap();
+            let needs_rebuild = cx.needs_rebuild;
 
-            match important_paths::find_root_manifest_for_wd(build_dir) {
-                Ok(manifest_path) => {
-                    cx.build_plan
-                        .prepare_work(&manifest_path, &modified, needs_to_run_cargo)
+            // Check if an external build command was provided and execute that, instead.
+            if let Some(cmd) = self.config.lock().unwrap().build_command.clone() {
+                match (needs_rebuild, &cx.build_plan) {
+                    (false, BuildPlan::External(ref plan)) => {
+                        plan.prepare_work(&modified)
+                    },
+                    // We need to rebuild; regenerate the build plan if possible.
+                    _ => match external::build_with_external_cmd(cmd, build_dir) {
+                        (result, Err(_)) => return result,
+                        (result, Ok(plan)) => {
+                            cx.needs_rebuild = false;
+                            cx.build_plan = BuildPlan::External(plan);
+                            // Since we don't support diagnostics in external
+                            // builds it might be worth rerunning the commands
+                            // ourselves again to get both analysis *and* diagnostics
+                            return result;
+                        }
+                    },
                 }
-                Err(e) => {
-                    let msg = format!("Error reading manifest path: {:?}", e);
-                    return BuildResult::Err(msg, None);
+            // Fall back to Cargo
+            } else {
+                // Cargo plan is recreated and `needs_rebuild` reset if we run cargo::cargo().
+                match cx.build_plan {
+                    BuildPlan::External(_) => {
+                        WorkStatus::NeedsCargo(PackageArg::Default)
+                    },
+                    BuildPlan::Cargo(ref plan) => {
+                        match plan.prepare_work(&modified) {
+                            // Don't reuse the plan if we need to rebuild
+                            WorkStatus::Execute(_) if needs_rebuild => {
+                                WorkStatus::NeedsCargo(PackageArg::Default)
+                            },
+                            work @ _ => work,
+                        }
+                    }
                 }
             }
         };
-        trace!("Specified work: {:?}", work);
+        trace!("Specified work: {:#?}", work);
 
         let result = match work {
-            // Cargo performs the full build and returns
-            // appropriate diagnostics/analysis data
             WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
             WorkStatus::Execute(job_queue) => job_queue.execute(self, progress_sender),
         };

@@ -380,8 +380,10 @@ impl Job {
             self.cwd
         );
         if self.analysis.is_empty() {
+            trace!("reloading from disk: {:?}", self.cwd);
             self.handler.reload_analysis_from_disk(&self.cwd);
         } else {
+            trace!("reloading from memory: {:?}", self.cwd);
             self.handler
                 .reload_analysis_from_memory(&self.cwd, self.analysis);
         }

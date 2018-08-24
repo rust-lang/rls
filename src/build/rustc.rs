@@ -49,10 +49,12 @@ use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
 
 use std::collections::HashMap;
+use std::env;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::process::Command;
 
 // Runs a single instance of rustc. Runs in-process.
 crate fn rustc(
@@ -65,9 +67,10 @@ crate fn rustc(
     env_lock: &EnvironmentLockFacade,
 ) -> BuildResult {
     trace!(
-        "rustc - args: `{:?}`, envs: {:?}, build dir: {:?}",
+        "rustc - args: `{:?}`, envs: {:?}, cwd: {:?}, build dir: {:?}",
         args,
         envs,
+        cwd,
         build_dir
     );
 
@@ -75,11 +78,17 @@ crate fn rustc(
 
     let mut local_envs = envs.clone();
 
-    if rls_config.lock().unwrap().clear_env_rust_log {
-        local_envs.insert(String::from("RUST_LOG"), None);
-    }
+    let clippy_pref = {
+        let config = rls_config.lock().unwrap();
+        if config.clear_env_rust_log {
+            local_envs.insert(String::from("RUST_LOG"), None);
+        }
 
-    let clippy_pref = rls_config.lock().unwrap().clippy_preference;
+        config.clippy_preference
+    };
+    // Required for Clippy not to crash when running outside Cargo?
+    local_envs.entry("CARGO_MANIFEST_DIR".into()).or_insert(Some(build_dir.clone().into()));
+
     let (guard, _) = env_lock.lock();
     let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
 
@@ -132,6 +141,7 @@ crate fn rustc(
     let analysis = analysis
         .map(|analysis| vec![analysis])
         .unwrap_or_else(Vec::new);
+    log::debug!("rustc: analysis read successfully?: {}", !analysis.is_empty());
 
     let cwd = cwd
         .unwrap_or_else(|| restore_env.get_old_cwd())
@@ -338,5 +348,24 @@ impl FileLoader for ReplacedFileLoader {
             }
         }
         self.real_file_loader.read_file(path)
+    }
+}
+
+pub(super) fn current_sysroot() -> Option<String> {
+    let home = env::var("RUSTUP_HOME").or_else(|_| env::var("MULTIRUST_HOME"));
+    let toolchain = env::var("RUSTUP_TOOLCHAIN").or_else(|_| env::var("MULTIRUST_TOOLCHAIN"));
+    if let (Ok(home), Ok(toolchain)) = (home, toolchain) {
+        Some(format!("{}/toolchains/{}", home, toolchain))
+    } else {
+        let rustc_exe = env::var("RUSTC").unwrap_or_else(|_| "rustc".to_owned());
+        env::var("SYSROOT").map(|s| s.to_owned()).ok().or_else(|| {
+            Command::new(rustc_exe)
+                .arg("--print")
+                .arg("sysroot")
+                .output()
+                .ok()
+                .and_then(|out| String::from_utf8(out.stdout).ok())
+                .map(|s| s.trim().to_owned())
+        })
     }
 }
