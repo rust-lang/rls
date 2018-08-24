@@ -19,7 +19,7 @@ use rustc_save_analysis as save;
 use rustc_save_analysis::CallbackHandler;
 use rustc_codegen_utils::codegen_backend::CodegenBackend;
 use syntax::ast;
-use syntax::codemap::{FileLoader, RealFileLoader};
+use syntax::source_map::{FileLoader, RealFileLoader};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 use log::{log, trace};
