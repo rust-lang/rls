@@ -22,7 +22,6 @@ use racer;
 pub struct ProjectModel {
     manifest_to_id: HashMap<PathBuf, Package>,
     packages: Vec<PackageData>,
-    current_lib: Option<(String, PathBuf)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -30,7 +29,7 @@ pub struct Package(usize);
 
 #[derive(Debug)]
 struct PackageData {
-    lib: Option<PathBuf>,
+    lib: Option<(PathBuf, String)>,
     deps: Vec<Dep>,
 }
 
@@ -41,12 +40,12 @@ pub struct Dep {
 }
 
 impl ProjectModel {
-    pub fn load(current_manifest: &Path, vfs: &Vfs) -> Result<ProjectModel, failure::Error> {
-        assert!(current_manifest.ends_with("Cargo.toml"));
+    pub fn load(ws_manifest: &Path, vfs: &Vfs) -> Result<ProjectModel, failure::Error> {
+        assert!(ws_manifest.ends_with("Cargo.toml"));
         let mut config = Config::default()?;
         // frozen = false, locked = false
         config.configure(0, Some(true), &None, false, false, &None, &[])?;
-        let ws = Workspace::new(&current_manifest, &config)?;
+        let ws = Workspace::new(&ws_manifest, &config)?;
         // get resolve from lock file
         let prev = {
             let lock_path = ws.root().to_owned().join("Cargo.lock");
@@ -68,7 +67,6 @@ impl ProjectModel {
         let mut pkg_id_to_pkg = HashMap::new();
         let mut manifest_to_id = HashMap::new();
         let mut packages = Vec::new();
-        let mut current_lib = None;
         for (idx, pkg_id) in resolve.iter().enumerate() {
             let pkg = Package(idx);
             pkg_id_to_pkg.insert(pkg_id.clone(), pkg);
@@ -79,13 +77,7 @@ impl ProjectModel {
                     .targets()
                     .iter()
                     .find(|t| t.is_lib())
-                    .map(|t| {
-                        let src_path = t.src_path().to_owned();
-                        if manifest == current_manifest {
-                            current_lib = Some((t.name().replace('-', "_"), src_path.clone()));
-                        }
-                        src_path
-                    }),
+                    .map(|t| (t.src_path().to_owned(), t.name().replace('-', "_"))),
                 deps: Vec::new(),
             });
             manifest_to_id.insert(manifest, pkg);
@@ -112,7 +104,6 @@ impl ProjectModel {
         Ok(ProjectModel {
             manifest_to_id,
             packages,
-            current_lib,
         })
     }
 
@@ -123,6 +114,10 @@ impl ProjectModel {
     fn get(&self, pkg: Package) -> &PackageData {
         &self.packages[pkg.0]
     }
+
+    fn get_lib(&self, pkg: Package) -> Option<&(PathBuf, String)> {
+        self.packages[pkg.0].lib.as_ref()
+    }
 }
 
 impl Package {
@@ -130,7 +125,7 @@ impl Package {
         &project.get(self).deps
     }
     pub fn lib_root(self, project: &ProjectModel) -> Option<&Path> {
-        project.get(self).lib.as_ref().map(|p| p.as_path())
+        project.get(self).lib.as_ref().map(|p| p.0.as_path())
     }
 }
 
@@ -150,13 +145,14 @@ impl racer::ProjectModelProvider for RacerProjectModel {
         }
     }
     fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
-        // for completion in tests/examples dir
-        if let Some(ref current_lib) = self.0.current_lib {
-            if current_lib.0 == libname {
-                return Some(current_lib.1.clone());
+        let pkg = self.0.package_for_manifest(manifest)?;
+        // if current package has a library target, we have to provide its own name
+        // in examples/tests/benches directory
+        if let Some(lib) = self.0.get_lib(pkg) {
+            if lib.1 == libname {
+                return Some(lib.0.clone());
             }
         }
-        let pkg = self.0.package_for_manifest(manifest)?;
         let dep = pkg.deps(&self.0)
             .iter()
             .find(|dep| dep.crate_name == libname)?
