@@ -82,7 +82,7 @@ impl ProjectModel {
                     .map(|t| {
                         let src_path = t.src_path().to_owned();
                         if manifest == current_manifest {
-                            current_lib = Some((t.name().to_owned(), src_path.clone()));
+                            current_lib = Some((t.name().replace('-', "_"), src_path.clone()));
                         }
                         src_path
                     }),
