@@ -22,6 +22,7 @@ use racer;
 pub struct ProjectModel {
     manifest_to_id: HashMap<PathBuf, Package>,
     packages: Vec<PackageData>,
+    current_lib: Option<(String, PathBuf)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -40,12 +41,12 @@ pub struct Dep {
 }
 
 impl ProjectModel {
-    pub fn load(manifest: &Path, vfs: &Vfs) -> Result<ProjectModel, failure::Error> {
-        assert!(manifest.ends_with("Cargo.toml"));
+    pub fn load(current_manifest: &Path, vfs: &Vfs) -> Result<ProjectModel, failure::Error> {
+        assert!(current_manifest.ends_with("Cargo.toml"));
         let mut config = Config::default()?;
         // frozen = false, locked = false
         config.configure(0, Some(true), &None, false, false, &None, &[])?;
-        let ws = Workspace::new(&manifest, &config)?;
+        let ws = Workspace::new(&current_manifest, &config)?;
         // get resolve from lock file
         let prev = {
             let lock_path = ws.root().to_owned().join("Cargo.lock");
@@ -67,20 +68,27 @@ impl ProjectModel {
         let mut pkg_id_to_pkg = HashMap::new();
         let mut manifest_to_id = HashMap::new();
         let mut packages = Vec::new();
+        let mut current_lib = None;
         for (idx, pkg_id) in resolve.iter().enumerate() {
             let pkg = Package(idx);
             pkg_id_to_pkg.insert(pkg_id.clone(), pkg);
             let cargo_pkg = cargo_packages.get(pkg_id)?;
             let manifest = cargo_pkg.manifest_path().to_owned();
-            manifest_to_id.insert(manifest, pkg);
             packages.push(PackageData {
                 lib: cargo_pkg
                     .targets()
                     .iter()
                     .find(|t| t.is_lib())
-                    .map(|t| t.src_path().to_owned()),
+                    .map(|t| {
+                        let src_path = t.src_path().to_owned();
+                        if manifest == current_manifest {
+                            current_lib = Some((t.name().to_owned(), src_path.clone()));
+                        }
+                        src_path
+                    }),
                 deps: Vec::new(),
-            })
+            });
+            manifest_to_id.insert(manifest, pkg);
         }
         for pkg_id in resolve.iter() {
             for (dep_id, _) in resolve.deps(&pkg_id) {
@@ -104,6 +112,7 @@ impl ProjectModel {
         Ok(ProjectModel {
             manifest_to_id,
             packages,
+            current_lib,
         })
     }
 
@@ -141,6 +150,12 @@ impl racer::ProjectModelProvider for RacerProjectModel {
         }
     }
     fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
+        // for completion in tests/examples dir
+        if let Some(ref current_lib) = self.0.current_lib {
+            if current_lib.0 == libname {
+                return Some(current_lib.1.clone());
+            }
+        }
         let pkg = self.0.package_for_manifest(manifest)?;
         let dep = pkg.deps(&self.0)
             .iter()
