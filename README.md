@@ -10,7 +10,7 @@ functionality such as 'goto definition', symbol search, reformatting, and code
 completion, and enables renaming and refactorings.
 
 The RLS gets its source data from the compiler and from
-[Racer](https://github.com/phildawes/racer). Where possible it uses data from
+[Racer](https://github.com/racer-rust/racer). Where possible it uses data from
 the compiler which is precise and complete. Where it is not possible, (for example
 for code completion and where building is too slow), it uses Racer.
 

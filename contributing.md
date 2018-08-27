@@ -98,8 +98,8 @@ the future.
 rustup component add rust-analysis
 ```
 
-If you've never set up Racer before, you may also need to follow the [Racer configuration
-steps](https://github.com/phildawes/racer#configuration)
+If you've never set up Racer before, you may also need to follow the
+[Racer configuration steps](https://github.com/racer-rust/racer#configuration)
 
 ## Running and testing
 
