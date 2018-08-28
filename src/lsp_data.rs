@@ -187,18 +187,15 @@ pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
         DefKind::Enum | DefKind::Union => SymbolKind::Enum,
         DefKind::Static | DefKind::Const | DefKind::ForeignStatic => SymbolKind::Constant,
         DefKind::Tuple => SymbolKind::Array,
-        DefKind::Struct => SymbolKind::Class,
+        DefKind::Struct => SymbolKind::Struct,
         DefKind::Function | DefKind::Macro | DefKind::ForeignFunction => SymbolKind::Function,
         DefKind::Method => SymbolKind::Method,
         DefKind::Mod => SymbolKind::Module,
-        DefKind::Trait | DefKind::Type | DefKind::ExternType => SymbolKind::Interface,
+        DefKind::Trait => SymbolKind::Interface,
+        DefKind::Type | DefKind::ExternType => SymbolKind::TypeParameter,
         DefKind::Local => SymbolKind::Variable,
-        DefKind::Field | DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::Field,
-
-        // Waiting for languageserver-types be updated to LSP 3 spec
-        //DefKind::Struct => SymbolKind::Struct,
-        //DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::EnumMember,
-        //DefKind::Type => SymbolKind::TypeParameter,
+        DefKind::Field => SymbolKind::Field,
+        DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::EnumMember,
     }
 }
 

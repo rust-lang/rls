@@ -423,7 +423,7 @@ fn test_workspace_symbol_duplicates() {
         &result,
         r#"[{
             "containerName": "a",
-            "kind": 5,
+            "kind": 23,
             "location": {
               "range": {
                 "end": { "line": 11, "character": 18 },
