@@ -13,6 +13,7 @@
 //! Please note that since the command is ran externally (at a file/OS level)
 //! this doesn't work with files that are not saved.
 
+use std::io::BufRead;
 use std::io::Read;
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -28,10 +29,10 @@ use log::{log, trace};
 /// to be reloaded by the RLS.
 /// Note: This is *very* experimental and preliminary - this can viewed as
 /// an experimentation until a more complete solution emerges.
-pub(super) fn build_with_external_cmd<S: AsRef<str>>(path: S, build_dir: PathBuf) -> BuildResult {
-    let path = path.as_ref();
+pub(super) fn build_with_external_cmd<S: AsRef<str>>(cmd_line: S, build_dir: PathBuf) -> BuildResult {
+    let cmd_line = cmd_line.as_ref();
     let (cmd, args) = {
-        let mut words = path.split_whitespace();
+        let mut words = cmd_line.split_whitespace();
         let cmd = match words.next() {
             Some(cmd) => cmd,
             None => {
@@ -50,15 +51,13 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(path: S, build_dir: PathBuf
     let child = match spawned {
         Ok(child) => child,
         Err(io) => {
-            let err_msg = format!("Couldn't execute: {} ({:?})", path, io.kind());
+            let err_msg = format!("Couldn't execute: {} ({:?})", cmd_line, io.kind());
             trace!("{}", err_msg);
-            return BuildResult::Err(err_msg, Some(path.to_owned()));
+            return BuildResult::Err(err_msg, Some(cmd_line.to_owned()));
         },
     };
 
-    // TODO: Timeout?
     let reader = std::io::BufReader::new(child.stdout.unwrap());
-    use std::io::BufRead;
 
     let files = reader.lines().filter_map(|res| res.ok())
         .map(PathBuf::from)
@@ -69,7 +68,7 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(path: S, build_dir: PathBuf
         Ok(analyses) => analyses,
         Err(cause) => {
             let err_msg = format!("Couldn't read analysis data: {}", cause);
-            return BuildResult::Err(err_msg, Some(path.to_owned()));
+            return BuildResult::Err(err_msg, Some(cmd_line.to_owned()));
         }
     };
 
