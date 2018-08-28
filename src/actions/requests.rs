@@ -15,7 +15,7 @@ use rls_data as data;
 use url::Url;
 use rls_vfs::{FileContents};
 use racer;
-use rustfmt_nightly::{Session, FileLines, FileName, Input as FmtInput, Range as RustfmtRange};
+use rustfmt_nightly::{FileLines, FileName, Range as RustfmtRange};
 use serde_json;
 use rls_span as span;
 use itertools::Itertools;
@@ -719,7 +719,7 @@ fn reformat(
     let path = parse_file_path!(&doc.uri, "reformat")?;
 
     let input = match ctx.vfs.load_file(&path) {
-        Ok(FileContents::Text(s)) => FmtInput::Text(s),
+        Ok(FileContents::Text(s)) => s,
         Ok(_) => {
             debug!("Reformat failed, found binary file");
             return Err(ResponseError::Message(
@@ -757,44 +757,12 @@ fn reformat(
         config.set().file_lines(file_lines);
     };
 
-    let mut buf = Vec::<u8>::new();
+    let formatted_text = ctx.formatter().format(input, config)
+        .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg))?;
 
-    {
-        let mut session = Session::new(config, Some(&mut buf));
+    // Note that we don't need to update the VFS, the client echos back the
+    // change to us when it applies the returned TextEdit.
 
-        match session.format(input) {
-            Ok(report) => {
-                // Session::format returns Ok even if there are any errors, i.e., parsing errors.
-                if session.has_operational_errors() || session.has_parsing_errors() {
-                    debug!(
-                        "reformat: format_input failed: has errors, report = {}",
-                        report
-                    );
-
-                    return Err(ResponseError::Message(
-                        ErrorCode::InternalError,
-                        "Reformat failed to complete successfully".into(),
-                    ));
-                }
-            }
-            Err(e) => {
-                debug!("Reformat failed: {:?}", e);
-
-                return Err(ResponseError::Message(
-                    ErrorCode::InternalError,
-                    "Reformat failed to complete successfully".into(),
-                ));
-            }
-        };
-    }
-
-    let text = String::from_utf8(buf).unwrap();
-
-    // Note that we don't need to update the VFS, the client
-    // echos back the change to us.
-
-    // If Rustfmt returns range of text that changed,
-    // we will be able to pass only range of changed text to the client.
     if !ctx.quiescent.load(Ordering::SeqCst) {
         return Err(ResponseError::Message(
             ErrorCode::InternalError,
@@ -802,10 +770,12 @@ fn reformat(
         ))
     }
 
+    // If Rustfmt returns range of text that changed,
+    // we will be able to pass only range of changed text to the client.
     Ok([
         TextEdit {
             range: range_whole_file,
-            new_text: text,
+            new_text: formatted_text,
         },
     ])
 }

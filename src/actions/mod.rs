@@ -22,6 +22,7 @@ use crate::Span;
 use walkdir::WalkDir;
 use log::{debug, log, trace, error, info};
 
+use crate::actions::format::Rustfmt;
 use crate::actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
 use crate::actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
 use crate::build::*;
@@ -66,6 +67,7 @@ pub mod progress;
 pub mod diagnostics;
 pub mod run;
 pub mod hover;
+pub mod format;
 
 /// Persistent context shared across all requests and notifications.
 pub enum ActionContext {
@@ -266,6 +268,16 @@ impl InitActionContext {
             }
         };
         racer::Session::with_project_model(cache, pm)
+    }
+
+    /// Depending on user configuration, we might use either external Rustfmt or
+    /// the one we're shipping with.
+    /// Locks config to read `rustfmt_path` key.
+    fn formatter(&self) -> Rustfmt {
+        let rustfmt = self.config.lock().unwrap().rustfmt_path.clone()
+            .map(|path| (path, self.current_project.clone()));
+
+        Rustfmt::from(rustfmt)
     }
 
     fn fmt_config(&self) -> FmtConfig {
