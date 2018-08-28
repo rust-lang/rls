@@ -164,8 +164,8 @@ pub struct Config {
     /// If set, executes a given program responsible for rebuilding save-analysis
     /// to be loaded by the RLS. The program given should output a list of
     /// resulting .json files on stdout.
-    /// Currently also requires `build_on_save` to be set to true, since external
-    /// commands have no insight into in-memory text buffers (unsaved files).
+    ///
+    /// Implies `build_on_save`: true.
     pub build_command: Option<String>,
 }
 
@@ -235,9 +235,8 @@ impl Config {
             self.cfg_test = false;
             self.rustfmt_path = None;
             self.build_command = None;
-        } else if !self.build_on_save {
-            self.build_command = None;
-            eprintln!("`build_command` also requires enabled `build_on_save` option");
+        } else if self.build_command.is_some() {
+            self.build_on_save = true;
         }
     }
 
