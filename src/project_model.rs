@@ -77,6 +77,7 @@ impl ProjectModel {
                     .targets()
                     .iter()
                     .find(|t| t.is_lib())
+                    // racer expect name 'underscored'(crate) name
                     .map(|t| (t.src_path().to_owned(), t.name().replace('-', "_"))),
                 deps: Vec::new(),
             });
