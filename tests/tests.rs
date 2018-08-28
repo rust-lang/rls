@@ -312,3 +312,68 @@ fn changing_workspace_lib_retains_bin_diagnostics() {
         rls.shutdown_exit();
     });
 }
+
+#[test]
+fn cmd_test_complete_self_crate_name() {
+    timeout(Duration::from_secs(TIME_LIMIT_SECS), ||{
+        let p = project("ws_with_test_dir")
+            .file("Cargo.toml", r#"
+                [workspace]
+                members = ["library"]
+            "#)
+            .file("library/Cargo.toml", r#"
+                [package]
+                name = "library"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#)
+            .file("library/src/lib.rs", r#"
+                pub fn function() -> usize { 5 }
+            "#)
+            .file("library/tests/test.rs", r#"
+                   extern crate library;
+                   use library::~
+            "#)
+            .build();
+
+        let root_path = p.root();
+        let rls_child = p.rls().spawn().unwrap();
+        let mut rls = RlsHandle::new(rls_child);
+
+        rls.request(0, "initialize", Some(json!({
+            "rootPath": root_path,
+            "capabilities": {}
+        }))).unwrap();
+
+        rls.expect_messages(&[
+            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("library"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains("library"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Building""#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#"title":"Indexing""#),
+            ExpectedMessage::new(None).expect_contains("expected identifier, found"),
+            ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
+        ]);
+        rls.request(0, "textDocument/completion", Some(json!({
+            "context": {
+                "triggerCharacter": ":",
+                "triggerKind": 2
+            },
+            "position": {
+                "character": 32,
+                "line": 2
+            },
+            "textDocument": {
+                "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                "version": 1
+            }
+        }))).unwrap();
+        rls.expect_messages(&[
+            ExpectedMessage::new(Some(0)).expect_contains("result").expect_contains("pub fn function() -> usize"),
+        ]);
+
+        rls.shutdown_exit();
+    });
+}
