@@ -20,7 +20,7 @@ use url::Url;
 use rls_span as span;
 use crate::Span;
 use walkdir::WalkDir;
-use log::{debug, log, trace, error, info};
+use log::{debug, trace, error, info};
 
 use crate::actions::format::Rustfmt;
 use crate::actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
@@ -46,7 +46,6 @@ use std::io;
 macro_rules! ignore_non_file_uri {
     ($expr: expr, $uri: expr, $log_name: expr) => {
         $expr.map_err(|_| {
-            use log::{log, trace};
             trace!("{}: Non-`file` URI scheme, ignoring: {:?}", $log_name, $uri);
             ()
         })

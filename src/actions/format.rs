@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use rand::{Rng, thread_rng};
-use log::{log, debug};
+use log::debug;
 use rustfmt_nightly::{Config, Session, Input};
 use serde_json;
 
