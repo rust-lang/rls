@@ -20,7 +20,7 @@ use serde_json;
 use rls_span as span;
 use itertools::Itertools;
 use serde_derive::{Serialize, Deserialize};
-use log::{debug, log, trace};
+use log::{debug, trace};
 
 use crate::actions::hover;
 use crate::actions::work_pool;

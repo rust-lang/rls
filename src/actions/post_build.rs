@@ -28,7 +28,7 @@ use crate::lsp_data::PublishDiagnosticsParams;
 use crate::concurrency::JobToken;
 use languageserver_types::DiagnosticSeverity;
 use itertools::Itertools;
-use log::{log, trace};
+use log::trace;
 
 use rls_analysis::AnalysisHost;
 use rls_data::Analysis;

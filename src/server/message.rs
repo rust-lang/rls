@@ -17,7 +17,7 @@ use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
 use serde_json;
 use serde_derive::Serialize;
-use log::{debug, log};
+use log::debug;
 
 use crate::actions::ActionContext;
 use crate::lsp_data::{LSPNotification, LSPRequest};

@@ -24,7 +24,7 @@ use serde_json;
 use rls_span::compiler::DiagnosticSpan;
 use url::Url;
 use serde_derive::Deserialize;
-use log::{debug, log};
+use log::debug;
 
 pub use languageserver_types::Diagnostic;
 

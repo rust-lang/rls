@@ -18,7 +18,7 @@ use serde::de::Error;
 use serde_json;
 use crate::Span;
 use std::sync::atomic::Ordering;
-use log::{debug, log, trace, warn};
+use log::{debug, trace, warn};
 
 use crate::build::*;
 use crate::lsp_data::*;

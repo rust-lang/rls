@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
     path::{Path, PathBuf},
 };
-use log::{log, warn};
+use log::warn;
 use rls_vfs::{Vfs, FileContents};
 use cargo::{
     Config,

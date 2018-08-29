@@ -40,7 +40,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use crate::version;
 use rls_vfs::Vfs;
-use log::{debug, error, log, trace, warn};
+use log::{debug, error, trace, warn};
 
 mod dispatch;
 mod io;

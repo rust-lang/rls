@@ -26,7 +26,7 @@ use cargo::core::{Shell, Workspace};
 use serde::de::{Deserialize, Deserializer, Visitor};
 use serde_derive::{Serialize, Deserialize};
 
-use log::{log, trace};
+use log::trace;
 
 use rustfmt_nightly::Config as RustfmtConfig;
 use rustfmt_nightly::{load_config, CliOptions, EmitMode, Verbosity};

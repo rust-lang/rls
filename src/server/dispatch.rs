@@ -19,7 +19,7 @@ use crate::server::io::Output;
 use crate::server::message::ResponseError;
 use crate::server::{Request, Response};
 use crate::concurrency::{ConcurrentJob, JobToken};
-use log::{debug, log};
+use log::debug;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
