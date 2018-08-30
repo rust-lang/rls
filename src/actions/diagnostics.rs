@@ -18,13 +18,15 @@ use std::collections::HashMap;
 use std::iter;
 use std::path::{Path, PathBuf};
 
-use languageserver_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range};
 use crate::lsp_data::ls_util;
-use serde_json;
-use rls_span::compiler::DiagnosticSpan;
-use url::Url;
-use serde_derive::Deserialize;
+use languageserver_types::{
+    DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range,
+};
 use log::debug;
+use rls_span::compiler::DiagnosticSpan;
+use serde_derive::Deserialize;
+use serde_json;
+use url::Url;
 
 pub use languageserver_types::Diagnostic;
 
@@ -240,8 +242,7 @@ fn make_related_information<'a>(
                     },
                     message: label.trim().to_owned(),
                 })
-        })
-        .collect();
+        }).collect();
 
     related_information.sort_by_key(|info| info.location.range.start);
 
@@ -264,8 +265,7 @@ fn make_suggestions<'a>(
                         .as_ref()
                         .and_then(|label| label_suggestion(span, label))
                 })
-        })
-        .collect();
+        }).collect();
 
     // Suggestions are displayed at primary span, so if the change is somewhere
     // else, be sure to specify that
@@ -313,7 +313,9 @@ trait IsWithin {
 
 impl<T: PartialOrd<T>> IsWithin for ::std::ops::Range<T> {
     fn is_within(&self, other: &Self) -> bool {
-        self.start >= other.start && self.start <= other.end && self.end <= other.end
+        self.start >= other.start
+            && self.start <= other.end
+            && self.end <= other.end
             && self.end >= other.start
     }
 }
@@ -372,7 +374,8 @@ mod diagnostic_message_test {
         }
 
         fn to_messages(&self) -> Vec<(String, Vec<String>)> {
-            (self.single_file_results()
+            (self
+                .single_file_results()
                 .iter()
                 .map(|(diagnostic, _)| {
                     (
@@ -385,8 +388,7 @@ mod diagnostic_message_test {
                             .map(|d| d.message.clone())
                             .collect(),
                     )
-                })
-                .collect())
+                }).collect())
         }
 
         fn to_primary_messages(&self) -> Vec<String> {
@@ -656,7 +658,8 @@ help: consider borrowing here: `&string`"#,
             "the operation is ineffective. Consider reducing it to `1`\n\n\
              note: #[warn(identity_op)] implied by #[warn(clippy)]\n\
              help: for further information visit "
-                .to_owned() + link
+                .to_owned()
+                + link
         );
 
         assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
@@ -677,21 +680,28 @@ help: consider borrowing here: `&string`"#,
         assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
 
         let file = &diag.diagnostics.keys().nth(0).unwrap();
-        assert!(file.to_str().unwrap().ends_with("src/main.rs"), "Unexpected file {:?}", file);
+        assert!(
+            file.to_str().unwrap().ends_with("src/main.rs"),
+            "Unexpected file {:?}",
+            file
+        );
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
         assert_eq!(diagnostic.0.source, Some("rustc".into()));
-        assert_eq!(diagnostic.0.range, Range {
-            start: Position::new(2, 4),
-            end: Position::new(2, 27),
-        });
+        assert_eq!(
+            diagnostic.0.range,
+            Range {
+                start: Position::new(2, 4),
+                end: Position::new(2, 27),
+            }
+        );
 
         let messages = diag.to_messages();
         assert_eq!(
             messages[0].0,
             "no method named `write_fmt` found for type `std::string::String` \
-            in the current scope\n\n\
-            help: items from traits can only be used if the trait is in scope"
+             in the current scope\n\n\
+             help: items from traits can only be used if the trait is in scope"
         );
 
         assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
@@ -713,20 +723,24 @@ help: consider borrowing here: `&string`"#,
         assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
 
         let file = &diag.diagnostics.keys().nth(0).unwrap();
-        assert!(file.to_str().unwrap().ends_with("src/main.rs"), "Unexpected file {:?}", file);
+        assert!(
+            file.to_str().unwrap().ends_with("src/main.rs"),
+            "Unexpected file {:?}",
+            file
+        );
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
         assert_eq!(diagnostic.0.source, Some("rustc".into()));
-        assert_eq!(diagnostic.0.range, Range {
-            start: Position::new(4, 4),
-            end: Position::new(4, 33),
-        });
+        assert_eq!(
+            diagnostic.0.range,
+            Range {
+                start: Position::new(4, 4),
+                end: Position::new(4, 33),
+            }
+        );
 
         let messages = diag.to_messages();
-        assert_eq!(
-            messages[0].0,
-            "expected token: `,`"
-        );
+        assert_eq!(messages[0].0, "expected token: `,`");
 
         assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
     }
@@ -845,7 +859,10 @@ mod diagnostic_suggestion_test {
             .find(|s| s.new_text == "use std::fmt::Write;\n\n")
             .expect("`use std::fmt::Write;` not found");
 
-        assert_eq!(change_to_mut.label, "Line 1: Add `use std::fmt::Write;\n\n`");
+        assert_eq!(
+            change_to_mut.label,
+            "Line 1: Add `use std::fmt::Write;\n\n`"
+        );
 
         assert_eq!(
             change_to_mut.range,

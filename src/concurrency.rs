@@ -1,7 +1,7 @@
-use std::{thread};
+use std::thread;
 
+use crossbeam_channel::{__crossbeam_channel_codegen, __crossbeam_channel_parse, select};
 use crossbeam_channel::{bounded, Receiver, Sender};
-use crossbeam_channel::{select, __crossbeam_channel_parse, __crossbeam_channel_codegen};
 
 /// `ConcurrentJob` is a handle for some long-running computation
 /// off the main thread. It can be used, indirectly, to wait for

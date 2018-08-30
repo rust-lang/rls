@@ -10,23 +10,23 @@
 
 //! Types, helpers, and conversions to and from LSP and `racer` types.
 
+use std::error::Error;
 use std::fmt;
 use std::path::PathBuf;
-use std::error::Error;
 
-use rls_analysis::DefKind;
-use url::Url;
-use rls_span as span;
-use racer;
-use rls_vfs::FileContents;
 use languageserver_types as ls_types;
-use serde_derive::{Serialize, Deserialize};
+use racer;
+use rls_analysis::DefKind;
+use rls_span as span;
+use rls_vfs::FileContents;
+use serde_derive::{Deserialize, Serialize};
+use url::Url;
 
 use crate::actions::hover;
 
-pub use languageserver_types::*;
-pub use languageserver_types::request::Request as LSPRequest;
 pub use languageserver_types::notification::Notification as LSPNotification;
+pub use languageserver_types::request::Request as LSPRequest;
+pub use languageserver_types::*;
 
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
@@ -69,13 +69,12 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
 pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
     let changes = vec![(
         location.uri,
-        vec![
-            TextEdit {
-                range: location.range,
-                new_text,
-            },
-        ],
-    )].into_iter().collect();
+        vec![TextEdit {
+            range: location.range,
+            new_text,
+        }],
+    )].into_iter()
+    .collect();
 
     WorkspaceEdit {
         changes: Some(changes),
@@ -88,8 +87,8 @@ pub mod ls_util {
     use super::*;
     use crate::Span;
 
-    use std::path::Path;
     use rls_vfs::Vfs;
+    use std::path::Path;
 
     /// Convert a language server protocol range into an RLS range.
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {
@@ -205,7 +204,9 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::Module,
         racer::MatchType::Struct => CompletionItemKind::Class,
         racer::MatchType::Enum => CompletionItemKind::Enum,
-        racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => CompletionItemKind::Field,
+        racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => {
+            CompletionItemKind::Field
+        }
         racer::MatchType::Macro
         | racer::MatchType::Function
         | racer::MatchType::FnArg
@@ -219,7 +220,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         | racer::MatchType::For
         | racer::MatchType::MatchArm
         | racer::MatchType::Const
-            | racer::MatchType::Static => CompletionItemKind::Variable,
+        | racer::MatchType::Static => CompletionItemKind::Variable,
         racer::MatchType::TypeParameter(_) => CompletionItemKind::TypeParameter,
         racer::MatchType::Builtin => CompletionItemKind::Keyword,
     }
@@ -233,7 +234,7 @@ pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
     if !m.docs.is_empty() {
         item.documentation = Some(Documentation::MarkupContent(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: hover::process_docs(&m.docs)
+            value: hover::process_docs(&m.docs),
         }));
     }
 
@@ -292,23 +293,23 @@ impl ClientCapabilities {
         // using this very simple struct is that it can be kept thread safe
         // without mutex locking it on every request.
         let code_completion_has_snippet_support = params
-        .capabilities
-        .text_document
-        .as_ref()
-        .and_then(|doc| doc.completion.as_ref())
-        .and_then(|comp| comp.completion_item.as_ref())
-        .and_then(|item| item.snippet_support.as_ref())
-        .unwrap_or(&false)
-        .to_owned();
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|doc| doc.completion.as_ref())
+            .and_then(|comp| comp.completion_item.as_ref())
+            .and_then(|item| item.snippet_support.as_ref())
+            .unwrap_or(&false)
+            .to_owned();
 
         let related_information_support = params
-        .capabilities
-        .text_document
-        .as_ref()
-        .and_then(|doc| doc.publish_diagnostics.as_ref())
-        .and_then(|diag| diag.related_information.as_ref())
-        .unwrap_or(&false)
-        .to_owned();
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|doc| doc.publish_diagnostics.as_ref())
+            .and_then(|diag| diag.related_information.as_ref())
+            .unwrap_or(&false)
+            .to_owned();
 
         ClientCapabilities {
             code_completion_has_snippet_support,
@@ -322,7 +323,7 @@ impl ClientCapabilities {
 /// Custom LSP notification sent to client indicating that the server is currently
 /// processing data and may publish new diagnostics on `rustDocument/diagnosticsEnd`.
 #[derive(Debug)]
-pub enum DiagnosticsBegin { }
+pub enum DiagnosticsBegin {}
 
 impl LSPNotification for DiagnosticsBegin {
     type Params = ();
@@ -335,7 +336,7 @@ impl LSPNotification for DiagnosticsBegin {
 /// This means that for multiple active `diagnosticsBegin` messages, there will
 /// be sent multiple `diagnosticsEnd` notifications.
 #[derive(Debug)]
-pub enum DiagnosticsEnd { }
+pub enum DiagnosticsEnd {}
 
 impl LSPNotification for DiagnosticsEnd {
     type Params = ();
@@ -344,7 +345,7 @@ impl LSPNotification for DiagnosticsEnd {
 
 /// Custom LSP notification sent to client indicating that a build process has begun.
 #[derive(Debug)]
-pub enum BeginBuild { }
+pub enum BeginBuild {}
 
 impl LSPNotification for BeginBuild {
     type Params = ();

@@ -11,18 +11,20 @@
 mod harness;
 mod lens;
 
-use serde_json::Value;
-use rls_analysis::{AnalysisHost, Target};
-use crate::actions::{requests, notifications};
+use crate::actions::{notifications, requests};
 use crate::config::{Config, Inferrable};
-use crate::server::{self as ls_server, Request, ShutdownRequest, Notification, RequestId};
+use crate::server::{self as ls_server, Notification, Request, RequestId, ShutdownRequest};
 use jsonrpc_core;
+use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
+use serde_json::Value;
 
-use self::harness::{compare_json, expect_message, expect_series, src, Environment, ExpectedMessage, RecordOutput};
+use self::harness::{
+    compare_json, expect_message, expect_series, src, Environment, ExpectedMessage, RecordOutput,
+};
 
-use languageserver_types::*;
 use crate::lsp_data::InitializationOptions;
+use languageserver_types::*;
 
 use env_logger;
 use serde_json;
@@ -32,10 +34,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use url::Url;
 
-fn initialize(
-    id: usize,
-    root_path: Option<String>,
-) -> Request<ls_server::InitializeRequest> {
+fn initialize(id: usize, root_path: Option<String>) -> Request<ls_server::InitializeRequest> {
     initialize_with_opts(id, root_path, None)
 }
 
@@ -142,7 +141,8 @@ fn test_goto_def() {
             11,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env.cache
+                position: env
+                    .cache
                     .mk_ls_position(src(&source_file_path, 22, "world")),
             },
         ).to_string(),
@@ -191,7 +191,8 @@ fn test_hover() {
             11,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env.cache
+                position: env
+                    .cache
                     .mk_ls_position(src(&source_file_path, 22, "world")),
             },
         ).to_string(),
@@ -206,7 +207,7 @@ fn test_hover() {
     expect_message(
         &mut server,
         results.clone(),
-        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);;
@@ -234,7 +235,9 @@ fn test_hover_after_src_line_change() {
     let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
         .expect("couldn't convert file path to URL");
 
-    let world_src_pos = env.cache.mk_ls_position(src(&source_file_path, 21, "world"));
+    let world_src_pos = env
+        .cache
+        .mk_ls_position(src(&source_file_path, 21, "world"));
     let world_src_pos_after = Position {
         line: world_src_pos.line + 1,
         ..world_src_pos
@@ -242,7 +245,6 @@ fn test_hover_after_src_line_change() {
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-
         request::<requests::Hover>(
             11,
             TextDocumentPositionParams {
@@ -250,24 +252,26 @@ fn test_hover_after_src_line_change() {
                 position: world_src_pos,
             },
         ).to_string(),
-
-        notification::<notifications::DidChangeTextDocument>(
-            DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier {
-                    uri: url.clone(),
-                    version: Some(2),
-                },
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: Some(Range {
-                        start: Position { line: 19, character: 15 },
-                        end: Position { line: 19, character: 15 },
-                    }),
-                    range_length: Some(0),
-                    text: "\n    ".into(),
-                }],
+        notification::<notifications::DidChangeTextDocument>(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier {
+                uri: url.clone(),
+                version: Some(2),
             },
-        ).to_string(),
-
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: Some(Range {
+                    start: Position {
+                        line: 19,
+                        character: 15,
+                    },
+                    end: Position {
+                        line: 19,
+                        character: 15,
+                    },
+                }),
+                range_length: Some(0),
+                text: "\n    ".into(),
+            }],
+        }).to_string(),
         request::<requests::Hover>(
             13,
             TextDocumentPositionParams {
@@ -299,8 +303,7 @@ fn test_hover_after_src_line_change() {
     expect_message(
         &mut server,
         results.clone(),
-        ExpectedMessage::new(Some(11))
-                .expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
+        ExpectedMessage::new(Some(11)).expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
     );
 
     // handle didChange notification and wait for rebuild
@@ -319,8 +322,7 @@ fn test_hover_after_src_line_change() {
     expect_message(
         &mut server,
         results.clone(),
-        ExpectedMessage::new(None)
-                .expect_contains(r#"[{"language":"rust","value":"&str"}]"#)
+        ExpectedMessage::new(None).expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
     );
 }
 
@@ -350,7 +352,7 @@ fn test_workspace_symbol() {
     expect_message(
         &mut server,
         results.clone(),
-        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -361,8 +363,9 @@ fn test_workspace_symbol() {
     );
 
     expect_message(
-        &mut server,results.clone(),
-            ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
+        &mut server,
+        results.clone(),
+        ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
             // in main.rs
             .expect_contains(r#"main.rs"#)
             .expect_contains(r#""name":"nemo""#)
@@ -375,7 +378,8 @@ fn test_workspace_symbol() {
             .expect_contains(r#""name":"nemo""#)
             .expect_contains(r#""kind":2"#)
             .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
-            .expect_contains(r#""containerName":"foo""#));
+            .expect_contains(r#""containerName":"foo""#),
+    );
 }
 
 #[test]
@@ -404,7 +408,7 @@ fn test_workspace_symbol_duplicates() {
     expect_message(
         &mut server,
         results.clone(),
-        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -470,7 +474,7 @@ fn test_find_all_refs() {
     expect_message(
         &mut server,
         results.clone(),
-        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -527,7 +531,7 @@ fn test_find_all_refs_no_cfg_test() {
     expect_message(
         &mut server,
         results.clone(),
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -553,9 +557,8 @@ fn test_borrow_error() {
     let mut env = Environment::new("borrow_error");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     let (mut server, results) = env.mock_server(messages);
     // Initialize and build.
@@ -566,7 +569,7 @@ fn test_borrow_error() {
     expect_message(
         &mut server,
         results.clone(),
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -597,7 +600,8 @@ fn test_highlight() {
             42,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env.cache
+                position: env
+                    .cache
                     .mk_ls_position(src(&source_file_path, 22, "world")),
             },
         ).to_string(),
@@ -649,7 +653,8 @@ fn test_rename() {
             42,
             RenameParams {
                 text_document: text_doc,
-                position: env.cache
+                position: env
+                    .cache
                     .mk_ls_position(src(&source_file_path, 22, "world")),
                 new_name: "foo".to_owned(),
             },
@@ -720,7 +725,7 @@ fn test_reformat() {
     expect_message(
         &mut server,
         results.clone(),
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -730,7 +735,8 @@ fn test_reformat() {
         ls_server::ServerStateChange::Continue
     );
     expect_message(
-        &mut server,results.clone(), 
+        &mut server,
+        results.clone(), 
         ExpectedMessage::new(Some(42))
             .expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":12,"character":0}}"#)
             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)
@@ -781,7 +787,7 @@ fn test_reformat_with_range() {
     expect_message(
         &mut server,
         results.clone(),
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -801,13 +807,10 @@ fn test_multiple_binaries() {
     let mut env = Environment::new("multiple_bins");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
-    env.with_config(|c| {
-        c.build_bin = Inferrable::Specified(Some("bin2".to_owned()))
-    });
+    env.with_config(|c| c.build_bin = Inferrable::Specified(Some("bin2".to_owned())));
     let (mut server, results) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
@@ -821,7 +824,7 @@ fn test_multiple_binaries() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_series(&mut server,results.clone(),vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 
     // These messages should be about bin_name1 and bin_name2, but the order is
     // not deterministic FIXME(#606)
@@ -835,7 +838,7 @@ fn test_multiple_binaries() {
         results.clone(),
         ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
     );
-    expect_series(&mut server,results.clone(),vec!["progress"]);
+    expect_series(&mut server, results.clone(), vec!["progress"]);
 }
 
 // FIXME Requires rust-src component, which would break Rust CI
@@ -884,9 +887,8 @@ fn test_bin_lib_project() {
 
     let root_path = env.cache.abs_path(Path::new("."));
 
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| {
         c.cfg_test = true;
@@ -978,9 +980,8 @@ fn test_infer_lib() {
     let mut env = Environment::new("infer_lib");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     let (mut server, results) = env.mock_server(messages);
     // Initialize and build.
@@ -1015,9 +1016,8 @@ fn test_infer_bin() {
     let mut env = Environment::new("infer_bin");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     let (mut server, results) = env.mock_server(messages);
     // Initialize and build.
@@ -1052,9 +1052,8 @@ fn test_infer_custom_bin() {
     let mut env = Environment::new("infer_custom_bin");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     let (mut server, results) = env.mock_server(messages);
     // Initialize and build.
@@ -1105,12 +1104,12 @@ fn test_omit_init_build() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_message(&mut server,
+    expect_message(
+        &mut server,
         results.clone(),
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 }
-
 
 #[test]
 fn test_parse_error_on_malformed_input() {
@@ -1137,7 +1136,10 @@ fn test_parse_error_on_malformed_input() {
     );
 
     let result = ls_server::LsService::handle_message(&mut server);
-    assert_eq!(result, ls_server::ServerStateChange::Break { exit_code: 101 } );
+    assert_eq!(
+        result,
+        ls_server::ServerStateChange::Break { exit_code: 101 }
+    );
 
     let error = results.lock().unwrap().pop().expect("no error response");
 
@@ -1175,7 +1177,8 @@ fn test_find_impls() {
             2,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url.clone()),
-                position: env.cache
+                position: env
+                    .cache
                     .mk_ls_position(src(&source_file_path, 16, "Super")),
             },
         ).to_string(),
@@ -1195,9 +1198,10 @@ fn test_find_impls() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_message(&mut server,
+    expect_message(
+        &mut server,
         results.clone(),
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -1207,19 +1211,29 @@ fn test_find_impls() {
         ls_server::ServerStateChange::Continue
     );
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
-    expect_message(&mut server, results.clone(),
+    expect_message(
+        &mut server,
+        results.clone(),
         ExpectedMessage::new(Some(1))
-            .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
-            .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
+            .expect_contains(
+                r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#,
+            ).expect_contains(
+                r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#,
+            ),
     );
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_message(&mut server, results.clone(),
+    expect_message(
+        &mut server,
+        results.clone(),
         ExpectedMessage::new(Some(2))
-            .expect_contains(r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#)
-            .expect_contains(r#""range":{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#)
+            .expect_contains(
+                r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#,
+            ).expect_contains(
+                r#""range":{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#,
+            ),
     );
     // FIXME Does not work on Travis
     // assert_eq!(ls_server::LsService::handle_message(&mut server),
@@ -1236,9 +1250,8 @@ fn test_features() {
     let mut env = Environment::new("features");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| c.features = vec!["foo".to_owned()]);
     let (mut server, results) = env.mock_server(messages);
@@ -1250,7 +1263,7 @@ fn test_features() {
     expect_message(
         &mut server,
         results.clone(),
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -1300,9 +1313,8 @@ fn test_no_default_features() {
     let mut env = Environment::new("features");
 
     let root_path = env.cache.abs_path(Path::new("."));
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| {
         c.no_default_features = true;
@@ -1458,7 +1470,10 @@ fn test_deglob() {
         let response: Value = serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
         assert_eq!(response["id"], 100);
         assert_eq!(response["result"][0]["title"], "Deglob import");
-        assert_eq!(response["result"][0]["command"], &*format!("rls.deglobImports-{}", ::std::process::id()));
+        assert_eq!(
+            response["result"][0]["command"],
+            &*format!("rls.deglobImports-{}", ::std::process::id())
+        );
         let deglob = &response["result"][0]["arguments"][0];
         assert!(
             deglob["location"]["uri"]
@@ -1570,7 +1585,7 @@ fn test_deglob() {
     expect_message(
         &mut server,
         results.clone(),
-            ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
+        ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
     );
 }
 
@@ -1580,9 +1595,8 @@ fn test_all_targets() {
 
     let root_path = env.cache.abs_path(Path::new("."));
 
-    let messages = vec![
-        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
-    ];
+    let messages =
+        vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| {
         c.all_targets = true;
@@ -1597,7 +1611,7 @@ fn test_all_targets() {
     expect_message(
         &mut server,
         results.clone(),
-        ExpectedMessage::new(Some(0)).expect_contains("capabilities")
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
     expect_series(&mut server, results.clone(), vec!["progress"]);
@@ -1631,22 +1645,26 @@ fn ignore_uninitialized_notification() {
         .expect("couldn't convert file path to URL");
 
     let messages = vec![
-        notification::<notifications::DidChangeTextDocument>(
-            DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier {
-                    uri: url.clone(),
-                    version: Some(2),
-                },
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: Some(Range {
-                        start: Position { line: 19, character: 15 },
-                        end: Position { line: 19, character: 15 },
-                    }),
-                    range_length: Some(0),
-                    text: "\n    ".into(),
-                }],
+        notification::<notifications::DidChangeTextDocument>(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier {
+                uri: url.clone(),
+                version: Some(2),
             },
-        ).to_string(),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: Some(Range {
+                    start: Position {
+                        line: 19,
+                        character: 15,
+                    },
+                    end: Position {
+                        line: 19,
+                        character: 15,
+                    },
+                }),
+                range_length: Some(0),
+                text: "\n    ".into(),
+            }],
+        }).to_string(),
         initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
@@ -1657,7 +1675,7 @@ fn ignore_uninitialized_notification() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    
+
     // Initialize and build
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1688,7 +1706,8 @@ fn fail_uninitialized_request() {
             0,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env.cache
+                position: env
+                    .cache
                     .mk_ls_position(src(&source_file_path, 22, "world")),
             },
         ).to_string(),

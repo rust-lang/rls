@@ -17,9 +17,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use rand::{Rng, thread_rng};
 use log::debug;
-use rustfmt_nightly::{Config, Session, Input};
+use rand::{thread_rng, Rng};
+use rustfmt_nightly::{Config, Input, Session};
 use serde_json;
 
 /// Specified which `rustfmt` to use.
@@ -28,14 +28,14 @@ pub enum Rustfmt {
     /// (Path to external `rustfmt`, cwd where it should be spawned at)
     External(PathBuf, PathBuf),
     /// Statically linked `rustfmt`
-    Internal
+    Internal,
 }
 
 impl From<Option<(String, PathBuf)>> for Rustfmt {
     fn from(value: Option<(String, PathBuf)>) -> Rustfmt {
         match value {
             Some((path, cwd)) => Rustfmt::External(PathBuf::from(path), cwd),
-            None => Rustfmt::Internal
+            None => Rustfmt::Internal,
         }
     }
 }
@@ -49,7 +49,12 @@ impl Rustfmt {
     }
 }
 
-fn format_external(path: &PathBuf, cwd: &PathBuf, input: String, cfg: Config) -> Result<String, String> {
+fn format_external(
+    path: &PathBuf,
+    cwd: &PathBuf,
+    input: String,
+    cfg: Config,
+) -> Result<String, String> {
     let (_file_handle, config_path) = gen_config_file(&cfg)?;
     let args = rustfmt_args(&cfg, &config_path);
 
@@ -62,19 +67,25 @@ fn format_external(path: &PathBuf, cwd: &PathBuf, input: String, cfg: Config) ->
         .map_err(|_| format!("Couldn't spawn `{}`", path.display()))?;
 
     {
-        let stdin = rustfmt.stdin.as_mut()
+        let stdin = rustfmt
+            .stdin
+            .as_mut()
             .ok_or_else(|| "Failed to open rustfmt stdin".to_string())?;
-        stdin.write_all(input.as_bytes())
+        stdin
+            .write_all(input.as_bytes())
             .map_err(|_| "Failed to pass input to rustfmt".to_string())?;
     }
 
-    rustfmt.wait_with_output()
+    rustfmt
+        .wait_with_output()
         .map_err(|err| format!("Error running rustfmt: {}", err))
-        .and_then(|out| String::from_utf8(out.stdout)
-            .map_err(|_| "Formatted code is not valid UTF-8".to_string()))
+        .and_then(|out| {
+            String::from_utf8(out.stdout)
+                .map_err(|_| "Formatted code is not valid UTF-8".to_string())
+        })
 }
 
-fn format_internal(input: String, config:Config) -> Result<String, String> {
+fn format_internal(input: String, config: Config) -> Result<String, String> {
     let mut buf = Vec::<u8>::new();
 
     {
@@ -100,8 +111,7 @@ fn format_internal(input: String, config:Config) -> Result<String, String> {
         }
     }
 
-    String::from_utf8(buf)
-        .map_err(|_| "Reformat output is not a valid UTF-8".into())
+    String::from_utf8(buf).map_err(|_| "Reformat output is not a valid UTF-8".into())
 }
 
 fn random_file() -> Result<(File, PathBuf), String> {

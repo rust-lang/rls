@@ -11,21 +11,21 @@
 //! Requests that the RLS can respond to.
 
 use crate::actions::InitActionContext;
-use rls_data as data;
-use url::Url;
-use rls_vfs::{FileContents};
-use racer;
-use rustfmt_nightly::{FileLines, FileName, Range as RustfmtRange};
-use serde_json;
-use rls_span as span;
 use itertools::Itertools;
-use serde_derive::{Serialize, Deserialize};
 use log::{debug, trace};
+use racer;
+use rls_data as data;
+use rls_span as span;
+use rls_vfs::FileContents;
+use rustfmt_nightly::{FileLines, FileName, Range as RustfmtRange};
+use serde_derive::{Deserialize, Serialize};
+use serde_json;
+use url::Url;
 
 use crate::actions::hover;
+use crate::actions::run::collect_run_actions;
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
-use crate::actions::run::collect_run_actions;
 use crate::lsp_data;
 use crate::lsp_data::*;
 use crate::server;
@@ -35,27 +35,16 @@ use rls_analysis::SymbolQuery;
 
 use crate::lsp_data::request::ApplyWorkspaceEdit;
 pub use crate::lsp_data::request::{
-    WorkspaceSymbol,
-    DocumentSymbol as Symbols,
-    HoverRequest as Hover,
-    GotoDefinition as Definition,
-    GotoImplementation as Implementation,
-    References,
-    Completion,
-    DocumentHighlightRequest as DocumentHighlight,
-    Rename,
-    ExecuteCommand,
-    CodeActionRequest as CodeAction,
-    Formatting,
-    RangeFormatting,
-    ResolveCompletionItem as ResolveCompletion,
-    CodeLensRequest,
+    CodeActionRequest as CodeAction, CodeLensRequest, Completion,
+    DocumentHighlightRequest as DocumentHighlight, DocumentSymbol as Symbols, ExecuteCommand,
+    Formatting, GotoDefinition as Definition, GotoImplementation as Implementation,
+    HoverRequest as Hover, RangeFormatting, References, Rename,
+    ResolveCompletionItem as ResolveCompletion, WorkspaceSymbol,
 };
 
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::Ordering;
-
 
 /// Represent the result of a deglob action for a single wildcard import.
 ///
@@ -81,12 +70,10 @@ impl RequestAction for WorkspaceSymbol {
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
         let analysis = ctx.analysis;
-        let query = SymbolQuery::subsequence(&params.query)
-            .limit(512);
+        let query = SymbolQuery::subsequence(&params.query).limit(512);
         let defs = analysis.query_defs(query).unwrap_or_else(|_| vec![]);
 
-        Ok(
-            defs.into_iter()
+        Ok(defs.into_iter()
                 // Sometimes analysis will return duplicate symbols
                 // for the same location, fix that up.
                 .unique_by(|d| (d.span.clone(), d.name.clone()))
@@ -100,8 +87,7 @@ impl RequestAction for WorkspaceSymbol {
                             .map(|parent| parent.name),
                     }
                 })
-                .collect(),
-        )
+                .collect())
     }
 }
 
@@ -122,25 +108,20 @@ impl RequestAction for Symbols {
 
         let symbols = analysis.symbols(&file_path).unwrap_or_else(|_| vec![]);
 
-        Ok(
-            symbols
-                .into_iter()
-                .filter(|s| {
-                    let range = ls_util::rls_to_range(s.span.range);
-                    range.start != range.end
-                })
-                .map(|s| {
-                    SymbolInformation {
-                        name: s.name,
-                        kind: source_kind_from_def_kind(s.kind),
-                        location: ls_util::rls_to_location(&s.span),
-                        container_name: s.parent
-                            .and_then(|id| analysis.get_def(id).ok())
-                            .map(|parent| parent.name),
-                    }
-                })
-                .collect(),
-        )
+        Ok(symbols
+            .into_iter()
+            .filter(|s| {
+                let range = ls_util::rls_to_range(s.span.range);
+                range.start != range.end
+            }).map(|s| SymbolInformation {
+                name: s.name,
+                kind: source_kind_from_def_kind(s.kind),
+                location: ls_util::rls_to_location(&s.span),
+                container_name: s
+                    .parent
+                    .and_then(|id| analysis.get_def(id).ok())
+                    .map(|parent| parent.name),
+            }).collect())
     }
 }
 
@@ -220,14 +201,17 @@ impl RequestAction for Definition {
         // If configured start racer concurrently and fallback to racer result
         let racer_receiver = {
             if ctx.config.lock().unwrap().goto_def_racer_fallback {
-                Some(work_pool::receive_from_thread(move || {
-                    let cache = ctx.racer_cache();
-                    let session = ctx.racer_session(&cache);
-                    let location = pos_to_racer_location(params.position);
+                Some(work_pool::receive_from_thread(
+                    move || {
+                        let cache = ctx.racer_cache();
+                        let session = ctx.racer_session(&cache);
+                        let location = pos_to_racer_location(params.position);
 
-                    racer::find_definition(file_path, location, &session)
-                        .and_then(|rm| location_from_racer_match(&rm))
-                }, WorkDescription("textDocument/definition-racer")))
+                        racer::find_definition(file_path, location, &session)
+                            .and_then(|rm| location_from_racer_match(&rm))
+                    },
+                    WorkDescription("textDocument/definition-racer"),
+                ))
             } else {
                 None
             }
@@ -271,19 +255,19 @@ impl RequestAction for References {
         let file_path = parse_file_path!(&params.text_document.uri, "find_all_refs")?;
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
-        let result = match ctx.analysis
-            .find_all_refs(&span, params.context.include_declaration, false)
-        {
-            Ok(t) => t,
-            _ => vec![],
-        };
+        let result =
+            match ctx
+                .analysis
+                .find_all_refs(&span, params.context.include_declaration, false)
+            {
+                Ok(t) => t,
+                _ => vec![],
+            };
 
-        Ok(
-            result
-                .iter()
-                .map(|item| ls_util::rls_to_location(item))
-                .collect(),
-        )
+        Ok(result
+            .iter()
+            .map(|item| ls_util::rls_to_location(item))
+            .collect())
     }
 }
 
@@ -313,21 +297,18 @@ impl RequestAction for Completion {
         let code_completion_has_snippet_support =
             ctx.client_capabilities.code_completion_has_snippet_support;
 
-        Ok(
-            results
-                .map(|comp| {
-                    let mut item = completion_item_from_racer_match(&comp);
-                    if code_completion_has_snippet_support {
-                        let snippet = racer::snippet_for_match(&comp, &session);
-                        if !snippet.is_empty() {
-                            item.insert_text = Some(snippet);
-                            item.insert_text_format = Some(InsertTextFormat::Snippet);
-                        }
+        Ok(results
+            .map(|comp| {
+                let mut item = completion_item_from_racer_match(&comp);
+                if code_completion_has_snippet_support {
+                    let snippet = racer::snippet_for_match(&comp, &session);
+                    if !snippet.is_empty() {
+                        item.insert_text = Some(snippet);
+                        item.insert_text_format = Some(InsertTextFormat::Snippet);
                     }
-                    item
-                })
-                .collect(),
-        )
+                }
+                item
+            }).collect())
     }
 }
 
@@ -345,25 +326,23 @@ impl RequestAction for DocumentHighlight {
         let file_path = parse_file_path!(&params.text_document.uri, "highlight")?;
         let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
 
-        let result = ctx.analysis
+        let result = ctx
+            .analysis
             .find_all_refs(&span, true, false)
             .unwrap_or_else(|_| vec![]);
 
-        Ok(
-            result
-                .iter()
-                .filter_map(|span| {
-                    if span.file == file_path {
-                        Some(lsp_data::DocumentHighlight {
-                            range: ls_util::rls_to_range(span.range),
-                            kind: Some(DocumentHighlightKind::Text),
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        )
+        Ok(result
+            .iter()
+            .filter_map(|span| {
+                if span.file == file_path {
+                    Some(lsp_data::DocumentHighlight {
+                        range: ls_util::rls_to_range(span.range),
+                        kind: Some(DocumentHighlightKind::Text),
+                    })
+                } else {
+                    None
+                }
+            }).collect())
     }
 }
 
@@ -399,7 +378,7 @@ impl RequestAction for Rename {
                         return Self::fallback_response();
                     }
                 }
-            }
+            };
         }
 
         let id = unwrap_or_fallback!(analysis.crate_local_id(&span));
@@ -430,7 +409,10 @@ impl RequestAction for Rename {
             return Self::fallback_response();
         }
 
-        Ok(WorkspaceEdit { changes: Some(edits), document_changes: None })
+        Ok(WorkspaceEdit {
+            changes: Some(edits),
+            document_changes: None,
+        })
     }
 }
 
@@ -447,7 +429,7 @@ impl server::Response for ExecuteCommandResponse {
             ExecuteCommandResponse::ApplyEdit(ref params) => {
                 let id = out.provide_id();
                 let params = ApplyWorkspaceEditParams {
-                        edit: params.edit.clone(),
+                    edit: params.edit.clone(),
                 };
 
                 let request = Request::<ApplyWorkspaceEdit>::new(id, params);
@@ -487,9 +469,7 @@ impl RequestAction for ExecuteCommand {
     }
 }
 
-fn apply_suggestion(
-    args: &[serde_json::Value],
-) -> Result<ApplyWorkspaceEditParams, ResponseError> {
+fn apply_suggestion(args: &[serde_json::Value]) -> Result<ApplyWorkspaceEditParams, ResponseError> {
     let location = serde_json::from_value(args[0].clone()).expect("Bad argument");
     let new_text = serde_json::from_value(args[1].clone()).expect("Bad argument");
 
@@ -499,9 +479,13 @@ fn apply_suggestion(
     })
 }
 
-fn apply_deglobs(args: Vec<serde_json::Value>, ctx: &InitActionContext) -> Result<ApplyWorkspaceEditParams, ResponseError> {
+fn apply_deglobs(
+    args: Vec<serde_json::Value>,
+    ctx: &InitActionContext,
+) -> Result<ApplyWorkspaceEditParams, ResponseError> {
     ctx.quiescent.store(true, Ordering::SeqCst);
-    let deglob_results: Vec<DeglobResult> = args.into_iter()
+    let deglob_results: Vec<DeglobResult> = args
+        .into_iter()
         .map(|res| serde_json::from_value(res).expect("Bad argument"))
         .collect();
 
@@ -512,17 +496,12 @@ fn apply_deglobs(args: Vec<serde_json::Value>, ctx: &InitActionContext) -> Resul
 
     let text_edits: Vec<_> = deglob_results
         .into_iter()
-        .map(|res| {
-            TextEdit {
-                range: res.location.range,
-                new_text: res.new_text,
-            }
-        })
-        .collect();
+        .map(|res| TextEdit {
+            range: res.location.range,
+            new_text: res.new_text,
+        }).collect();
     // all deglob results will share the same URI
-    let changes: HashMap<_, _> = vec![(uri, text_edits)]
-        .into_iter()
-        .collect();
+    let changes: HashMap<_, _> = vec![(uri, text_edits)].into_iter().collect();
 
     let edit = WorkspaceEdit {
         changes: Some(changes),
@@ -575,7 +554,8 @@ fn make_deglob_actions(
     code_actions_result: &mut <CodeAction as RequestAction>::Response,
 ) {
     // search for a glob in the line
-    if let Ok(line) = ctx.vfs
+    if let Ok(line) = ctx
+        .vfs
         .load_line(file_path, ls_util::range_to_rls(params.range).row_start)
     {
         let span = Location::new(params.text_document.uri.clone(), params.range);
@@ -583,7 +563,8 @@ fn make_deglob_actions(
         // for all indices which are a `*`
         // check if we can deglob them
         // this handles badly formated text containing multiple "use"s in one line
-        let deglob_results: Vec<_> = line.char_indices()
+        let deglob_results: Vec<_> = line
+            .char_indices()
             .filter(|&(_, chr)| chr == '*')
             .filter_map(|(index, _)| {
                 // map the indices to `Span`s
@@ -592,11 +573,8 @@ fn make_deglob_actions(
                 span.range.col_end = span::Column::new_zero_indexed(index as u32 + 1);
 
                 // load the deglob type information
-                ctx.analysis.show_type(&span)
-                    .ok()
-                    .map(|ty| (ty, span))
-            })
-            .map(|(mut deglob_str, span)| {
+                ctx.analysis.show_type(&span).ok().map(|ty| (ty, span))
+            }).map(|(mut deglob_str, span)| {
                 // Handle multiple imports from one *
                 if deglob_str.contains(',') || deglob_str.is_empty() {
                     deglob_str = format!("{{{}}}", sort_deglob_str(&deglob_str));
@@ -610,8 +588,7 @@ fn make_deglob_actions(
 
                 // Convert to json
                 serde_json::to_value(&deglob_result).unwrap()
-            })
-            .collect();
+            }).collect();
 
         if !deglob_results.is_empty() {
             // extend result list
@@ -757,7 +734,9 @@ fn reformat(
         config.set().file_lines(file_lines);
     };
 
-    let formatted_text = ctx.formatter().format(input, config)
+    let formatted_text = ctx
+        .formatter()
+        .format(input, config)
         .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg))?;
 
     // Note that we don't need to update the VFS, the client echos back the
@@ -767,17 +746,15 @@ fn reformat(
         return Err(ResponseError::Message(
             ErrorCode::InternalError,
             "Reformat failed to complete successfully".into(),
-        ))
+        ));
     }
 
     // If Rustfmt returns range of text that changed,
     // we will be able to pass only range of changed text to the client.
-    Ok([
-        TextEdit {
-            range: range_whole_file,
-            new_text: formatted_text,
-        },
-    ])
+    Ok([TextEdit {
+        range: range_whole_file,
+        new_text: formatted_text,
+    }])
 }
 
 impl RequestAction for ResolveCompletion {
@@ -834,7 +811,6 @@ impl RequestAction for CodeLensRequest {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-
         let mut ret = Vec::new();
         if ctx.client_supports_cmd_run {
             let file_path = parse_file_path!(&params.text_document.uri, "code_lens")?;

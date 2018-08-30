@@ -1,22 +1,23 @@
 //! This module represents the RLS view of the Cargo project model:
 //! a graph of interdependent packages.
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    path::{Path, PathBuf},
-};
-use log::warn;
-use rls_vfs::{Vfs, FileContents};
 use cargo::{
-    Config,
+    core::{
+        registry::PackageRegistry,
+        resolver::{EncodableResolve, Method, Resolve},
+        PackageId, Workspace,
+    },
     ops,
     util::{errors::CargoResult, important_paths::find_root_manifest_for_wd, toml},
-    core::{
-        Workspace, PackageId, registry::PackageRegistry,
-        resolver::{EncodableResolve, Method, Resolve},
-    }
+    Config,
 };
+use log::warn;
 use racer;
+use rls_vfs::{FileContents, Vfs};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 #[derive(Debug)]
 pub struct ProjectModel {
@@ -88,17 +89,11 @@ impl ProjectModel {
                 let pkg = cargo_packages.get(dep_id)?;
                 let lib = pkg.targets().iter().find(|t| t.is_lib());
                 if let Some(lib) = lib {
-                    let crate_name = resolve.extern_crate_name(
-                        &pkg_id,
-                        &dep_id,
-                        &lib,
-                    )?;
-                    packages[pkg_id_to_pkg[pkg_id].0].deps.push(
-                        Dep {
-                            crate_name,
-                            pkg: pkg_id_to_pkg[dep_id],
-                        }
-                    )
+                    let crate_name = resolve.extern_crate_name(&pkg_id, &dep_id, &lib)?;
+                    packages[pkg_id_to_pkg[pkg_id].0].deps.push(Dep {
+                        crate_name,
+                        pkg: pkg_id_to_pkg[dep_id],
+                    })
                 }
             }
         }
@@ -154,7 +149,8 @@ impl racer::ProjectModelProvider for RacerProjectModel {
                 return Some(lib.0.clone());
             }
         }
-        let dep = pkg.deps(&self.0)
+        let dep = pkg
+            .deps(&self.0)
             .iter()
             .find(|dep| dep.crate_name == libname)?
             .pkg;

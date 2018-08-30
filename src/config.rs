@@ -11,20 +11,20 @@
 //! Configuration for the workspace that RLS is operating within and options for
 //! tweaking the RLS's behavior itself.
 
-use std::marker::PhantomData;
-use std::str::FromStr;
-use std::fmt;
 use std::env;
+use std::fmt;
 use std::fmt::Debug;
 use std::io::sink;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use cargo::CargoResult;
-use cargo::util::{homedir, important_paths, Config as CargoConfig};
 use cargo::core::{Shell, Workspace};
+use cargo::util::{homedir, important_paths, Config as CargoConfig};
+use cargo::CargoResult;
 
 use serde::de::{Deserialize, Deserializer, Visitor};
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 use log::trace;
 
@@ -148,9 +148,9 @@ pub struct Config {
     pub clippy_preference: ClippyPreference,
     /// Instructs cargo to enable full documentation extraction during save-analysis
     /// while building the crate. This has no effect on the pre-built standard library,
-    /// which is built without full_docs enabled. Hover tooltips currently extract 
+    /// which is built without full_docs enabled. Hover tooltips currently extract
     /// documentation from source due this limitation. The docs provided by the save-analysis
-    /// are used in the event that source extraction fails. This may prove to be more useful 
+    /// are used in the event that source extraction fails. This may prove to be more useful
     /// in the future.
     pub full_docs: Inferrable<bool>,
     /// Show additional context in hover tooltips when available. This is often the type
@@ -242,9 +242,7 @@ impl Config {
 
     /// Is this config incomplete, and needs additional values to be inferred?
     pub fn needs_inference(&self) -> bool {
-        self.build_bin.is_none() ||
-        self.build_lib.is_none() ||
-        self.target_dir.is_none()
+        self.build_bin.is_none() || self.build_lib.is_none() || self.target_dir.is_none()
     }
 
     /// Tries to auto-detect certain option values if they were unspecified.
@@ -258,11 +256,7 @@ impl Config {
         let shell = Shell::from_write(Box::new(sink()));
         let cwd = env::current_dir().expect("failed to get cwd");
 
-        let config = CargoConfig::new(
-        shell,
-        cwd.to_path_buf(),
-        homedir(project_dir).unwrap(),
-        );
+        let config = CargoConfig::new(shell, cwd.to_path_buf(), homedir(project_dir).unwrap());
 
         let ws = Workspace::new(&manifest_path, &config)?;
 
@@ -274,7 +268,7 @@ impl Config {
             Inferrable::Specified(Some(ref mut path)) if path.is_relative() => {
                 *path = project_dir.join(&path);
             }
-            _ => {},
+            _ => {}
         }
         if self.target_dir.as_ref().is_none() {
             let target_dir = ws.target_dir().clone().into_path_unlocked();
@@ -394,8 +388,14 @@ impl Default for FmtConfig {
 
 #[test]
 fn clippy_preference_from_str() {
-    assert_eq!(ClippyPreference::from_str("Optin"), Ok(ClippyPreference::OptIn));
+    assert_eq!(
+        ClippyPreference::from_str("Optin"),
+        Ok(ClippyPreference::OptIn)
+    );
     assert_eq!(ClippyPreference::from_str("OFF"), Ok(ClippyPreference::Off));
-    assert_eq!(ClippyPreference::from_str("opt-in"), Ok(ClippyPreference::OptIn));
+    assert_eq!(
+        ClippyPreference::from_str("opt-in"),
+        Ok(ClippyPreference::OptIn)
+    );
     assert_eq!(ClippyPreference::from_str("on"), Ok(ClippyPreference::On));
 }

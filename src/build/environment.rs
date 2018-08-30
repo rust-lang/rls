@@ -8,12 +8,12 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
-use lazy_static::lazy_static;
 
 // Ensures we don't race on the env vars. This is only also important in tests,
 // where we have multiple copies of the RLS running in the same process.
@@ -129,7 +129,6 @@ impl<'a> EnvironmentLock {
     pub fn get() -> Arc<EnvironmentLock> {
         ENV_LOCK.clone()
     }
-
 
     /// Acquires the first, outer lock and additionally return `InnerLock` interface, through which
     /// user can access the second, inner lock. Does not enforce any guarantees regarding order of

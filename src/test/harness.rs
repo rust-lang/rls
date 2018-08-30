@@ -18,14 +18,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use rls_analysis::{AnalysisHost, Target};
 use crate::config::{Config, Inferrable};
+use crate::server as ls_server;
 use env_logger;
 use languageserver_types as ls_types;
-use serde_json;
-use crate::server as ls_server;
-use rls_vfs::Vfs;
 use lazy_static::lazy_static;
+use rls_analysis::{AnalysisHost, Target};
+use rls_vfs::Vfs;
+use serde_json;
 
 crate struct Environment {
     crate config: Option<Config>,
@@ -49,7 +49,7 @@ impl Environment {
         // Acquire the current directory, but this is changing when tests are
         // running so we need to be sure to access it in a synchronized fashion.
         let cur_dir = {
-            use crate::build::environment::{EnvironmentLock, Environment};
+            use crate::build::environment::{Environment, EnvironmentLock};
             let env = EnvironmentLock::get();
             let (guard, _other) = env.lock();
             let env = Environment::push_with_lock(&HashMap::new(), None, guard);
@@ -62,9 +62,7 @@ impl Environment {
 
         let target_dir = env::var("CARGO_TARGET_DIR")
             .map(|s| Path::new(&s).to_owned())
-            .unwrap_or_else(|_| {
-                cur_dir.join("target")
-            });
+            .unwrap_or_else(|_| cur_dir.join("target"));
 
         let working_dir = target_dir
             .join("tests")
@@ -244,7 +242,7 @@ fn try_expect_message(
 
     let found = match results.get(0) {
         Some(s) => s,
-        None => return Err("No message found!".into())
+        None => return Err("No message found!".into()),
     };
 
     let values: serde_json::Value = serde_json::from_str(&found).unwrap();
@@ -322,7 +320,8 @@ impl Cache {
 
     crate fn mk_ls_position(&mut self, src: Src<'_, '_>) -> ls_types::Position {
         let line = self.get_line(src);
-        let col = line.find(src.name)
+        let col = line
+            .find(src.name)
             .expect(&format!("Line does not contain name {}", src.name));
         ls_types::Position::new((src.line - 1) as u64, char_of_byte_index(&line, col) as u64)
     }
@@ -338,7 +337,8 @@ impl Cache {
     }
 
     crate fn abs_path(&self, file_name: &Path) -> PathBuf {
-        let result = self.base_path
+        let result = self
+            .base_path
             .join(file_name)
             .canonicalize()
             .expect("Couldn't canonicalise path");
@@ -353,7 +353,8 @@ impl Cache {
 
     fn get_line(&mut self, src: Src<'_, '_>) -> String {
         let base_path = &self.base_path;
-        let lines = self.files
+        let lines = self
+            .files
             .entry(src.file_name.to_owned())
             .or_insert_with(|| {
                 let file_name = &base_path.join(src.file_name);

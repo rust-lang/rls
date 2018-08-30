@@ -8,25 +8,25 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 use getopts;
-use rustc_metadata::cstore::CStore;
-use rustc::session::Session;
+use log::trace;
+use rls_data::Analysis;
+use rls_vfs::Vfs;
 use rustc::session::config::{self, ErrorOutputType, Input};
+use rustc::session::Session;
+use rustc_codegen_utils::codegen_backend::CodegenBackend;
+use rustc_driver::driver::CompileController;
 use rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
-use rustc_driver::driver::{CompileController};
 use rustc_errors;
+use rustc_metadata::cstore::CStore;
 use rustc_resolve;
 use rustc_save_analysis as save;
 use rustc_save_analysis::CallbackHandler;
-use rustc_codegen_utils::codegen_backend::CodegenBackend;
 use syntax::ast;
 use syntax::source_map::{FileLoader, RealFileLoader};
-use rls_data::Analysis;
-use rls_vfs::Vfs;
-use log::trace;
 
-use crate::config::{ClippyPreference, Config};
-use crate::build::{BufWriter, BuildResult};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
+use crate::build::{BufWriter, BuildResult};
+use crate::config::{ClippyPreference, Config};
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -108,9 +108,13 @@ crate fn rustc(
     let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();
 
     let analysis = analysis.lock().unwrap().clone();
-    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or_else(Vec::new);
+    let analysis = analysis
+        .map(|analysis| vec![analysis])
+        .unwrap_or_else(Vec::new);
 
-    let cwd = cwd.unwrap_or_else(|| restore_env.get_old_cwd()).to_path_buf();
+    let cwd = cwd
+        .unwrap_or_else(|| restore_env.get_old_cwd())
+        .to_path_buf();
 
     match result {
         Ok(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, true),
@@ -128,7 +132,10 @@ struct RlsRustcCalls {
 }
 
 impl RlsRustcCalls {
-    fn new(analysis: Arc<Mutex<Option<Analysis>>>, clippy_preference: ClippyPreference) -> RlsRustcCalls {
+    fn new(
+        analysis: Arc<Mutex<Option<Analysis>>>,
+        clippy_preference: ClippyPreference,
+    ) -> RlsRustcCalls {
         RlsRustcCalls {
             default_calls: Box::new(RustcDefaultCalls),
             analysis,
@@ -148,9 +155,8 @@ fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<
             .as_ref()
             .expect(
                 "at this compilation stage \
-                    the crate must be parsed",
-            )
-            .span,
+                 the crate must be parsed",
+            ).span,
     );
     registry.args_hidden = Some(Vec::new());
 
@@ -223,7 +229,6 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             .late_callback(codegen_backend, matches, sess, cstore, input, odir, ofile)
     }
 
-
     #[allow(boxed_local)] // https://github.com/rust-lang-nursery/rust-clippy/issues/1123
     fn build_controller(
         self: Box<Self>,
@@ -236,7 +241,8 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
 
-        #[cfg(feature = "clippy")] {
+        #[cfg(feature = "clippy")]
+        {
             if clippy_preference != ClippyPreference::Off {
                 result.after_parse.callback = Box::new(clippy_after_parse_callback);
             }

@@ -1,16 +1,16 @@
 use std::path::Path;
 
+use languageserver_types::{CodeLensParams, TextDocumentIdentifier};
 use serde_json;
 use url::Url;
-use languageserver_types::{TextDocumentIdentifier, CodeLensParams};
 
 use crate::{
-    server as ls_server,
     actions::requests,
     lsp_data::InitializationOptions,
+    server as ls_server,
     test::{
-        request, initialize_with_opts,
-        harness::{expect_message, expect_series, compare_json, Environment, ExpectedMessage},
+        harness::{compare_json, expect_message, expect_series, Environment, ExpectedMessage},
+        initialize_with_opts, request,
     },
 };
 
@@ -62,7 +62,8 @@ fn test_lens_run() {
         ls_server::ServerStateChange::Continue
     );
     server.wait_for_concurrent_jobs();
-    let result: serde_json::Value = serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
+    let result: serde_json::Value =
+        serde_json::from_str(&results.lock().unwrap().remove(0)).unwrap();
     compare_json(
         result.get("result").unwrap(),
         r#"[{

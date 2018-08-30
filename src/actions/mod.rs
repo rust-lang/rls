@@ -11,34 +11,33 @@
 //! Actions that the RLS can perform: responding to requests, watching files,
 //! etc.
 
-use rls_analysis::AnalysisHost;
-use rls_vfs::{Vfs, FileContents};
-use crate::config::FmtConfig;
 use crate::config::Config;
+use crate::config::FmtConfig;
+use crate::Span;
+use log::{debug, error, info, trace};
+use rls_analysis::AnalysisHost;
+use rls_span as span;
+use rls_vfs::{FileContents, Vfs};
 use serde_json::{self, json};
 use url::Url;
-use rls_span as span;
-use crate::Span;
 use walkdir::WalkDir;
-use log::{debug, trace, error, info};
 
 use crate::actions::format::Rustfmt;
-use crate::actions::post_build::{BuildResults, PostBuildHandler, AnalysisQueue};
-use crate::actions::progress::{BuildProgressNotifier, BuildDiagnosticsNotifier};
+use crate::actions::post_build::{AnalysisQueue, BuildResults, PostBuildHandler};
+use crate::actions::progress::{BuildDiagnosticsNotifier, BuildProgressNotifier};
 use crate::build::*;
+use crate::concurrency::{ConcurrentJob, Jobs};
 use crate::lsp_data;
 use crate::lsp_data::*;
+use crate::project_model::{ProjectModel, RacerFallbackModel, RacerProjectModel};
 use crate::server::Output;
-use crate::concurrency::{ConcurrentJob, Jobs};
-use crate::project_model::{ProjectModel, RacerProjectModel, RacerFallbackModel};
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
-use std::thread;
 use std::io;
-
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
 // we don't want to crash the RLS in case a client opens a file under different URI scheme
@@ -55,18 +54,18 @@ macro_rules! ignore_non_file_uri {
 macro_rules! parse_file_path {
     ($uri: expr, $log_name: expr) => {
         ignore_non_file_uri!(parse_file_path($uri), $uri, $log_name)
-    }
+    };
 }
 
-pub mod work_pool;
-pub mod post_build;
-pub mod requests;
-pub mod notifications;
-pub mod progress;
 pub mod diagnostics;
-pub mod run;
-pub mod hover;
 pub mod format;
+pub mod hover;
+pub mod notifications;
+pub mod post_build;
+pub mod progress;
+pub mod requests;
+pub mod run;
+pub mod work_pool;
 
 /// Persistent context shared across all requests and notifications.
 pub enum ActionContext {
@@ -248,9 +247,10 @@ impl InitActionContext {
             fn load_file(&self, path: &Path) -> io::Result<String> {
                 match self.0.load_file(path) {
                     Ok(FileContents::Text(t)) => Ok(t),
-                    Ok(FileContents::Binary(_)) => Err(
-                        io::Error::new(io::ErrorKind::Other, rls_vfs::Error::BadFileKind),
-                    ),
+                    Ok(FileContents::Binary(_)) => Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        rls_vfs::Error::BadFileKind,
+                    )),
                     Err(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
                 }
             }
@@ -273,7 +273,12 @@ impl InitActionContext {
     /// the one we're shipping with.
     /// Locks config to read `rustfmt_path` key.
     fn formatter(&self) -> Rustfmt {
-        let rustfmt = self.config.lock().unwrap().rustfmt_path.clone()
+        let rustfmt = self
+            .config
+            .lock()
+            .unwrap()
+            .rustfmt_path
+            .clone()
             .map(|path| (path, self.current_project.clone()));
 
         Rustfmt::from(rustfmt)
@@ -438,7 +443,8 @@ fn find_word_at_pos(line: &str, pos: Column) -> (Column, Column) {
     let col = pos.0 as usize;
     let is_ident_char = |c: char| c.is_alphanumeric() || c == '_';
 
-    let start = line.chars()
+    let start = line
+        .chars()
         .enumerate()
         .take(col)
         .filter(|&(_, c)| !is_ident_char(c))
@@ -446,7 +452,8 @@ fn find_word_at_pos(line: &str, pos: Column) -> (Column, Column) {
         .map(|(i, _)| i + 1)
         .unwrap_or(0) as u32;
 
-    let end = line.chars()
+    let end = line
+        .chars()
         .enumerate()
         .skip(col)
         .filter(|&(_, c)| !is_ident_char(c))
@@ -475,15 +482,13 @@ impl FileWatch {
 
     pub fn from_project_root(root: PathBuf) -> Self {
         Self {
-            project_uri: Url::from_file_path(&root)
-                .unwrap()
-                .into_string(),
+            project_uri: Url::from_file_path(&root).unwrap().into_string(),
             project_path: root,
         }
     }
 
     /// Returns json config for desired file watches
-    pub fn watchers_config(&self)  -> serde_json::Value {
+    pub fn watchers_config(&self) -> serde_json::Value {
         fn watcher(pat: String) -> FileSystemWatcher {
             FileSystemWatcher {
                 glob_pattern: pat,
@@ -514,9 +519,7 @@ impl FileWatch {
             watchers.push(watcher(entry.path().display().to_string()));
         }
 
-        json!({
-            "watchers": watchers
-        })
+        json!({ "watchers": watchers })
     }
 
     /// Returns if a file change is relevant to the files we actually wanted to watch
@@ -565,12 +568,7 @@ mod test {
             let line = test_str.replace('|', "");
             let (start, end) = find_word_at_pos(&line, Column::new_zero_indexed(col));
             let actual = (start.0, end.0);
-            assert_eq!(
-                range,
-                actual,
-                "Assertion failed for {:?}",
-                test_str
-            );
+            assert_eq!(range, actual, "Assertion failed for {:?}", test_str);
         }
 
         assert_range("|struct Def {", (0, 6));

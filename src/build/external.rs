@@ -13,23 +13,26 @@
 //! Please note that since the command is ran externally (at a file/OS level)
 //! this doesn't work with files that are not saved.
 
+use std::fs::File;
 use std::io::BufRead;
 use std::io::Read;
-use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::BuildResult;
 
+use log::trace;
 use rls_data::Analysis;
-use log::{log, trace};
 
 /// Performs a build using an external command and interprets the results.
 /// The command should output on stdout a list of save-analysis .json files
 /// to be reloaded by the RLS.
 /// Note: This is *very* experimental and preliminary - this can viewed as
 /// an experimentation until a more complete solution emerges.
-pub(super) fn build_with_external_cmd<S: AsRef<str>>(cmd_line: S, build_dir: PathBuf) -> BuildResult {
+pub(super) fn build_with_external_cmd<S: AsRef<str>>(
+    cmd_line: S,
+    build_dir: PathBuf,
+) -> BuildResult {
     let cmd_line = cmd_line.as_ref();
     let (cmd, args) = {
         let mut words = cmd_line.split_whitespace();
@@ -54,7 +57,7 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(cmd_line: S, build_dir: Pat
             let err_msg = format!("Couldn't execute: {} ({:?})", cmd_line, io.kind());
             trace!("{}", err_msg);
             return BuildResult::Err(err_msg, Some(cmd_line.to_owned()));
-        },
+        }
     };
 
     let reader = std::io::BufReader::new(child.stdout.unwrap());
@@ -81,16 +84,20 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(cmd_line: S, build_dir: Pat
 fn read_analysis_files<I>(files: I) -> Result<Vec<Analysis>, String>
 where
     I: Iterator,
-    I::Item: AsRef<Path>
+    I::Item: AsRef<Path>,
 {
     let mut analyses = Vec::new();
 
     for path in files {
-        trace!("external::read_analysis_files: Attempt to read `{}`", path.as_ref().display());
+        trace!(
+            "external::read_analysis_files: Attempt to read `{}`",
+            path.as_ref().display()
+        );
 
         let mut file = File::open(path).map_err(|e| e.to_string())?;
         let mut contents = String::new();
-        file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
+        file.read_to_string(&mut contents)
+            .map_err(|e| e.to_string())?;
 
         let data = rustc_serialize::json::decode(&contents).map_err(|e| e.to_string())?;
         analyses.push(data);

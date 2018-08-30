@@ -12,13 +12,13 @@ use super::requests::*;
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
 use crate::actions::InitActionContext;
-use jsonrpc_core::types::ErrorCode;
+use crate::concurrency::{ConcurrentJob, JobToken};
 use crate::lsp_data::LSPRequest;
 use crate::server;
 use crate::server::io::Output;
 use crate::server::message::ResponseError;
 use crate::server::{Request, Response};
-use crate::concurrency::{ConcurrentJob, JobToken};
+use jsonrpc_core::types::ErrorCode;
 use log::debug;
 use std::sync::mpsc;
 use std::thread;
@@ -128,8 +128,7 @@ impl Dispatcher {
                     request.handle(ctx, &out);
                     drop(token);
                 }
-            })
-            .unwrap();
+            }).unwrap();
 
         Self { sender }
     }

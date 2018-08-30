@@ -28,21 +28,21 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
-use crate::build::PackageArg;
-use cargo::core::{PackageId, Target, TargetKind};
 use cargo::core::compiler::{CompileMode, Context, Kind, Unit};
 use cargo::core::profiles::Profile;
+use cargo::core::{PackageId, Target, TargetKind};
 use cargo::util::{CargoResult, ProcessBuilder};
 use cargo_metadata;
+use crate::build::PackageArg;
 use crate::lsp_data::parse_file_path;
+use log::{error, trace};
 use url::Url;
-use log::{trace, error};
 
-use crate::actions::progress::ProgressUpdate;
 use super::{BuildResult, Internals};
+use crate::actions::progress::ProgressUpdate;
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
 /// In Target we're mostly interested in TargetKind (Lib, Bin, ...) and name
@@ -93,7 +93,13 @@ impl Plan {
     /// Cache a given compiler invocation in `ProcessBuilder` for a given
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
-    crate fn cache_compiler_job(&mut self, id: &PackageId, target: &Target, mode: CompileMode, cmd: &ProcessBuilder) {
+    crate fn cache_compiler_job(
+        &mut self,
+        id: &PackageId,
+        target: &Target,
+        mode: CompileMode,
+        cmd: &ProcessBuilder,
+    ) {
         let unit_key = (id.clone(), target.clone(), mode);
         self.compiler_jobs.insert(unit_key, cmd.clone());
     }
@@ -176,12 +182,14 @@ impl Plan {
     fn fetch_dirty_units<T: AsRef<Path>>(&self, files: &[T]) -> HashSet<UnitKey> {
         let mut result = HashSet::new();
 
-        let build_scripts: HashMap<&Path, UnitKey> = self.units
+        let build_scripts: HashMap<&Path, UnitKey> = self
+            .units
             .iter()
             .filter(|&(&(_, ref target, _), _)| *target.kind() == TargetKind::CustomBuild)
             .map(|(key, unit)| (unit.target.src_path(), key.clone()))
             .collect();
-        let other_targets: HashMap<UnitKey, &Path> = self.units
+        let other_targets: HashMap<UnitKey, &Path> = self
+            .units
             .iter()
             .filter(|&(&(_, ref target, _), _)| *target.kind() != TargetKind::CustomBuild)
             .map(|(key, unit)| {
@@ -192,8 +200,7 @@ impl Plan {
                         .parent()
                         .expect("no parent for src_path"),
                 )
-            })
-            .collect();
+            }).collect();
 
         for modified in files.iter().map(|x| x.as_ref()) {
             if let Some(unit) = build_scripts.get(modified) {
@@ -211,15 +218,19 @@ impl Plan {
                 // Since a package can correspond to many units (e.g. compiled
                 // as a regular binary or a test harness for unit tests), we
                 // collect every unit having the longest path prefix.
-                let max_matching_prefix = other_targets.values()
+                let max_matching_prefix = other_targets
+                    .values()
                     .map(|src_dir| matching_prefix_components(modified, src_dir))
                     .max();
 
                 match max_matching_prefix {
-                    Some(0) => error!("Modified file {} didn't correspond to any buildable unit!",
-                        modified.display()),
+                    Some(0) => error!(
+                        "Modified file {} didn't correspond to any buildable unit!",
+                        modified.display()
+                    ),
                     Some(max) => {
-                        let dirty_units = other_targets.iter()
+                        let dirty_units = other_targets
+                            .iter()
                             .filter(|(_, dir)| max == matching_prefix_components(modified, dir))
                             .map(|(unit, _)| unit);
 
@@ -246,7 +257,8 @@ impl Plan {
             transitive.insert(top.clone());
 
             // Process every dirty rev dep of the processed node
-            let dirty_rev_deps = self.rev_dep_graph
+            let dirty_rev_deps = self
+                .rev_dep_graph
                 .get(&top)
                 .expect("missing key in rev_dep_graph")
                 .iter()
@@ -323,7 +335,8 @@ impl Plan {
             return WorkStatus::NeedsCargo(PackageArg::Default);
         }
 
-        let dirty_packages = self.package_map
+        let dirty_packages = self
+            .package_map
             .as_ref()
             .unwrap()
             .compute_dirty_packages(modified);
@@ -333,7 +346,8 @@ impl Plan {
             .next()
             .is_some();
 
-        let needed_packages = self.built_packages
+        let needed_packages = self
+            .built_packages
             .union(&dirty_packages)
             .cloned()
             .collect();
@@ -365,14 +379,14 @@ impl Plan {
             }
 
             let queue = self.topological_sort(&graph);
-            trace!("Topologically sorted dirty graph: {:?} {}", queue, self.is_ready());
+            trace!(
+                "Topologically sorted dirty graph: {:?} {}",
+                queue,
+                self.is_ready()
+            );
             let jobs: Option<Vec<_>> = queue
                 .iter()
-                .map(|x| {
-                    self.compiler_jobs
-                        .get(x)
-                        .cloned()
-                })
+                .map(|x| self.compiler_jobs.get(x).cloned())
                 .collect();
 
             // It is possible that we want a job which is not in our cache (compiler_jobs),
@@ -435,12 +449,14 @@ impl PackageMap {
                 let url = Url::parse(&wm.url()[5..]).expect("Bad URL");
                 let path = parse_file_path(&url).expect("URL not a path");
                 (path, wm.name().into())
-            })
-            .collect()
+            }).collect()
     }
 
     /// Given modified set of files, returns a set of corresponding dirty packages.
-    fn compute_dirty_packages<T: AsRef<Path> + fmt::Debug>(&self, modified_files: &[T]) -> HashSet<String> {
+    fn compute_dirty_packages<T: AsRef<Path> + fmt::Debug>(
+        &self,
+        modified_files: &[T],
+    ) -> HashSet<String> {
         modified_files
             .iter()
             .filter_map(|p| self.map(p.as_ref()))
@@ -488,7 +504,9 @@ crate struct JobQueue(Vec<ProcessBuilder>);
 /// then proc_arg(prc, "--crate-name") returns Some(&OsStr::new("rls"));
 fn proc_argument_value<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
     let args = prc.get_args();
-    let (idx, _) = args.iter().enumerate()
+    let (idx, _) = args
+        .iter()
+        .enumerate()
         .find(|(_, arg)| arg.as_os_str() == key.as_ref())?;
 
     Some(args.get(idx + 1)?.as_os_str())
@@ -539,13 +557,15 @@ impl JobQueue {
         // invocation's compiler messages for diagnostics and analysis data
         while let Some(job) = self.dequeue() {
             trace!("Executing: {:?}", job);
-            let mut args: Vec<_> = job.get_args()
+            let mut args: Vec<_> = job
+                .get_args()
                 .iter()
                 .cloned()
                 .map(|x| x.into_string().expect("cannot stringify job args"))
                 .collect();
 
-            let program = job.get_program()
+            let program = job
+                .get_program()
                 .clone()
                 .into_string()
                 .expect("cannot stringify job program");
@@ -553,8 +573,7 @@ impl JobQueue {
 
             // Send a window/progress notification.
             {
-                let crate_name = proc_argument_value(&job, "--crate-name")
-                    .and_then(|x| x.to_str());
+                let crate_name = proc_argument_value(&job, "--crate-name").and_then(|x| x.to_str());
                 let update = match crate_name {
                     Some(name) => ProgressUpdate::Message(name.to_owned()),
                     None => {
@@ -564,7 +583,9 @@ impl JobQueue {
                     }
                 };
 
-                progress_sender.send(update).expect("Failed to send progress update");
+                progress_sender
+                    .send(update)
+                    .expect("Failed to send progress update");
             }
 
             match super::rustc::rustc(
@@ -610,7 +631,11 @@ impl JobQueue {
 }
 
 fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
-    (unit.pkg.package_id().clone(), unit.target.clone(), unit.mode)
+    (
+        unit.pkg.package_id().clone(),
+        unit.target.clone(),
+        unit.mode,
+    )
 }
 
 macro_rules! print_dep_graph {
