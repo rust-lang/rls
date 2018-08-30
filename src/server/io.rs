@@ -8,9 +8,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use log::{debug, trace};
 use serde;
 use serde_json;
-use log::{debug, trace};
 
 use super::{Notification, Request, RequestId};
 use crate::lsp_data::{LSPNotification, LSPRequest};

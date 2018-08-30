@@ -12,12 +12,12 @@
 
 use crate::actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
+use log::debug;
 use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
-use serde_json;
 use serde_derive::Serialize;
-use log::debug;
+use serde_json;
 
 use crate::actions::ActionContext;
 use crate::lsp_data::{LSPNotification, LSPRequest};
@@ -70,7 +70,7 @@ impl From<()> for ResponseError {
 /// Blocks stdin whilst being handled.
 pub trait BlockingNotificationAction: LSPNotification {
     /// Handle this notification.
-    fn handle<O: Output>(_:Self::Params,_: &mut InitActionContext,_: O,) -> Result<(), ()>;
+    fn handle<O: Output>(_: Self::Params, _: &mut InitActionContext, _: O) -> Result<(), ()>;
 }
 
 /// A request that blocks stdin whilst being handled
@@ -367,9 +367,9 @@ impl Serialize for RawMessage {
 #[cfg(test)]
 mod test {
     use super::*;
-    use languageserver_types::InitializedParams;
     use crate::server::notifications;
-    use serde_json::{json};
+    use languageserver_types::InitializedParams;
+    use serde_json::json;
 
     #[test]
     fn test_parse_as_notification() {

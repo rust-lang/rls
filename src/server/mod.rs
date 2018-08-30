@@ -13,19 +13,9 @@
 //! requests).
 
 use crate::actions::{notifications, requests, ActionContext};
-use rls_analysis::AnalysisHost;
 use crate::config::Config;
-use jsonrpc_core::{self as jsonrpc, Id, types::error::ErrorCode};
-pub use languageserver_types::notification::Exit as ExitNotification;
-pub use languageserver_types::request::Initialize as InitializeRequest;
-pub use languageserver_types::request::Shutdown as ShutdownRequest;
-use languageserver_types::{
-    CompletionOptions, ExecuteCommandOptions, ImplementationProviderCapability, InitializeParams, InitializeResult,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, CodeLensOptions,
-};
 use crate::lsp_data;
 use crate::lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
-use serde_json;
 use crate::server::dispatch::Dispatcher;
 pub use crate::server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
 pub use crate::server::io::{MessageReader, Output};
@@ -33,14 +23,25 @@ use crate::server::io::{StdioMsgReader, StdioOutput};
 use crate::server::message::RawMessage;
 pub use crate::server::message::{
     Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
-    Response, ResponseError, RequestId
+    RequestId, Response, ResponseError,
 };
+use crate::version;
+use jsonrpc_core::{self as jsonrpc, types::error::ErrorCode, Id};
+pub use languageserver_types::notification::Exit as ExitNotification;
+pub use languageserver_types::request::Initialize as InitializeRequest;
+pub use languageserver_types::request::Shutdown as ShutdownRequest;
+use languageserver_types::{
+    CodeLensOptions, CompletionOptions, ExecuteCommandOptions, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind,
+};
+use log::{debug, error, trace, warn};
+use rls_analysis::AnalysisHost;
+use rls_vfs::Vfs;
+use serde_json;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use crate::version;
-use rls_vfs::Vfs;
-use log::{debug, error, trace, warn};
 
 mod dispatch;
 mod io;
@@ -76,8 +77,7 @@ impl BlockingRequestAction for ShutdownRequest {
             // Currently we don't perform an explicit cleanup, other than storing state
             ctx.shut_down.store(true, Ordering::SeqCst);
             Ok(Ack)
-        }
-        else {
+        } else {
             Err(ResponseError::Message(
                 NOT_INITIALIZED_CODE,
                 "not yet received `initialize` request".to_owned(),
@@ -120,7 +120,8 @@ impl BlockingRequestAction for InitializeRequest {
         result.send(id, &out);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        ctx.init(get_root_path(&params), &init_options, capabilities, &out).unwrap();
+        ctx.init(get_root_path(&params), &init_options, capabilities, &out)
+            .unwrap();
 
         Ok(NoResponse)
     }
@@ -158,8 +159,7 @@ impl<O: Output> LsService<O> {
         loop {
             match self.handle_message() {
                 ServerStateChange::Continue => (),
-                ServerStateChange::Break { exit_code } =>
-                    return exit_code,
+                ServerStateChange::Break { exit_code } => return exit_code,
             }
         }
     }
@@ -339,9 +339,7 @@ impl<O: Output> LsService<O> {
 
     pub fn wait_for_concurrent_jobs(&mut self) {
         match &self.ctx {
-            ActionContext::Init(ctx) => {
-                ctx.wait_for_concurrent_jobs()
-            }
+            ActionContext::Init(ctx) => ctx.wait_for_concurrent_jobs(),
             ActionContext::Uninit(_) => {}
         }
     }
@@ -354,9 +352,7 @@ pub enum ServerStateChange {
     /// client.
     Continue,
     /// Stop the server.
-    Break {
-        exit_code: i32
-    },
+    Break { exit_code: i32 },
 }
 
 fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
@@ -410,8 +406,7 @@ fn get_root_path(params: &InitializeParams) -> PathBuf {
         .map(|uri| {
             assert!(uri.scheme() == "file");
             uri.to_file_path().expect("Could not convert URI to path")
-        })
-        .unwrap_or_else(|| {
+        }).unwrap_or_else(|| {
             params
                 .root_path
                 .as_ref()

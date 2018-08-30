@@ -21,8 +21,8 @@ use rls_span::{Column, Row, Span, ZeroIndexed};
 use rls_vfs::{self as vfs, Vfs};
 use rustfmt_nightly::NewlineStyle;
 
-use std::path::{Path, PathBuf};
 use log::*;
+use std::path::{Path, PathBuf};
 
 /// Cleanup documentation code blocks. The `docs` are expected to have
 /// the preceeding `///` or `//!` prefixes already trimmed away. Rust code
@@ -217,8 +217,7 @@ fn extract_and_process_docs(vfs: &Vfs, file: &Path, row_start: Row<ZeroIndexed>)
                 "failed to extract docs: row: {:?}, file: {:?} ({:?})",
                 row_start, file, e
             );
-        })
-        .ok()
+        }).ok()
         .map(|docs| docs.join("\n"))
         .map(|docs| process_docs(&docs))
         .and_then(empty_to_none)
@@ -544,13 +543,13 @@ fn skip_path_components<P: AsRef<Path>>(
     skip_components: usize,
 ) -> PathBuf {
     if path.starts_with(prefix) {
-        let comps: PathBuf = path.components().skip(skip_components).fold(
-            PathBuf::new(),
-            |mut comps, comp| {
-                comps.push(comp);
-                comps
-            },
-        );
+        let comps: PathBuf =
+            path.components()
+                .skip(skip_components)
+                .fold(PathBuf::new(), |mut comps, comp| {
+                    comps.push(comp);
+                    comps
+                });
         comps
     } else {
         path
@@ -648,7 +647,11 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
     let matchstr_len = matchstr.len() as u32;
     let docs = m.docs.trim().to_string();
     m.coords.map(|coords| {
-        assert!(coords.row.0 > 0, "racer_match_to_def: racer returned `0` for a 1-based row: {:?}", m);
+        assert!(
+            coords.row.0 > 0,
+            "racer_match_to_def: racer returned `0` for a 1-based row: {:?}",
+            m
+        );
         let (row, col1) = requests::from_racer_coord(coords);
         let col2 = Column::new_zero_indexed(col1.0 + matchstr_len);
         let row = Row::new_zero_indexed(row.0 - 1);
@@ -775,8 +778,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
                     } else {
                         part.to_string()
                     }
-                })
-                .collect::<Vec<String>>();
+                }).collect::<Vec<String>>();
             decl = &decl[0..pos];
             if hidden_count != tuple_parts.len() {
                 format!("{}({})", decl, tuple_parts.join(", "))
@@ -826,8 +828,7 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
                     };
                     let line = line.trim_left_matches(should_trim);
                     format!("{}\n", line)
-                })
-                .collect()
+                }).collect()
         }
         Err(e) => {
             error!("format_method: error: {:?}, input: {:?}", e, method);
@@ -942,7 +943,7 @@ pub mod test {
     use crate::lsp_data::{Position, TextDocumentIdentifier, TextDocumentPositionParams};
     use crate::server::{Output, RequestId};
     use rls_analysis as analysis;
-    use serde_derive::{Serialize, Deserialize};
+    use serde_derive::{Deserialize, Serialize};
     use serde_json as json;
     use url::Url;
 
@@ -1175,8 +1176,7 @@ pub mod test {
                     let result = test.run(&self.project_dir, &self.ctx);
                     result.save(&save_dir).unwrap();
                     result
-                })
-                .collect();
+                }).collect();
 
             let failures: Vec<TestFailure> = results
                 .iter()
@@ -1195,8 +1195,7 @@ pub mod test {
                         }
                         Err(e) => Some((Err(e), actual_result)),
                     }
-                })
-                .filter(|failed_result| failed_result.is_some())
+                }).filter(|failed_result| failed_result.is_some())
                 .map(|failed_result| failed_result.unwrap())
                 .map(|failed_result| match failed_result {
                     (Ok(expect_result), actual_result) => {
@@ -1221,8 +1220,7 @@ pub mod test {
                             actual_file: save_file,
                         }
                     }
-                })
-                .collect();
+                }).collect();
 
             Ok(failures)
         }
@@ -1251,8 +1249,7 @@ pub mod test {
                     .scan(0, |_, ch| if ch.is_whitespace() { Some(1) } else { None })
                     .fuse()
                     .sum()
-            })
-            .unwrap_or(0);
+            }).unwrap_or(0);
 
         text.lines()
             .map(|line| line.chars().skip(indent).collect::<String>())

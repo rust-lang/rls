@@ -13,13 +13,13 @@ use std::env;
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::mem;
+use std::panic;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::str;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
-use std::panic;
 
 use self::paths::TestPathExt;
 
@@ -27,11 +27,13 @@ pub mod paths;
 
 /// Executes `func` and panics if it takes longer than `dur`.
 pub fn timeout<F>(dur: Duration, func: F)
-    where F: FnOnce() + Send + 'static + panic::UnwindSafe {
+where
+    F: FnOnce() + Send + 'static + panic::UnwindSafe,
+{
     let pair = Arc::new((Mutex::new(TestState::Running), Condvar::new()));
     let pair2 = pair.clone();
 
-    thread::spawn(move|| {
+    thread::spawn(move || {
         let &(ref lock, ref cvar) = &*pair2;
         match panic::catch_unwind(func) {
             Ok(_) => *lock.lock().unwrap() = TestState::Success,
@@ -120,7 +122,7 @@ impl ExpectedMessage {
         if let Some(id) = self.id {
             let values_id = values.get("id").ok_or(MissingId)?;
             if id != values_id.as_u64().unwrap() {
-                return Err(BadId)
+                return Err(BadId);
             };
         }
 
@@ -129,8 +131,7 @@ impl ExpectedMessage {
 
     pub fn try_match_raw(&self, s: &str) -> Result<(), MsgMatchError> {
         for c in &self.contains {
-            s
-                .find(c)
+            s.find(c)
                 .ok_or_else(|| MsgMatchError::StringNotFound(c.to_owned(), s.to_owned()))
                 .map(|_| ())?;
         }
@@ -174,8 +175,7 @@ pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&Expected
 
     println!(
         "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
-        results,
-        expected
+        results, expected
     );
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
@@ -185,21 +185,24 @@ pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&Expected
     }
 }
 
-pub fn expect_messages_unordered<R: Read>(reader: &mut BufReader<R>, expected: &[&ExpectedMessage]) {
+pub fn expect_messages_unordered<R: Read>(
+    reader: &mut BufReader<R>,
+    expected: &[&ExpectedMessage],
+) {
     let mut results = read_messages(reader, expected.len());
     let mut expected: Vec<&ExpectedMessage> = expected.to_owned();
 
     println!(
         "expect_messages_unordered:\n  results: {:#?},\n  expected: {:#?}",
-        results,
-        expected
+        results, expected
     );
     assert_eq!(results.len(), expected.len());
 
     while !results.is_empty() && !expected.is_empty() {
         let first = expected[0];
 
-        let opt = results.iter()
+        let opt = results
+            .iter()
             .map(|r| first.try_match(r))
             .enumerate()
             .find(|(_, res)| res.is_ok());
@@ -208,9 +211,9 @@ pub fn expect_messages_unordered<R: Read>(reader: &mut BufReader<R>, expected: &
             Some((idx, Ok(()))) => {
                 expected.remove(0);
                 results.remove(idx);
-            },
+            }
             Some((_, Err(err))) => panic!(err.to_string()),
-            None => panic!(format!("Could not find `{:?}` among `{:?}", first, results))
+            None => panic!(format!("Could not find `{:?}` among `{:?}", first, results)),
         }
     }
 }
@@ -257,7 +260,12 @@ impl RlsHandle {
 
         self.send(&message)
     }
-    pub fn request(&mut self, id: u64, method: &str, params: Option<serde_json::Value>) -> io::Result<usize> {
+    pub fn request(
+        &mut self,
+        id: u64,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> io::Result<usize> {
         let message = if let Some(params) = params {
             json!({
                 "jsonrpc": "2.0",
@@ -278,13 +286,13 @@ impl RlsHandle {
     pub fn shutdown_exit(&mut self) {
         self.request(99999, "shutdown", None).unwrap();
 
-        self.expect_messages(&[
-            &ExpectedMessage::new(Some(99999)),
-        ]);
+        self.expect_messages(&[&ExpectedMessage::new(Some(99999))]);
 
         self.notify("exit", None).unwrap();
 
-        let ecode = self.child.wait()
+        let ecode = self
+            .child
+            .wait()
             .expect("failed to wait on child rls process");
 
         assert!(ecode.success());
@@ -299,23 +307,25 @@ impl RlsHandle {
     }
 }
 
-#[derive(PartialEq,Clone)]
+#[derive(PartialEq, Clone)]
 struct FileBuilder {
     path: PathBuf,
-    body: String
+    body: String,
 }
 
 impl FileBuilder {
     pub fn new(path: PathBuf, body: &str) -> FileBuilder {
-        FileBuilder { path, body: body.to_string() }
+        FileBuilder {
+            path,
+            body: body.to_string(),
+        }
     }
 
     fn mk(&self) {
         self.dirname().mkdir_p();
 
-        let mut file = fs::File::create(&self.path).unwrap_or_else(|e| {
-            panic!("could not create file {}: {}", self.path.display(), e)
-        });
+        let mut file = fs::File::create(&self.path)
+            .unwrap_or_else(|e| panic!("could not create file {}: {}", self.path.display(), e));
 
         file.write_all(self.body.as_bytes()).unwrap();
     }
@@ -325,13 +335,13 @@ impl FileBuilder {
     }
 }
 
-#[derive(PartialEq,Clone)]
-pub struct Project{
+#[derive(PartialEq, Clone)]
+pub struct Project {
     root: PathBuf,
 }
 
 #[must_use]
-#[derive(PartialEq,Clone)]
+#[derive(PartialEq, Clone)]
 pub struct ProjectBuilder {
     name: String,
     root: Project,
@@ -342,19 +352,19 @@ impl ProjectBuilder {
     pub fn new(name: &str, root: PathBuf) -> ProjectBuilder {
         ProjectBuilder {
             name: name.to_string(),
-            root: Project{ root },
+            root: Project { root },
             files: vec![],
         }
     }
 
-    pub fn file<B: AsRef<Path>>(mut self, path: B,
-                                body: &str) -> Self {
+    pub fn file<B: AsRef<Path>>(mut self, path: B, body: &str) -> Self {
         self._file(path.as_ref(), body);
         self
     }
 
     fn _file(&mut self, path: &Path, body: &str) {
-        self.files.push(FileBuilder::new(self.root.root.join(path), body));
+        self.files
+            .push(FileBuilder::new(self.root.root.join(path), body));
     }
 
     pub fn build(self) -> Project {
@@ -425,24 +435,30 @@ pub fn main_file(println: &str, deps: &[&str]) -> String {
 }
 
 pub fn basic_bin_manifest(name: &str) -> String {
-    format!(r#"
+    format!(
+        r#"
         [package]
         name = "{}"
         version = "0.5.0"
         authors = ["wycats@example.com"]
         [[bin]]
         name = "{}"
-    "#, name, name)
+    "#,
+        name, name
+    )
 }
 
 #[allow(dead_code)]
 pub fn basic_lib_manifest(name: &str) -> String {
-    format!(r#"
+    format!(
+        r#"
         [package]
         name = "{}"
         version = "0.5.0"
         authors = ["wycats@example.com"]
         [lib]
         name = "{}"
-    "#, name, name)
+    "#,
+        name, name
+    )
 }

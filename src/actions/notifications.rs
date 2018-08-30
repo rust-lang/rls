@@ -10,30 +10,25 @@
 
 //! One-way notifications that the RLS receives from the client.
 
-use crate::actions::{InitActionContext, FileWatch, VersionOrdering};
-use rls_vfs::Change;
+use crate::actions::{FileWatch, InitActionContext, VersionOrdering};
 use crate::config::Config;
-use serde::Deserialize;
-use serde::de::Error;
-use serde_json;
 use crate::Span;
-use std::sync::atomic::Ordering;
 use log::{debug, trace, warn};
+use rls_vfs::Change;
+use serde::de::Error;
+use serde::Deserialize;
+use serde_json;
+use std::sync::atomic::Ordering;
 
 use crate::build::*;
-use crate::lsp_data::*;
 use crate::lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
-use languageserver_types::notification::ShowMessage;
+use crate::lsp_data::*;
 use crate::server::Request;
+use languageserver_types::notification::ShowMessage;
 
 pub use crate::lsp_data::notification::{
-    Initialized,
-    DidOpenTextDocument,
-    DidChangeTextDocument,
-    DidSaveTextDocument,
-    DidChangeConfiguration,
-    DidChangeWatchedFiles,
-    Cancel,
+    Cancel, DidChangeConfiguration, DidChangeTextDocument, DidChangeWatchedFiles,
+    DidOpenTextDocument, DidSaveTextDocument, Initialized,
 };
 
 use crate::server::{BlockingNotificationAction, Notification, Output};
@@ -43,18 +38,20 @@ use std::thread;
 impl BlockingNotificationAction for Initialized {
     // Respond to the `initialized` notification. We take this opportunity to
     // dynamically register some options.
-    fn handle<O: Output>(_params: Self::Params, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        _params: Self::Params,
+        ctx: &mut InitActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         const WATCH_ID: &str = "rls-watch";
 
         let id = out.provide_id();
         let params = RegistrationParams {
-            registrations: vec![
-                Registration {
-                    id: WATCH_ID.to_owned(),
-                    method: <DidChangeWatchedFiles as LSPNotification>::METHOD.to_owned(),
-                    register_options: Some(FileWatch::new(&ctx).watchers_config()),
-                },
-            ],
+            registrations: vec![Registration {
+                id: WATCH_ID.to_owned(),
+                method: <DidChangeWatchedFiles as LSPNotification>::METHOD.to_owned(),
+                register_options: Some(FileWatch::new(&ctx).watchers_config()),
+            }],
         };
 
         let request = Request::<RegisterCapability>::new(id, params);
@@ -64,7 +61,11 @@ impl BlockingNotificationAction for Initialized {
 }
 
 impl BlockingNotificationAction for DidOpenTextDocument {
-    fn handle<O: Output>(params: Self::Params, ctx: &mut InitActionContext, _out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        params: Self::Params,
+        ctx: &mut InitActionContext,
+        _out: O,
+    ) -> Result<(), ()> {
         trace!("on_open: {:?}", params.text_document.uri);
         let file_path = parse_file_path!(&params.text_document.uri, "on_open")?;
         ctx.reset_change_version(&file_path);
@@ -74,7 +75,11 @@ impl BlockingNotificationAction for DidOpenTextDocument {
 }
 
 impl BlockingNotificationAction for DidChangeTextDocument {
-    fn handle<O: Output>(params: Self::Params, ctx: &mut InitActionContext, out: O) -> Result<(), ()> {
+    fn handle<O: Output>(
+        params: Self::Params,
+        ctx: &mut InitActionContext,
+        out: O,
+    ) -> Result<(), ()> {
         trace!(
             "on_change: {:?}, thread: {:?}",
             params,
@@ -90,7 +95,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
         let version_num = params.text_document.version.unwrap();
 
         match ctx.check_change_version(&file_path, version_num) {
-            VersionOrdering::Ok => {},
+            VersionOrdering::Ok => {}
             VersionOrdering::Duplicate => return Ok(()),
             VersionOrdering::OutOfOrder => {
                 out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
@@ -118,8 +123,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
                         text: i.text.clone(),
                     }
                 }
-            })
-            .collect();
+            }).collect();
         ctx.vfs
             .on_changes(&changes)
             .expect("error committing to VFS");
@@ -165,8 +169,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
             Err(err) => {
                 warn!(
                     "Received unactionable config: {:?} (error: {:?})",
-                    params.settings,
-                    err
+                    params.settings, err
                 );
                 return Err(());
             }
@@ -212,25 +215,21 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         let id = out.provide_id();
         if unstable_features {
             let params = RegistrationParams {
-                    registrations: vec![
-                        Registration {
-                            id: RANGE_FORMATTING_ID.to_owned(),
-                            method: <RangeFormatting as LSPRequest>::METHOD.to_owned(),
-                            register_options: None,
-                        },
-                    ],
+                registrations: vec![Registration {
+                    id: RANGE_FORMATTING_ID.to_owned(),
+                    method: <RangeFormatting as LSPRequest>::METHOD.to_owned(),
+                    register_options: None,
+                }],
             };
 
             let request = Request::<RegisterCapability>::new(id, params);
             out.request(request);
         } else {
             let params = UnregistrationParams {
-                unregisterations: vec![
-                    Unregistration {
-                        id: RANGE_FORMATTING_ID.to_owned(),
-                        method: <RangeFormatting as LSPRequest>::METHOD.to_owned(),
-                    },
-                ],
+                unregisterations: vec![Unregistration {
+                    id: RANGE_FORMATTING_ID.to_owned(),
+                    method: <RangeFormatting as LSPRequest>::METHOD.to_owned(),
+                }],
             };
 
             let request = Request::<UnregisterCapability>::new(id, params);

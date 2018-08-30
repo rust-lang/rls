@@ -8,22 +8,25 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use cargo::core::{enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace};
-use cargo::core::compiler::{Context, Executor, Unit, BuildConfig, CompileMode};
+use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
+use cargo::core::{
+    enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace,
+};
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
-use cargo::util::{homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue,
-                  ProcessBuilder};
+use cargo::util::{
+    homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue, ProcessBuilder,
+};
 use failure::{self, format_err};
 use serde_json;
 
 use crate::actions::progress::ProgressUpdate;
-use rls_data::Analysis;
-use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
-use crate::build::plan::Plan;
 use crate::build::environment::{self, Environment, EnvironmentLock};
+use crate::build::plan::Plan;
+use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
 use crate::config::Config;
-use rls_vfs::Vfs;
 use log::{debug, error, trace, warn};
+use rls_data::Analysis;
+use rls_vfs::Vfs;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
@@ -32,13 +35,17 @@ use std::fmt::Write;
 use std::fs::{read_dir, remove_file};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 // Runs an in-process instance of Cargo.
-pub(super) fn cargo(internals: &Internals, package_arg: PackageArg, progress_sender: Sender<ProgressUpdate>) -> BuildResult {
+pub(super) fn cargo(
+    internals: &Internals,
+    package_arg: PackageArg,
+    progress_sender: Sender<ProgressUpdate>,
+) -> BuildResult {
     let compilation_cx = internals.compilation_cx.clone();
     let config = internals.config.clone();
     let vfs = internals.vfs.clone();
@@ -143,32 +150,38 @@ fn run_cargo(
 
     let (all, packages) = match package_arg {
         PackageArg::Default => (false, vec![]),
-        PackageArg::Packages(pkgs) => (false, pkgs.into_iter().collect())
+        PackageArg::Packages(pkgs) => (false, pkgs.into_iter().collect()),
     };
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
     // it on every relevant configuration change
-    let (opts, rustflags, clear_env_rust_log, cfg_test) =
-        {
-            // We mustn't lock configuration for the whole build process
-            let rls_config = rls_config.lock().unwrap();
+    let (opts, rustflags, clear_env_rust_log, cfg_test) = {
+        // We mustn't lock configuration for the whole build process
+        let rls_config = rls_config.lock().unwrap();
 
-            let opts = CargoOptions::new(&rls_config);
-            trace!("Cargo compilation options:\n{:?}", opts);
-            let rustflags = prepare_cargo_rustflags(&rls_config);
+        let opts = CargoOptions::new(&rls_config);
+        trace!("Cargo compilation options:\n{:?}", opts);
+        let rustflags = prepare_cargo_rustflags(&rls_config);
 
-            for package in &packages {
-                if ws.members().find(|x| *x.name() == *package).is_none() {
-                    warn!("cargo - couldn't find member package `{}` specified in `analyze_package` configuration", package);
-                }
+        for package in &packages {
+            if ws.members().find(|x| *x.name() == *package).is_none() {
+                warn!("cargo - couldn't find member package `{}` specified in `analyze_package` configuration", package);
             }
+        }
 
-            (opts, rustflags, rls_config.clear_env_rust_log, rls_config.cfg_test)
-        };
+        (
+            opts,
+            rustflags,
+            rls_config.clear_env_rust_log,
+            rls_config.cfg_test,
+        )
+    };
 
     let spec = Packages::from_flags(all, Vec::new(), packages)?;
 
-    let pkg_names = spec.to_package_id_specs(&ws)?.iter()
+    let pkg_names = spec
+        .to_package_id_specs(&ws)?
+        .iter()
         .map(|pkg_spec| pkg_spec.name().to_owned())
         .collect();
     trace!("Specified packages to be built by Cargo: {:#?}", pkg_names);
@@ -240,12 +253,15 @@ fn run_cargo(
     }
 
     if !reached_primary.load(Ordering::SeqCst) {
-        return Err(format_err!("Error compiling dependent crate"))
+        return Err(format_err!("Error compiling dependent crate"));
     }
 
-    Ok(compilation_cx.lock().unwrap().cwd.clone().unwrap_or_else(|| {
-        restore_env.get_old_cwd().to_path_buf()
-    }))
+    Ok(compilation_cx
+        .lock()
+        .unwrap()
+        .cwd
+        .clone()
+        .unwrap_or_else(|| restore_env.get_old_cwd().to_path_buf()))
 }
 
 struct RlsExecutor {
@@ -334,7 +350,13 @@ impl Executor for RlsExecutor {
         self.is_primary_crate(id)
     }
 
-    fn exec(&self, mut cargo_cmd: ProcessBuilder, id: &PackageId, target: &Target, mode: CompileMode) -> CargoResult<()> {
+    fn exec(
+        &self,
+        mut cargo_cmd: ProcessBuilder,
+        id: &PackageId,
+        target: &Target,
+        mode: CompileMode,
+    ) -> CargoResult<()> {
         // Use JSON output so that we can parse the rustc output.
         cargo_cmd.arg("--error-format=json");
         // Delete any stale data. We try and remove any json files with
@@ -351,7 +373,8 @@ impl Executor for RlsExecutor {
         // so we just send the name of each thing we find.
         {
             let progress_sender = self.progress_sender.lock().unwrap();
-            progress_sender.send(ProgressUpdate::Message(crate_name.clone()))
+            progress_sender
+                .send(ProgressUpdate::Message(crate_name.clone()))
                 .expect("Failed to send progress update");
         }
 
@@ -387,9 +410,13 @@ impl Executor for RlsExecutor {
         // RLS executable can be spawned in a different directory than the one
         // that Cargo was spawned in, so be sure to use absolute RLS path (which
         // env::current_exe() returns) for the shim.
-        let rustc_shim = env::var("RUSTC").ok()
-            .or_else(|| env::current_exe().ok().and_then(|x| x.to_str().map(String::from)))
-            .expect("Couldn't set executable for RLS rustc shim");
+        let rustc_shim = env::var("RUSTC")
+            .ok()
+            .or_else(|| {
+                env::current_exe()
+                    .ok()
+                    .and_then(|x| x.to_str().map(String::from))
+            }).expect("Couldn't set executable for RLS rustc shim");
         cmd.program(rustc_shim);
         cmd.env(crate::RUSTC_SHIM_ENV_VAR_NAME, "1");
 
@@ -445,7 +472,9 @@ impl Executor for RlsExecutor {
             let mut save_config = rls_data::config::Config::default();
             save_config.pub_only = true;
             save_config.reachable_only = true;
-            save_config.full_docs = self.config.lock()
+            save_config.full_docs = self
+                .config
+                .lock()
                 .map(|config| *config.full_docs.as_ref())
                 .unwrap();
             let save_config = serde_json::to_string(&save_config)?;
@@ -454,11 +483,7 @@ impl Executor for RlsExecutor {
             return cmd.exec();
         }
 
-        trace!(
-            "rustc intercepted - args: {:?} envs: {:?}",
-            args,
-            envs,
-        );
+        trace!("rustc intercepted - args: {:?} envs: {:?}", args, envs,);
 
         self.reached_primary.store(true, Ordering::SeqCst);
 
@@ -530,7 +555,7 @@ impl Default for CargoOptions {
             no_default_features: false,
             features: vec![],
             jobs: None,
-            all_targets: false
+            all_targets: false,
         }
     }
 }
@@ -565,15 +590,13 @@ fn prepare_cargo_rustflags(config: &Config) -> String {
 
 /// Construct a cargo configuration for the given build and target directories
 /// and shell.
-pub fn make_cargo_config(build_dir: &Path,
-                         target_dir: Option<&Path>,
-                         cwd: &Path,
-                         shell: Shell) -> CargoConfig {
-    let config = CargoConfig::new(
-        shell,
-        cwd.to_path_buf(),
-        homedir(build_dir).unwrap(),
-    );
+pub fn make_cargo_config(
+    build_dir: &Path,
+    target_dir: Option<&Path>,
+    cwd: &Path,
+    shell: Shell,
+) -> CargoConfig {
+    let config = CargoConfig::new(shell, cwd.to_path_buf(), homedir(build_dir).unwrap());
 
     // Cargo is expecting the config to come from a config file and keeps
     // track of the path to that file. We'll make one up, it shouldn't be

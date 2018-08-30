@@ -24,10 +24,10 @@ use std::thread::{self, Thread};
 use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
 use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::BuildResult;
-use crate::lsp_data::PublishDiagnosticsParams;
 use crate::concurrency::JobToken;
-use languageserver_types::DiagnosticSeverity;
+use crate::lsp_data::PublishDiagnosticsParams;
 use itertools::Itertools;
+use languageserver_types::DiagnosticSeverity;
 use log::trace;
 
 use rls_analysis::AnalysisHost;
@@ -129,8 +129,7 @@ impl PostBuildHandler {
                     &self.project_path,
                     cwd,
                     &rls_blacklist::CRATE_BLACKLIST,
-                )
-                .unwrap();
+                ).unwrap();
         } else {
             self.analysis
                 .reload_from_analysis(analysis, &self.project_path, cwd, &[])
@@ -162,8 +161,7 @@ impl PostBuildHandler {
                     .map(|(diag, _)| diag)
                     .filter(|diag| {
                         self.show_warnings || diag.severity != Some(DiagnosticSeverity::Warning)
-                    })
-                    .cloned()
+                    }).cloned()
                     .collect(),
             };
 
@@ -210,10 +208,11 @@ impl AnalysisQueue {
             // Remove any analysis jobs which this job obsoletes.
             trace!("Pre-prune queue len: {}", queue.len());
             if let Some(hash) = job.hash {
-                queue.drain_filter(|j| match *j {
-                    QueuedJob::Job(ref j) if j.hash == Some(hash) => true,
-                    _ => false,
-                }).for_each(|j| j.unwrap_job().handler.finalize())
+                queue
+                    .drain_filter(|j| match *j {
+                        QueuedJob::Job(ref j) if j.hash == Some(hash) => true,
+                        _ => false,
+                    }).for_each(|j| j.unwrap_job().handler.finalize())
             }
             trace!("Post-prune queue len: {}", queue.len());
 

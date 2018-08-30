@@ -18,14 +18,23 @@
 #![feature(rustc_private, integer_atomics, drain_filter)]
 #![allow(unknown_lints)]
 #![warn(clippy, rust_2018_idioms)]
-#![allow(cyclomatic_complexity, needless_pass_by_value, too_many_arguments)]
-
+#![allow(
+    cyclomatic_complexity,
+    needless_pass_by_value,
+    too_many_arguments
+)]
 // See rustc/rustc.rs in rust repo for explanation of stack adjustments.
 #![feature(link_args)]
 #[allow(unused_attributes)]
-#[cfg_attr(all(windows, target_env = "msvc"), link_args = "/STACK:16777216")]
-#[cfg_attr(all(windows, not(target_env = "msvc")), link_args = "-Wl,--stack,16777216")]
-extern {}
+#[cfg_attr(
+    all(windows, target_env = "msvc"),
+    link_args = "/STACK:16777216"
+)]
+#[cfg_attr(
+    all(windows, not(target_env = "msvc")),
+    link_args = "-Wl,--stack,16777216"
+)]
+extern "C" {}
 
 use env_logger;
 
@@ -39,11 +48,11 @@ use rls_vfs::Vfs;
 pub mod actions;
 pub mod build;
 pub mod cmd;
+pub mod concurrency;
 pub mod config;
 pub mod lsp_data;
-pub mod server;
-pub mod concurrency;
 pub mod project_model;
+pub mod server;
 
 #[cfg(test)]
 mod test;
@@ -92,7 +101,7 @@ fn main_inner() -> i32 {
                 );
                 101
             }
-        }
+        };
     }
 
     let analysis = Arc::new(AnalysisHost::new(Target::Debug));
