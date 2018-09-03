@@ -29,6 +29,7 @@ use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
 
 use std::collections::HashMap;
+use std::default::Default;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -161,7 +162,7 @@ fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<
     registry.args_hidden = Some(Vec::new());
 
     // TODO handle clippy toml config
-    let empty_clippy_conf = clippy_lints::utils::conf::read(None).0;
+    let empty_clippy_conf = clippy_lints::Conf::default();
     clippy_lints::register_plugins(&mut registry, &empty_clippy_conf);
 
     let Registry {
@@ -181,8 +182,8 @@ fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<
         ls.register_late_pass(Some(sess), true, pass);
     }
 
-    for (name, to) in lint_groups {
-        ls.register_group(Some(sess), true, name, to);
+    for (name, (to, deprecated_name)) in lint_groups {
+        ls.register_group(Some(sess), true, name, deprecated_name, to);
     }
 
     sess.plugin_llvm_passes.borrow_mut().extend(llvm_passes);
