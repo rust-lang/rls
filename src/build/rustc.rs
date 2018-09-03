@@ -29,7 +29,6 @@ use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
 
 use std::collections::HashMap;
-use std::default::Default;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -161,9 +160,8 @@ fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<
     );
     registry.args_hidden = Some(Vec::new());
 
-    // TODO handle clippy toml config
-    let empty_clippy_conf = clippy_lints::Conf::default();
-    clippy_lints::register_plugins(&mut registry, &empty_clippy_conf);
+    let conf = clippy_lints::read_conf(&registry);
+    clippy_lints::register_plugins(&mut registry, &conf);
 
     let Registry {
         early_lint_passes,
