@@ -29,7 +29,6 @@ use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
 
 use std::collections::HashMap;
-use std::default::Default;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -71,8 +70,9 @@ crate fn rustc(
         let mut clippy_args = vec!["--cfg".to_owned(), r#"feature="cargo-clippy""#.to_owned()];
 
         if clippy_pref == ClippyPreference::OptIn {
-            // `OptIn`: allow clippy require `#![warn(clippy)]` override in each workspace crate
-            clippy_args.push("-Aclippy".to_owned());
+            // `OptIn`: Require explicit `#![warn(clippy::all)]` annotation in each workspace crate
+            clippy_args.push("-A".to_owned());
+            clippy_args.push("clippy::all".to_owned());
         }
 
         args.iter()
@@ -161,9 +161,8 @@ fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<
     );
     registry.args_hidden = Some(Vec::new());
 
-    // TODO handle clippy toml config
-    let empty_clippy_conf = clippy_lints::Conf::default();
-    clippy_lints::register_plugins(&mut registry, &empty_clippy_conf);
+    let conf = clippy_lints::read_conf(&registry);
+    clippy_lints::register_plugins(&mut registry, &conf);
 
     let Registry {
         early_lint_passes,
