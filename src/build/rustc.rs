@@ -70,8 +70,9 @@ crate fn rustc(
         let mut clippy_args = vec!["--cfg".to_owned(), r#"feature="cargo-clippy""#.to_owned()];
 
         if clippy_pref == ClippyPreference::OptIn {
-            // `OptIn`: allow clippy require `#![warn(clippy)]` override in each workspace crate
-            clippy_args.push("-Aclippy".to_owned());
+            // `OptIn`: Require explicit `#![warn(clippy::all)]` annotation in each workspace crate
+            clippy_args.push("-A".to_owned());
+            clippy_args.push("clippy::all".to_owned());
         }
 
         args.iter()
