@@ -150,7 +150,7 @@ impl CompilationContext {
         CompilationContext {
             cwd: None,
             build_dir: None,
-            needs_rebuild: false,
+            needs_rebuild: true,
             build_plan: BuildPlan::new(),
         }
     }
