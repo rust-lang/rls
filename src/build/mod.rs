@@ -23,7 +23,6 @@ use rls_vfs::Vfs;
 use self::environment::EnvironmentLock;
 
 use std::collections::{HashMap, HashSet};
-use std::ffi::OsString;
 use std::io::{self, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -136,12 +135,11 @@ impl BuildPriority {
 /// Information passed to Cargo/rustc to build.
 #[derive(Debug)]
 struct CompilationContext {
-    /// args and envs are saved from Cargo and passed to rustc.
-    args: Vec<String>,
-    envs: HashMap<String, Option<OsString>>,
     cwd: Option<PathBuf>,
     /// The build directory is supplied by the client and passed to Cargo.
     build_dir: Option<PathBuf>,
+    /// Whether needs to perform a Cargo rebuild
+    needs_rebuild: bool,
     /// Build plan, which should know all the inter-package/target dependencies
     /// along with args/envs. Only contains inter-package dep-graph for now.
     build_plan: BuildPlan,
@@ -150,10 +148,9 @@ struct CompilationContext {
 impl CompilationContext {
     fn new() -> CompilationContext {
         CompilationContext {
-            args: vec![],
-            envs: HashMap::new(),
             cwd: None,
             build_dir: None,
+            needs_rebuild: false,
             build_plan: BuildPlan::new(),
         }
     }
@@ -263,11 +260,7 @@ impl BuildQueue {
         pbh: PostBuildHandler,
     ) {
         trace!("request_build {:?}", priority);
-        let needs_compilation_ctx_from_cargo = {
-            let context = self.internals.compilation_cx.lock().unwrap();
-            context.args.is_empty() && context.envs.is_empty()
-        };
-        if needs_compilation_ctx_from_cargo {
+        if self.internals.compilation_cx.lock().unwrap().needs_rebuild {
             priority = BuildPriority::Cargo;
         }
         let build = PendingBuild {
@@ -487,11 +480,7 @@ impl Internals {
                 (*compilation_cx).build_dir = Some(new_build_dir.to_owned());
             }
 
-            if priority.is_cargo() {
-                // Killing these args indicates we'll do a full Cargo build.
-                compilation_cx.args = vec![];
-                compilation_cx.envs = HashMap::new();
-            }
+            compilation_cx.needs_rebuild = priority.is_cargo();
         }
 
         let result = self.build(progress_sender);
@@ -536,25 +525,25 @@ impl Internals {
             return external::build_with_external_cmd(cmd, build_dir.unwrap());
         }
 
-        // Don't hold this lock when we run Cargo.
-        let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
-
         // If the build plan has already been cached, use it, unless Cargo
         // has to be specifically rerun (e.g. when build scripts changed)
         let work = {
             let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
+
             let mut cx = self.compilation_cx.lock().unwrap();
-            let manifest_path =
-                important_paths::find_root_manifest_for_wd(cx.build_dir.as_ref().unwrap());
-            let manifest_path = match manifest_path {
-                Ok(mp) => mp,
+            let needs_to_run_cargo = cx.needs_rebuild;
+            let build_dir = cx.build_dir.as_ref().unwrap();
+
+            match important_paths::find_root_manifest_for_wd(build_dir) {
+                Ok(manifest_path) => {
+                    cx.build_plan
+                        .prepare_work(&manifest_path, &modified, needs_to_run_cargo)
+                }
                 Err(e) => {
                     let msg = format!("Error reading manifest path: {:?}", e);
                     return BuildResult::Err(msg, None);
                 }
-            };
-            cx.build_plan
-                .prepare_work(&manifest_path, &modified, needs_to_run_cargo)
+            }
         };
         trace!("Specified work: {:?}", work);
 
