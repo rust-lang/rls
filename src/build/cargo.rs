@@ -500,8 +500,7 @@ impl Executor for RlsExecutor {
         // Store the modified cargo-generated args/envs for future rustc calls
         {
             let mut compilation_cx = self.compilation_cx.lock().unwrap();
-            compilation_cx.args = args.clone();
-            compilation_cx.envs = envs.clone();
+            compilation_cx.needs_rebuild = false;
             compilation_cx.cwd = cargo_cmd.get_cwd().map(|p| p.to_path_buf());
         }
 
