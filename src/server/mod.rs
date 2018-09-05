@@ -465,4 +465,18 @@ mod test {
 
         assert_eq!(get_root_path(&params), root_path);
     }
+
+    /// Some clients send empty object params for void params requests (see #1038)
+    #[test]
+    fn parse_shutdown_object_params() {
+        let raw = RawMessage::try_parse(
+            r#"{"jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": {}}"#,
+        ).ok()
+        .and_then(|x| x)
+        .expect("raw parse failed");
+
+        let _request: Request<ShutdownRequest> = raw
+            .parse_as_request()
+            .expect("Boring validation is happening");
+    }
 }

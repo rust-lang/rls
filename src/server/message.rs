@@ -269,10 +269,18 @@ impl RawMessage {
             Id::Null => None,
         };
 
-        let params = R::Params::deserialize(&self.params).map_err(|e| {
-            debug!("error when parsing as request: {}", e);
-            jsonrpc::Error::invalid_params(format!("{}", e))
-        })?;
+        let params = R::Params::deserialize(&self.params)
+            .or_else(|e| {
+                // Avoid tedious type errors trying to deserialize `()`
+                if std::mem::size_of::<R::Params>() == 0 {
+                    R::Params::deserialize(&serde_json::Value::Null).map_err(|_| e)
+                } else {
+                    Err(e)
+                }
+            }).map_err(|e| {
+                debug!("error when parsing as request: {}", e);
+                jsonrpc::Error::invalid_params(format!("{}", e))
+            })?;
 
         match parsed_id {
             Some(id) => Ok(Request {
