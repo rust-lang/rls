@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use log::debug;
-use rand::{thread_rng, Rng};
+use rand::{distributions, thread_rng, Rng};
 use rustfmt_nightly::{Config, Input, Session};
 use serde_json;
 
@@ -117,7 +117,7 @@ fn format_internal(input: String, config: Config) -> Result<String, String> {
 fn random_file() -> Result<(File, PathBuf), String> {
     const SUFFIX_LEN: usize = 10;
 
-    let suffix: String = thread_rng().gen_ascii_chars().take(SUFFIX_LEN).collect();
+    let suffix: String = thread_rng().sample_iter(&distributions::Alphanumeric).take(SUFFIX_LEN).collect();
     let path = temp_dir().join(suffix);
 
     Ok(File::create(&path)
