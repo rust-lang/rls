@@ -15,14 +15,14 @@
 //! functionality such as 'goto definition', symbol search, reformatting, and
 //! code completion, and enables renaming and refactorings.
 
-#![feature(rustc_private, integer_atomics, drain_filter)]
+#![feature(rustc_private, integer_atomics, drain_filter, tool_lints)]
 #![feature(crate_visibility_modifier)] // needed for edition 2018
 #![allow(unknown_lints)]
-#![warn(clippy, rust_2018_idioms)]
+#![warn(clippy::all, rust_2018_idioms)]
 #![allow(
-    cyclomatic_complexity,
-    needless_pass_by_value,
-    too_many_arguments
+    clippy::cyclomatic_complexity,
+    clippy::needless_pass_by_value,
+    clippy::too_many_arguments
 )]
 // See rustc/rustc.rs in rust repo for explanation of stack adjustments.
 #![feature(link_args)]
