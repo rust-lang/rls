@@ -185,8 +185,10 @@ impl Plan {
         let build_scripts: HashMap<&Path, UnitKey> = self
             .units
             .iter()
-            .filter(|&(&(_, ref target, _), _)| *target.kind() == TargetKind::CustomBuild)
-            .map(|(key, unit)| (unit.target.src_path(), key.clone()))
+            .filter(|&(&(_, ref target, _), _)| {
+                *target.kind() == TargetKind::CustomBuild && target.src_path().is_path()
+            })
+            .map(|(key, unit)| (unit.target.src_path().path(), key.clone()))
             .collect();
         let other_targets: HashMap<UnitKey, &Path> = self
             .units
@@ -197,6 +199,7 @@ impl Plan {
                     key.clone(),
                     unit.target
                         .src_path()
+                        .path()
                         .parent()
                         .expect("no parent for src_path"),
                 )
