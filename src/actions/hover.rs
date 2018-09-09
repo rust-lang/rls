@@ -720,8 +720,11 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
         trace!("racer_def: match: {:?}", racer_match);
         racer_match
             // Avoid creating tooltip text that is exactly the item being hovered over
-            .filter(|m| name.as_ref().map(|name| name != &m.contextstr).unwrap_or(true))
-            .and_then(|m| racer_match_to_def(ctx, &m))
+            .filter(|m| {
+                name.as_ref()
+                    .map(|name| name != &m.contextstr)
+                    .unwrap_or(true)
+            }).and_then(|m| racer_match_to_def(ctx, &m))
     });
 
     let results = results.map_err(|_| {
@@ -932,7 +935,7 @@ pub fn tooltip(
 }
 
 #[cfg(test)]
-#[allow(expect_fun_call)]
+#[allow(clippy::expect_fun_call)]
 pub mod test {
     use super::*;
 

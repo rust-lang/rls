@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![allow(expect_fun_call)]
+#![allow(clippy::expect_fun_call)]
 
 use std::collections::HashMap;
 use std::env;
