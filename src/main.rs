@@ -38,6 +38,7 @@
 extern "C" {}
 
 use env_logger;
+use rustc_tools_util::*;
 
 use std::env;
 use std::sync::Arc;
@@ -83,7 +84,7 @@ fn main_inner() -> i32 {
     if let Some(first_arg) = ::std::env::args().nth(1) {
         return match first_arg.as_str() {
             "--version" | "-V" => {
-                println!("rls-preview {}", version());
+                println!("{}", version().replace("rls", "rls-preview"));
                 0
             }
             "--help" | "-h" => {
@@ -111,12 +112,9 @@ fn main_inner() -> i32 {
     server::run_server(analysis, vfs)
 }
 
-fn version() -> &'static str {
-    concat!(
-        env!("CARGO_PKG_VERSION"),
-        "-",
-        include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt"))
-    )
+fn version() -> String {
+    let version = rustc_tools_util::get_version_info!();
+    version.to_string()
 }
 
 fn help() -> &'static str {

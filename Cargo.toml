@@ -13,7 +13,7 @@ build = "build.rs"
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "04cec5fc10a7bbe1dccaad5729eff1823ef2608c" }
 cargo_metadata = "0.6"
-clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "183639b70bacf457920694d78a19cefe3565e1c0", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "125907ad08853b92d35e86aecebcf0f784f348d5", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
 itertools = "0.7.3"
@@ -31,6 +31,7 @@ rls-data = { version = "0.18", features = ["serialize-serde", "serialize-rustc"]
 rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.4.6"
+rustc_tools_util = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "125907ad08853b92d35e86aecebcf0f784f348d5" }
 rustfmt-nightly = "0.99.4"
 rustc-serialize = "0.3"
 serde = "1.0"
@@ -46,6 +47,9 @@ crossbeam-channel = "0.2.3"
 # See the `src/tools/rustc-workspace-hack/README.md` file in `rust-lang/rust`
 # for more information.
 rustc-workspace-hack = "1.0.0"
+
+[build-dependencies]
+rustc_tools_util = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "125907ad08853b92d35e86aecebcf0f784f348d5" }
 
 [features]
 default = ["clippy"]
