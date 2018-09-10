@@ -12,7 +12,7 @@
 
 pub use self::cargo::make_cargo_config;
 
-use cargo::util::important_paths;
+use ::cargo::util::important_paths;
 use crate::actions::post_build::PostBuildHandler;
 use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
 use crate::config::Config;
