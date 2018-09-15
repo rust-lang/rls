@@ -25,6 +25,7 @@ lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
 racer = { version = "2.1.5", default-features = false }
+rand = "0.5.5"
 rayon = "1"
 rls-analysis = "0.16"
 rls-blacklist = "0.1.2"

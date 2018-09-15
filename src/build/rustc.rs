@@ -7,22 +7,42 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-use getopts;
 use log::trace;
 use rls_data::Analysis;
 use rls_vfs::Vfs;
-use rustc::session::config::{self, ErrorOutputType, Input};
-use rustc::session::Session;
-use rustc_codegen_utils::codegen_backend::CodegenBackend;
-use rustc_driver::driver::CompileController;
-use rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
-use rustc_errors;
-use rustc_metadata::cstore::CStore;
-use rustc_resolve;
-use rustc_save_analysis as save;
-use rustc_save_analysis::CallbackHandler;
-use syntax::ast;
-use syntax::source_map::{FileLoader, RealFileLoader};
+
+// FIXME: switch to something more ergonomic here, once available.
+// (currently there is no way to opt into sysroot crates w/o `extern crate`)
+#[allow(unused_extern_crates)]
+extern crate getopts;
+#[allow(unused_extern_crates)]
+extern crate rustc;
+#[allow(unused_extern_crates)]
+extern crate rustc_codegen_utils;
+#[allow(unused_extern_crates)]
+extern crate rustc_driver;
+#[allow(unused_extern_crates)]
+extern crate rustc_errors;
+#[allow(unused_extern_crates)]
+extern crate rustc_metadata;
+#[allow(unused_extern_crates)]
+extern crate rustc_plugin;
+#[allow(unused_extern_crates)]
+extern crate rustc_resolve;
+#[allow(unused_extern_crates)]
+extern crate rustc_save_analysis;
+#[allow(unused_extern_crates)]
+extern crate syntax;
+use self::rustc::session::config::{self, ErrorOutputType, Input};
+use self::rustc::session::Session;
+use self::rustc_codegen_utils::codegen_backend::CodegenBackend;
+use self::rustc_driver::driver::CompileController;
+use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
+use self::rustc_metadata::cstore::CStore;
+use self::rustc_save_analysis as save;
+use self::rustc_save_analysis::CallbackHandler;
+use self::syntax::ast;
+use self::syntax::source_map::{FileLoader, RealFileLoader};
 
 use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::{BufWriter, BuildResult};
@@ -146,8 +166,8 @@ impl RlsRustcCalls {
 }
 
 #[cfg(feature = "clippy")]
-fn clippy_after_parse_callback(state: &mut ::rustc_driver::driver::CompileState<'_, '_>) {
-    use rustc_plugin::registry::Registry;
+fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_, '_>) {
+    use self::rustc_plugin::registry::Registry;
 
     let mut registry = Registry::new(
         state.session,
