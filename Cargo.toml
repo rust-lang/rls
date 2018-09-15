@@ -15,7 +15,7 @@ build = "build.rs"
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "9311f6d439e09da3ab918397a425be57da13f04a" }
 cargo_metadata = "0.6"
-clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "d6f01f3a6c16d2fc350c36fb704ef68277ef426e", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "183639b70bacf457920694d78a19cefe3565e1c0", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
 itertools = "0.7.3"
@@ -25,6 +25,7 @@ lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
 racer = { version = "2.1.5", default-features = false }
+rand = "0.5.5"
 rayon = "1"
 rls-analysis = "0.16"
 rls-blacklist = "0.1.2"
