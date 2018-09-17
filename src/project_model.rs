@@ -44,6 +44,8 @@ impl ProjectModel {
     pub fn load(ws_manifest: &Path, vfs: &Vfs) -> Result<ProjectModel, failure::Error> {
         assert!(ws_manifest.ends_with("Cargo.toml"));
         let mut config = Config::default()?;
+        // Enable nightly flag for cargo(see #1043)
+        cargo::core::enable_nightly_features();
         // frozen = false, locked = false
         config.configure(0, Some(true), &None, false, false, &None, &[])?;
         let ws = Workspace::new(&ws_manifest, &config)?;
