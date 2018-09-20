@@ -106,7 +106,7 @@ impl ProjectModel {
     }
 
     pub fn package_for_manifest(&self, manifest_path: &Path) -> Option<Package> {
-        self.manifest_to_id.get(manifest_path).map(|&x| x)
+        self.manifest_to_id.get(manifest_path).cloned()
     }
 
     fn get(&self, pkg: Package) -> &PackageData {
