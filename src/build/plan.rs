@@ -578,7 +578,14 @@ impl JobQueue {
             {
                 let crate_name = proc_argument_value(&job, "--crate-name").and_then(|x| x.to_str());
                 let update = match crate_name {
-                    Some(name) => ProgressUpdate::Message(name.to_owned()),
+                    Some(name) => {
+                        let cfg_test = job.get_args().iter().any(|arg| arg == "--test");
+                        ProgressUpdate::Message(if cfg_test {
+                            format!("{} cfg(test)", name)
+                        } else {
+                            name.to_owned()
+                        })
+                    }
                     None => {
                         // divide by zero is avoided by earlier assert!
                         let percentage = compiler_messages.len() as f64 / self.0.len() as f64;
