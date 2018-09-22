@@ -1,3 +1,5 @@
+cargo-features = ["edition"]
+
 [package]
 name = "rls"
 version = "0.130.5"
