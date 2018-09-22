@@ -65,7 +65,7 @@ impl ProjectModel {
         let resolve = resolve_with_prev(&mut registry, &ws, prev.as_ref())?;
         let cargo_packages = {
             let ids: Vec<PackageId> = resolve.iter().cloned().collect();
-            registry.get(&ids)
+            registry.get(&ids)?
         };
         let mut pkg_id_to_pkg = HashMap::new();
         let mut manifest_to_id = HashMap::new();
@@ -73,7 +73,7 @@ impl ProjectModel {
         for (idx, pkg_id) in resolve.iter().enumerate() {
             let pkg = Package(idx);
             pkg_id_to_pkg.insert(pkg_id.clone(), pkg);
-            let cargo_pkg = cargo_packages.get(pkg_id)?;
+            let cargo_pkg = cargo_packages.get_one(pkg_id)?;
             let manifest = cargo_pkg.manifest_path().to_owned();
             packages.push(PackageData {
                 lib: cargo_pkg
@@ -88,7 +88,7 @@ impl ProjectModel {
         }
         for pkg_id in resolve.iter() {
             for (dep_id, _) in resolve.deps(&pkg_id) {
-                let pkg = cargo_packages.get(dep_id)?;
+                let pkg = cargo_packages.get_one(dep_id)?;
                 let lib = pkg.targets().iter().find(|t| t.is_lib());
                 if let Some(lib) = lib {
                     let crate_name = resolve.extern_crate_name(&pkg_id, &dep_id, &lib)?;
