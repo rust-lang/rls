@@ -366,6 +366,7 @@ impl Executor for RlsExecutor {
         let cargo_args = cargo_cmd.get_args();
         let crate_name =
             parse_arg(cargo_args, "--crate-name").expect("no crate-name in rustc command line");
+        let cfg_test = cargo_args.iter().any(|arg| arg == "--test");
         trace!("exec: {} {:?}", crate_name, cargo_cmd);
 
         // Send off a window/progress notification for this compile target.
@@ -374,8 +375,11 @@ impl Executor for RlsExecutor {
         {
             let progress_sender = self.progress_sender.lock().unwrap();
             progress_sender
-                .send(ProgressUpdate::Message(crate_name.clone()))
-                .expect("Failed to send progress update");
+                .send(ProgressUpdate::Message(if cfg_test {
+                    format!("{} cfg(test)", crate_name)
+                } else {
+                    crate_name.clone()
+                })).expect("Failed to send progress update");
         }
 
         let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
