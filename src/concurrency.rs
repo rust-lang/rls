@@ -1,6 +1,6 @@
 use std::thread;
 
-use crossbeam_channel::{__crossbeam_channel_codegen, __crossbeam_channel_parse, select};
+use crossbeam_channel::select;
 use crossbeam_channel::{bounded, Receiver, Sender};
 
 /// `ConcurrentJob` is a handle for some long-running computation
