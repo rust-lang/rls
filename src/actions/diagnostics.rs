@@ -311,12 +311,12 @@ trait IsWithin {
     fn is_within(&self, other: &Self) -> bool;
 }
 
-impl<T: PartialOrd<T>> IsWithin for ::std::ops::Range<T> {
+impl<T: PartialOrd<T>> IsWithin for std::ops::RangeInclusive<T> {
     fn is_within(&self, other: &Self) -> bool {
-        self.start >= other.start
-            && self.start <= other.end
-            && self.end <= other.end
-            && self.end >= other.start
+        self.start() >= other.start()
+            && self.start() <= other.end()
+            && self.end() <= other.end()
+            && self.end() >= other.start()
     }
 }
 
@@ -329,16 +329,16 @@ impl IsWithin for DiagnosticSpan {
             column_end,
             ..
         } = *self;
-        (line_start..line_end + 1).is_within(&(other.line_start..other.line_end + 1))
-            && (column_start..column_end + 1).is_within(&(other.column_start..other.column_end + 1))
+        (line_start..=line_end).is_within(&(other.line_start..=other.line_end))
+            && (column_start..=column_end).is_within(&(other.column_start..=other.column_end))
     }
 }
 
 impl IsWithin for Range {
     fn is_within(&self, other: &Self) -> bool {
-        (self.start.line..self.end.line + 1).is_within(&(other.start.line..other.end.line + 1))
-            && (self.start.character..self.end.character + 1)
-                .is_within(&(other.start.character..other.end.character + 1))
+        (self.start.line..=self.end.line).is_within(&(other.start.line..=other.end.line))
+            && (self.start.character..=self.end.character)
+                .is_within(&(other.start.character..=other.end.character))
     }
 }
 
