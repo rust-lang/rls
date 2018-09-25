@@ -202,27 +202,27 @@ pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
 pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKind {
     match m {
         racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::Module,
-        racer::MatchType::Struct => CompletionItemKind::Class,
-        racer::MatchType::Enum => CompletionItemKind::Enum,
+        racer::MatchType::Struct(_) => CompletionItemKind::Class,
+        racer::MatchType::Enum(_) => CompletionItemKind::Enum,
         racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => {
             CompletionItemKind::Field
         }
         racer::MatchType::Macro
         | racer::MatchType::Function
-        | racer::MatchType::FnArg
-        | racer::MatchType::Impl => CompletionItemKind::Function,
-        racer::MatchType::Type | racer::MatchType::Trait | racer::MatchType::TraitImpl => {
+        | racer::MatchType::Method(_)
+        | racer::MatchType::FnArg => CompletionItemKind::Function,
+        racer::MatchType::Type | racer::MatchType::Trait => {
             CompletionItemKind::Interface
         }
         racer::MatchType::Let
-        | racer::MatchType::IfLet
-        | racer::MatchType::WhileLet
-        | racer::MatchType::For
+        | racer::MatchType::IfLet(_)
+        | racer::MatchType::WhileLet(_)
+        | racer::MatchType::For(_)
         | racer::MatchType::MatchArm
         | racer::MatchType::Const
         | racer::MatchType::Static => CompletionItemKind::Variable,
         racer::MatchType::TypeParameter(_) => CompletionItemKind::TypeParameter,
-        racer::MatchType::Builtin => CompletionItemKind::Keyword,
+        racer::MatchType::Builtin(_) => CompletionItemKind::Keyword,
     }
 }
 

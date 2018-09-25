@@ -594,24 +594,27 @@ fn collapse_parents(path: PathBuf) -> PathBuf {
 /// Converts a racer `Match` to a save-analysis `Def`. Returns
 /// `None` if the coordinates are not available on the match.
 fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> {
-    use racer::MatchType::*;
+    use racer::MatchType;
     let kind = match m.mtype {
-        Struct | Impl | TraitImpl => DefKind::Struct,
-        Module => DefKind::Mod,
-        MatchArm => DefKind::Local,
-        Function => DefKind::Function,
-        Crate => DefKind::Mod,
-        Let | IfLet | WhileLet | For => DefKind::Local,
-        StructField => DefKind::Field,
-        Enum => DefKind::Enum,
-        EnumVariant(_) => DefKind::StructVariant,
-        Type | TypeParameter(_) => DefKind::Type,
-        FnArg => DefKind::Local,
-        Trait => DefKind::Trait,
-        Const => DefKind::Const,
-        Static => DefKind::Static,
-        Macro => DefKind::Macro,
-        Builtin => DefKind::Macro,
+        MatchType::Struct(_) => DefKind::Struct,
+        MatchType::Module => DefKind::Mod,
+        MatchType::MatchArm => DefKind::Local,
+        MatchType::Function | MatchType::Method(_) => DefKind::Function,
+        MatchType::Crate => DefKind::Mod,
+        MatchType::Let
+        | MatchType::IfLet(_)
+        | MatchType::WhileLet(_)
+        | MatchType::For(_) => DefKind::Local,
+        MatchType::StructField => DefKind::Field,
+        MatchType::Enum(_) => DefKind::Enum,
+        MatchType::EnumVariant(_) => DefKind::StructVariant,
+        MatchType::Type | MatchType::TypeParameter(_) => DefKind::Type,
+        MatchType::FnArg => DefKind::Local,
+        MatchType::Trait => DefKind::Trait,
+        MatchType::Const => DefKind::Const,
+        MatchType::Static => DefKind::Static,
+        MatchType::Macro => DefKind::Macro,
+        MatchType::Builtin(_) => DefKind::Macro,
     };
 
     let contextstr = if kind == DefKind::Mod {
