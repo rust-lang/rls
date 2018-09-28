@@ -65,7 +65,7 @@ pub trait TestPathExt {
     fn mkdir_p(&self);
 }
 
-#[allow(redundant_closure)] // &Path is not AsRef<Path>
+#[allow(clippy::redundant_closure)] // &Path is not AsRef<Path>
 impl TestPathExt for Path {
     /* Technically there is a potential race condition, but we don't
      * care all that much for our tests
