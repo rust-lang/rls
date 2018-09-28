@@ -278,6 +278,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             //                     state.expanded_crate.unwrap(),
             //                     state.analysis.unwrap(),
             //                     state.crate_name.unwrap(),
+            //                     state.input,
             //                     None,
             //                     save::DumpHandler::new(state.out_dir,
             //                                            state.crate_name.unwrap()));
@@ -287,6 +288,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
                 state.expanded_crate.expect("missing crate"),
                 state.analysis.expect("missing analysis"),
                 state.crate_name.expect("missing crate name"),
+                state.input,
                 None,
                 CallbackHandler {
                     callback: &mut |a| {
