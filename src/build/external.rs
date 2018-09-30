@@ -443,13 +443,17 @@ fn guess_rustc_src_path(cmd: &ProcessBuilder) -> Option<PathBuf> {
         .get_args()
         .iter()
         .find(|&a| Path::new(a).extension().map(|e| e == "rs").unwrap_or(false))?;
-    let file_path = PathBuf::from(file);
 
-    Some(match (cmd.get_cwd(), file_path.is_absolute()) {
-        (_, true) => file_path,
-        (Some(cwd), _) => cwd.join(file_path),
-        // TODO: is cwd correct here?
-        (None, _) => std::env::current_dir().ok()?.join(file_path),
+    src_path(cmd.get_cwd(), file)
+}
+
+fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
+    let path = path.as_ref();
+
+    Some(match (cwd, path.is_absolute()) {
+        (_, true) => path.to_owned(),
+        (Some(cwd), _) => cwd.join(path),
+        (None, _) => std::env::current_dir().ok()?.join(path)
     })
 }
 
@@ -482,12 +486,15 @@ mod tests {
         }
     }
 
-    fn paths<'a>(invocations: &Vec<&'a Invocation>) -> Vec<&'a str> {
+    fn paths(invocations: &Vec<&Invocation>) -> Vec<PathBuf> {
         invocations
             .iter()
-            .filter_map(|d| d.src_path.as_ref())
-            .map(|p| p.to_str().unwrap())
+            .filter_map(|d| d.src_path.clone())
             .collect()
+    }
+
+    fn to_paths(cwd: Option<&Path>, paths: &[&str]) -> Vec<PathBuf> {
+        paths.iter().map(|p| src_path(cwd, p).unwrap()).collect()
     }
 
     #[test]
@@ -500,19 +507,21 @@ mod tests {
         let plan = ExternalPlan::try_from_raw(plan).unwrap();
 
         eprintln!("src_paths: {:#?}", &SrcPaths::from(&plan));
+        eprintln!("plan: {:?}", &plan);
 
-        let dirties = |file: &str| -> Vec<&str> {
-            plan.dirties(&[file])
-                .iter()
-                .filter_map(|d| d.src_path.as_ref())
-                .map(|p| p.to_str().unwrap())
-                .collect()
+        let check_dirties = |files: &[&str], expected: &[&str]| {
+            let to_paths = |x| to_paths(None, x);
+            let (files, expected) = (to_paths(files), to_paths(expected));
+
+            assert_eq!(
+                plan.dirties(&files).iter().filter_map(|d| d.src_path.clone()).collect::<Vec<_>>(),
+                expected
+            );
         };
-
-        assert_eq!(dirties("/my/dummy.rs"), Vec::<&str>::new());
-        assert_eq!(dirties("/my/repo/dummy.rs"), vec!["/my/repo/build.rs"]);
-        assert_eq!(dirties("/my/repo/src/c.rs"), vec!["/my/repo/src/lib.rs"]);
-        assert_eq!(dirties("/my/repo/src/a/b.rs"), vec!["/my/repo/src/lib.rs"]);
+        check_dirties(&["/my/dummy.rs"], &[]);
+        check_dirties(&["/my/repo/dummy.rs"], &["/my/repo/build.rs"]);
+        check_dirties(&["/my/repo/src/c.rs"], &["/my/repo/src/lib.rs"]);
+        check_dirties(&["/my/repo/src/a/b.rs"], &["/my/repo/src/lib.rs"]);
     }
 
     #[test]
@@ -527,18 +536,20 @@ mod tests {
         eprintln!("src_paths: {:#?}", &SrcPaths::from(&plan));
         eprintln!("plan: {:?}", &plan);
 
+        let to_paths = |x| to_paths(None, x);
+
         assert_eq!(
-            paths(&plan.dirties(&["/my/repo/src/a/b.rs"])),
-            vec!["/my/repo/src/lib.rs"]
+            paths(&plan.dirties(&to_paths(&["/my/repo/src/a/b.rs"]))),
+            to_paths(&["/my/repo/src/lib.rs"])
         );
 
         assert_eq!(
-            paths(&plan.dirties_transitive(&["/my/repo/file.rs"])).sorted(),
-            vec!["/my/repo/build.rs", "/my/repo/src/lib.rs"].sorted(),
+            paths(&plan.dirties_transitive(&to_paths(&["/my/repo/file.rs"]))).sorted(),
+            to_paths(&["/my/repo/build.rs", "/my/repo/src/lib.rs"]).sorted(),
         );
         assert_eq!(
-            paths(&plan.dirties_transitive(&["/my/repo/src/file.rs"])).sorted(),
-            vec!["/my/repo/src/lib.rs"].sorted(),
+            paths(&plan.dirties_transitive(&to_paths(&["/my/repo/src/file.rs"]))).sorted(),
+            to_paths(&["/my/repo/src/lib.rs"]).sorted(),
         );
     }
 
@@ -554,10 +565,12 @@ mod tests {
         eprintln!("src_paths: {:#?}", &SrcPaths::from(&plan));
         eprintln!("plan: {:?}", &plan);
 
-        let units_to_rebuild = plan.dirties_transitive(&["/my/repo/file.rs"]);
+        let to_paths = |x| to_paths(None, x);
+
+        let units_to_rebuild = plan.dirties_transitive(&to_paths(&["/my/repo/file.rs"]));
         assert_eq!(
             paths(&units_to_rebuild).sorted(),
-            vec!["/my/repo/build.rs", "/my/repo/src/lib.rs"].sorted(),
+            to_paths(&["/my/repo/build.rs", "/my/repo/src/lib.rs"]).sorted(),
         );
 
         // TODO: Test on non-trivial input, use Iterator::position if
@@ -566,7 +579,7 @@ mod tests {
         let topo_units = plan.topological_sort(units_to_rebuild);
         assert_eq!(
             paths(&topo_units),
-            vec!["/my/repo/src/lib.rs", "/my/repo/build.rs"],
+            to_paths(&["/my/repo/src/lib.rs", "/my/repo/build.rs"]),
         )
     }
 }
