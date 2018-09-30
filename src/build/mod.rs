@@ -563,7 +563,7 @@ impl Internals {
                             WorkStatus::Execute(_) if needs_rebuild => {
                                 WorkStatus::NeedsCargo(PackageArg::Default)
                             },
-                            work @ _ => work,
+                            work => work,
                         }
                     }
                 }

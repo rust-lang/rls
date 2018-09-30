@@ -146,9 +146,10 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
                 .cloned()
                 .collect();
 
-            let cwd = match directory.is_relative() {
-                true => build_dir.join(directory),
-                false => directory.to_owned(),
+            let cwd = if directory.is_relative() {
+                build_dir.join(directory)
+            } else {
+                directory.to_owned()
             };
 
             Ok(RawInvocation {
@@ -442,7 +443,7 @@ fn guess_rustc_src_path(build_dir: &Path, cmd: &ProcessBuilder) -> Option<PathBu
         return None;
     }
 
-    let cwd = cmd.get_cwd().or(Some(build_dir));
+    let cwd = cmd.get_cwd().or_else(|| Some(build_dir));
 
     let file = cmd
         .get_args()
@@ -491,7 +492,7 @@ mod tests {
         }
     }
 
-    fn paths(invocations: &Vec<&Invocation>) -> Vec<PathBuf> {
+    fn paths(invocations: &[&Invocation]) -> Vec<PathBuf> {
         invocations
             .iter()
             .filter_map(|d| d.src_path.clone())

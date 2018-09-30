@@ -87,7 +87,8 @@ crate fn rustc(
         config.clippy_preference
     };
     // Required for Clippy not to crash when running outside Cargo?
-    local_envs.entry("CARGO_MANIFEST_DIR".into()).or_insert(Some(build_dir.clone().into()));
+    local_envs.entry("CARGO_MANIFEST_DIR".into())
+        .or_insert_with(|| Some(build_dir.into()));
 
     let (guard, _) = env_lock.lock();
     let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
