@@ -1,3 +1,5 @@
+#![feature(tool_lints)]
+
 // Copyright 2016 The Rust Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution and at
 // http://rust-lang.org/COPYRIGHT.
@@ -11,84 +13,72 @@
 #[macro_use]
 extern crate serde_json;
 
+use crate::support::RlsStdout;
 use std::time::Duration;
 
 mod support;
-use self::support::{basic_bin_manifest, project, timeout, ExpectedMessage, RlsHandle};
+use self::support::{basic_bin_manifest, project};
 
-const TIME_LIMIT_SECS: u64 = 300;
+const RLS_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[test]
 fn cmd_test_infer_bin() {
-    timeout(Duration::from_secs(TIME_LIMIT_SECS), || {
-        let p = project("simple_workspace")
-            .file("Cargo.toml", &basic_bin_manifest("foo"))
-            .file(
-                "src/main.rs",
-                r#"
+    let p = project("simple_workspace")
+        .file("Cargo.toml", &basic_bin_manifest("foo"))
+        .file(
+            "src/main.rs",
+            r#"
                 struct UnusedBin;
                 fn main() {
                     println!("Hello world!");
                 }
             "#,
-            ).build();
+        ).build();
 
-        let root_path = p.root();
-        let rls_child = p.rls().spawn().unwrap();
-        let mut rls = RlsHandle::new(rls_child);
+    let root_path = p.root();
+    let mut rls = p.spawn_rls();
 
-        rls.request(
-            0,
-            "initialize",
-            Some(json!({
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
             "rootPath": root_path,
             "capabilities": {}
         })),
-        ).unwrap();
+    ).unwrap();
 
-        rls.expect_messages(&[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("foo"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("foo"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("struct is never constructed: `UnusedBin`"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-        ]);
+    let json: Vec<_> = rls
+        .wait_until_done_indexing(RLS_TIMEOUT)
+        .to_json_messages()
+        .filter(|json| json["method"] != "window/progress")
+        .collect();
 
-        rls.shutdown_exit();
-    });
+    assert!(json.len() > 1);
+
+    assert!(json[0]["result"]["capabilities"].is_object());
+
+    assert_eq!(json[1]["method"], "textDocument/publishDiagnostics");
+    assert_eq!(json[1]["params"]["diagnostics"][0]["code"], "dead_code");
+
+    rls.shutdown(RLS_TIMEOUT);
 }
 
+/// Test includes window/progress regression testing
 #[test]
 fn cmd_test_simple_workspace() {
-    timeout(Duration::from_secs(TIME_LIMIT_SECS), || {
-        let p = project("simple_workspace")
-            .file(
-                "Cargo.toml",
-                r#"
+    let p = project("simple_workspace")
+        .file(
+            "Cargo.toml",
+            r#"
                 [workspace]
                 members = [
                 "member_lib",
                 "member_bin",
                 ]
             "#,
-            ).file(
-                "Cargo.lock",
-                r#"
+        ).file(
+            "Cargo.lock",
+            r#"
                 [root]
                 name = "member_lib"
                 version = "0.1.0"
@@ -100,9 +90,9 @@ fn cmd_test_simple_workspace() {
                 "member_lib 0.1.0",
                 ]
             "#,
-            ).file(
-                "member_bin/Cargo.toml",
-                r#"
+        ).file(
+            "member_bin/Cargo.toml",
+            r#"
                 [package]
                 name = "member_bin"
                 version = "0.1.0"
@@ -111,18 +101,18 @@ fn cmd_test_simple_workspace() {
                 [dependencies]
                 member_lib = { path = "../member_lib" }
             "#,
-            ).file(
-                "member_bin/src/main.rs",
-                r#"
+        ).file(
+            "member_bin/src/main.rs",
+            r#"
                 extern crate member_lib;
 
                 fn main() {
                     let a = member_lib::MemberLibStruct;
                 }
             "#,
-            ).file(
-                "member_lib/Cargo.toml",
-                r#"
+        ).file(
+            "member_lib/Cargo.toml",
+            r#"
                 [package]
                 name = "member_lib"
                 version = "0.1.0"
@@ -130,9 +120,9 @@ fn cmd_test_simple_workspace() {
 
                 [dependencies]
             "#,
-            ).file(
-                "member_lib/src/lib.rs",
-                r#"
+        ).file(
+            "member_lib/src/lib.rs",
+            r#"
                 pub struct MemberLibStruct;
 
                 struct Unused;
@@ -144,80 +134,87 @@ fn cmd_test_simple_workspace() {
                     }
                 }
             "#,
-            ).build();
+        ).build();
 
-        let root_path = p.root();
-        let rls_child = p.rls().spawn().unwrap();
-        let mut rls = RlsHandle::new(rls_child);
+    let root_path = p.root();
+    let mut rls = p.spawn_rls();
 
-        rls.request(
-            0,
-            "initialize",
-            Some(json!({
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
             "rootPath": root_path,
             "capabilities": {}
         })),
-        ).unwrap();
+    ).unwrap();
 
-        rls.expect_messages(&[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            // order of member_lib/member_bin is undefined
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("member_"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("member_"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("member_"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("member_"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
-            ExpectedMessage::new(None).expect_contains("publishDiagnostics"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-        ]);
+    let json: Vec<_> = rls
+        .wait_until_done_indexing(RLS_TIMEOUT)
+        .to_json_messages()
+        .collect();
+    assert!(json.len() >= 11);
 
-        rls.shutdown_exit();
-    });
+    assert!(json[0]["result"]["capabilities"].is_object());
+
+    assert_eq!(json[1]["method"], "window/progress");
+    assert_eq!(json[1]["params"]["title"], "Building");
+    assert_eq!(json[1]["params"].get("message"), None);
+
+    // order of member_lib/member_bin is undefined
+    for json in &json[2..6] {
+        assert_eq!(json["method"], "window/progress");
+        assert_eq!(json["params"]["title"], "Building");
+        assert!(
+            json["params"]["message"]
+                .as_str()
+                .unwrap()
+                .starts_with("member_")
+        );
+    }
+
+    assert_eq!(json[6]["method"], "window/progress");
+    assert_eq!(json[6]["params"]["done"], true);
+    assert_eq!(json[6]["params"]["title"], "Building");
+
+    assert_eq!(json[7]["method"], "window/progress");
+    assert_eq!(json[7]["params"]["title"], "Indexing");
+
+    assert_eq!(json[8]["method"], "textDocument/publishDiagnostics");
+
+    assert_eq!(json[9]["method"], "textDocument/publishDiagnostics");
+
+    assert_eq!(json[10]["method"], "window/progress");
+    assert_eq!(json[10]["params"]["done"], true);
+    assert_eq!(json[10]["params"]["title"], "Indexing");
+
+    let json: Vec<_> = rls.shutdown(RLS_TIMEOUT).to_json_messages().collect();
+
+    assert_eq!(json[11]["id"], 99999);
 }
 
 #[test]
-fn changing_workspace_lib_retains_bin_diagnostics() {
-    timeout(Duration::from_secs(TIME_LIMIT_SECS), || {
-        let p = project("simple_workspace")
-            .file(
-                "Cargo.toml",
-                r#"
+fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
+    let p = project("simple_workspace")
+        .file(
+            "Cargo.toml",
+            r#"
                 [workspace]
                 members = [
                 "library",
                 "binary",
                 ]
             "#,
-            ).file(
-                "library/Cargo.toml",
-                r#"
+        ).file(
+            "library/Cargo.toml",
+            r#"
                 [package]
                 name = "library"
                 version = "0.1.0"
                 authors = ["Example <rls@example.com>"]
             "#,
-            ).file(
-                "library/src/lib.rs",
-                r#"
+        ).file(
+            "library/src/lib.rs",
+            r#"
                 pub fn fetch_u32() -> u32 {
                     let unused = ();
                     42
@@ -230,9 +227,9 @@ fn changing_workspace_lib_retains_bin_diagnostics() {
                     }
                 }
             "#,
-            ).file(
-                "binary/Cargo.toml",
-                r#"
+        ).file(
+            "binary/Cargo.toml",
+            r#"
                 [package]
                 name = "binary"
                 version = "0.1.0"
@@ -241,273 +238,216 @@ fn changing_workspace_lib_retains_bin_diagnostics() {
                 [dependencies]
                 library = { path = "../library" }
             "#,
-            ).file(
-                "binary/src/main.rs",
-                r#"
+        ).file(
+            "binary/src/main.rs",
+            r#"
                 extern crate library;
 
                 fn main() {
                     let val: u32 = library::fetch_u32();
                 }
             "#,
-            ).build();
+        ).build();
 
-        let root_path = p.root();
-        let rls_child = p.rls().spawn().unwrap();
-        let mut rls = RlsHandle::new(rls_child);
+    let root_path = p.root();
+    let mut rls = p.spawn_rls();
 
-        rls.request(
-            0,
-            "initialize",
-            Some(json!({
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
             "rootPath": root_path,
             "capabilities": {}
         })),
-        ).unwrap();
+    ).unwrap();
 
-        rls.expect_messages(&[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Indexing""#),
-        ]);
-        rls.expect_messages_unordered(&[
-            ExpectedMessage::new(None)
-                .expect_contains("publishDiagnostics")
-                .expect_contains("library/src/lib.rs")
-                .expect_contains("unused variable: `unused`")
-                .expect_contains("unused variable: `test_val`"),
-            ExpectedMessage::new(None)
-                .expect_contains("publishDiagnostics")
-                .expect_contains("binary/src/main.rs")
-                .expect_contains("unused variable: `val`"),
-        ]);
-        rls.expect_messages(&[ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#)]);
+    let to_publish_messages = |stdout: &RlsStdout| {
+        stdout
+            .to_json_messages()
+            .filter(|json| json["method"] == "textDocument/publishDiagnostics")
+    };
+    let rfind_diagnostics_with_uri = |stdout, uri_end| {
+        to_publish_messages(stdout)
+            .rfind(|json| json["params"]["uri"].as_str().unwrap().ends_with(uri_end))
+            .unwrap()
+    };
 
-        rls.notify(
-            "textDocument/didChange",
-            Some(json!({
-            "contentChanges": [
-                {
-                    "range": {
-                        "start": {
-                            "line": 1,
-                            "character": 38,
+    let stdout = rls.wait_until_done_indexing(RLS_TIMEOUT);
+
+    let lib_diagnostic = rfind_diagnostics_with_uri(&stdout, "library/src/lib.rs");
+    assert_eq!(
+        lib_diagnostic["params"]["diagnostics"][0]["code"],
+        "unused_variables"
+    );
+    let bin_diagnostic = rfind_diagnostics_with_uri(&stdout, "binary/src/main.rs");
+    assert_eq!(
+        bin_diagnostic["params"]["diagnostics"][0]["code"],
+        "unused_variables"
+    );
+
+    rls.notify(
+        "textDocument/didChange",
+        Some(json!({
+                "contentChanges": [
+                    {
+                        "range": {
+                            "start": {
+                                "line": 1,
+                                "character": 38,
+                            },
+                            "end": {
+                                "line": 1,
+                                "character": 41,
+                            }
                         },
-                        "end": {
-                            "line": 1,
-                            "character": 41,
-                        }
-                    },
-                    "rangeLength": 3,
-                    "text": "u64"
+                        "rangeLength": 3,
+                        "text": "u64"
+                    }
+                ],
+                "textDocument": {
+                    "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
+                    "version": 0
                 }
-            ],
-            "textDocument": {
-                "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
-                "version": 0
-            }
-        })),
-        ).unwrap();
+            })),
+    ).unwrap();
 
-        rls.expect_messages(&[
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Indexing""#),
-        ]);
-        rls.expect_messages_unordered(&[
-            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("library/src/lib.rs")
-                .expect_contains("unused variable: `unused`") // Regular lib compiles
-                .expect_contains("expected u32, found u64"), // lib unit tests have compile errors
-            ExpectedMessage::new(None).expect_contains("publishDiagnostics").expect_contains("binary/src/main.rs")
-                .expect_contains("expected u32, found u64"), // bin depending on lib picks up type mismatch
-        ]);
-        rls.expect_messages(&[ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#"title":"Indexing""#)
-            .expect_contains(r#""done":true"#)]);
+    let stdout = rls.wait_until_done_indexing_n(2, RLS_TIMEOUT);
 
-        rls.notify(
-            "textDocument/didChange",
-            Some(json!({
-            "contentChanges": [
-                {
-                    "range": {
-                        "start": {
-                            "line": 1,
-                            "character": 38,
+    // lib unit tests have compile errors
+    let lib_diagnostic = rfind_diagnostics_with_uri(&stdout, "library/src/lib.rs");
+    let error_diagnostic = lib_diagnostic["params"]["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["code"] == "E0308")
+        .expect("expected lib error diagnostic");
+    assert!(
+        error_diagnostic["message"]
+            .as_str()
+            .unwrap()
+            .contains("expected u32, found u64")
+    );
+
+    // bin depending on lib picks up type mismatch
+    let bin_diagnostic = rfind_diagnostics_with_uri(&stdout, "binary/src/main.rs");
+    let error_diagnostic = bin_diagnostic["params"]["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["code"] == "E0308")
+        .expect("expected bin error diagnostic");
+    assert!(
+        error_diagnostic["message"]
+            .as_str()
+            .unwrap()
+            .contains("expected u32, found u64")
+    );
+
+    rls.notify(
+        "textDocument/didChange",
+        Some(json!({
+                "contentChanges": [
+                    {
+                        "range": {
+                            "start": {
+                                "line": 1,
+                                "character": 38,
+                            },
+                            "end": {
+                                "line": 1,
+                                "character": 41,
+                            }
                         },
-                        "end": {
-                            "line": 1,
-                            "character": 41,
-                        }
-                    },
-                    "rangeLength": 3,
-                    "text": "u32"
+                        "rangeLength": 3,
+                        "text": "u32"
+                    }
+                ],
+                "textDocument": {
+                    "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
+                    "version": 1
                 }
-            ],
-            "textDocument": {
-                "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
-                "version": 1
-            }
-        })),
-        ).unwrap();
+            })),
+    ).unwrap();
 
-        rls.expect_messages(&[
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#)
-                .expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Indexing""#),
-        ]);
-        rls.expect_messages_unordered(&[
-            ExpectedMessage::new(None)
-                .expect_contains("publishDiagnostics")
-                .expect_contains("library/src/lib.rs")
-                .expect_contains("unused variable: `unused`")
-                .expect_contains("unused variable: `test_val`"),
-            ExpectedMessage::new(None)
-                .expect_contains("publishDiagnostics")
-                .expect_contains("binary/src/main.rs")
-                .expect_contains("unused variable: `val`"),
-        ]);
-        rls.expect_messages(&[ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#"title":"Indexing""#)
-            .expect_contains(r#""done":true"#)]);
+    let stdout = rls.wait_until_done_indexing_n(3, RLS_TIMEOUT);
+    let lib_diagnostic = rfind_diagnostics_with_uri(&stdout, "library/src/lib.rs");
+    assert_eq!(
+        lib_diagnostic["params"]["diagnostics"][0]["code"],
+        "unused_variables"
+    );
+    let bin_diagnostic = rfind_diagnostics_with_uri(&stdout, "binary/src/main.rs");
+    assert_eq!(
+        bin_diagnostic["params"]["diagnostics"][0]["code"],
+        "unused_variables"
+    );
 
-        rls.shutdown_exit();
-    });
+    rls.shutdown(RLS_TIMEOUT);
 }
 
 #[test]
 fn cmd_test_complete_self_crate_name() {
-    timeout(Duration::from_secs(TIME_LIMIT_SECS), || {
-        let p = project("ws_with_test_dir")
-            .file(
-                "Cargo.toml",
-                r#"
+    let p = project("ws_with_test_dir")
+        .file(
+            "Cargo.toml",
+            r#"
                 [workspace]
                 members = ["library"]
             "#,
-            ).file(
-                "library/Cargo.toml",
-                r#"
+        ).file(
+            "library/Cargo.toml",
+            r#"
                 [package]
                 name = "library"
                 version = "0.1.0"
                 authors = ["Example <rls@example.com>"]
             "#,
-            ).file(
-                "library/src/lib.rs",
-                r#"
+        ).file(
+            "library/src/lib.rs",
+            r#"
                 pub fn function() -> usize { 5 }
             "#,
-            ).file(
-                "library/tests/test.rs",
-                r#"
+        ).file(
+            "library/tests/test.rs",
+            r#"
                    extern crate library;
                    use library::~
             "#,
-            ).build();
+        ).build();
 
-        let root_path = p.root();
-        let rls_child = p.rls().spawn().unwrap();
-        let mut rls = RlsHandle::new(rls_child);
+    let root_path = p.root();
+    let mut rls = p.spawn_rls();
 
-        rls.request(
-            0,
-            "initialize",
-            Some(json!({
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
             "rootPath": root_path,
             "capabilities": {}
         })),
-        ).unwrap();
+    ).unwrap();
 
-        rls.expect_messages(&[
-            ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("library"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains("library"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Building""#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#"title":"Indexing""#),
-            ExpectedMessage::new(None).expect_contains("expected identifier, found"),
-            ExpectedMessage::new(None)
-                .expect_contains("progress")
-                .expect_contains(r#""done":true"#),
-        ]);
-        rls.request(
-            0,
-            "textDocument/completion",
-            Some(json!({
+    let stdout = rls.wait_until_done_indexing(RLS_TIMEOUT);
+
+    let json: Vec<_> = stdout
+        .to_json_messages()
+        .filter(|json| json["method"] != "window/progress")
+        .collect();
+    assert!(json.len() > 1);
+
+    assert!(json[0]["result"]["capabilities"].is_object());
+
+    assert_eq!(json[1]["method"], "textDocument/publishDiagnostics");
+    assert!(
+        json[1]["params"]["diagnostics"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("expected identifier")
+    );
+
+    rls.request(
+        0,
+        "textDocument/completion",
+        Some(json!({
             "context": {
                 "triggerCharacter": ":",
                 "triggerKind": 2
@@ -521,11 +461,23 @@ fn cmd_test_complete_self_crate_name() {
                 "version": 1
             }
         })),
-        ).unwrap();
-        rls.expect_messages(&[ExpectedMessage::new(Some(0))
-            .expect_contains("result")
-            .expect_contains("pub fn function() -> usize")]);
+    ).unwrap();
 
-        rls.shutdown_exit();
-    });
+    let stdout = rls.wait_until(
+        |stdout| {
+            stdout
+                .to_json_messages()
+                .any(|json| json["result"][0]["detail"].is_string())
+        },
+        RLS_TIMEOUT,
+    );
+
+    let json = stdout
+        .to_json_messages()
+        .rfind(|json| json["result"].is_array())
+        .unwrap();
+
+    assert_eq!(json["result"][0]["detail"], "pub fn function() -> usize");
+
+    rls.shutdown(RLS_TIMEOUT);
 }

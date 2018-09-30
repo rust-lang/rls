@@ -11,224 +11,79 @@
 use serde_json;
 use std::env;
 use std::fs;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, Read, Write};
 use std::mem;
 use std::panic;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::str;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use self::paths::TestPathExt;
 
 pub mod paths;
 
-/// Executes `func` and panics if it takes longer than `dur`.
-pub fn timeout<F>(dur: Duration, func: F)
-where
-    F: FnOnce() + Send + 'static + panic::UnwindSafe,
-{
-    let pair = Arc::new((Mutex::new(TestState::Running), Condvar::new()));
-    let pair2 = pair.clone();
 
-    thread::spawn(move || {
-        let &(ref lock, ref cvar) = &*pair2;
-        match panic::catch_unwind(func) {
-            Ok(_) => *lock.lock().unwrap() = TestState::Success,
-            Err(_) => *lock.lock().unwrap() = TestState::Fail,
+/// Parse valid LSP stdout into a list of json messages
+pub fn parse_messages(stdout: &str) -> Vec<String> {
+    let mut messages = vec![];
+    let mut next_message_len: usize = 0;
+
+    for line in stdout.lines().filter(|l| !l.is_empty()) {
+        if let Some(msg) = line.get(..next_message_len).filter(|s| !s.is_empty()) {
+            messages.push(msg.to_owned());
         }
-
-        // We notify the condvar that the value has changed.
-        cvar.notify_one();
-    });
-
-    // Wait for the test to finish.
-    let &(ref lock, ref cvar) = &*pair;
-    let mut test_state = lock.lock().unwrap();
-    // As long as the value inside the `Mutex` is false, we wait.
-    while *test_state == TestState::Running {
-        let result = cvar.wait_timeout(test_state, dur).unwrap();
-        if result.1.timed_out() {
-            panic!("Timed out")
-        }
-        if *result.0 == TestState::Fail {
-            panic!("failed");
-        }
-        test_state = result.0
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum TestState {
-    Running,
-    Success,
-    Fail,
-}
-
-#[derive(Clone, Debug)]
-pub struct ExpectedMessage {
-    id: Option<u64>,
-    contains: Vec<String>,
-}
-
-#[derive(Debug)]
-pub enum MsgMatchError {
-    ParseError,
-    MissingJsonrpc,
-    BadJsonrpc,
-    MissingId,
-    BadId,
-    StringNotFound(String, String),
-}
-
-impl<'a, 'b> ToString for MsgMatchError {
-    fn to_string(&self) -> String {
-        match self {
-            MsgMatchError::ParseError => "JSON parsing failed".into(),
-            MsgMatchError::MissingJsonrpc => "Missing jsonrpc field".into(),
-            MsgMatchError::BadJsonrpc => "Bad jsonrpc field".into(),
-            MsgMatchError::MissingId => "Missing id field".into(),
-            MsgMatchError::BadId => "Unexpected id".into(),
-            MsgMatchError::StringNotFound(n, h) => format!("Could not find `{}` in `{}`", n, h),
-        }
-    }
-}
-
-impl ExpectedMessage {
-    pub fn new(id: Option<u64>) -> ExpectedMessage {
-        ExpectedMessage {
-            id,
-            contains: vec![],
-        }
+        next_message_len = line
+            .get(next_message_len + "Content-Length: ".len()..)
+            .and_then(|s| match s.trim().parse() {
+                Ok(s) => Some(s),
+                Err(err) => panic!("Unexpected Content-Length {:?}: {}", s.trim(), err),
+            }).unwrap_or(0);
     }
 
-    pub fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
-        self.contains.push(s.to_owned());
-        self
-    }
-
-    // Err is the expected message that was not found in the given string.
-    pub fn try_match(&self, msg: &str) -> Result<(), MsgMatchError> {
-        use self::MsgMatchError::*;
-
-        let values: serde_json::Value = serde_json::from_str(msg).map_err(|_| ParseError)?;
-        let jsonrpc = values.get("jsonrpc").ok_or(MissingJsonrpc)?;
-        if jsonrpc != "2.0" {
-            return Err(BadJsonrpc);
-        }
-
-        if let Some(id) = self.id {
-            let values_id = values.get("id").ok_or(MissingId)?;
-            if id != values_id.as_u64().unwrap() {
-                return Err(BadId);
-            };
-        }
-
-        self.try_match_raw(msg)
-    }
-
-    pub fn try_match_raw(&self, s: &str) -> Result<(), MsgMatchError> {
-        for c in &self.contains {
-            s.find(c)
-                .ok_or_else(|| MsgMatchError::StringNotFound(c.to_owned(), s.to_owned()))
-                .map(|_| ())?;
-        }
-        Ok(())
-    }
-}
-
-pub fn read_message<R: Read>(reader: &mut BufReader<R>) -> io::Result<String> {
-    let mut content_length = None;
-    // Read the headers
-    loop {
-        let mut header = String::new();
-        reader.read_line(&mut header)?;
-        if header.is_empty() {
-            panic!("eof")
-        }
-        if header == "\r\n" {
-            // This is the end of the headers
-            break;
-        }
-        let parts: Vec<&str> = header.splitn(2, ": ").collect();
-        if parts[0] == "Content-Length" {
-            content_length = Some(parts[1].trim().parse::<usize>().unwrap())
-        }
-    }
-
-    // Read the actual message
-    let content_length = content_length.expect("did not receive Content-Length header");
-    let mut msg = vec![0; content_length];
-    reader.read_exact(&mut msg)?;
-    let result = String::from_utf8_lossy(&msg).into_owned();
-    Ok(result)
-}
-
-pub fn read_messages<R: Read>(reader: &mut BufReader<R>, count: usize) -> Vec<String> {
-    (0..count).map(|_| read_message(reader).unwrap()).collect()
-}
-
-pub fn expect_messages<R: Read>(reader: &mut BufReader<R>, expected: &[&ExpectedMessage]) {
-    let results = read_messages(reader, expected.len());
-
-    println!(
-        "expect_messages:\n  results: {:#?},\n  expected: {:#?}",
-        results, expected
-    );
-    assert_eq!(results.len(), expected.len());
-    for (found, expected) in results.iter().zip(expected.iter()) {
-        if let Err(err) = expected.try_match(&found) {
-            panic!(err.to_string());
-        }
-    }
-}
-
-pub fn expect_messages_unordered<R: Read>(
-    reader: &mut BufReader<R>,
-    expected: &[&ExpectedMessage],
-) {
-    let mut results = read_messages(reader, expected.len());
-    let mut expected: Vec<&ExpectedMessage> = expected.to_owned();
-
-    println!(
-        "expect_messages_unordered:\n  results: {:#?},\n  expected: {:#?}",
-        results, expected
-    );
-    assert_eq!(results.len(), expected.len());
-
-    while !results.is_empty() && !expected.is_empty() {
-        let first = expected[0];
-
-        let opt = results
-            .iter()
-            .map(|r| first.try_match(r))
-            .enumerate()
-            .find(|(_, res)| res.is_ok());
-
-        match opt {
-            Some((idx, Ok(()))) => {
-                expected.remove(0);
-                results.remove(idx);
-            }
-            Some((_, Err(err))) => panic!(err.to_string()),
-            None => panic!(format!("Could not find `{:?}` among `{:?}", first, results)),
-        }
-    }
+    messages
 }
 
 pub struct RlsHandle {
     child: Child,
     stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    stdout: Arc<Mutex<String>>,
+    // stdout: BufReader<ChildStdout>,
 }
 
 impl RlsHandle {
     pub fn new(mut child: Child) -> RlsHandle {
         let stdin = mem::replace(&mut child.stdin, None).unwrap();
-        let stdout = mem::replace(&mut child.stdout, None).unwrap();
-        let stdout = BufReader::new(stdout);
+        let child_stdout = mem::replace(&mut child.stdout, None).unwrap();
+        let stdout: Arc<Mutex<String>> = Arc::default();
+        let processed_stdout = Arc::clone(&stdout);
+
+        thread::spawn(move || {
+            let mut rls_stdout = child_stdout;
+
+            let mut buf = vec![0; 1024];
+            loop {
+                let read = rls_stdout.read(&mut buf).unwrap();
+                if read == 0 {
+                    break;
+                }
+                buf.truncate(read);
+
+                buf = match String::from_utf8(buf) {
+                    Ok(s) => {
+                        processed_stdout.lock().unwrap().push_str(&s);
+                        vec![0; 1024]
+                    }
+                    Err(e) => {
+                        let mut vec = e.into_bytes();
+                        vec.reserve(1024);
+                        vec
+                    }
+                }
+            }
+        });
 
         RlsHandle {
             child,
@@ -283,27 +138,108 @@ impl RlsHandle {
 
         self.send(&message)
     }
-    pub fn shutdown_exit(&mut self) {
+
+    /// Blocks until at least `count` messages have appearing in stdout.
+    ///
+    /// Panics if the timeout is reached.
+    pub fn wait_until<P>(&self, stdout_predicate: P, timeout: Duration) -> RlsStdout
+    where
+        P: Fn(&RlsStdout) -> bool,
+    {
+        let start = Instant::now();
+        let mut stdout_len = 0;
+        loop {
+            let stdout = self.stdout();
+            if stdout.0.len() != stdout_len {
+                if stdout_predicate(&stdout) {
+                    break stdout;
+                }
+                stdout_len = stdout.0.len();
+            }
+
+            assert!(
+                start.elapsed() < timeout,
+                "Timed out waiting {:?} for predicate",
+                timeout
+            );
+
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    pub fn wait_until_done_indexing(&self, timeout: Duration) -> RlsStdout {
+        self.wait_until_done_indexing_n(1, timeout)
+    }
+
+    pub fn wait_until_done_indexing_n(&self, n: usize, timeout: Duration) -> RlsStdout {
+        self.wait_until(
+            |stdout| {
+                stdout
+                    .to_json_messages()
+                    .filter(|json| {
+                        json["params"]["title"] == "Indexing"
+                            && json["params"]["done"].as_bool().unwrap_or(false)
+                    }).count()
+                    >= n
+            },
+            timeout,
+        )
+    }
+
+    pub fn stdout(&self) -> RlsStdout {
+        RlsStdout(self.stdout.lock().unwrap().clone())
+    }
+
+    /// Sends shutdown messages, assets successful exit of process and returns stdout
+    pub fn shutdown(&mut self, timeout: Duration) -> RlsStdout {
         self.request(99999, "shutdown", None).unwrap();
-
-        self.expect_messages(&[&ExpectedMessage::new(Some(99999))]);
-
         self.notify("exit", None).unwrap();
 
-        let ecode = self
-            .child
-            .wait()
-            .expect("failed to wait on child rls process");
+        let start = Instant::now();
 
-        assert!(ecode.success());
+        while start.elapsed() < timeout {
+            if let Some(ecode) = self
+                .child
+                .try_wait()
+                .expect("failed to wait on child rls process")
+            {
+                assert!(ecode.success());
+                return self.stdout();
+            }
+        }
+        panic!("Timed out shutting down rls");
     }
+}
 
-    pub fn expect_messages(&mut self, expected: &[&ExpectedMessage]) {
-        expect_messages(&mut self.stdout, expected);
+impl Drop for RlsHandle {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            eprintln!("---rls-stdout---\n{}\n---------------", self.stdout().0);
+        }
+
+        let _ = self.child.kill();
     }
+}
 
-    pub fn expect_messages_unordered(&mut self, expected: &[&ExpectedMessage]) {
-        expect_messages_unordered(&mut self.stdout, expected);
+#[derive(Debug, Clone)]
+pub struct RlsStdout(String);
+
+impl RlsStdout {
+    /// Parse into a list of string messages.
+    ///
+    /// The last one should be the shutdown response.
+    pub fn to_string_messages(&self) -> Vec<String> {
+        parse_messages(&self.0)
+    }
+    /// Parse into json values.
+    ///
+    /// The last one should be the shutdown response.
+    pub fn to_json_messages(
+        &self,
+    ) -> impl Iterator<Item = serde_json::Value> + DoubleEndedIterator {
+        self.to_string_messages()
+            .into_iter()
+            .map(|msg| serde_json::from_str(&msg).unwrap_or(serde_json::Value::Null))
     }
 }
 
@@ -391,12 +327,15 @@ impl Project {
         self.root.clone()
     }
 
-    pub fn rls(&self) -> Command {
-        let mut cmd = Command::new(rls_exe());
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .current_dir(self.root());
-        cmd
+    pub fn spawn_rls(&self) -> RlsHandle {
+        RlsHandle::new(
+            Command::new(rls_exe())
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .current_dir(self.root())
+                .spawn()
+                .unwrap(),
+        )
     }
 }
 
