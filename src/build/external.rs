@@ -164,7 +164,7 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
         })
         .collect::<Result<Vec<RawInvocation>, ()>>()?;
 
-    ExternalPlan::try_from_raw(RawPlan { invocations })
+    ExternalPlan::try_from_raw(build_dir, RawPlan { invocations })
 }
 
 #[derive(Debug, Deserialize)]
@@ -224,8 +224,8 @@ impl BuildKey for Invocation {
     }
 }
 
-impl From<RawInvocation> for Invocation {
-    fn from(raw: RawInvocation) -> Invocation {
+impl Invocation {
+    fn from_raw(build_dir: &Path, raw: RawInvocation) -> Invocation {
         let mut command = process(&raw.program);
         command.args(&raw.args);
         for (k, v) in &raw.env {
@@ -239,7 +239,7 @@ impl From<RawInvocation> for Invocation {
             deps: raw.deps.to_owned(),
             outputs: raw.outputs.to_owned(),
             links: raw.links.to_owned(),
-            src_path: guess_rustc_src_path(&command),
+            src_path: guess_rustc_src_path(build_dir, &command),
             command,
         }
     }
@@ -270,7 +270,7 @@ impl ExternalPlan {
         self.rev_deps.entry(dep).or_insert_with(HashSet::new).insert(key);
     }
 
-    crate fn try_from_raw(raw: RawPlan) -> Result<ExternalPlan, ()> {
+    crate fn try_from_raw(build_dir: &Path, raw: RawPlan) -> Result<ExternalPlan, ()> {
         // Sanity check, each dependency (index) has to be inside the build plan
         if raw
             .invocations
@@ -281,7 +281,10 @@ impl ExternalPlan {
             return Err(());
         }
 
-        let units: Vec<Invocation> = raw.invocations.into_iter().map(|x| x.into()).collect();
+        let units = raw.invocations
+            .into_iter()
+            .map(|raw| Invocation::from_raw(build_dir, raw))
+            .collect();
 
         Ok(ExternalPlan::with_units(units))
     }
@@ -434,17 +437,19 @@ impl BuildGraph for ExternalPlan {
     }
 }
 
-fn guess_rustc_src_path(cmd: &ProcessBuilder) -> Option<PathBuf> {
+fn guess_rustc_src_path(build_dir: &Path, cmd: &ProcessBuilder) -> Option<PathBuf> {
     if !Path::new(cmd.get_program()).ends_with("rustc") {
         return None;
     }
+
+    let cwd = cmd.get_cwd().or(Some(build_dir));
 
     let file = cmd
         .get_args()
         .iter()
         .find(|&a| Path::new(a).extension().map(|e| e == "rs").unwrap_or(false))?;
 
-    src_path(cmd.get_cwd(), file)
+    src_path(cwd, file)
 }
 
 fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
@@ -493,8 +498,8 @@ mod tests {
             .collect()
     }
 
-    fn to_paths(cwd: Option<&Path>, paths: &[&str]) -> Vec<PathBuf> {
-        paths.iter().map(|p| src_path(cwd, p).unwrap()).collect()
+    fn to_paths(cwd: &Path, paths: &[&str]) -> Vec<PathBuf> {
+        paths.iter().map(|p| src_path(Some(cwd), p).unwrap()).collect()
     }
 
     #[test]
@@ -503,14 +508,15 @@ mod tests {
             { "deps": [],  "program": "rustc", "args": ["--crate-name", "build_script_build", "/my/repo/build.rs"], "env": {}, "outputs": [] },
             { "deps": [0], "program": "rustc", "args": ["--crate-name", "repo", "/my/repo/src/lib.rs"], "env": {}, "outputs": [] }
         ]}"#;
+        let build_dir = std::env::temp_dir();
         let plan = serde_json::from_str::<RawPlan>(&plan).unwrap();
-        let plan = ExternalPlan::try_from_raw(plan).unwrap();
+        let plan = ExternalPlan::try_from_raw(&build_dir, plan).unwrap();
 
         eprintln!("src_paths: {:#?}", &SrcPaths::from(&plan));
         eprintln!("plan: {:?}", &plan);
 
         let check_dirties = |files: &[&str], expected: &[&str]| {
-            let to_paths = |x| to_paths(None, x);
+            let to_paths = |x| to_paths(&build_dir, x);
             let (files, expected) = (to_paths(files), to_paths(expected));
 
             assert_eq!(
@@ -530,13 +536,14 @@ mod tests {
             { "deps": [],  "program": "rustc", "args": ["--crate-name", "build_script_build", "/my/repo/build.rs"], "env": {}, "outputs": [] },
             { "deps": [0], "program": "rustc", "args": ["--crate-name", "repo", "/my/repo/src/lib.rs"], "env": {}, "outputs": [] }
         ]}"#;
+        let build_dir = std::env::temp_dir();
         let plan = serde_json::from_str::<RawPlan>(&plan).unwrap();
-        let plan = ExternalPlan::try_from_raw(plan).unwrap();
+        let plan = ExternalPlan::try_from_raw(&build_dir, plan).unwrap();
 
         eprintln!("src_paths: {:#?}", &SrcPaths::from(&plan));
         eprintln!("plan: {:?}", &plan);
 
-        let to_paths = |x| to_paths(None, x);
+        let to_paths = |x| to_paths(&build_dir, x);
 
         assert_eq!(
             paths(&plan.dirties(&to_paths(&["/my/repo/src/a/b.rs"]))),
@@ -559,13 +566,14 @@ mod tests {
             { "deps": [],  "program": "rustc", "args": ["--crate-name", "build_script_build", "/my/repo/build.rs"], "env": {}, "outputs": [] },
             { "deps": [0], "program": "rustc", "args": ["--crate-name", "repo", "/my/repo/src/lib.rs"], "env": {}, "outputs": [] }
         ]}"#;
+        let build_dir = std::env::temp_dir();
         let plan = serde_json::from_str::<RawPlan>(&plan).unwrap();
-        let plan = ExternalPlan::try_from_raw(plan).unwrap();
+        let plan = ExternalPlan::try_from_raw(&build_dir, plan).unwrap();
 
         eprintln!("src_paths: {:#?}", &SrcPaths::from(&plan));
         eprintln!("plan: {:?}", &plan);
 
-        let to_paths = |x| to_paths(None, x);
+        let to_paths = |x| to_paths(&build_dir, x);
 
         let units_to_rebuild = plan.dirties_transitive(&to_paths(&["/my/repo/file.rs"]));
         assert_eq!(
