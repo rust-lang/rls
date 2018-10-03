@@ -545,12 +545,6 @@ impl Internals {
         };
         trace!("Specified work: {:?}", work);
 
-        let cargo_build = if let WorkStatus::NeedsCargo(..) = work {
-            true
-        } else {
-            false
-        };
-
         let result = match work {
             // Cargo performs the full build and returns
             // appropriate diagnostics/analysis data
@@ -561,11 +555,7 @@ impl Internals {
         if let BuildResult::Success(.., true) = result {
             let elapsed = start.elapsed();
             *self.last_build_duration.write().unwrap() = Some(elapsed);
-            info!(
-                "{} finished in {:.1?}",
-                if cargo_build { "cargo" } else { "rustc" },
-                elapsed
-            );
+            info!("build finished in {:.1?}", elapsed);
         }
 
         result
@@ -582,18 +572,16 @@ impl Internals {
             .wait_to_build
             .map(Duration::from_millis)
             .unwrap_or_else(|| match *self.last_build_duration.read().unwrap() {
-                None => Duration::from_millis(1500),
-                Some(duration) => {
-                    if duration < Duration::from_millis(300) {
+                Some(build_duration) if build_duration < Duration::from_secs(5) => {
+                    if build_duration < Duration::from_millis(300) {
                         Duration::from_millis(0)
-                    } else if duration < Duration::from_secs(1) {
+                    } else if build_duration < Duration::from_secs(1) {
                         Duration::from_millis(200)
-                    } else if duration < Duration::from_secs(5) {
-                        Duration::from_millis(500)
                     } else {
-                        Duration::from_millis(1500)
+                        Duration::from_millis(500)
                     }
                 }
+                _ => Duration::from_millis(1500),
             })
     }
 }
@@ -608,4 +596,40 @@ impl Write for BufWriter {
     fn flush(&mut self) -> io::Result<()> {
         self.0.lock().unwrap().flush()
     }
+}
+
+#[test]
+fn auto_tune_build_wait_no_config() {
+    let i = Internals::new(Arc::new(Vfs::new()), Arc::default());
+
+    // Pessimistic if no information
+    assert_eq!(i.build_wait(), Duration::from_millis(1500));
+
+    // very fast builds like hello world
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(70));
+    assert_eq!(i.build_wait(), Duration::from_millis(0));
+
+    // pretty fast builds should have a minimally impacting debounce for typing
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(850));
+    assert_eq!(i.build_wait(), Duration::from_millis(200));
+
+    // medium builds should have a medium debounce time
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_secs(4));
+    assert_eq!(i.build_wait(), Duration::from_millis(500));
+
+    // slow builds ... lets wait just a bit longer, maybe they'll type something else?
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_secs(12));
+    assert_eq!(i.build_wait(), Duration::from_millis(1500));
+}
+
+#[test]
+fn dont_auto_tune_build_wait_configured() {
+    let i = Internals::new(Arc::new(Vfs::new()), Arc::default());
+    i.config.lock().unwrap().wait_to_build = Some(350);
+
+    // Always use configured build wait if available
+    assert_eq!(i.build_wait(), Duration::from_millis(350));
+
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(70));
+    assert_eq!(i.build_wait(), Duration::from_millis(350));
 }
