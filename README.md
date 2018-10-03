@@ -102,8 +102,8 @@ Currently we accept the following options:
   detect the sysroot automatically
 * `target` (`String`, defaults to `""`) if the given string is not empty, use
   the given target triple for all rustc invocations
-* `wait_to_build` (`u64`, defaults to `1500`) time in milliseconds between
-  receiving a change notification and starting build
+* `wait_to_build` (`u64`) overrides build debounce duration (ms). This is otherwise automatically
+  inferred by the latest build duration.
 * `all_targets` (`bool`, defaults to `true`) checks the project as if you were
   running `cargo check --all-targets`. I.e., check all targets and integration
   tests too

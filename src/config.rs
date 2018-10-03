@@ -31,8 +31,6 @@ use log::trace;
 use rustfmt_nightly::Config as RustfmtConfig;
 use rustfmt_nightly::{load_config, CliOptions, EmitMode, Verbosity};
 
-const DEFAULT_WAIT_TO_BUILD: u64 = 1500;
-
 /// Some values in the config can be inferred without an explicit value set by
 /// the user. There are no guarantees which values will or will not be passed
 /// to the server, so we treat deserialized values effectively as `Option<T>`
@@ -127,7 +125,7 @@ pub struct Config {
     pub build_bin: Inferrable<Option<String>>,
     pub cfg_test: bool,
     pub unstable_features: bool,
-    pub wait_to_build: u64,
+    pub wait_to_build: Option<u64>,
     pub show_warnings: bool,
     pub goto_def_racer_fallback: bool,
     /// Clear the RUST_LOG env variable before calling rustc/cargo? Default: true
@@ -179,7 +177,7 @@ impl Default for Config {
             build_bin: Inferrable::Inferred(None),
             cfg_test: false,
             unstable_features: false,
-            wait_to_build: DEFAULT_WAIT_TO_BUILD,
+            wait_to_build: None,
             show_warnings: true,
             goto_def_racer_fallback: false,
             clear_env_rust_log: true,

@@ -12,15 +12,16 @@
 
 pub use self::cargo::make_cargo_config;
 
+use self::environment::EnvironmentLock;
+use self::plan::{Plan as BuildPlan, WorkStatus};
+
 use ::cargo::util::important_paths;
 use crate::actions::post_build::PostBuildHandler;
 use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
 use crate::config::Config;
-use log::trace;
+use log::{debug, info, trace};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
-
-use self::environment::EnvironmentLock;
 
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Write};
@@ -28,17 +29,15 @@ use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 mod cargo;
 pub mod environment;
 mod external;
 mod plan;
 mod rustc;
-
-use self::plan::{Plan as BuildPlan, WorkStatus};
 
 /// Manages builds.
 ///
@@ -94,6 +93,7 @@ struct Internals {
     /// A list of threads blocked on the current build queue. They should be
     /// resumed when there are no builds to run.
     blocked: Mutex<Vec<thread::Thread>>,
+    last_build_duration: RwLock<Option<Duration>>,
 }
 
 /// The result of a build request.
@@ -359,13 +359,9 @@ impl BuildQueue {
 
             // Normal priority threads sleep before starting up.
             if build.priority == BuildPriority::Normal {
-                let wait_to_build = {
-                    // Release lock before we sleep
-                    let config = internals.config.lock().unwrap();
-                    config.wait_to_build
-                };
-                trace!("sleeping");
-                thread::sleep(Duration::from_millis(wait_to_build));
+                let build_wait = internals.build_wait();
+                debug!("sleeping {:.1?}", build_wait);
+                thread::sleep(build_wait);
                 trace!("waking");
 
                 // Check if a new build arrived while we were sleeping.
@@ -454,6 +450,7 @@ impl Internals {
             env_lock: EnvironmentLock::get(),
             building: AtomicBool::new(false),
             blocked: Mutex::new(vec![]),
+            last_build_duration: RwLock::default(),
         }
     }
 
@@ -503,6 +500,7 @@ impl Internals {
     // Build the project.
     fn build(&self, progress_sender: Sender<ProgressUpdate>) -> BuildResult {
         trace!("running build");
+        let start = Instant::now();
         // When we change build directory (presumably because the IDE is
         // changing project), we must do a cargo build of the whole project.
         // Otherwise we just use rustc directly.
@@ -547,12 +545,44 @@ impl Internals {
         };
         trace!("Specified work: {:?}", work);
 
-        match work {
+        let result = match work {
             // Cargo performs the full build and returns
             // appropriate diagnostics/analysis data
             WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
             WorkStatus::Execute(job_queue) => job_queue.execute(self, progress_sender),
+        };
+
+        if let BuildResult::Success(.., true) = result {
+            let elapsed = start.elapsed();
+            *self.last_build_duration.write().unwrap() = Some(elapsed);
+            info!("build finished in {:.1?}", elapsed);
         }
+
+        result
+    }
+
+    /// Returns a pre-build wait time facilitating build debouncing.
+    ///
+    /// Uses client configured value, or attempts to infer an appropriate
+    /// duration.
+    fn build_wait(&self) -> Duration {
+        self.config
+            .lock()
+            .unwrap()
+            .wait_to_build
+            .map(Duration::from_millis)
+            .unwrap_or_else(|| match *self.last_build_duration.read().unwrap() {
+                Some(build_duration) if build_duration < Duration::from_secs(5) => {
+                    if build_duration < Duration::from_millis(300) {
+                        Duration::from_millis(0)
+                    } else if build_duration < Duration::from_secs(1) {
+                        Duration::from_millis(200)
+                    } else {
+                        Duration::from_millis(500)
+                    }
+                }
+                _ => Duration::from_millis(1500),
+            })
     }
 }
 
@@ -566,4 +596,40 @@ impl Write for BufWriter {
     fn flush(&mut self) -> io::Result<()> {
         self.0.lock().unwrap().flush()
     }
+}
+
+#[test]
+fn auto_tune_build_wait_no_config() {
+    let i = Internals::new(Arc::new(Vfs::new()), Arc::default());
+
+    // Pessimistic if no information
+    assert_eq!(i.build_wait(), Duration::from_millis(1500));
+
+    // very fast builds like hello world
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(70));
+    assert_eq!(i.build_wait(), Duration::from_millis(0));
+
+    // pretty fast builds should have a minimally impacting debounce for typing
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(850));
+    assert_eq!(i.build_wait(), Duration::from_millis(200));
+
+    // medium builds should have a medium debounce time
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_secs(4));
+    assert_eq!(i.build_wait(), Duration::from_millis(500));
+
+    // slow builds ... lets wait just a bit longer, maybe they'll type something else?
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_secs(12));
+    assert_eq!(i.build_wait(), Duration::from_millis(1500));
+}
+
+#[test]
+fn dont_auto_tune_build_wait_configured() {
+    let i = Internals::new(Arc::new(Vfs::new()), Arc::default());
+    i.config.lock().unwrap().wait_to_build = Some(350);
+
+    // Always use configured build wait if available
+    assert_eq!(i.build_wait(), Duration::from_millis(350));
+
+    *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(70));
+    assert_eq!(i.build_wait(), Duration::from_millis(350));
 }
