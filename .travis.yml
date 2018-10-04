@@ -15,12 +15,10 @@ install: |
     # Required for Racer autoconfiguration
     rustup component add rust-src
     rustup component add rust-analysis
-script: |
-  #!/bin/bash
-  set -e
-  cargo build -v
-  cargo test -v
-  set +e
+script:
+- cargo build -v
+- cargo test -v
 env:
   global:
-    - RUSTFLAGS=--cfg=enable_tooltip_tests
+  - RUSTFLAGS=--cfg=enable_tooltip_tests
+  - RUST_BACKTRACE=1
