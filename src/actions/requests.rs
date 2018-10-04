@@ -292,7 +292,8 @@ impl RequestAction for Completion {
         let session = ctx.racer_session(&cache);
 
         let location = pos_to_racer_location(params.position);
-        let results = racer::complete_from_file(file_path, location, &session);
+        let results = racer::complete_from_file(&file_path, location, &session);
+        let is_use_stmt = racer::is_use_stmt(&file_path, location, &session);
 
         let code_completion_has_snippet_support =
             ctx.client_capabilities.code_completion_has_snippet_support;
@@ -300,7 +301,9 @@ impl RequestAction for Completion {
         Ok(results
             .map(|comp| {
                 let mut item = completion_item_from_racer_match(&comp);
-                if code_completion_has_snippet_support {
+                if is_use_stmt && comp.mtype.is_function() {
+                    item.insert_text = Some(comp.matchstr.to_string());
+                } else if code_completion_has_snippet_support {
                     let snippet = racer::snippet_for_match(&comp, &session);
                     if !snippet.is_empty() {
                         item.insert_text = Some(snippet);

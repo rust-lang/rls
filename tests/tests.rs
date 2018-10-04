@@ -508,3 +508,172 @@ fn cmd_test_complete_self_crate_name() {
 
     rls.shutdown(RLS_TIMEOUT);
 }
+
+#[test]
+fn test_completion_suggests_arguments_in_statements() {
+    let p = project("ws_with_test_dir")
+        .file(
+            "Cargo.toml",
+            r#"
+                [workspace]
+                members = ["library"]
+            "#,
+        ).file(
+            "library/Cargo.toml",
+            r#"
+                [package]
+                name = "library"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#,
+        ).file(
+            "library/src/lib.rs",
+            r#"
+                pub fn function() -> usize { 5 }
+            "#,
+        ).file(
+            "library/tests/test.rs",
+            r#"
+                   extern crate library;
+                   fn magic() {
+                       let a = library::f~
+                   }
+            "#,
+        ).build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls();
+
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
+            "rootPath": root_path,
+            "capabilities": {
+                "textDocument": {
+                    "completion": {
+                        "completionItem": {
+                            "snippetSupport": true
+                        }
+                    }
+                }
+            }
+        })),
+    ).unwrap();
+
+    rls.request(
+        0,
+        "textDocument/completion",
+        Some(json!({
+            "context": {
+                "triggerCharacter": "f",
+                "triggerKind": 2
+            },
+            "position": {
+                "character": 41,
+                "line": 3
+            },
+            "textDocument": {
+                "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                "version": 1
+            }
+        })),
+    ).unwrap();
+
+    let stdout = rls.wait_until(
+        |stdout| {
+            stdout
+                .to_json_messages()
+                .any(|json| json["result"][0]["detail"].is_string())
+        },
+        RLS_TIMEOUT,
+    );
+    let json = stdout
+        .to_json_messages()
+        .rfind(|json| json["result"].is_array())
+        .unwrap();
+
+    assert_eq!(json["result"][0]["insertText"], "function()");
+
+    rls.shutdown(RLS_TIMEOUT);
+}
+
+#[test]
+fn test_use_statement_completion_doesnt_suggest_arguments() {
+    let p = project("ws_with_test_dir")
+        .file(
+            "Cargo.toml",
+            r#"
+                [workspace]
+                members = ["library"]
+            "#,
+        ).file(
+            "library/Cargo.toml",
+            r#"
+                [package]
+                name = "library"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#,
+        ).file(
+            "library/src/lib.rs",
+            r#"
+                pub fn function() -> usize { 5 }
+            "#,
+        ).file(
+            "library/tests/test.rs",
+            r#"
+                   extern crate library;
+                   use library::~;
+            "#,
+        ).build();
+
+    //32, 2
+    let root_path = p.root();
+    let mut rls = p.spawn_rls();
+
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
+            "rootPath": root_path,
+            "capabilities": {}
+        })),
+    ).unwrap();
+
+    rls.request(
+        0,
+        "textDocument/completion",
+        Some(json!({
+            "context": {
+                "triggerCharacter": ":",
+                "triggerKind": 2
+            },
+            "position": {
+                "character": 32,
+                "line": 2
+            },
+            "textDocument": {
+                "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                "version": 1
+            }
+        })),
+    ).unwrap();
+
+    let stdout = rls.wait_until(
+        |stdout| {
+            stdout
+                .to_json_messages()
+                .any(|json| json["result"][0]["detail"].is_string())
+        },
+        RLS_TIMEOUT,
+    );
+    let json = stdout
+        .to_json_messages()
+        .rfind(|json| json["result"].is_array())
+        .unwrap();
+
+    assert_eq!(json["result"][0]["insertText"], "function");
+
+    rls.shutdown(RLS_TIMEOUT);
+}
