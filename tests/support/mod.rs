@@ -161,8 +161,7 @@ impl RlsHandle {
             }
 
             assert!(
-                start.elapsed().min(stdout.last_write.elapsed()) < timeout
-                    && start.elapsed() < timeout * 10,
+                self.within_timeout(start, timeout),
                 "Timed out waiting {:?} for predicate, last rls-stdout write {:.1?} ago",
                 timeout,
                 stdout.last_write.elapsed(),
@@ -206,19 +205,35 @@ impl RlsHandle {
         self.notify("exit", None).unwrap();
 
         let start = Instant::now();
-        while start.elapsed().min(self.stdout.lock().unwrap().1.elapsed()) < timeout
-            && start.elapsed() < timeout * 10
-        {
+
+        while self.within_timeout(start, timeout) {
             if let Some(ecode) = self
                 .child
                 .try_wait()
                 .expect("failed to wait on child rls process")
             {
                 assert!(ecode.success(), "rls exit code {}", ecode);
+                // wait for stdout thread to finish to avoid races
+                while Arc::strong_count(&self.stdout) > 1 {
+                    assert!(self.within_timeout(start, timeout));
+                    thread::yield_now();
+                }
                 return self.stdout();
             }
         }
         panic!("Timed out shutting down rls");
+    }
+
+    /// Uses the `call_start` or last stdout write instant, whichever is later,
+    /// to measure if the timeout has been passed.
+    ///
+    /// Also uses `timeout * 10` from the `call_start` as an absolute limit.
+    fn within_timeout(&self, call_start: Instant, timeout: Duration) -> bool {
+        let call_or_stdout_elapsed = call_start
+            .elapsed()
+            .min(self.stdout.lock().unwrap().1.elapsed());
+
+        call_or_stdout_elapsed < timeout && call_start.elapsed() < timeout * 10
     }
 }
 
