@@ -229,11 +229,10 @@ impl RlsHandle {
     ///
     /// Also uses `timeout * 10` from the `call_start` as an absolute limit.
     fn within_timeout(&self, call_start: Instant, timeout: Duration) -> bool {
-        let call_or_stdout_elapsed = call_start
-            .elapsed()
-            .min(self.stdout.lock().unwrap().1.elapsed());
+        let call_elapsed = call_start.elapsed();
+        let stdout_elapsed = self.stdout.lock().unwrap().1.elapsed();
 
-        call_or_stdout_elapsed < timeout && call_start.elapsed() < timeout * 10
+        call_elapsed.min(stdout_elapsed) < timeout && call_elapsed < timeout * 10
     }
 }
 
