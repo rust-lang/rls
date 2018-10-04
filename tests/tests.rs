@@ -33,7 +33,8 @@ fn cmd_test_infer_bin() {
                     println!("Hello world!");
                 }
             "#,
-        ).build();
+        )
+        .build();
 
     let root_path = p.root();
     let mut rls = p.spawn_rls();
@@ -45,7 +46,8 @@ fn cmd_test_infer_bin() {
             "rootPath": root_path,
             "capabilities": {}
         })),
-    ).unwrap();
+    )
+    .unwrap();
 
     let json: Vec<_> = rls
         .wait_until_done_indexing(RLS_TIMEOUT)
@@ -76,7 +78,8 @@ fn cmd_test_simple_workspace() {
                 "member_bin",
                 ]
             "#,
-        ).file(
+        )
+        .file(
             "Cargo.lock",
             r#"
                 [root]
@@ -90,7 +93,8 @@ fn cmd_test_simple_workspace() {
                 "member_lib 0.1.0",
                 ]
             "#,
-        ).file(
+        )
+        .file(
             "member_bin/Cargo.toml",
             r#"
                 [package]
@@ -101,7 +105,8 @@ fn cmd_test_simple_workspace() {
                 [dependencies]
                 member_lib = { path = "../member_lib" }
             "#,
-        ).file(
+        )
+        .file(
             "member_bin/src/main.rs",
             r#"
                 extern crate member_lib;
@@ -110,7 +115,8 @@ fn cmd_test_simple_workspace() {
                     let a = member_lib::MemberLibStruct;
                 }
             "#,
-        ).file(
+        )
+        .file(
             "member_lib/Cargo.toml",
             r#"
                 [package]
@@ -120,7 +126,8 @@ fn cmd_test_simple_workspace() {
 
                 [dependencies]
             "#,
-        ).file(
+        )
+        .file(
             "member_lib/src/lib.rs",
             r#"
                 pub struct MemberLibStruct;
@@ -134,7 +141,8 @@ fn cmd_test_simple_workspace() {
                     }
                 }
             "#,
-        ).build();
+        )
+        .build();
 
     let root_path = p.root();
     let mut rls = p.spawn_rls();
@@ -146,7 +154,8 @@ fn cmd_test_simple_workspace() {
             "rootPath": root_path,
             "capabilities": {}
         })),
-    ).unwrap();
+    )
+    .unwrap();
 
     let json: Vec<_> = rls
         .wait_until_done_indexing(RLS_TIMEOUT)
@@ -187,9 +196,13 @@ fn cmd_test_simple_workspace() {
     assert_eq!(json[10]["params"]["done"], true);
     assert_eq!(json[10]["params"]["title"], "Indexing");
 
-    let json: Vec<_> = rls.shutdown(RLS_TIMEOUT).to_json_messages().collect();
+    let json = rls
+        .shutdown(RLS_TIMEOUT)
+        .to_json_messages()
+        .nth(11)
+        .expect("No shutdown response received");
 
-    assert_eq!(json[11]["id"], 99999);
+    assert_eq!(json["id"], 99999);
 }
 
 #[test]
@@ -204,7 +217,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                 "binary",
                 ]
             "#,
-        ).file(
+        )
+        .file(
             "library/Cargo.toml",
             r#"
                 [package]
@@ -212,7 +226,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                 version = "0.1.0"
                 authors = ["Example <rls@example.com>"]
             "#,
-        ).file(
+        )
+        .file(
             "library/src/lib.rs",
             r#"
                 pub fn fetch_u32() -> u32 {
@@ -227,7 +242,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                     }
                 }
             "#,
-        ).file(
+        )
+        .file(
             "binary/Cargo.toml",
             r#"
                 [package]
@@ -238,7 +254,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                 [dependencies]
                 library = { path = "../library" }
             "#,
-        ).file(
+        )
+        .file(
             "binary/src/main.rs",
             r#"
                 extern crate library;
@@ -247,7 +264,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                     let val: u32 = library::fetch_u32();
                 }
             "#,
-        ).build();
+        )
+        .build();
 
     let root_path = p.root();
     let mut rls = p.spawn_rls();
@@ -259,7 +277,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
             "rootPath": root_path,
             "capabilities": {}
         })),
-    ).unwrap();
+    )
+    .unwrap();
 
     let to_publish_messages = |stdout: &RlsStdout| {
         stdout
@@ -309,7 +328,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                     "version": 0
                 }
             })),
-    ).unwrap();
+    )
+    .unwrap();
 
     let stdout = rls.wait_until_done_indexing_n(2, RLS_TIMEOUT);
 
@@ -367,7 +387,8 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                     "version": 1
                 }
             })),
-    ).unwrap();
+    )
+    .unwrap();
 
     let stdout = rls.wait_until_done_indexing_n(3, RLS_TIMEOUT);
     let lib_diagnostic = rfind_diagnostics_with_uri(&stdout, "library/src/lib.rs");
@@ -393,7 +414,8 @@ fn cmd_test_complete_self_crate_name() {
                 [workspace]
                 members = ["library"]
             "#,
-        ).file(
+        )
+        .file(
             "library/Cargo.toml",
             r#"
                 [package]
@@ -401,18 +423,21 @@ fn cmd_test_complete_self_crate_name() {
                 version = "0.1.0"
                 authors = ["Example <rls@example.com>"]
             "#,
-        ).file(
+        )
+        .file(
             "library/src/lib.rs",
             r#"
                 pub fn function() -> usize { 5 }
             "#,
-        ).file(
+        )
+        .file(
             "library/tests/test.rs",
             r#"
                    extern crate library;
                    use library::~
             "#,
-        ).build();
+        )
+        .build();
 
     let root_path = p.root();
     let mut rls = p.spawn_rls();
@@ -424,7 +449,8 @@ fn cmd_test_complete_self_crate_name() {
             "rootPath": root_path,
             "capabilities": {}
         })),
-    ).unwrap();
+    )
+    .unwrap();
 
     let stdout = rls.wait_until_done_indexing(RLS_TIMEOUT);
 
@@ -461,7 +487,8 @@ fn cmd_test_complete_self_crate_name() {
                 "version": 1
             }
         })),
-    ).unwrap();
+    )
+    .unwrap();
 
     let stdout = rls.wait_until(
         |stdout| {

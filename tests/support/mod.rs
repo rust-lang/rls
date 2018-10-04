@@ -25,7 +25,6 @@ use self::paths::TestPathExt;
 
 pub mod paths;
 
-
 /// Parse valid LSP stdout into a list of json messages
 pub fn parse_messages(stdout: &str) -> Vec<String> {
     let mut messages = vec![];
@@ -40,7 +39,8 @@ pub fn parse_messages(stdout: &str) -> Vec<String> {
             .and_then(|s| match s.trim().parse() {
                 Ok(s) => Some(s),
                 Err(err) => panic!("Unexpected Content-Length {:?}: {}", s.trim(), err),
-            }).unwrap_or(0);
+            })
+            .unwrap_or(0);
     }
 
     messages
@@ -49,15 +49,15 @@ pub fn parse_messages(stdout: &str) -> Vec<String> {
 pub struct RlsHandle {
     child: Child,
     stdin: ChildStdin,
-    stdout: Arc<Mutex<String>>,
-    // stdout: BufReader<ChildStdout>,
+    /// stdout from rls along with the last write instant
+    stdout: Arc<Mutex<(String, Instant)>>,
 }
 
 impl RlsHandle {
     pub fn new(mut child: Child) -> RlsHandle {
         let stdin = mem::replace(&mut child.stdin, None).unwrap();
         let child_stdout = mem::replace(&mut child.stdout, None).unwrap();
-        let stdout: Arc<Mutex<String>> = Arc::default();
+        let stdout = Arc::new(Mutex::new((String::new(), Instant::now())));
         let processed_stdout = Arc::clone(&stdout);
 
         thread::spawn(move || {
@@ -73,7 +73,9 @@ impl RlsHandle {
 
                 buf = match String::from_utf8(buf) {
                     Ok(s) => {
-                        processed_stdout.lock().unwrap().push_str(&s);
+                        let mut guard = processed_stdout.lock().unwrap();
+                        guard.0.push_str(&s);
+                        guard.1 = Instant::now();
                         vec![0; 1024]
                     }
                     Err(e) => {
@@ -141,7 +143,8 @@ impl RlsHandle {
 
     /// Blocks until at least `count` messages have appearing in stdout.
     ///
-    /// Panics if the timeout is reached.
+    /// Panics if the timeout has been exceeded from call time **and** exceeded
+    /// from the last rls-stdout write instant.
     pub fn wait_until<P>(&self, stdout_predicate: P, timeout: Duration) -> RlsStdout
     where
         P: Fn(&RlsStdout) -> bool,
@@ -150,17 +153,18 @@ impl RlsHandle {
         let mut stdout_len = 0;
         loop {
             let stdout = self.stdout();
-            if stdout.0.len() != stdout_len {
+            if stdout.out.len() != stdout_len {
                 if stdout_predicate(&stdout) {
                     break stdout;
                 }
-                stdout_len = stdout.0.len();
+                stdout_len = stdout.out.len();
             }
 
             assert!(
-                start.elapsed() < timeout,
-                "Timed out waiting {:?} for predicate",
-                timeout
+                self.within_timeout(start, timeout),
+                "Timed out waiting {:?} for predicate, last rls-stdout write {:.1?} ago",
+                timeout,
+                stdout.last_write.elapsed(),
             );
 
             thread::sleep(Duration::from_millis(10));
@@ -179,7 +183,8 @@ impl RlsHandle {
                     .filter(|json| {
                         json["params"]["title"] == "Indexing"
                             && json["params"]["done"].as_bool().unwrap_or(false)
-                    }).count()
+                    })
+                    .count()
                     >= n
             },
             timeout,
@@ -187,7 +192,11 @@ impl RlsHandle {
     }
 
     pub fn stdout(&self) -> RlsStdout {
-        RlsStdout(self.stdout.lock().unwrap().clone())
+        let stdout = self.stdout.lock().unwrap();
+        RlsStdout {
+            out: stdout.0.clone(),
+            last_write: stdout.1,
+        }
     }
 
     /// Sends shutdown messages, assets successful exit of process and returns stdout
@@ -197,24 +206,43 @@ impl RlsHandle {
 
         let start = Instant::now();
 
-        while start.elapsed() < timeout {
+        while self.within_timeout(start, timeout) {
             if let Some(ecode) = self
                 .child
                 .try_wait()
                 .expect("failed to wait on child rls process")
             {
-                assert!(ecode.success());
+                assert!(ecode.success(), "rls exit code {}", ecode);
+                // wait for stdout thread to finish to avoid races
+                while Arc::strong_count(&self.stdout) > 1 {
+                    assert!(self.within_timeout(start, timeout));
+                    thread::yield_now();
+                }
                 return self.stdout();
             }
         }
         panic!("Timed out shutting down rls");
+    }
+
+    /// Uses the `call_start` or last stdout write instant, whichever is later,
+    /// to measure if the timeout has been passed.
+    ///
+    /// Also uses `timeout * 10` from the `call_start` as an absolute limit.
+    fn within_timeout(&self, call_start: Instant, timeout: Duration) -> bool {
+        let call_elapsed = call_start.elapsed();
+        let stdout_elapsed = self.stdout.lock().unwrap().1.elapsed();
+
+        call_elapsed.min(stdout_elapsed) < timeout && call_elapsed < timeout * 10
     }
 }
 
 impl Drop for RlsHandle {
     fn drop(&mut self) {
         if thread::panicking() {
-            eprintln!("---rls-stdout---\n{}\n---------------", self.stdout().0);
+            eprintln!(
+                "---rls-stdout---\n{}\n---------------",
+                self.stdout.lock().unwrap().0
+            );
         }
 
         let _ = self.child.kill();
@@ -222,14 +250,17 @@ impl Drop for RlsHandle {
 }
 
 #[derive(Debug, Clone)]
-pub struct RlsStdout(String);
+pub struct RlsStdout {
+    out: String,
+    last_write: Instant,
+}
 
 impl RlsStdout {
     /// Parse into a list of string messages.
     ///
     /// The last one should be the shutdown response.
     pub fn to_string_messages(&self) -> Vec<String> {
-        parse_messages(&self.0)
+        parse_messages(&self.out)
     }
     /// Parse into json values.
     ///
