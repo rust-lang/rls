@@ -26,10 +26,11 @@ use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::BuildResult;
 use crate::concurrency::JobToken;
 use crate::lsp_data::PublishDiagnosticsParams;
+
+use cargo::CargoError;
 use itertools::Itertools;
 use languageserver_types::DiagnosticSeverity;
-use log::trace;
-
+use log::{trace, warn};
 use rls_analysis::AnalysisHost;
 use rls_data::Analysis;
 use url::Url;
@@ -72,7 +73,9 @@ impl PostBuildHandler {
             BuildResult::Err(cause, cmd) => {
                 trace!("build - Error {} when running {:?}", cause, cmd);
                 self.notifier.notify_begin_diagnostics();
-                if !self.shown_cargo_error.swap(true, Ordering::SeqCst) {
+                if self.shown_cargo_error.swap(true, Ordering::SeqCst) {
+                    warn!("Not reporting: {}", cause);
+                } else {
                     // It's not a good idea to make a long message here, the output in
                     // VSCode is one single line, and it's important to capture the
                     // root cause.
@@ -81,7 +84,71 @@ impl PostBuildHandler {
                 self.notifier.notify_end_diagnostics();
                 self.active_build_count.fetch_sub(1, Ordering::SeqCst);
             }
+            BuildResult::CargoError {
+                error,
+                stdout,
+                manifest_path,
+            } => {
+                trace!("build - CargoError: {}, stdout: {:?}", error, stdout);
+                self.notifier.notify_begin_diagnostics();
+
+                if let Some(manifest) = manifest_path {
+                    // if possible generate manifest diagnostics instead of showMessage
+                    self.handle_cargo_error(manifest, &error, &stdout);
+                } else if self.shown_cargo_error.swap(true, Ordering::SeqCst) {
+                    warn!("Not reporting: {} {:?}", error, stdout);
+                } else {
+                    let stdout_msg = if stdout.is_empty() {
+                        "".to_string()
+                    } else {
+                        format!("({})", stdout)
+                    };
+                    self.notifier
+                        .notify_error_diagnostics(format!("{}{}", error, stdout_msg));
+                }
+
+                self.notifier.notify_end_diagnostics();
+                self.active_build_count.fetch_sub(1, Ordering::SeqCst);
+            }
         }
+    }
+
+    fn handle_cargo_error(&self, manifest: PathBuf, error: &CargoError, stdout: &str) {
+        use crate::lsp_data::{Diagnostic, Position, Range};
+        use std::fmt::Write;
+
+        // These notifications will include empty sets of errors for files
+        // which had errors, but now don't. This instructs the IDE to clear
+        // errors for those files.
+        let mut results = self.previous_build_results.lock().unwrap();
+        results.values_mut().for_each(Vec::clear);
+
+        let mut cargo_msg = format!("{}", error);
+        for cause in error.iter_causes() {
+            write!(cargo_msg, "\n{}", cause).unwrap();
+        }
+        if !stdout.trim().is_empty() {
+            write!(cargo_msg, "\n{}", stdout).unwrap();
+        }
+
+        results.insert(
+            manifest,
+            vec![(
+                Diagnostic {
+                    // Just cover the file
+                    range: Range {
+                        start: Position::new(0, 0),
+                        end: Position::new(9999, 0),
+                    },
+                    message: cargo_msg,
+                    severity: Some(DiagnosticSeverity::Error),
+                    ..Diagnostic::default()
+                },
+                vec![],
+            )],
+        );
+
+        self.emit_notifications(&results);
     }
 
     fn handle_messages(&self, cwd: &Path, messages: &[String]) {
@@ -129,7 +196,8 @@ impl PostBuildHandler {
                     &self.project_path,
                     cwd,
                     &rls_blacklist::CRATE_BLACKLIST,
-                ).unwrap();
+                )
+                .unwrap();
         } else {
             self.analysis
                 .reload_from_analysis(analysis, &self.project_path, cwd, &[])
@@ -161,7 +229,8 @@ impl PostBuildHandler {
                     .map(|(diag, _)| diag)
                     .filter(|diag| {
                         self.show_warnings || diag.severity != Some(DiagnosticSeverity::Warning)
-                    }).cloned()
+                    })
+                    .cloned()
                     .collect(),
             };
 
@@ -212,7 +281,8 @@ impl AnalysisQueue {
                     .drain_filter(|j| match *j {
                         QueuedJob::Job(ref j) if j.hash == Some(hash) => true,
                         _ => false,
-                    }).for_each(|j| j.unwrap_job().handler.finalize())
+                    })
+                    .for_each(|j| j.unwrap_job().handler.finalize())
             }
             trace!("Post-prune queue len: {}", queue.len());
 

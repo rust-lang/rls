@@ -92,18 +92,21 @@ pub(super) fn cargo(
                 .unwrap();
             BuildResult::Success(cwd.clone(), diagnostics, analysis, true)
         }
-        Err(err) => {
-            // This message goes like this to the UI via showMessage. In VSCode
-            // this ends up on one single line, so it's important to keep it concise.
+        Err(error) => {
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
-            let stdout_msg = if stdout.is_empty() {
-                "".to_string()
-            } else {
-                format!("({})", stdout)
+
+            // TODO infer a manifest path from the error if possible this may be
+            // more accurate than using root Cargo.toml
+            let manifest_path = {
+                let build_dir = internals.compilation_cx.lock().unwrap().build_dir.clone().unwrap();
+                important_paths::find_root_manifest_for_wd(&build_dir).ok()
             };
-            let msg = format!("Cargo failed: {}{}", err, stdout_msg);
-            debug!("{}", msg);
-            BuildResult::Err(msg, None)
+
+            BuildResult::CargoError {
+                error,
+                stdout,
+                manifest_path,
+            }
         }
     }
 }
@@ -248,7 +251,12 @@ fn run_cargo(
             );
         }
         Err(e) => {
-            debug!("Error running compile_with_exec: {:?}", e);
+            if !reached_primary.load(Ordering::SeqCst) {
+                debug!("Error running compile_with_exec: {:?}", e);
+                return Err(e);
+            } else {
+                warn!("Ignoring error running compile_with_exec: {:?}", e);
+            }
         }
     }
 

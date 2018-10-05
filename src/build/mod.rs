@@ -15,7 +15,7 @@ pub use self::cargo::make_cargo_config;
 use self::environment::EnvironmentLock;
 use self::plan::{Plan as BuildPlan, WorkStatus};
 
-use ::cargo::util::important_paths;
+use ::cargo::util::{CargoError, important_paths};
 use crate::actions::post_build::PostBuildHandler;
 use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
 use crate::config::Config;
@@ -110,6 +110,12 @@ pub enum BuildResult {
     /// 0: error cause
     /// 1: command which caused the error
     Err(String, Option<String>),
+    /// Cargo failed.
+    CargoError {
+        error: CargoError,
+        stdout: String,
+        manifest_path: Option<PathBuf>,
+    },
 }
 
 /// Priority for a build request.
