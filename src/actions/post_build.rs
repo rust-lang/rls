@@ -123,24 +123,34 @@ impl PostBuildHandler {
         let mut results = self.previous_build_results.lock().unwrap();
         results.values_mut().for_each(Vec::clear);
 
-        let mut cargo_msg = format!("{}", error);
+        // cover whole manifest if we haven't any better idea.
+        let mut range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(9999, 0),
+        };
+
+        let mut message = format!("{}", error);
         for cause in error.iter_causes() {
-            write!(cargo_msg, "\n{}", cause).unwrap();
+            write!(message, "\n{}", cause).unwrap();
+            if let Some((line, col)) = cause
+                .downcast_ref::<toml::de::Error>()
+                .and_then(|e| e.line_col())
+            {
+                // Use toml deserialize error position
+                range.start = Position::new(line as _, col as _);
+                range.end = Position::new(line as _, col as u64 + 1);
+            }
         }
         if !stdout.trim().is_empty() {
-            write!(cargo_msg, "\n{}", stdout).unwrap();
+            write!(message, "\n{}", stdout).unwrap();
         }
 
         results.insert(
             manifest,
             vec![(
                 Diagnostic {
-                    // Just cover the file
-                    range: Range {
-                        start: Position::new(0, 0),
-                        end: Position::new(9999, 0),
-                    },
-                    message: cargo_msg,
+                    range,
+                    message,
                     severity: Some(DiagnosticSeverity::Error),
                     ..Diagnostic::default()
                 },
