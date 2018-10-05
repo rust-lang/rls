@@ -20,7 +20,16 @@ use crate::support::RlsStdout;
 use std::io::Write;
 use std::time::Duration;
 
-const RLS_TIMEOUT: Duration = Duration::from_secs(30);
+/// Returns a timeout for waiting for rls stdout messages
+///
+/// Env var `RLS_TEST_WAIT_FOR_AGES` allows super long waiting for CI
+fn rls_timeout() -> Duration {
+    Duration::from_secs(if std::env::var("RLS_TEST_WAIT_FOR_AGES").is_ok() {
+        300
+    } else {
+        15
+    })
+}
 
 #[test]
 fn cmd_test_infer_bin() {
@@ -51,7 +60,7 @@ fn cmd_test_infer_bin() {
     .unwrap();
 
     let json: Vec<_> = rls
-        .wait_until_done_indexing(RLS_TIMEOUT)
+        .wait_until_done_indexing(rls_timeout())
         .to_json_messages()
         .filter(|json| json["method"] != "window/progress")
         .collect();
@@ -63,7 +72,7 @@ fn cmd_test_infer_bin() {
     assert_eq!(json[1]["method"], "textDocument/publishDiagnostics");
     assert_eq!(json[1]["params"]["diagnostics"][0]["code"], "dead_code");
 
-    rls.shutdown(RLS_TIMEOUT);
+    rls.shutdown(rls_timeout());
 }
 
 /// Test includes window/progress regression testing
@@ -159,7 +168,7 @@ fn cmd_test_simple_workspace() {
     .unwrap();
 
     let json: Vec<_> = rls
-        .wait_until_done_indexing(RLS_TIMEOUT)
+        .wait_until_done_indexing(rls_timeout())
         .to_json_messages()
         .collect();
     assert!(json.len() >= 11);
@@ -198,7 +207,7 @@ fn cmd_test_simple_workspace() {
     assert_eq!(json[10]["params"]["title"], "Indexing");
 
     let json = rls
-        .shutdown(RLS_TIMEOUT)
+        .shutdown(rls_timeout())
         .to_json_messages()
         .nth(11)
         .expect("No shutdown response received");
@@ -292,7 +301,7 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
             .unwrap()
     };
 
-    let stdout = rls.wait_until_done_indexing(RLS_TIMEOUT);
+    let stdout = rls.wait_until_done_indexing(rls_timeout());
 
     let lib_diagnostic = rfind_diagnostics_with_uri(&stdout, "library/src/lib.rs");
     assert_eq!(
@@ -332,7 +341,7 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
     )
     .unwrap();
 
-    let stdout = rls.wait_until_done_indexing_n(2, RLS_TIMEOUT);
+    let stdout = rls.wait_until_done_indexing_n(2, rls_timeout());
 
     // lib unit tests have compile errors
     let lib_diagnostic = rfind_diagnostics_with_uri(&stdout, "library/src/lib.rs");
@@ -391,7 +400,7 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
     )
     .unwrap();
 
-    let stdout = rls.wait_until_done_indexing_n(3, RLS_TIMEOUT);
+    let stdout = rls.wait_until_done_indexing_n(3, rls_timeout());
     let lib_diagnostic = rfind_diagnostics_with_uri(&stdout, "library/src/lib.rs");
     assert_eq!(
         lib_diagnostic["params"]["diagnostics"][0]["code"],
@@ -403,7 +412,7 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
         "unused_variables"
     );
 
-    rls.shutdown(RLS_TIMEOUT);
+    rls.shutdown(rls_timeout());
 }
 
 #[test]
@@ -453,7 +462,7 @@ fn cmd_test_complete_self_crate_name() {
     )
     .unwrap();
 
-    let stdout = rls.wait_until_done_indexing(RLS_TIMEOUT);
+    let stdout = rls.wait_until_done_indexing(rls_timeout());
 
     let json: Vec<_> = stdout
         .to_json_messages()
@@ -497,7 +506,7 @@ fn cmd_test_complete_self_crate_name() {
                 .to_json_messages()
                 .any(|json| json["result"][0]["detail"].is_string())
         },
-        RLS_TIMEOUT,
+        rls_timeout(),
     );
 
     let json = stdout
@@ -507,7 +516,7 @@ fn cmd_test_complete_self_crate_name() {
 
     assert_eq!(json["result"][0]["detail"], "pub fn function() -> usize");
 
-    rls.shutdown(RLS_TIMEOUT);
+    rls.shutdown(rls_timeout());
 }
 
 #[test]
@@ -587,7 +596,7 @@ fn test_completion_suggests_arguments_in_statements() {
                 .to_json_messages()
                 .any(|json| json["result"][0]["detail"].is_string())
         },
-        RLS_TIMEOUT,
+        rls_timeout(),
     );
     let json = stdout
         .to_json_messages()
@@ -596,7 +605,7 @@ fn test_completion_suggests_arguments_in_statements() {
 
     assert_eq!(json["result"][0]["insertText"], "function()");
 
-    rls.shutdown(RLS_TIMEOUT);
+    rls.shutdown(rls_timeout());
 }
 
 #[test]
@@ -667,7 +676,7 @@ fn test_use_statement_completion_doesnt_suggest_arguments() {
                 .to_json_messages()
                 .any(|json| json["result"][0]["detail"].is_string())
         },
-        RLS_TIMEOUT,
+        rls_timeout(),
     );
     let json = stdout
         .to_json_messages()
@@ -676,7 +685,7 @@ fn test_use_statement_completion_doesnt_suggest_arguments() {
 
     assert_eq!(json["result"][0]["insertText"], "function");
 
-    rls.shutdown(RLS_TIMEOUT);
+    rls.shutdown(rls_timeout());
 }
 
 /// Test simulates typing in a dependency wrongly in a couple of ways before finally getting it
@@ -734,7 +743,7 @@ fn cmd_dependency_typo_and_fix() {
     .unwrap();
 
     let publish = rls
-        .wait_until_done_indexing(RLS_TIMEOUT)
+        .wait_until_done_indexing(rls_timeout())
         .to_json_messages()
         .rfind(|m| m["method"] == "textDocument/publishDiagnostics")
         .expect("No publishDiagnostics");
@@ -776,7 +785,7 @@ fn cmd_dependency_typo_and_fix() {
     .unwrap();
 
     let publish = rls
-        .wait_until_done_indexing_n(2, RLS_TIMEOUT)
+        .wait_until_done_indexing_n(2, rls_timeout())
         .to_json_messages()
         .rfind(|m| m["method"] == "textDocument/publishDiagnostics")
         .expect("No publishDiagnostics");
@@ -808,7 +817,7 @@ fn cmd_dependency_typo_and_fix() {
     .unwrap();
 
     let publish = rls
-        .wait_until_done_indexing_n(3, RLS_TIMEOUT)
+        .wait_until_done_indexing_n(3, rls_timeout())
         .to_json_messages()
         .rfind(|m| m["method"] == "textDocument/publishDiagnostics")
         .expect("No publishDiagnostics");
@@ -824,5 +833,5 @@ fn cmd_dependency_typo_and_fix() {
         None
     );
 
-    rls.shutdown(RLS_TIMEOUT);
+    rls.shutdown(rls_timeout());
 }

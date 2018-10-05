@@ -99,7 +99,7 @@ impl PostBuildHandler {
                     warn!("Not reporting: {} {:?}", error, stdout);
                 } else {
                     let stdout_msg = if stdout.is_empty() {
-                        "".to_string()
+                        stdout
                     } else {
                         format!("({})", stdout)
                     };
