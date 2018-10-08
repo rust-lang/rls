@@ -310,15 +310,13 @@ pub struct Project {
 #[must_use]
 #[derive(PartialEq, Clone)]
 pub struct ProjectBuilder {
-    name: String,
     root: Project,
     files: Vec<FileBuilder>,
 }
 
 impl ProjectBuilder {
-    pub fn new(name: &str, root: PathBuf) -> ProjectBuilder {
+    pub fn new(root: PathBuf) -> ProjectBuilder {
         ProjectBuilder {
-            name: name.to_string(),
             root: Project { root },
             files: vec![],
         }
@@ -372,7 +370,7 @@ impl Project {
 
 // Generates a project layout
 pub fn project(name: &str) -> ProjectBuilder {
-    ProjectBuilder::new(name, paths::root().join(name))
+    ProjectBuilder::new(paths::root().join(name))
 }
 
 // Path to cargo executables

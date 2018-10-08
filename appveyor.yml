@@ -8,6 +8,7 @@ environment:
     PROJECT_NAME: rls
     RUSTFLAGS: --cfg=enable_tooltip_tests
     RUST_BACKTRACE: 1
+    RLS_TEST_WAIT_FOR_AGES: 1
   matrix:
     - TARGET: i686-pc-windows-msvc
       CHANNEL: nightly
