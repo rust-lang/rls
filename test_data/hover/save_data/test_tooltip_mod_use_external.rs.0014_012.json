@@ -5,12 +5,11 @@
     "col": 12
   },
   "data": {
-    "Ok": [
-      {
+    "Ok": [{
         "language": "rust",
         "value": "libstd/sync/mod.rs"
       },
-      "Useful synchronization primitives.\n\nThis module contains useful safe and unsafe synchronization primitives.\nMost of the primitives in this module do not provide any sort of locking\nand/or blocking at all, but rather provide the necessary tools to build\nother types of concurrent primitives."
+      "Useful synchronization primitives.\n\n## The need for synchronization\n\nConceptually, a Rust program is a series of operations which will\nbe executed on a computer. The timeline of events happening in the\nprogram is consistent with the order of the operations in the code."
     ]
   }
 }
