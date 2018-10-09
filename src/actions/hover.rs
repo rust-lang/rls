@@ -1022,6 +1022,24 @@ pub mod test {
             fs::write(path.clone(), data)
                 .map_err(|e| format!("failed to save hover test result: {:?} ({:?})", path, e))
         }
+
+        /// Returns true if data is equal to `other` relaxed so that
+        /// `MarkedString::String` in `other` need only start with self's.
+        fn has_same_data_start(&self, other: &Self) -> bool {
+            match (&self.data, &other.data) {
+                (Ok(data), Ok(them)) if data.len() == them.len() => data
+                    .iter()
+                    .zip(them.iter())
+                    .map(|(us, them)| match (us, them) {
+                        (MarkedString::String(us), MarkedString::String(them)) => {
+                            them.starts_with(us)
+                        }
+                        _ => us == them,
+                    })
+                    .all(|r| r),
+                _ => false,
+            }
+        }
     }
 
     impl Test {
@@ -1193,7 +1211,7 @@ pub mod test {
                             if actual_result.test != expect_result.test {
                                 let e = format!("Mismatched test: {:?}", expect_result.test);
                                 Some((Err(e), actual_result))
-                            } else if actual_result == expect_result {
+                            } else if expect_result.has_same_data_start(&actual_result) {
                                 None
                             } else {
                                 Some((Ok(expect_result), actual_result))
