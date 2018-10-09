@@ -20,11 +20,12 @@ use failure::{self, format_err};
 use serde_json;
 
 use crate::actions::progress::ProgressUpdate;
-use crate::build::environment::{self, Environment, EnvironmentLock};
-use crate::build::plan::Plan;
 use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
+use crate::build::cargo_plan::CargoPlan;
+use crate::build::environment::{self, Environment, EnvironmentLock};
+use crate::build::plan::BuildPlan;
 use crate::config::Config;
-use log::{debug, error, trace, warn};
+use log::{debug, trace, warn};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 
@@ -34,7 +35,6 @@ use std::ffi::OsString;
 use std::fmt::Write;
 use std::fs::{read_dir, remove_file};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -191,7 +191,8 @@ fn run_cargo(
 
     // Since Cargo build routine will try to regenerate the unit dep graph,
     // we need to clear the existing dep graph.
-    compilation_cx.lock().unwrap().build_plan = Plan::for_packages(pkg_names);
+    compilation_cx.lock().unwrap().build_plan =
+        BuildPlan::Cargo(CargoPlan::with_packages(&manifest_path, pkg_names));
 
     let compile_opts = CompileOptions {
         spec,
@@ -336,12 +337,12 @@ impl Executor for RlsExecutor {
     /// is fresh and won't be compiled.
     fn init(&self, cx: &Context<'_, '_>, unit: &Unit<'_>) {
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
-        let plan = &mut compilation_cx.build_plan;
+        let plan = compilation_cx.build_plan.as_cargo_mut()
+            .expect("Build plan should be properly initialized before running Cargo");
+
         let only_primary = |unit: &Unit<'_>| self.is_primary_crate(unit.pkg.package_id());
 
-        if let Err(err) = plan.emplace_dep_with_filter(unit, cx, &only_primary) {
-            error!("{:?}", err);
-        }
+        plan.emplace_dep_with_filter(unit, cx, &only_primary);
     }
 
     fn force_rebuild(&self, unit: &Unit<'_>) -> bool {
@@ -439,8 +440,8 @@ impl Executor for RlsExecutor {
             .collect();
         let envs = cargo_cmd.get_envs().clone();
 
-        let sysroot =
-            current_sysroot().expect("need to specify SYSROOT env var or use rustup or multirust");
+        let sysroot = super::rustc::current_sysroot()
+            .expect("need to specify SYSROOT env var or use rustup or multirust");
 
         {
             let config = self.config.lock().unwrap();
@@ -502,7 +503,8 @@ impl Executor for RlsExecutor {
         // Cache executed command for the build plan
         {
             let mut cx = self.compilation_cx.lock().unwrap();
-            cx.build_plan.cache_compiler_job(id, target, mode, &cmd);
+            let plan = cx.build_plan.as_cargo_mut().unwrap();
+            plan.cache_compiler_job(id, target, mode, &cmd);
         }
 
         // Prepare modified cargo-generated args/envs for future rustc calls
@@ -652,25 +654,6 @@ fn parse_arg(args: &[OsString], arg: &str) -> Option<String> {
         }
     }
     None
-}
-
-fn current_sysroot() -> Option<String> {
-    let home = env::var("RUSTUP_HOME").or_else(|_| env::var("MULTIRUST_HOME"));
-    let toolchain = env::var("RUSTUP_TOOLCHAIN").or_else(|_| env::var("MULTIRUST_TOOLCHAIN"));
-    if let (Ok(home), Ok(toolchain)) = (home, toolchain) {
-        Some(format!("{}/toolchains/{}", home, toolchain))
-    } else {
-        let rustc_exe = env::var("RUSTC").unwrap_or_else(|_| "rustc".to_owned());
-        env::var("SYSROOT").map(|s| s.to_owned()).ok().or_else(|| {
-            Command::new(rustc_exe)
-                .arg("--print")
-                .arg("sysroot")
-                .output()
-                .ok()
-                .and_then(|out| String::from_utf8(out.stdout).ok())
-                .map(|s| s.trim().to_owned())
-        })
-    }
 }
 
 /// `flag_str` is a string of command line args for Rust. This function removes any
