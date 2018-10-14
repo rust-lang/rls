@@ -137,7 +137,7 @@ machine is and how tolerant of latency you are.
 Projects with Cargo workspaces will not work (for now).
 
 Projects with non-Cargo build systems will not work (you *might* be able to make
-this work with some effort, talk to nrc on irc).
+this work with some effort, talk to nrc on Discord).
 
 Rarely, there are problems with the RLS's build model. You can try running
 `cargo check` on the command line to emulate the build model outside of the IDE.
@@ -226,5 +226,5 @@ from source).
 Please feel free to [open an issue](https://github.com/rust-lang-nursery/rls/issues/new)
 to discuss any problem.
 
-If you use irc, you can ask in #rust-dev-tools on the Mozilla network. You can
+If you use Discord, you can ask in #dev-tools on the Rust lang server. You can
 ping nrc.
