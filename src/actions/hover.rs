@@ -173,7 +173,8 @@ pub fn extract_docs(
             } else {
                 docs.push(doc_line);
             }
-        } else if hit_top {
+        }
+        if hit_top {
             // The top of the file was reached
             debug!(
                 "extract_docs: bailing out: prev_row == next_row; next_row = {:?}, up = {}",
@@ -1973,6 +1974,21 @@ pub mod test {
             End single line attribute.
         ",
         );
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_extract_docs_comment_first_line() {
+        let vfs = Vfs::new();
+        let file = Path::new("test_data/hover/src/test_extract_docs_comment_first_line.rs");
+
+        let row_start = Row::new_zero_indexed(1);
+        let actual = extract_docs(&vfs, &file, row_start)
+            .expect(&format!("failed to extract docs: {:?}", file))
+            .join("\n");
+
+        let expected = "First line comment";
 
         assert_eq!(expected, actual);
     }
