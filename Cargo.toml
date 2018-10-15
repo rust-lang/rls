@@ -11,7 +11,7 @@ categories = ["development-tools"]
 build = "build.rs"
 
 [dependencies]
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "07f872a64096c9649dc6334893b3dca23cbbfa7b" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "6d4be789ffadd659f60787114932418100be3ee7" }
 cargo_metadata = "0.6"
 clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "0f4b13bc1bbd43ed21878c21291dddde7e4b9028", optional = true }
 env_logger = "0.5"
@@ -22,7 +22,7 @@ languageserver-types = "0.45"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "2.1.9", default-features = false }
+racer = { version = "2.1.7", default-features = false }
 rand = "0.5.5"
 rayon = "1"
 rls-analysis = "0.16.1"
@@ -32,7 +32,7 @@ rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.4.6"
 rustc_tools_util = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "0f4b13bc1bbd43ed21878c21291dddde7e4b9028" }
-rustfmt-nightly = "0.99.6"
+rustfmt-nightly = "0.99.5"
 rustc-serialize = "0.3"
 serde = "1.0"
 serde_json = "1.0"
