@@ -25,10 +25,9 @@ use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnosti
 use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::BuildResult;
 use crate::concurrency::JobToken;
-use crate::lsp_data::PublishDiagnosticsParams;
+use crate::lsp_data::{Range, PublishDiagnosticsParams};
 
-use cargo::{util::errors::ManifestError, CargoError};
-use failure::Fail;
+use cargo::CargoError;
 use itertools::Itertools;
 use languageserver_types::DiagnosticSeverity;
 use log::{trace, warn};
@@ -89,13 +88,14 @@ impl PostBuildHandler {
                 error,
                 stdout,
                 manifest_path,
+                manifest_error_range,
             } => {
                 trace!("build - CargoError: {}, stdout: {:?}", error, stdout);
                 self.notifier.notify_begin_diagnostics();
 
                 if let Some(manifest) = manifest_path {
                     // if possible generate manifest diagnostics instead of showMessage
-                    self.handle_cargo_error(manifest, &error, &stdout);
+                    self.handle_cargo_error(manifest, manifest_error_range, &error, &stdout);
                 } else if self.shown_cargo_error.swap(true, Ordering::SeqCst) {
                     warn!("Not reporting: {} {:?}", error, stdout);
                 } else {
@@ -114,8 +114,8 @@ impl PostBuildHandler {
         }
     }
 
-    fn handle_cargo_error(&self, manifest: PathBuf, error: &CargoError, stdout: &str) {
-        use crate::lsp_data::{Diagnostic, Position, Range};
+    fn handle_cargo_error(&self, manifest: PathBuf, manifest_error_range: Option<Range>, error: &CargoError, stdout: &str) {
+        use crate::lsp_data::{Diagnostic, Position};
         use std::fmt::Write;
 
         // These notifications will include empty sets of errors for files
@@ -125,11 +125,10 @@ impl PostBuildHandler {
         results.values_mut().for_each(Vec::clear);
 
         // cover whole manifest if we haven't any better idea.
-        let mut range = Range {
+        let range = manifest_error_range.unwrap_or_else(|| Range {
             start: Position::new(0, 0),
             end: Position::new(9999, 0),
-        };
-        let mut err_path = manifest.as_path();
+        });
 
         let mut message = format!("{}", error);
         for cause in error.iter_causes() {
@@ -139,43 +138,8 @@ impl PostBuildHandler {
             write!(message, "\n{}", stdout).unwrap();
         }
 
-        // Scan through any manifest errors to pin the error more precisely
-        if let (Some(project), Some(manifest_err)) =
-            (manifest.parent(), error.downcast_ref::<ManifestError>())
-        {
-            let is_project_manifest = |path: &PathBuf| path.is_file() && path.starts_with(project);
-
-            let last_cause = manifest_err
-                .manifest_causes()
-                .last()
-                .unwrap_or(manifest_err);
-            if is_project_manifest(last_cause.manifest_path()) {
-                // manifest with the issue is inside the project
-                err_path = last_cause.manifest_path().as_path();
-                if let Some((line, col)) = (last_cause as &dyn Fail)
-                    .iter_chain()
-                    .filter_map(|e| e.downcast_ref::<toml::de::Error>())
-                    .next()
-                    .and_then(|e| e.line_col())
-                {
-                    // Use toml deserialize error position
-                    range.start = Position::new(line as _, col as _);
-                    range.end = Position::new(line as _, col as u64 + 1);
-                }
-            } else {
-                let nearest_cause = manifest_err
-                    .manifest_causes()
-                    .filter(|e| is_project_manifest(e.manifest_path()))
-                    .last();
-                if let Some(nearest) = nearest_cause {
-                    // not the root cause, but the nearest manifest to it in the project
-                    err_path = nearest.manifest_path().as_path();
-                }
-            }
-        }
-
         results.insert(
-            err_path.into(),
+            manifest,
             vec![(
                 Diagnostic {
                     range,
