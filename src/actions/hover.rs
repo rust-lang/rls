@@ -120,6 +120,11 @@ pub fn extract_docs(
 
         if attr_start && line.ends_with(']') && !hit_top {
             // Ignore single line attributes
+            trace!(
+                "extract_docs: ignoring single-line attribute, next_row: {:?}, up: {}",
+                next_row,
+                up
+            );
             continue;
         }
 
@@ -128,12 +133,23 @@ pub fn extract_docs(
         if attr_start || (line.ends_with(']') && !line.starts_with("//")) {
             in_meta = !in_meta;
             if !in_meta && !hit_top {
+                trace!(
+                    "extract_docs: exiting multi-line attribute, next_row: {:?}, up: {}",
+                    next_row,
+                    up
+                );
                 continue;
             };
         }
 
         if in_meta {
             // Ignore milti-line attributes
+            trace!(
+                "extract_docs: ignoring multi-line attribute, next_row: {:?}, up: {}, in_meta: {}",
+                next_row,
+                up,
+                in_meta
+            );
             continue;
         } else if line.starts_with("////") {
             trace!(
@@ -174,6 +190,7 @@ pub fn extract_docs(
                 docs.push(doc_line);
             }
         }
+
         if hit_top {
             // The top of the file was reached
             debug!(
@@ -183,14 +200,14 @@ pub fn extract_docs(
             break;
         } else if line.starts_with("//") {
             trace!(
-                "extract_docs: ignoring non-doc comment, next_row: {:?}, up: {}",
+                "extract_docs: continuing after comment line, next_row: {:?}, up: {}",
                 next_row,
                 up
             );
             continue;
         } else if line.is_empty() {
             trace!(
-                "extract_docs: ignoring empty line, next_row: {:?}, up: {}",
+                "extract_docs: continuing after empty line, next_row: {:?}, up: {}",
                 next_row,
                 up
             );
