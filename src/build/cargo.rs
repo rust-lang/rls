@@ -153,7 +153,7 @@ fn run_cargo(
 
     enable_nightly_features();
     let ws = Workspace::new(&manifest_path, &config)
-        .map_err(|err| ManifestAwareError::new(err, manifest_path.clone(), None))?;
+        .map_err(|err| ManifestAwareError::new(err, &manifest_path, None))?;
 
     run_cargo_ws(
         compilation_cx,
@@ -168,7 +168,7 @@ fn run_cargo(
         &manifest_path,
         &config,
         &ws
-    ).map_err(|err| ManifestAwareError::new(err, manifest_path, Some(&ws)).into())
+    ).map_err(|err| ManifestAwareError::new(err, &manifest_path, Some(&ws)).into())
 }
 
 fn run_cargo_ws(
@@ -753,6 +753,7 @@ fn dedup_flags(flag_str: &str) -> String {
     result
 }
 
+/// Error wrapper that tries to figure out which manifest the cause best relates to in the project
 #[derive(Debug)]
 pub struct ManifestAwareError {
     cause: failure::Error,
@@ -762,9 +763,9 @@ pub struct ManifestAwareError {
 }
 
 impl ManifestAwareError {
-    fn new(cause: failure::Error, root_manifest: PathBuf, _ws: Option<&Workspace<'_>>) -> Self {
+    fn new(cause: failure::Error, root_manifest: &Path, _ws: Option<&Workspace<'_>>) -> Self {
         let project_dir = root_manifest.parent().unwrap();
-        let mut err_path = root_manifest.as_path();
+        let mut err_path = root_manifest;
         // cover whole manifest if we haven't any better idea.
         let mut err_range = Range {
             start: Position::new(0, 0),
