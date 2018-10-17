@@ -971,3 +971,80 @@ fn cmd_invalid_member_toml_manifest() {
 
     rls.shutdown(rls_timeout());
 }
+
+#[test]
+fn cmd_invalid_member_dependency_resolution() {
+    let project = project("invalid_member_resolution")
+        .file(
+            "Cargo.toml",
+            r#"[package]
+            name = "root_is_fine"
+            version = "0.1.0"
+            authors = ["alexheretic@gmail.com"]
+
+            [dependencies]
+            member_a = { path = "member_a" }
+
+            [workspace]
+            "#,
+        )
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "member_a/Cargo.toml",
+            r#"[package]
+            name = "member_a"
+            version = "0.0.5"
+            authors = ["alexheretic@gmail.com"]
+
+            [dependencies]
+            dodgy_member = { path = "dodgy_member" }
+            "#,
+        )
+        .file("member_a/src/lib.rs", "fn ma() {}")
+        .file(
+            "member_a/dodgy_member/Cargo.toml",
+            r#"[package]
+            name = "dodgy_member"
+            version = "0.6.0"
+            authors = ["alexheretic@gmail.com"]
+
+            [dependencies]
+            nosuchdep123 = "1.2.4"
+            "#,
+        )
+        .file("member_a/dodgy_member/src/lib.rs", "fn dm() {}")
+        .build();
+    let root_path = project.root();
+    let mut rls = project.spawn_rls();
+
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
+            "rootPath": root_path,
+            "capabilities": {}
+        })),
+    )
+    .unwrap();
+
+    let publish = rls
+        .wait_until_done_indexing(rls_timeout())
+        .to_json_messages()
+        .rfind(|m| m["method"] == "textDocument/publishDiagnostics")
+        .expect("No publishDiagnostics");
+
+    let uri = publish["params"]["uri"].as_str().expect("uri");
+    assert!(uri.ends_with("invalid_member_resolution/member_a/dodgy_member/Cargo.toml"));
+
+    let diags = &publish["params"]["diagnostics"];
+    assert_eq!(diags.as_array().unwrap().len(), 1);
+    assert_eq!(diags[0]["severity"], 1);
+    assert!(
+        diags[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("no matching package named `nosuchdep123`")
+    );
+
+    rls.shutdown(rls_timeout());
+}

@@ -9,13 +9,14 @@
 // except according to those terms.
 
 use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
+use cargo::core::resolver::ResolveError;
 use cargo::core::{
     enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace,
 };
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{
-    homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue, ProcessBuilder,
-    errors::ManifestError
+    errors::ManifestError, homedir, important_paths, CargoResult, Config as CargoConfig,
+    ConfigValue, ProcessBuilder,
 };
 use failure::{self, format_err, Fail};
 use serde_json;
@@ -101,7 +102,7 @@ pub(super) fn cargo(
                 let mae = error.downcast_ref::<ManifestAwareError>();
                 (
                     mae.map(|e| e.manifest_path().clone()),
-                    mae.map(|e| e.manifest_error_range())
+                    mae.map(|e| e.manifest_error_range()),
                 )
             };
             BuildResult::CargoError {
@@ -167,8 +168,9 @@ fn run_cargo(
         restore_env,
         &manifest_path,
         &config,
-        &ws
-    ).map_err(|err| ManifestAwareError::new(err, &manifest_path, Some(&ws)).into())
+        &ws,
+    )
+    .map_err(|err| ManifestAwareError::new(err, &manifest_path, Some(&ws)).into())
 }
 
 fn run_cargo_ws(
@@ -763,7 +765,7 @@ pub struct ManifestAwareError {
 }
 
 impl ManifestAwareError {
-    fn new(cause: failure::Error, root_manifest: &Path, _ws: Option<&Workspace<'_>>) -> Self {
+    fn new(cause: failure::Error, root_manifest: &Path, ws: Option<&Workspace<'_>>) -> Self {
         let project_dir = root_manifest.parent().unwrap();
         let mut err_path = root_manifest;
         // cover whole manifest if we haven't any better idea.
@@ -772,8 +774,8 @@ impl ManifestAwareError {
             end: Position::new(9999, 0),
         };
 
-        // Scan through any manifest errors to pin the error more precisely
         if let Some(manifest_err) = cause.downcast_ref::<ManifestError>() {
+            // Scan through any manifest errors to pin the error more precisely
             let is_project_manifest =
                 |path: &PathBuf| path.is_file() && path.starts_with(project_dir);
 
@@ -803,6 +805,16 @@ impl ManifestAwareError {
                     // not the root cause, but the nearest manifest to it in the project
                     err_path = nearest.manifest_path().as_path();
                 }
+            }
+        } else if let (Some(ws), Some(resolve_err)) = (ws, cause.downcast_ref::<ResolveError>()) {
+            // if the resolve error leads to a workspace member we should use that manifest
+            if let Some(member) = resolve_err
+                .package_path()
+                .iter()
+                .filter_map(|pkg| ws.members().find(|m| m.package_id() == pkg))
+                .next()
+            {
+                err_path = member.manifest_path();
             }
         }
 
