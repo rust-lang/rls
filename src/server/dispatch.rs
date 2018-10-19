@@ -29,7 +29,7 @@ use std::time::Duration;
 #[cfg(not(test))]
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(1500);
 
-// Timeout lengthened to "never" for potenially very slow CI boxes
+// Timeout lengthened to "never" for potentially very slow CI boxes
 #[cfg(test)]
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(3_600_000);
 

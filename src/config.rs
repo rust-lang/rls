@@ -152,7 +152,7 @@ pub struct Config {
     /// in the future.
     pub full_docs: Inferrable<bool>,
     /// Show additional context in hover tooltips when available. This is often the type
-    /// local variable declaration. When set to false, the content is only availabe when
+    /// local variable declaration. When set to false, the content is only available when
     /// holding the `ctrl` key in some editors.
     pub show_hover_context: bool,
     /// Use provided rustfmt binary instead of the statically linked one.

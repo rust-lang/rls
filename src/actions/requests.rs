@@ -441,7 +441,7 @@ impl server::Response for ExecuteCommandResponse {
         }
 
         // The formal request response is a simple ACK, though the objective
-        // is the preceeding client requests.
+        // is the preceding client requests.
         Ack.send(id, out);
     }
 }
@@ -565,7 +565,7 @@ fn make_deglob_actions(
 
         // for all indices which are a `*`
         // check if we can deglob them
-        // this handles badly formated text containing multiple "use"s in one line
+        // this handles badly formatted text containing multiple "use"s in one line
         let deglob_results: Vec<_> = line
             .char_indices()
             .filter(|&(_, chr)| chr == '*')

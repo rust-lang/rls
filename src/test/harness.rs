@@ -326,7 +326,7 @@ impl Cache {
         ls_types::Position::new((src.line - 1) as u64, char_of_byte_index(&line, col) as u64)
     }
 
-    /// Create a range convering the initial position on the line
+    /// Create a range covering the initial position on the line
     ///
     /// The line number uses a 0-based index.
     crate fn mk_ls_range_from_line(&mut self, line: u64) -> ls_types::Range {
