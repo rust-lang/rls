@@ -257,7 +257,7 @@ impl RangeExt for Range {
 
 /* -----------------  JSON-RPC protocol types ----------------- */
 
-/// Supported initilization options that can be passed in the `initialize`
+/// Supported initialization options that can be passed in the `initialize`
 /// request, under `initialization_options` key. These are specific to the RLS.
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]

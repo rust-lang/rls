@@ -25,7 +25,7 @@ use log::*;
 use std::path::{Path, PathBuf};
 
 /// Cleanup documentation code blocks. The `docs` are expected to have
-/// the preceeding `///` or `//!` prefixes already trimmed away. Rust code
+/// the preceding `///` or `//!` prefixes already trimmed away. Rust code
 /// blocks will ignore lines beginning with `#`. Code block annotations
 /// that are common to Rust will be converted to `rust` allow for markdown
 /// syntax coloring.
@@ -241,7 +241,7 @@ fn extract_and_process_docs(vfs: &Vfs, file: &Path, row_start: Row<ZeroIndexed>)
         .and_then(empty_to_none)
 }
 
-/// Extracts a function, method, struct, enum, or trait decleration
+/// Extracts a function, method, struct, enum, or trait declaration
 /// from source.
 pub fn extract_decl(
     vfs: &Vfs,
@@ -863,7 +863,7 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     result.trim().into()
 }
 
-/// Builds a hover tooltip composed of the function signature or type decleration, doc URL
+/// Builds a hover tooltip composed of the function signature or type declaration, doc URL
 /// (if available in the save-analysis), source extracted documentation, and code context
 /// for local variables.
 pub fn tooltip(
@@ -1118,9 +1118,9 @@ pub mod test {
         /// Clears and returns the recorded output lines
         pub fn reset(&self) -> Vec<String> {
             let mut lines = self.lines.lock().unwrap();
-            let mut swaped = Vec::new();
-            ::std::mem::swap(&mut *lines, &mut swaped);
-            swaped
+            let mut swapped = Vec::new();
+            ::std::mem::swap(&mut *lines, &mut swapped);
+            swapped
         }
     }
 
@@ -1277,7 +1277,7 @@ pub mod test {
     }
 
     /// Strips indentation from string literals by examining
-    /// the indent of the first non-empty line. Preceeding
+    /// the indent of the first non-empty line. Preceding
     /// and trailing whitespace is also removed.
     fn noindent(text: &str) -> String {
         let indent = text
@@ -1636,56 +1636,56 @@ pub mod test {
         let expected = "pub fn foo() -> Foo<u32>";
         let row_start = Row::new_zero_indexed(10);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("fuction decleration")
+            .expect("function declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct Foo<T>";
         let row_start = Row::new_zero_indexed(15);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("struct decleration")
+            .expect("struct declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub enum Bar";
         let row_start = Row::new_zero_indexed(20);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("enum decleration")
+            .expect("enum declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct NewType(pub u32, f32)";
         let row_start = Row::new_zero_indexed(25);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("tuple decleration")
+            .expect("tuple declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn new() -> NewType";
         let row_start = Row::new_zero_indexed(28);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("struct function decleration")
+            .expect("struct function declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn bar<T: Copy + Add>(&self, the_really_long_name_string: String, the_really_long_name_foo: Foo<T>) -> Vec<(String, Foo<T>)>";
         let row_start = Row::new_zero_indexed(32);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("long struct method decleration with generics")
+            .expect("long struct method declaration with generics")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub trait Baz<T> where T: Copy";
         let row_start = Row::new_zero_indexed(37);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("enum decleration")
+            .expect("enum declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
         let row_start = Row::new_zero_indexed(38);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("trait method decleration")
+            .expect("trait method declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
@@ -1705,7 +1705,7 @@ pub mod test {
         );
         let row_start = Row::new_zero_indexed(47);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("trait decleration multiline")
+            .expect("trait declaration multiline")
             .join("\n");
         assert_eq!(expected, actual);
 
@@ -1719,7 +1719,7 @@ pub mod test {
         );
         let row_start = Row::new_zero_indexed(53);
         let actual = extract_decl(&vfs, file, row_start)
-            .expect("function decleration multiline")
+            .expect("function declaration multiline")
             .join("\n");
         assert_eq!(expected, actual);
     }
