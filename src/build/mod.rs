@@ -17,6 +17,7 @@ use ::cargo::util::CargoError;
 use crate::actions::post_build::PostBuildHandler;
 use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
 use crate::config::Config;
+use crate::lsp_data::Range;
 use log::{debug, info, trace};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
@@ -114,6 +115,7 @@ pub enum BuildResult {
         error: CargoError,
         stdout: String,
         manifest_path: Option<PathBuf>,
+        manifest_error_range: Option<Range>,
     },
 }
 

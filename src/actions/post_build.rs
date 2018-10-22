@@ -25,7 +25,7 @@ use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnosti
 use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::BuildResult;
 use crate::concurrency::JobToken;
-use crate::lsp_data::PublishDiagnosticsParams;
+use crate::lsp_data::{Range, PublishDiagnosticsParams};
 
 use cargo::CargoError;
 use itertools::Itertools;
@@ -88,13 +88,14 @@ impl PostBuildHandler {
                 error,
                 stdout,
                 manifest_path,
+                manifest_error_range,
             } => {
                 trace!("build - CargoError: {}, stdout: {:?}", error, stdout);
                 self.notifier.notify_begin_diagnostics();
 
                 if let Some(manifest) = manifest_path {
                     // if possible generate manifest diagnostics instead of showMessage
-                    self.handle_cargo_error(manifest, &error, &stdout);
+                    self.handle_cargo_error(manifest, manifest_error_range, &error, &stdout);
                 } else if self.shown_cargo_error.swap(true, Ordering::SeqCst) {
                     warn!("Not reporting: {} {:?}", error, stdout);
                 } else {
@@ -113,8 +114,8 @@ impl PostBuildHandler {
         }
     }
 
-    fn handle_cargo_error(&self, manifest: PathBuf, error: &CargoError, stdout: &str) {
-        use crate::lsp_data::{Diagnostic, Position, Range};
+    fn handle_cargo_error(&self, manifest: PathBuf, manifest_error_range: Option<Range>, error: &CargoError, stdout: &str) {
+        use crate::lsp_data::{Diagnostic, Position};
         use std::fmt::Write;
 
         // These notifications will include empty sets of errors for files
@@ -124,22 +125,14 @@ impl PostBuildHandler {
         results.values_mut().for_each(Vec::clear);
 
         // cover whole manifest if we haven't any better idea.
-        let mut range = Range {
+        let range = manifest_error_range.unwrap_or_else(|| Range {
             start: Position::new(0, 0),
             end: Position::new(9999, 0),
-        };
+        });
 
         let mut message = format!("{}", error);
         for cause in error.iter_causes() {
             write!(message, "\n{}", cause).unwrap();
-            if let Some((line, col)) = cause
-                .downcast_ref::<toml::de::Error>()
-                .and_then(|e| e.line_col())
-            {
-                // Use toml deserialize error position
-                range.start = Position::new(line as _, col as _);
-                range.end = Position::new(line as _, col as u64 + 1);
-            }
         }
         if !stdout.trim().is_empty() {
             write!(message, "\n{}", stdout).unwrap();

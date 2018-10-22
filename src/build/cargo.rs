@@ -9,22 +9,25 @@
 // except according to those terms.
 
 use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
+use cargo::core::resolver::ResolveError;
 use cargo::core::{
     enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace,
 };
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{
-    homedir, important_paths, CargoResult, Config as CargoConfig, ConfigValue, ProcessBuilder,
+    errors::ManifestError, homedir, important_paths, CargoResult, Config as CargoConfig,
+    ConfigValue, ProcessBuilder,
 };
-use failure::{self, format_err};
+use failure::{self, format_err, Fail};
 use serde_json;
 
 use crate::actions::progress::ProgressUpdate;
-use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
 use crate::build::cargo_plan::CargoPlan;
 use crate::build::environment::{self, Environment, EnvironmentLock};
 use crate::build::plan::BuildPlan;
+use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
 use crate::config::Config;
+use crate::lsp_data::{Position, Range};
 use log::{debug, trace, warn};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
@@ -32,7 +35,7 @@ use rls_vfs::Vfs;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
-use std::fmt::Write;
+use std::fmt::{self, Write};
 use std::fs::{read_dir, remove_file};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -95,17 +98,18 @@ pub(super) fn cargo(
         Err(error) => {
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
 
-            // TODO infer a manifest path from the error if possible this may be
-            // more accurate than using root Cargo.toml
-            let manifest_path = {
-                let build_dir = internals.compilation_cx.lock().unwrap().build_dir.clone().unwrap();
-                important_paths::find_root_manifest_for_wd(&build_dir).ok()
+            let (manifest_path, manifest_error_range) = {
+                let mae = error.downcast_ref::<ManifestAwareError>();
+                (
+                    mae.map(|e| e.manifest_path().clone()),
+                    mae.map(|e| e.manifest_error_range()),
+                )
             };
-
             BuildResult::CargoError {
                 error,
                 stdout,
                 manifest_path,
+                manifest_error_range,
             }
         }
     }
@@ -121,20 +125,20 @@ fn run_cargo(
     analysis: Arc<Mutex<Vec<Analysis>>>,
     out: Arc<Mutex<Vec<u8>>>,
     progress_sender: Sender<ProgressUpdate>,
-) -> CargoResult<PathBuf> {
+) -> Result<PathBuf, failure::Error> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
     // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
     // during exec() callback when calling linked compiler in parallel, for which we need to
     // guarantee consistent environment variables.
     let (lock_guard, inner_lock) = env_lock.lock();
-
-    let mut restore_env = Environment::push_with_lock(&HashMap::new(), None, lock_guard);
+    let restore_env = Environment::push_with_lock(&HashMap::new(), None, lock_guard);
 
     let build_dir = compilation_cx.lock().unwrap().build_dir.clone().unwrap();
 
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(&build_dir)?;
     trace!("root manifest_path: {:?}", &manifest_path);
+
     // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
     let manifest_dir = manifest_path.parent().unwrap();
 
@@ -149,8 +153,40 @@ fn run_cargo(
     };
 
     enable_nightly_features();
-    let ws = Workspace::new(&manifest_path, &config)?;
+    let ws = Workspace::new(&manifest_path, &config)
+        .map_err(|err| ManifestAwareError::new(err, &manifest_path, None))?;
 
+    run_cargo_ws(
+        compilation_cx,
+        package_arg,
+        rls_config,
+        vfs,
+        compiler_messages,
+        analysis,
+        progress_sender,
+        inner_lock,
+        restore_env,
+        &manifest_path,
+        &config,
+        &ws,
+    )
+    .map_err(|err| ManifestAwareError::new(err, &manifest_path, Some(&ws)).into())
+}
+
+fn run_cargo_ws(
+    compilation_cx: Arc<Mutex<CompilationContext>>,
+    package_arg: PackageArg,
+    rls_config: Arc<Mutex<Config>>,
+    vfs: Arc<Vfs>,
+    compiler_messages: Arc<Mutex<Vec<String>>>,
+    analysis: Arc<Mutex<Vec<Analysis>>>,
+    progress_sender: Sender<ProgressUpdate>,
+    inner_lock: environment::InnerLock,
+    mut restore_env: Environment<'_>,
+    manifest_path: &PathBuf,
+    config: &CargoConfig,
+    ws: &Workspace<'_>,
+) -> CargoResult<PathBuf> {
     let (all, packages) = match package_arg {
         PackageArg::Default => (false, vec![]),
         PackageArg::Packages(pkgs) => (false, pkgs.into_iter().collect()),
@@ -192,7 +228,7 @@ fn run_cargo(
     // Since Cargo build routine will try to regenerate the unit dep graph,
     // we need to clear the existing dep graph.
     compilation_cx.lock().unwrap().build_plan =
-        BuildPlan::Cargo(CargoPlan::with_packages(&manifest_path, pkg_names));
+        BuildPlan::Cargo(CargoPlan::with_packages(manifest_path, pkg_names));
 
     let compile_opts = CompileOptions {
         spec,
@@ -717,6 +753,96 @@ fn dedup_flags(flag_str: &str) -> String {
         }
     }
     result
+}
+
+/// Error wrapper that tries to figure out which manifest the cause best relates to in the project
+#[derive(Debug)]
+pub struct ManifestAwareError {
+    cause: failure::Error,
+    /// Path to a manifest file within the project that seems the closest to the error's origin
+    nearest_project_manifest: PathBuf,
+    manifest_error_range: Range,
+}
+
+impl ManifestAwareError {
+    fn new(cause: failure::Error, root_manifest: &Path, ws: Option<&Workspace<'_>>) -> Self {
+        let project_dir = root_manifest.parent().unwrap();
+        let mut err_path = root_manifest;
+        // cover whole manifest if we haven't any better idea.
+        let mut err_range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(9999, 0),
+        };
+
+        if let Some(manifest_err) = cause.downcast_ref::<ManifestError>() {
+            // Scan through any manifest errors to pin the error more precisely
+            let is_project_manifest =
+                |path: &PathBuf| path.is_file() && path.starts_with(project_dir);
+
+            let last_cause = manifest_err
+                .manifest_causes()
+                .last()
+                .unwrap_or(manifest_err);
+            if is_project_manifest(last_cause.manifest_path()) {
+                // manifest with the issue is inside the project
+                err_path = last_cause.manifest_path().as_path();
+                if let Some((line, col)) = (last_cause as &dyn Fail)
+                    .iter_chain()
+                    .filter_map(|e| e.downcast_ref::<toml::de::Error>())
+                    .next()
+                    .and_then(|e| e.line_col())
+                {
+                    // Use toml deserialize error position
+                    err_range.start = Position::new(line as _, col as _);
+                    err_range.end = Position::new(line as _, col as u64 + 1);
+                }
+            } else {
+                let nearest_cause = manifest_err
+                    .manifest_causes()
+                    .filter(|e| is_project_manifest(e.manifest_path()))
+                    .last();
+                if let Some(nearest) = nearest_cause {
+                    // not the root cause, but the nearest manifest to it in the project
+                    err_path = nearest.manifest_path().as_path();
+                }
+            }
+        } else if let (Some(ws), Some(resolve_err)) = (ws, cause.downcast_ref::<ResolveError>()) {
+            // if the resolve error leads to a workspace member we should use that manifest
+            if let Some(member) = resolve_err
+                .package_path()
+                .iter()
+                .filter_map(|pkg| ws.members().find(|m| m.package_id() == pkg))
+                .next()
+            {
+                err_path = member.manifest_path();
+            }
+        }
+
+        let nearest_project_manifest = err_path.to_path_buf();
+        Self {
+            cause,
+            nearest_project_manifest,
+            manifest_error_range: err_range,
+        }
+    }
+
+    pub fn manifest_path(&self) -> &PathBuf {
+        &self.nearest_project_manifest
+    }
+
+    pub fn manifest_error_range(&self) -> Range {
+        self.manifest_error_range
+    }
+}
+impl fmt::Display for ManifestAwareError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.cause.fmt(f)
+    }
+}
+impl failure::Fail for ManifestAwareError {
+    fn cause(&self) -> Option<&dyn Fail> {
+        self.cause.as_fail().cause()
+    }
 }
 
 #[cfg(test)]
