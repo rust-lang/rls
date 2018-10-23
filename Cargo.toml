@@ -30,15 +30,15 @@ rls-blacklist = "0.1.2"
 rls-data = { version = "0.18.1", features = ["serialize-serde", "serialize-rustc"] }
 rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
-rls-vfs = "0.4.6"
+rls-vfs = "0.6"
 rustc_tools_util = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "5afdf8b78507ddf015d192858aef56e72c17de16" }
 rustfmt-nightly = "0.99.6"
 rustc-serialize = "0.3"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
-url = "1.1.0"
-walkdir = "2.1"
+url = "1"
+walkdir = "2"
 regex = "1"
 ordslice = "0.3"
 crossbeam-channel = "0.2.3"
