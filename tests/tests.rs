@@ -181,12 +181,10 @@ fn cmd_test_simple_workspace() {
     for json in &json[2..6] {
         assert_eq!(json["method"], "window/progress");
         assert_eq!(json["params"]["title"], "Building");
-        assert!(
-            json["params"]["message"]
-                .as_str()
-                .unwrap()
-                .starts_with("member_")
-        );
+        assert!(json["params"]["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("member_"));
     }
 
     assert_eq!(json[6]["method"], "window/progress");
@@ -349,12 +347,10 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
         .iter()
         .find(|d| d["code"] == "E0308")
         .expect("expected lib error diagnostic");
-    assert!(
-        error_diagnostic["message"]
-            .as_str()
-            .unwrap()
-            .contains("expected u32, found u64")
-    );
+    assert!(error_diagnostic["message"]
+        .as_str()
+        .unwrap()
+        .contains("expected u32, found u64"));
 
     // bin depending on lib picks up type mismatch
     let bin_diagnostic = rfind_diagnostics_with_uri(&stdout, "binary/src/main.rs");
@@ -364,12 +360,10 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
         .iter()
         .find(|d| d["code"] == "E0308")
         .expect("expected bin error diagnostic");
-    assert!(
-        error_diagnostic["message"]
-            .as_str()
-            .unwrap()
-            .contains("expected u32, found u64")
-    );
+    assert!(error_diagnostic["message"]
+        .as_str()
+        .unwrap()
+        .contains("expected u32, found u64"));
 
     rls.notify(
         "textDocument/didChange",
@@ -471,47 +465,43 @@ fn cmd_test_complete_self_crate_name() {
     assert!(json[0]["result"]["capabilities"].is_object());
 
     assert_eq!(json[1]["method"], "textDocument/publishDiagnostics");
-    assert!(
-        json[1]["params"]["diagnostics"][0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("expected identifier")
-    );
+    assert!(json[1]["params"]["diagnostics"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("expected identifier"));
 
-    rls.request(
-        0,
-        "textDocument/completion",
-        Some(json!({
-            "context": {
-                "triggerCharacter": ":",
-                "triggerKind": 2
-            },
-            "position": {
-                "character": 32,
-                "line": 2
-            },
-            "textDocument": {
-                "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
-                "version": 1
-            }
-        })),
-    )
-    .unwrap();
+    let mut json = serde_json::Value::Null;
+    for i in 0..3 {
+        let request_id = 100 + i;
 
-    let stdout = rls.wait_until(
-        |stdout| {
-            stdout
-                .to_json_messages()
-                .any(|json| json["result"][0]["detail"].is_string())
-        },
-        rls_timeout(),
-    );
-
-    let json = stdout
-        .to_json_messages()
-        .rfind(|json| json["result"].is_array())
+        rls.request(
+            request_id,
+            "textDocument/completion",
+            Some(json!({
+                "context": {
+                    "triggerCharacter": ":",
+                    "triggerKind": 2
+                },
+                "position": {
+                    "character": 32,
+                    "line": 2
+                },
+                "textDocument": {
+                    "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                    "version": 1
+                }
+            })),
+        )
         .unwrap();
 
+        json = rls.wait_until_json_id(request_id, rls_timeout());
+
+        if !json["result"].as_array().unwrap().is_empty() {
+            // retry completion message, rls not ready?
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
+    };
     assert_eq!(json["result"][0]["detail"], "pub fn function() -> usize");
 
     rls.shutdown(rls_timeout());
@@ -526,7 +516,8 @@ fn test_completion_suggests_arguments_in_statements() {
                 [workspace]
                 members = ["library"]
             "#,
-        ).file(
+        )
+        .file(
             "library/Cargo.toml",
             r#"
                 [package]
@@ -534,12 +525,14 @@ fn test_completion_suggests_arguments_in_statements() {
                 version = "0.1.0"
                 authors = ["Example <rls@example.com>"]
             "#,
-        ).file(
+        )
+        .file(
             "library/src/lib.rs",
             r#"
                 pub fn function() -> usize { 5 }
             "#,
-        ).file(
+        )
+        .file(
             "library/tests/test.rs",
             r#"
                    extern crate library;
@@ -547,7 +540,8 @@ fn test_completion_suggests_arguments_in_statements() {
                        let a = library::f~
                    }
             "#,
-        ).build();
+        )
+        .build();
 
     let root_path = p.root();
     let mut rls = p.spawn_rls();
@@ -567,40 +561,41 @@ fn test_completion_suggests_arguments_in_statements() {
                 }
             }
         })),
-    ).unwrap();
+    )
+    .unwrap();
 
-    rls.request(
-        0,
-        "textDocument/completion",
-        Some(json!({
-            "context": {
-                "triggerCharacter": "f",
-                "triggerKind": 2
-            },
-            "position": {
-                "character": 41,
-                "line": 3
-            },
-            "textDocument": {
-                "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
-                "version": 1
-            }
-        })),
-    ).unwrap();
+    let mut json = serde_json::Value::Null;
+    for i in 0..3 {
+        let request_id = 100 + i;
 
-    let stdout = rls.wait_until(
-        |stdout| {
-            stdout
-                .to_json_messages()
-                .any(|json| json["result"][0]["detail"].is_string())
-        },
-        rls_timeout(),
-    );
-    let json = stdout
-        .to_json_messages()
-        .rfind(|json| json["result"].is_array())
+        rls.request(
+            request_id,
+            "textDocument/completion",
+            Some(json!({
+                "context": {
+                    "triggerCharacter": "f",
+                    "triggerKind": 2
+                },
+                "position": {
+                    "character": 41,
+                    "line": 3
+                },
+                "textDocument": {
+                    "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                    "version": 1
+                }
+            })),
+        )
         .unwrap();
 
+        json = rls.wait_until_json_id(request_id, rls_timeout());
+
+        if json["result"].as_array().unwrap().is_empty() {
+            // retry completion message, rls not ready?
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
+    }
     assert_eq!(json["result"][0]["insertText"], "function()");
 
     rls.shutdown(rls_timeout());
@@ -615,7 +610,8 @@ fn test_use_statement_completion_doesnt_suggest_arguments() {
                 [workspace]
                 members = ["library"]
             "#,
-        ).file(
+        )
+        .file(
             "library/Cargo.toml",
             r#"
                 [package]
@@ -623,18 +619,21 @@ fn test_use_statement_completion_doesnt_suggest_arguments() {
                 version = "0.1.0"
                 authors = ["Example <rls@example.com>"]
             "#,
-        ).file(
+        )
+        .file(
             "library/src/lib.rs",
             r#"
                 pub fn function() -> usize { 5 }
             "#,
-        ).file(
+        )
+        .file(
             "library/tests/test.rs",
             r#"
                    extern crate library;
                    use library::~;
             "#,
-        ).build();
+        )
+        .build();
 
     //32, 2
     let root_path = p.root();
@@ -647,40 +646,41 @@ fn test_use_statement_completion_doesnt_suggest_arguments() {
             "rootPath": root_path,
             "capabilities": {}
         })),
-    ).unwrap();
+    )
+    .unwrap();
 
-    rls.request(
-        0,
-        "textDocument/completion",
-        Some(json!({
-            "context": {
-                "triggerCharacter": ":",
-                "triggerKind": 2
-            },
-            "position": {
-                "character": 32,
-                "line": 2
-            },
-            "textDocument": {
-                "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
-                "version": 1
-            }
-        })),
-    ).unwrap();
+    let mut json = serde_json::Value::Null;
+    for i in 0..3 {
+        let request_id = 100 + i;
 
-    let stdout = rls.wait_until(
-        |stdout| {
-            stdout
-                .to_json_messages()
-                .any(|json| json["result"][0]["detail"].is_string())
-        },
-        rls_timeout(),
-    );
-    let json = stdout
-        .to_json_messages()
-        .rfind(|json| json["result"].is_array())
+        rls.request(
+            request_id,
+            "textDocument/completion",
+            Some(json!({
+                "context": {
+                    "triggerCharacter": ":",
+                    "triggerKind": 2
+                },
+                "position": {
+                    "character": 32,
+                    "line": 2
+                },
+                "textDocument": {
+                    "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                    "version": 1
+                }
+            })),
+        )
         .unwrap();
 
+        json = rls.wait_until_json_id(request_id, rls_timeout());
+
+        if json["result"].as_array().unwrap().is_empty() {
+            // retry completion message, rls not ready?
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
+    }
     assert_eq!(json["result"][0]["insertText"], "function");
 
     rls.shutdown(rls_timeout());
@@ -748,12 +748,10 @@ fn cmd_dependency_typo_and_fix() {
 
     let diags = &publish["params"]["diagnostics"];
     assert_eq!(diags.as_array().unwrap().len(), 1);
-    assert!(
-        diags[0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("no matching package named `version-check`")
-    );
+    assert!(diags[0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("no matching package named `version-check`"));
     assert_eq!(diags[0]["severity"], 1);
 
     let change_manifest = |contents: &str| {
@@ -767,9 +765,7 @@ fn cmd_dependency_typo_and_fix() {
     };
 
     // fix naming typo, we now expect a version error diagnostic
-    change_manifest(&manifest_with_dependency(
-        r#"version_check = "0.5555""#,
-    ));
+    change_manifest(&manifest_with_dependency(r#"version_check = "0.5555""#));
     rls.request(
         1,
         "workspace/didChangeWatchedFiles",
@@ -790,12 +786,7 @@ fn cmd_dependency_typo_and_fix() {
 
     let diags = &publish["params"]["diagnostics"];
     assert_eq!(diags.as_array().unwrap().len(), 1);
-    assert!(
-        diags[0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("^0.5555")
-    );
+    assert!(diags[0]["message"].as_str().unwrap().contains("^0.5555"));
     assert_eq!(diags[0]["severity"], 1);
 
     // Fix version issue so no error diagnostics occur.
@@ -880,12 +871,10 @@ fn cmd_invalid_toml_manifest() {
     let diags = &publish["params"]["diagnostics"];
     assert_eq!(diags.as_array().unwrap().len(), 1);
     assert_eq!(diags[0]["severity"], 1);
-    assert!(
-        diags[0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("failed to parse manifest")
-    );
+    assert!(diags[0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("failed to parse manifest"));
     assert_eq!(
         diags[0]["range"],
         json!({ "start": { "line": 2, "character": 21 }, "end": { "line": 2, "character": 22 }})
@@ -962,12 +951,10 @@ fn cmd_invalid_member_toml_manifest() {
     let diags = &publish["params"]["diagnostics"];
     assert_eq!(diags.as_array().unwrap().len(), 1);
     assert_eq!(diags[0]["severity"], 1);
-    assert!(
-        diags[0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("failed to read")
-    );
+    assert!(diags[0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("failed to read"));
 
     rls.shutdown(rls_timeout());
 }
@@ -1039,12 +1026,10 @@ fn cmd_invalid_member_dependency_resolution() {
     let diags = &publish["params"]["diagnostics"];
     assert_eq!(diags.as_array().unwrap().len(), 1);
     assert_eq!(diags[0]["severity"], 1);
-    assert!(
-        diags[0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("no matching package named `nosuchdep123`")
-    );
+    assert!(diags[0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("no matching package named `nosuchdep123`"));
 
     rls.shutdown(rls_timeout());
 }

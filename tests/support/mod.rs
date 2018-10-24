@@ -191,6 +191,19 @@ impl RlsHandle {
         )
     }
 
+    /// Blocks until a json message has `json["id"] == id`.
+    ///
+    /// Returns the json message.
+    pub fn wait_until_json_id(&self, id: u64, timeout: Duration) -> serde_json::Value {
+        self.wait_until(
+            |stdout| stdout.to_json_messages().any(|json| json["id"] == id),
+            timeout,
+        )
+        .to_json_messages()
+        .rfind(|json| json["id"] == id)
+        .unwrap()
+    }
+
     pub fn stdout(&self) -> RlsStdout {
         let stdout = self.stdout.lock().unwrap();
         RlsStdout {
