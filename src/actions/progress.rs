@@ -131,7 +131,7 @@ impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
         self.out
             .notify(Notification::<ShowMessage>::new(ShowMessageParams {
                 typ: MessageType::Error,
-                message: message.to_owned(),
+                message,
             }));
     }
     fn notify_end_diagnostics(&self) {

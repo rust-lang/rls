@@ -250,7 +250,7 @@ impl Config {
         let shell = Shell::from_write(Box::new(sink()));
         let cwd = env::current_dir().expect("failed to get cwd");
 
-        let config = CargoConfig::new(shell, cwd.to_path_buf(), homedir(project_dir).unwrap());
+        let config = CargoConfig::new(shell, cwd, homedir(project_dir).unwrap());
 
         let ws = Workspace::new(&manifest_path, &config)?;
 
@@ -265,7 +265,7 @@ impl Config {
             _ => {}
         }
         if self.target_dir.as_ref().is_none() {
-            let target_dir = ws.target_dir().clone().into_path_unlocked();
+            let target_dir = ws.target_dir().into_path_unlocked();
             let target_dir = target_dir.join("rls");
             self.target_dir.infer(Some(target_dir));
             trace!(

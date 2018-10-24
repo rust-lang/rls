@@ -359,7 +359,7 @@ pub(super) fn current_sysroot() -> Option<String> {
         Some(format!("{}/toolchains/{}", home, toolchain))
     } else {
         let rustc_exe = env::var("RUSTC").unwrap_or_else(|_| "rustc".to_owned());
-        env::var("SYSROOT").map(|s| s.to_owned()).ok().or_else(|| {
+        env::var("SYSROOT").ok().or_else(|| {
             Command::new(rustc_exe)
                 .arg("--print")
                 .arg("sysroot")
