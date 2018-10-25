@@ -527,7 +527,7 @@ fn create_tooltip(
         tooltip.push(MarkedString::from_markdown(doc_url));
     }
     if let Some(context) = context {
-        tooltip.push(MarkedString::from_language_code(rust.clone(), context));
+        tooltip.push(MarkedString::from_language_code(rust, context));
     }
     if let Some(docs) = docs {
         tooltip.push(MarkedString::from_markdown(docs));

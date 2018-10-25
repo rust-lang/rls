@@ -611,7 +611,31 @@ fn make_deglob_actions(
 // Ideally we'd use Rustfmt for this, but reparsing is a bit of a pain.
 fn sort_deglob_str(s: &str) -> String {
     let mut substrings = s.split(',').map(|s| s.trim()).collect::<Vec<_>>();
-    substrings.sort();
+    substrings.sort_by(|a, b| {
+        use std::cmp::Ordering;
+
+        // Algorithm taken from rustfmt (rustfmt/src/imports.rs)
+
+        let is_upper_snake_case = |s: &str| {
+            s.chars()
+                .all(|c| c.is_uppercase() || c == '_' || c.is_numeric())
+        };
+
+        // snake_case < CamelCase < UPPER_SNAKE_CASE
+        if a.starts_with(char::is_uppercase) && b.starts_with(char::is_lowercase) {
+            return Ordering::Greater;
+        }
+        if a.starts_with(char::is_lowercase) && b.starts_with(char::is_uppercase) {
+            return Ordering::Less;
+        }
+        if is_upper_snake_case(a) && !is_upper_snake_case(b) {
+            return Ordering::Greater;
+        }
+        if !is_upper_snake_case(a) && is_upper_snake_case(b) {
+            return Ordering::Less;
+        }
+        a.cmp(b)
+    });
     substrings.join(", ")
 }
 
@@ -847,5 +871,9 @@ mod test {
         assert_eq!(sort_deglob_str("a, b"), "a, b");
         assert_eq!(sort_deglob_str("b, a"), "a, b");
         assert_eq!(sort_deglob_str("foo, bar, baz"), "bar, baz, foo");
+        assert_eq!(
+            sort_deglob_str("Curve, curve, ARC, bow, Bow, arc, Arc"),
+            "arc, bow, curve, Arc, Bow, Curve, ARC",
+        );
     }
 }
