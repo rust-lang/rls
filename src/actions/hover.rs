@@ -928,9 +928,13 @@ pub fn tooltip(
                 DefKind::Enum | DefKind::Union | DefKind::Struct | DefKind::Trait => {
                     tooltip_struct_enum_union_trait(&ctx, &def, doc_url)
                 }
-                DefKind::Function | DefKind::Method => tooltip_function_method(&ctx, &def, doc_url),
+                DefKind::Function | DefKind::Method | DefKind::ForeignFunction => {
+                    tooltip_function_method(&ctx, &def, doc_url)
+                }
                 DefKind::Mod => tooltip_mod(&ctx, &def, doc_url),
-                DefKind::Static | DefKind::Const => tooltip_static_const_decl(&ctx, &def, doc_url),
+                DefKind::Static | DefKind::ForeignStatic | DefKind::Const => {
+                    tooltip_static_const_decl(&ctx, &def, doc_url)
+                }
                 DefKind::Type => tooltip_type(&ctx, &def, doc_url),
                 _ => {
                     debug!(
