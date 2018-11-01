@@ -23,7 +23,7 @@ use crate::server::io::{StdioMsgReader, StdioOutput};
 use crate::server::message::RawMessage;
 pub use crate::server::message::{
     Ack, BlockingNotificationAction, BlockingRequestAction, NoResponse, Notification, Request,
-    RequestId, Response, ResponseError,
+    RequestId, Response, ResponseError, ResponseWithMessage,
 };
 use crate::version;
 use jsonrpc_core::{self as jsonrpc, types::error::ErrorCode, Id};

@@ -29,7 +29,7 @@ use crate::actions::work_pool::WorkDescription;
 use crate::lsp_data;
 use crate::lsp_data::*;
 use crate::server;
-use crate::server::{Ack, Output, Request, RequestAction, ResponseError};
+use crate::server::{Ack, Output, Request, RequestAction, ResponseError, ResponseWithMessage};
 use jsonrpc_core::types::ErrorCode;
 use rls_analysis::SymbolQuery;
 
@@ -349,14 +349,16 @@ impl RequestAction for DocumentHighlight {
     }
 }
 
+
+
 impl RequestAction for Rename {
-    type Response = WorkspaceEdit;
+    type Response = ResponseWithMessage<WorkspaceEdit>;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(WorkspaceEdit {
+        Ok(ResponseWithMessage::Response(WorkspaceEdit {
             changes: None,
             document_changes: None,
-        })
+        }))
     }
 
     fn handle(
@@ -374,26 +376,30 @@ impl RequestAction for Rename {
         let analysis = ctx.analysis;
 
         macro_rules! unwrap_or_fallback {
-            ($e: expr) => {
+            ($e: expr, $msg: expr) => {
                 match $e {
                     Ok(e) => e,
                     Err(_) => {
-                        return Self::fallback_response();
+                        return Ok(ResponseWithMessage::Warn($msg.to_owned()));
                     }
                 }
             };
         }
 
-        let id = unwrap_or_fallback!(analysis.crate_local_id(&span));
-        let def = unwrap_or_fallback!(analysis.get_def(id));
+        let id = unwrap_or_fallback!(analysis.crate_local_id(&span), "Rename failed: no information for symbol");
+        let def = unwrap_or_fallback!(analysis.get_def(id), "Rename failed: no definition for symbol");
         if def.name == "self" || def.name == "Self"
             // FIXME(#578)
             || def.kind == data::DefKind::Mod
         {
-            return Self::fallback_response();
+            return Ok(ResponseWithMessage::Warn(format!("Rename failed: cannot rename {}", if def.kind == data::DefKind::Mod { "modules" } else { &def.name })));
         }
 
-        let result = unwrap_or_fallback!(analysis.find_all_refs(&span, true, true));
+        let result = unwrap_or_fallback!(analysis.find_all_refs(&span, true, true), "Rename failed: error finding references");
+
+        if result.is_empty() {
+            return Ok(ResponseWithMessage::Warn("Rename failed: RLS found nothing to rename - possibly due to multiple defs".to_owned()));
+        }
 
         let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
@@ -409,13 +415,13 @@ impl RequestAction for Rename {
         }
 
         if !ctx.quiescent.load(Ordering::SeqCst) {
-            return Self::fallback_response();
+            return Ok(ResponseWithMessage::Warn("Rename failed: RLS busy, please retry".to_owned()));
         }
 
-        Ok(WorkspaceEdit {
+        Ok(ResponseWithMessage::Response(WorkspaceEdit {
             changes: Some(edits),
             document_changes: None,
-        })
+        }))
     }
 }
 
@@ -426,9 +432,9 @@ pub enum ExecuteCommandResponse {
 }
 
 impl server::Response for ExecuteCommandResponse {
-    fn send<O: Output>(&self, id: server::RequestId, out: &O) {
+    fn send<O: Output>(self, id: server::RequestId, out: &O) {
         // FIXME should handle the client's responses
-        match *self {
+        match self {
             ExecuteCommandResponse::ApplyEdit(ref params) => {
                 let id = out.provide_id();
                 let params = ApplyWorkspaceEditParams {

@@ -12,6 +12,7 @@
 
 use crate::actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
+use languageserver_types::notification::ShowMessage;
 use log::debug;
 use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
@@ -20,7 +21,7 @@ use serde_derive::Serialize;
 use serde_json;
 
 use crate::actions::ActionContext;
-use crate::lsp_data::{LSPNotification, LSPRequest};
+use crate::lsp_data::{LSPNotification, LSPRequest, ShowMessageParams, MessageType, WorkspaceEdit};
 use crate::server::io::Output;
 
 use std::fmt;
@@ -38,15 +39,15 @@ pub struct NoResponse;
 /// A response to some request.
 pub trait Response {
     /// Send the response along the given output.
-    fn send<O: Output>(&self, id: RequestId, out: &O);
+    fn send<O: Output>(self, id: RequestId, out: &O);
 }
 
 impl Response for NoResponse {
-    fn send<O: Output>(&self, _id: RequestId, _out: &O) {}
+    fn send<O: Output>(self, _id: RequestId, _out: &O) {}
 }
 
 impl<R: ::serde::Serialize + fmt::Debug> Response for R {
-    fn send<O: Output>(&self, id: RequestId, out: &O) {
+    fn send<O: Output>(self, id: RequestId, out: &O) {
         out.success(id, &self);
     }
 }
@@ -63,6 +64,46 @@ pub enum ResponseError {
 impl From<()> for ResponseError {
     fn from(_: ()) -> Self {
         ResponseError::Empty
+    }
+}
+
+/// Some actions can succeed in LSP terms, but can't succeed in user terms.
+/// This response allows an action to send a message to the user (currently
+/// only a warning) or a proper response.
+#[derive(Debug)]
+pub enum ResponseWithMessage<R: DefaultResponse> {
+    Response(R),
+    Warn(String),
+}
+
+/// A response which has a default value.
+pub trait DefaultResponse: Response + ::serde::Serialize + fmt::Debug {
+    fn default() -> Self;
+}
+
+impl<R: DefaultResponse> Response for ResponseWithMessage<R> {
+    fn send<O: Output>(self, id: RequestId, out: &O) {
+        match self {
+            ResponseWithMessage::Response(r) => out.success(id, &r),
+            ResponseWithMessage::Warn(s) => {
+                out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+                    typ: MessageType::Warning,
+                    message: s,
+                }));
+
+                let default = R::default();
+                default.send(id, out);
+            }
+        }
+    }
+}
+
+impl DefaultResponse for WorkspaceEdit {
+    fn default() -> WorkspaceEdit {
+        WorkspaceEdit {
+            changes: None,
+            document_changes: None,
+        }
     }
 }
 
