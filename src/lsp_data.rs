@@ -18,7 +18,6 @@ use languageserver_types as ls_types;
 use racer;
 use rls_analysis::DefKind;
 use rls_span as span;
-use rls_vfs::FileContents;
 use serde_derive::{Deserialize, Serialize};
 use url::Url;
 
@@ -87,9 +86,6 @@ pub mod ls_util {
     use super::*;
     use crate::Span;
 
-    use rls_vfs::Vfs;
-    use std::path::Path;
-
     /// Convert a language server protocol range into an RLS range.
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {
         span::Range::from_positions(position_to_rls(r.start), position_to_rls(r.end))
@@ -146,13 +142,9 @@ pub mod ls_util {
     /// Creates a `Range` spanning the whole file as currently known by `Vfs`
     ///
     /// Panics if `Vfs` cannot load the file.
-    pub fn range_from_vfs_file(vfs: &Vfs, fname: &Path) -> Range {
-        // FIXME load_file clones the entire file text, this could be much more
-        // efficient by adding a `with_file` fn to the VFS.
-        let content = match vfs.load_file(fname).unwrap() {
-            FileContents::Text(t) => t,
-            _ => panic!("unexpected binary file: {:?}", fname),
-        };
+    pub fn range_from_file_string(content: impl AsRef<str>) -> Range {
+        let content = content.as_ref();
+
         if content.is_empty() {
             Range {
                 start: Position::new(0, 0),

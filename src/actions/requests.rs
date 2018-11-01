@@ -746,7 +746,7 @@ fn reformat(
         }
     };
 
-    let range_whole_file = ls_util::range_from_vfs_file(&ctx.vfs, &path);
+    let range_whole_file = ls_util::range_from_file_string(&input);
     let mut config = ctx.fmt_config().get_rustfmt_config().clone();
     if !config.was_set().hard_tabs() {
         config.set().hard_tabs(!opts.insert_spaces);
