@@ -1040,7 +1040,7 @@ fn cmd_handle_utf16_unit_text_edits() {
         .file(
             "Cargo.toml",
             r#"[package]
-            name = "root_is_fine"
+            name = "cmd_handle_utf16_unit_text_edits"
             version = "0.1.0"
             authors = ["example@example.com"]
             "#,
@@ -1089,6 +1089,68 @@ fn cmd_handle_utf16_unit_text_edits() {
             ]
         }))
     ).unwrap();
+
+    rls.shutdown(rls_timeout());
+}
+
+/// Ensures that wide characters do not prevent RLS from calculating correct
+/// 'whole file' LSP range.
+#[test]
+fn cmd_format_utf16_range() {
+    let project = project("cmd_format_utf16_range")
+        .file(
+            "Cargo.toml",
+            r#"[package]
+            name = "cmd_format_utf16_range"
+            version = "0.1.0"
+            authors = ["example@example.com"]
+            "#,
+        )
+        .file("src/main.rs", "/* 😢😢😢😢😢😢😢 */ fn main() { }")
+        .build();
+    let root_path = project.root();
+    let mut rls = project.spawn_rls();
+
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
+            "rootPath": root_path,
+            "capabilities": {}
+        })),
+    )
+    .unwrap();
+
+    rls.wait_until_done_indexing(rls_timeout());
+
+    let request_id = 66;
+    rls.request(
+        request_id,
+        "textDocument/formatting",
+        Some(json!(
+        {
+            "textDocument": {
+                "uri": format!("file://{}/src/main.rs", root_path.as_path().display()),
+                "version": 1
+            },
+            "options": {
+                "tabSize": 4,
+                "insertSpaces": true
+            }
+        }))
+    ).unwrap();
+
+    let json = rls.wait_until_json_id(request_id, rls_timeout());
+    eprintln!("{:#?}", json);
+
+    let result = json["result"].as_array().unwrap();
+    let newText: Vec<_> = result
+        .into_iter()
+        .map(|o| o["newText"].as_str().unwrap())
+        .collect();
+    // Actual formatting isn't important - what is, is that the buffer isn't
+    // malformed and code stays semantically equivalent.
+    assert_eq!(newText, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
 
     rls.shutdown(rls_timeout());
 }
