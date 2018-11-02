@@ -87,6 +87,8 @@ pub mod ls_util {
     use crate::Span;
 
     /// Convert a language server protocol range into an RLS range.
+    /// NOTE: This does not translate LSP UTF-16 code units offsets into Unicode
+    /// Scalar Value offsets as expected by RLS/Rust.
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {
         span::Range::from_positions(position_to_rls(r.start), position_to_rls(r.end))
     }

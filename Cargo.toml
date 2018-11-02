@@ -10,6 +10,9 @@ categories = ["development-tools"]
 
 build = "build.rs"
 
+[patch.crates-io]
+rls-vfs = { version = "0.7", git = "https://github.com/Xanewok/rls-vfs", branch = "handle-utf16-offset" }
+
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "2d0863f657e6f45159fc7412267eee3e659185e5" }
 cargo_metadata = "0.6"
@@ -30,7 +33,7 @@ rls-blacklist = "0.1.2"
 rls-data = { version = "0.18.1", features = ["serialize-serde", "serialize-rustc"] }
 rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
-rls-vfs = "0.6"
+rls-vfs = "0.7"
 rustc_tools_util = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "d8b426901a75b1eb975f52b4537f2736f2b94436" }
 rustfmt-nightly = "0.99.6"
 rustc-serialize = "0.3"
