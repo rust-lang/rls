@@ -163,7 +163,9 @@ pub mod ls_util {
                     .last()
                     .expect("String is not empty.")
                     .chars()
-                    .count() as u64
+                    // LSP uses UTF-16 code units offset
+                    .map(|chr| chr.len_utf16() as u64)
+                    .sum()
             };
             // range is zero-based and the end position is exclusive
             Range {
