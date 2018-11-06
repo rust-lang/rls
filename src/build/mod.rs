@@ -100,10 +100,10 @@ struct Internals {
 #[derive(Debug)]
 pub enum BuildResult {
     /// Build was performed without any internal errors. The payload
-    /// contains current directory at the time, emitted raw diagnostics, and
-    /// Analysis data.
+    /// contains current directory at the time, emitted raw diagnostics,
+    /// Analysis data and list of input files to the compilation.
     /// Final bool is true if and only if compiler's exit code would be 0.
-    Success(PathBuf, Vec<String>, Vec<Analysis>, bool),
+    Success(PathBuf, Vec<String>, Vec<Analysis>, Vec<PathBuf>, bool),
     /// Build was coalesced with another build.
     Squashed,
     /// There was an error attempting to build.

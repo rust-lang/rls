@@ -113,8 +113,9 @@ crate fn rustc(
         args.to_owned()
     };
 
-    let analysis = Arc::new(Mutex::new(None));
-    let controller = Box::new(RlsRustcCalls::new(Arc::clone(&analysis), clippy_pref));
+    let analysis = Arc::default();
+    let input_files = Arc::default();
+    let controller = Box::new(RlsRustcCalls::new(Arc::clone(&analysis), Arc::clone(&input_files), clippy_pref));
 
     // rustc explicitly panics in run_compiler() on compile failure, regardless
     // if it encounters an ICE (internal compiler error) or not.
@@ -144,14 +145,13 @@ crate fn rustc(
         .unwrap_or_else(Vec::new);
     log::debug!("rustc: analysis read successfully?: {}", !analysis.is_empty());
 
+    let input_files = Arc::try_unwrap(input_files).unwrap().into_inner().unwrap();
+
     let cwd = cwd
         .unwrap_or_else(|| restore_env.get_old_cwd())
         .to_path_buf();
 
-    match result {
-        Ok(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, true),
-        Err(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, false),
-    }
+    BuildResult::Success(cwd, stderr_json_msgs, analysis, input_files, result.is_ok())
 }
 
 // Our compiler controller. We mostly delegate to the default rustc
@@ -160,17 +160,20 @@ crate fn rustc(
 struct RlsRustcCalls {
     default_calls: Box<RustcDefaultCalls>,
     analysis: Arc<Mutex<Option<Analysis>>>,
+    input_files: Arc<Mutex<Vec<PathBuf>>>,
     clippy_preference: ClippyPreference,
 }
 
 impl RlsRustcCalls {
     fn new(
         analysis: Arc<Mutex<Option<Analysis>>>,
+        input_files: Arc<Mutex<Vec<PathBuf>>>,
         clippy_preference: ClippyPreference,
     ) -> RlsRustcCalls {
         RlsRustcCalls {
             default_calls: Box::new(RustcDefaultCalls),
             analysis,
+            input_files,
             clippy_preference,
         }
     }
@@ -267,17 +270,24 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         matches: &getopts::Matches,
     ) -> CompileController<'a> {
         let analysis = self.analysis.clone();
+        let input_files = self.input_files.clone();
         #[cfg(feature = "clippy")]
         let clippy_preference = self.clippy_preference;
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
 
-        #[cfg(feature = "clippy")]
-        {
-            if clippy_preference != ClippyPreference::Off {
-                result.after_parse.callback = Box::new(clippy_after_parse_callback);
+        result.after_parse.callback = Box::new(move |state| {
+            {
+                let files = fetch_input_files(state.session);
+                *input_files.lock().unwrap() = files;
             }
-        }
+            #[cfg(feature = "clippy")]
+            {
+                if clippy_preference != ClippyPreference::Off {
+                    result.after_parse.callback = Box::new(clippy_after_parse_callback);
+                }
+            }
+        });
 
         result.after_analysis.callback = Box::new(move |state| {
             // There are two ways to move the data from rustc to the RLS, either
@@ -315,6 +325,17 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
         result
     }
+}
+
+fn fetch_input_files(sess: &Session) -> Vec<PathBuf> {
+    sess.source_map()
+        .files()
+        .iter()
+        .filter(|fmap| fmap.is_real_file())
+        .filter(|fmap| !fmap.is_imported())
+        .map(|fmap| fmap.name.to_string())
+        .map(PathBuf::from)
+        .collect()
 }
 
 /// Tries to read a file from a list of replacements, and if the file is not

@@ -93,7 +93,7 @@ pub(super) fn cargo(
                 .unwrap()
                 .into_inner()
                 .unwrap();
-            BuildResult::Success(cwd.clone(), diagnostics, analysis, true)
+            BuildResult::Success(cwd.clone(), diagnostics, analysis, vec![], true)
         }
         Err(error) => {
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
@@ -559,17 +559,20 @@ impl Executor for RlsExecutor {
             cx.build_dir.clone().unwrap()
         };
 
-        if let BuildResult::Success(_, mut messages, mut analysis, success) = super::rustc::rustc(
-            &self.vfs,
-            &args,
-            &envs,
-            cargo_cmd.get_cwd(),
-            &build_dir,
-            Arc::clone(&self.config),
-            &self.env_lock.as_facade(),
-        ) {
+        if let BuildResult::Success(_, mut messages, mut analysis, input_files, success) =
+            super::rustc::rustc(
+                &self.vfs,
+                &args,
+                &envs,
+                cargo_cmd.get_cwd(),
+                &build_dir,
+                Arc::clone(&self.config),
+                &self.env_lock.as_facade(),
+            ) {
             self.compiler_messages.lock().unwrap().append(&mut messages);
             self.analysis.lock().unwrap().append(&mut analysis);
+
+            // TODO: Cache input files in the plan!
 
             if !success {
                 return Err(format_err!("Build error"));

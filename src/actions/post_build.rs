@@ -55,7 +55,7 @@ pub struct PostBuildHandler {
 impl PostBuildHandler {
     pub fn handle(self, result: BuildResult) {
         match result {
-            BuildResult::Success(cwd, messages, new_analysis, _) => {
+            BuildResult::Success(cwd, messages, new_analysis, _, _) => {
                 trace!("build - Success");
                 self.notifier.notify_begin_diagnostics();
 
