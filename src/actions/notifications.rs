@@ -14,7 +14,7 @@ use crate::actions::{FileWatch, InitActionContext, VersionOrdering};
 use crate::config::Config;
 use crate::Span;
 use log::{debug, trace, warn};
-use rls_vfs::{Change, SpanAtom};
+use rls_vfs::{Change, VfsSpan};
 use serde::de::Error;
 use serde::Deserialize;
 use serde_json;
@@ -113,10 +113,11 @@ impl BlockingNotificationAction for DidChangeTextDocument {
                 if let Some(range) = i.range {
                     let range = ls_util::range_to_rls(range);
                     Change::ReplaceText {
-                        // LSP uses UTF-16 code units based offsets and length
-                        atom: SpanAtom::Utf16CodeUnit,
-                        span: Span::from_range(range, file_path.clone()),
-                        len: i.range_length,
+                        // LSP sends UTF-16 code units based offsets and length
+                        span: VfsSpan::from_utf16(
+                            Span::from_range(range, file_path.clone()),
+                            i.range_length
+                        ),
                         text: i.text.clone(),
                     }
                 } else {

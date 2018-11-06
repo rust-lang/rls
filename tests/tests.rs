@@ -1144,13 +1144,13 @@ fn cmd_format_utf16_range() {
     eprintln!("{:#?}", json);
 
     let result = json["result"].as_array().unwrap();
-    let newText: Vec<_> = result
+    let new_text: Vec<_> = result
         .into_iter()
         .map(|o| o["newText"].as_str().unwrap())
         .collect();
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
-    assert_eq!(newText, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
+    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
 
     rls.shutdown(rls_timeout());
 }
