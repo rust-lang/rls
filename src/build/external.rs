@@ -31,6 +31,7 @@ use std::process::{Command, Stdio};
 
 use crate::build::BuildResult;
 use crate::build::plan::{BuildKey, BuildGraph, JobQueue, WorkStatus};
+use crate::build::rustc::src_path;
 
 use cargo::util::{process, ProcessBuilder};
 use log::trace;
@@ -451,16 +452,6 @@ fn guess_rustc_src_path(build_dir: &Path, cmd: &ProcessBuilder) -> Option<PathBu
         .find(|&a| Path::new(a).extension().map(|e| e == "rs").unwrap_or(false))?;
 
     src_path(cwd, file)
-}
-
-fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
-    let path = path.as_ref();
-
-    Some(match (cwd, path.is_absolute()) {
-        (_, true) => path.to_owned(),
-        (Some(cwd), _) => cwd.join(path),
-        (None, _) => std::env::current_dir().ok()?.join(path)
-    })
 }
 
 #[cfg(test)]

@@ -572,7 +572,12 @@ impl Executor for RlsExecutor {
             self.compiler_messages.lock().unwrap().append(&mut messages);
             self.analysis.lock().unwrap().append(&mut analysis);
 
-            // TODO: Cache input files in the plan!
+            // Cache calculated input files for a given rustc invocation
+            {
+                let mut cx = self.compilation_cx.lock().unwrap();
+                let plan = cx.build_plan.as_cargo_mut().unwrap();
+                plan.cache_input_files(id, target, mode, input_files, cargo_cmd.get_cwd());
+            }
 
             if !success {
                 return Err(format_err!("Build error"));

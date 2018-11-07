@@ -284,7 +284,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             #[cfg(feature = "clippy")]
             {
                 if clippy_preference != ClippyPreference::Off {
-                    result.after_parse.callback = Box::new(clippy_after_parse_callback);
+                    clippy_after_parse_callback(state);
                 }
             }
         });
@@ -390,4 +390,14 @@ pub(super) fn current_sysroot() -> Option<String> {
                 .map(|s| s.trim().to_owned())
         })
     }
+}
+
+pub fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
+    let path = path.as_ref();
+
+    Some(match (cwd, path.is_absolute()) {
+        (_, true) => path.to_owned(),
+        (Some(cwd), _) => cwd.join(path),
+        (None, _) => std::env::current_dir().ok()?.join(path)
+    })
 }

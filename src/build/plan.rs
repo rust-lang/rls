@@ -188,7 +188,7 @@ impl JobQueue {
                 Arc::clone(&internals.config),
                 &internals.env_lock.as_facade(),
             ) {
-                BuildResult::Success(c, mut messages, mut analysis, success) => {
+                BuildResult::Success(c, mut messages, mut analysis, _, success) => {
                     compiler_messages.append(&mut messages);
                     analyses.append(&mut analysis);
                     cwd = Some(c);
@@ -200,6 +200,7 @@ impl JobQueue {
                             cwd.unwrap(),
                             compiler_messages,
                             analyses,
+                            vec![],
                             false,
                         );
                     }
@@ -216,6 +217,7 @@ impl JobQueue {
             cwd.unwrap_or_else(|| PathBuf::from(".")),
             compiler_messages,
             analyses,
+            vec![],
             true,
         )
     }
