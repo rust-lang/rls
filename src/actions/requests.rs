@@ -754,6 +754,20 @@ fn reformat(
     if !config.was_set().tab_spaces() {
         config.set().tab_spaces(opts.tab_size as usize);
     }
+    if !config.was_set().edition() {
+        match ctx.file_edition(path.clone()) {
+            Some(edition) => {
+                // TODO: Set me once the option in rustfmt is exposed
+            },
+            None => {
+                debug!("Reformat failed: ambiguous edition for `{}`", path.display());
+                return Err(ResponseError::Message(
+                    ErrorCode::InternalError,
+                    "Reformat failed to complete successfully".into(),
+                ));
+            }
+        }
+    }
 
     if let Some(r) = selection {
         let range_of_rls = ls_util::range_to_rls(r).one_indexed();

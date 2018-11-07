@@ -97,7 +97,7 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(
     };
 
     let plan = plan_from_analysis(&analyses, &build_dir);
-    (BuildResult::Success(build_dir, vec![], analyses, vec![], false), plan)
+    (BuildResult::Success(build_dir, vec![], analyses, HashMap::default(), false), plan)
 }
 
 /// Reads and deserializes given save-analysis JSON files into corresponding

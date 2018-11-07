@@ -46,9 +46,10 @@ use self::syntax::source_map::{FileLoader, RealFileLoader};
 
 use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::{BufWriter, BuildResult};
+use crate::build::plan::{Crate, CrateKind, Edition};
 use crate::config::{ClippyPreference, Config};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::io;
@@ -160,14 +161,14 @@ crate fn rustc(
 struct RlsRustcCalls {
     default_calls: Box<RustcDefaultCalls>,
     analysis: Arc<Mutex<Option<Analysis>>>,
-    input_files: Arc<Mutex<Vec<PathBuf>>>,
+    input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
 }
 
 impl RlsRustcCalls {
     fn new(
         analysis: Arc<Mutex<Option<Analysis>>>,
-        input_files: Arc<Mutex<Vec<PathBuf>>>,
+        input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
         clippy_preference: ClippyPreference,
     ) -> RlsRustcCalls {
         RlsRustcCalls {
@@ -276,16 +277,35 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         let mut result = self.default_calls.build_controller(sess, matches);
         result.keep_ast = true;
 
-        result.after_parse.callback = Box::new(move |state| {
-            {
-                let files = fetch_input_files(state.session);
-                *input_files.lock().unwrap() = files;
+        #[cfg(feature = "clippy")]
+        {
+            if clippy_preference != ClippyPreference::Off {
+                result.after_parse.callback = Box::new(clippy_after_parse_callback);
             }
-            #[cfg(feature = "clippy")]
-            {
-                if clippy_preference != ClippyPreference::Off {
-                    clippy_after_parse_callback(state);
-                }
+        }
+
+        result.after_expand.callback = Box::new(move |state| {
+            let krate = Crate {
+                name: state.crate_name.expect("missing crate name").to_owned(),
+                src_path: match state.input {
+                    Input::File(ref name) => Some(name.to_path_buf()),
+                    Input::Str { .. } => None,
+                },
+                kind: CrateKind::Library, // FIXME
+                disambiguator: state.session.local_crate_disambiguator().to_fingerprint().as_value(),
+                edition: match state.session.edition() {
+                    syntax::edition::Edition::Edition2018 => Edition::Edition2018,
+                    _ => Edition::Edition2015,
+                },
+            };
+            let files = fetch_input_files(state.session);
+
+            let mut input_files = input_files.lock().unwrap();
+            for file in &files {
+                input_files
+                    .entry(file.to_path_buf())
+                    .or_default()
+                    .insert(krate.clone());
             }
         });
 

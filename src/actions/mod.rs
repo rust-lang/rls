@@ -32,7 +32,7 @@ use crate::lsp_data::*;
 use crate::project_model::{ProjectModel, RacerFallbackModel, RacerProjectModel};
 use crate::server::Output;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -143,6 +143,7 @@ pub struct InitActionContext {
 
     previous_build_results: Arc<Mutex<BuildResults>>,
     build_queue: BuildQueue,
+    file_to_crates: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     // Keep a record of builds/post-build tasks currently in flight so that
     // mutating actions can block until the data is ready.
     active_build_count: Arc<AtomicUsize>,
@@ -212,6 +213,7 @@ impl InitActionContext {
             project_model: Arc::default(),
             previous_build_results: Arc::default(),
             build_queue,
+            file_to_crates: Arc::default(),
             active_build_count: Arc::new(AtomicUsize::new(0)),
             shown_cargo_error: Arc::new(AtomicBool::new(false)),
             quiescent: Arc::new(AtomicBool::new(false)),
@@ -288,6 +290,22 @@ impl InitActionContext {
         FmtConfig::from(&self.current_project)
     }
 
+    fn file_edition(&self, file: PathBuf) -> Option<Edition> {
+        let files_to_crates = self.file_to_crates.lock().unwrap();
+
+        let editions: HashSet<_> = files_to_crates
+            .get(&file)?
+            .iter()
+            .map(|c| c.edition)
+            .collect();
+
+        let mut iter = editions.into_iter();
+        match (iter.next(), iter.next()) {
+            (ret @ Some(_), None) => ret,
+            _ => None
+        }
+    }
+
     fn init<O: Output>(&self, init_options: &InitializationOptions, out: &O) {
         let current_project = self.current_project.clone();
         let config = self.config.clone();
@@ -318,6 +336,7 @@ impl InitActionContext {
                 analysis: self.analysis.clone(),
                 analysis_queue: self.analysis_queue.clone(),
                 previous_build_results: self.previous_build_results.clone(),
+                file_to_crates: self.file_to_crates.clone(),
                 project_path: project_path.to_owned(),
                 show_warnings: config.show_warnings,
                 related_information_support: self.client_capabilities.related_information_support,

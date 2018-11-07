@@ -13,17 +13,18 @@
 #![allow(missing_docs)]
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::panic::RefUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, Thread};
+use std::ops::Deref;
 
 use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
 use crate::actions::progress::DiagnosticsNotifier;
-use crate::build::BuildResult;
+use crate::build::{BuildResult, Crate};
 use crate::concurrency::JobToken;
 use crate::lsp_data::{Range, PublishDiagnosticsParams};
 
@@ -41,6 +42,7 @@ pub struct PostBuildHandler {
     pub analysis: Arc<AnalysisHost>,
     pub analysis_queue: Arc<AnalysisQueue>,
     pub previous_build_results: Arc<Mutex<BuildResults>>,
+    pub file_to_crates: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     pub project_path: PathBuf,
     pub show_warnings: bool,
     pub use_black_list: bool,
@@ -55,13 +57,19 @@ pub struct PostBuildHandler {
 impl PostBuildHandler {
     pub fn handle(self, result: BuildResult) {
         match result {
-            BuildResult::Success(cwd, messages, new_analysis, _, _) => {
+            BuildResult::Success(cwd, messages, new_analysis, input_files, _) => {
                 trace!("build - Success");
                 self.notifier.notify_begin_diagnostics();
 
                 // Emit appropriate diagnostics using the ones from build.
                 self.handle_messages(&cwd, &messages);
                 let analysis_queue = self.analysis_queue.clone();
+
+                {
+                    let mut files_to_crates = self.file_to_crates.lock().unwrap();
+                    *files_to_crates = input_files;
+                    trace!("Files to crates: {:#?}", files_to_crates.deref());
+                }
 
                 let job = Job::new(self, new_analysis, cwd);
                 analysis_queue.enqueue(job);
