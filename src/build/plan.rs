@@ -233,7 +233,6 @@ impl JobQueue {
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct Crate {
     pub name: String,
-    pub kind: CrateKind,
     pub src_path: Option<PathBuf>,
     pub edition: Edition,
     /// From rustc; mainly used to group other properties used to disambiguate a
@@ -241,16 +240,15 @@ pub struct Crate {
     pub disambiguator: (u64, u64),
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy, Clone)]
-pub enum CrateKind {
-    Binary,
-    Library,
-    // ProcMacro?
-}
-
 // Temporary, until Edition from rustfmt is available
 #[derive(PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy, Clone)]
 pub enum Edition {
     Edition2015,
     Edition2018
+}
+
+impl Default for Edition {
+    fn default() -> Edition {
+        Edition::Edition2015
+    }
 }

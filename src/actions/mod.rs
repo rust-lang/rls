@@ -302,7 +302,7 @@ impl InitActionContext {
         let mut iter = editions.into_iter();
         match (iter.next(), iter.next()) {
             (ret @ Some(_), None) => ret,
-            _ => None
+            _ => None,
         }
     }
 

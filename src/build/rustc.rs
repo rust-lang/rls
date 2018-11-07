@@ -43,10 +43,11 @@ use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::syntax::ast;
 use self::syntax::source_map::{FileLoader, RealFileLoader};
+use self::syntax::edition::Edition as RustcEdition;
 
 use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::{BufWriter, BuildResult};
-use crate::build::plan::{Crate, CrateKind, Edition};
+use crate::build::plan::{Crate, Edition};
 use crate::config::{ClippyPreference, Config};
 
 use std::collections::{HashMap, HashSet};
@@ -285,17 +286,22 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         }
 
         result.after_expand.callback = Box::new(move |state| {
-            let krate = Crate {
-                name: state.crate_name.expect("missing crate name").to_owned(),
-                src_path: match state.input {
+            let cwd = &state.session.working_dir.0;
+
+            let src_path = match state.input {
                     Input::File(ref name) => Some(name.to_path_buf()),
                     Input::Str { .. } => None,
-                },
-                kind: CrateKind::Library, // FIXME
+            }.and_then(|path| src_path(Some(cwd), path));
+
+
+            let krate = Crate {
+                name: state.crate_name.expect("missing crate name").to_owned(),
+                src_path,
                 disambiguator: state.session.local_crate_disambiguator().to_fingerprint().as_value(),
                 edition: match state.session.edition() {
-                    syntax::edition::Edition::Edition2018 => Edition::Edition2018,
-                    _ => Edition::Edition2015,
+                    RustcEdition::Edition2015 => Edition::Edition2015,
+                    RustcEdition::Edition2018 => Edition::Edition2018,
+                    _ => Edition::default(),
                 },
             };
             let files = fetch_input_files(state.session);
@@ -348,12 +354,15 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 }
 
 fn fetch_input_files(sess: &Session) -> Vec<PathBuf> {
+    let cwd = &sess.working_dir.0;
+
     sess.source_map()
         .files()
         .iter()
         .filter(|fmap| fmap.is_real_file())
         .filter(|fmap| !fmap.is_imported())
         .map(|fmap| fmap.name.to_string())
+        .map(|fmap| src_path(Some(cwd), fmap).unwrap())
         .map(PathBuf::from)
         .collect()
 }

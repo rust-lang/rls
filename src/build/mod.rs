@@ -32,7 +32,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub use self::plan::{Crate, CrateKind, Edition};
+pub use self::plan::{Crate, Edition};
 
 mod cargo;
 mod cargo_plan;
