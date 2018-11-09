@@ -10,9 +10,6 @@ categories = ["development-tools"]
 
 build = "build.rs"
 
-[patch.crates-io]
-rls-vfs = { version = "0.7", git = "https://github.com/Xanewok/rls-vfs", branch = "handle-utf16-offset" }
-
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "2d0863f657e6f45159fc7412267eee3e659185e5" }
 cargo_metadata = "0.6"
