@@ -368,9 +368,10 @@ impl Job {
     fn process(self) {
         // Reload the analysis data.
         trace!(
-            "reload analysis: {:?} {:?}",
+            "reload analysis: {:?} {:?} {}",
             self.handler.project_path,
-            self.cwd
+            self.cwd,
+            self.analysis.len(),
         );
         if self.analysis.is_empty() {
             trace!("reloading from disk: {:?}", self.cwd);

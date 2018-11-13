@@ -679,6 +679,7 @@ fn test_rename() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
+
     expect_message(
         &mut server,
         results.clone(),
