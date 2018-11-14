@@ -128,7 +128,7 @@ impl CargoPlan {
         let unit_key = (id.clone(), target.clone(), mode);
         trace!("Caching these files: {:#?} for {:?} key", &input_files, &unit_key);
 
-        // Create reverse file -> unit mapping (used for dirty unit calculation)
+        // Create reverse file -> unit mapping (to be used for dirty unit calculation)
         for file in &input_files {
             self.file_key_mapping
                 .entry(file.to_path_buf())
@@ -197,7 +197,6 @@ impl CargoPlan {
         }
     }
 
-    /// TODO: Update TODO below
     /// TODO: Improve detecting dirty crate targets for a set of dirty file paths.
     /// This uses a lousy heuristic of checking path prefix for a given crate
     /// target to determine whether a given unit (crate target) is dirty. This
@@ -207,7 +206,7 @@ impl CargoPlan {
     /// Because of that, build scripts are checked separately and only other
     /// crate targets are checked with path prefixes.
     fn fetch_dirty_units<T: AsRef<Path>>(&self, files: &[T]) -> HashSet<UnitKey> {
-        let files = files.iter().map(|f| f.as_ref());
+        let mut result = HashSet::new();
 
         let build_scripts: HashMap<&Path, UnitKey> = self
             .units
@@ -217,18 +216,59 @@ impl CargoPlan {
             })
             .map(|(key, unit)| (unit.target.src_path().path(), key.clone()))
             .collect();
+        let other_targets: HashMap<UnitKey, &Path> = self
+            .units
+            .iter()
+            .filter(|&(&(_, ref target, _), _)| *target.kind() != TargetKind::CustomBuild)
+            .map(|(key, unit)| {
+                (
+                    key.clone(),
+                    unit.target
+                        .src_path()
+                        .path()
+                        .parent()
+                        .expect("no parent for src_path"),
+                )
+            }).collect();
 
-        let mut result = HashSet::new();
+        for modified in files.iter().map(|x| x.as_ref()) {
+            if let Some(unit) = build_scripts.get(modified) {
+                result.insert(unit.clone());
+            } else {
+                // Not a build script, so we associate a dirty file with a
+                // package by finding longest (most specified) path prefix.
+                let matching_prefix_components = |a: &Path, b: &Path| -> usize {
+                    assert!(a.is_absolute() && b.is_absolute());
+                    a.components().zip(b.components())
+                        .skip(1) // Skip RootDir
+                        .take_while(|&(x, y)| x == y)
+                        .count()
+                };
+                // Since a package can correspond to many units (e.g. compiled
+                // as a regular binary or a test harness for unit tests), we
+                // collect every unit having the longest path prefix.
+                let max_matching_prefix = other_targets
+                    .values()
+                    .map(|src_dir| matching_prefix_components(modified, src_dir))
+                    .max();
 
-        let dirty_rustc_units = files
-            .clone()
-            .filter_map(|f| self.file_key_mapping.get(f))
-            .flat_map(|units| units);
-        let dirty_build_scripts = files.filter_map(|f| build_scripts.get(f));
+                match max_matching_prefix {
+                    Some(0) => error!(
+                        "Modified file {} didn't correspond to any buildable unit!",
+                        modified.display()
+                    ),
+                    Some(max) => {
+                        let dirty_units = other_targets
+                            .iter()
+                            .filter(|(_, dir)| max == matching_prefix_components(modified, dir))
+                            .map(|(unit, _)| unit);
 
-        result.extend(dirty_rustc_units.cloned());
-        result.extend(dirty_build_scripts.cloned());
-
+                        result.extend(dirty_units.cloned());
+                    }
+                    None => {} // Possible that only build scripts were modified
+                }
+            }
+        }
         result
     }
 
