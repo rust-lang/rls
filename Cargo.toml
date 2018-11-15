@@ -22,7 +22,7 @@ languageserver-types = "0.45"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "=2.1.11", default-features = false }
+racer = { version = "=2.1.12", default-features = false }
 rand = "0.5.5"
 rayon = "1"
 rls-analysis = "0.16.6"
