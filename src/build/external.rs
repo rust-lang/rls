@@ -31,6 +31,7 @@ use std::process::{Command, Stdio};
 
 use crate::build::BuildResult;
 use crate::build::plan::{BuildKey, BuildGraph, JobQueue, WorkStatus};
+use crate::build::rustc::src_path;
 
 use cargo::util::{process, ProcessBuilder};
 use log::trace;
@@ -96,7 +97,7 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(
     };
 
     let plan = plan_from_analysis(&analyses, &build_dir);
-    (BuildResult::Success(build_dir, vec![], analyses, false), plan)
+    (BuildResult::Success(build_dir, vec![], analyses, HashMap::default(), false), plan)
 }
 
 /// Reads and deserializes given save-analysis JSON files into corresponding
@@ -451,16 +452,6 @@ fn guess_rustc_src_path(build_dir: &Path, cmd: &ProcessBuilder) -> Option<PathBu
         .find(|&a| Path::new(a).extension().map(|e| e == "rs").unwrap_or(false))?;
 
     src_path(cwd, file)
-}
-
-fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
-    let path = path.as_ref();
-
-    Some(match (cwd, path.is_absolute()) {
-        (_, true) => path.to_owned(),
-        (Some(cwd), _) => cwd.join(path),
-        (None, _) => std::env::current_dir().ok()?.join(path)
-    })
 }
 
 #[cfg(test)]

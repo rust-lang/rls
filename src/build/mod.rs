@@ -32,6 +32,8 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+pub use self::plan::{Crate, Edition};
+
 mod cargo;
 mod cargo_plan;
 pub mod environment;
@@ -100,10 +102,10 @@ struct Internals {
 #[derive(Debug)]
 pub enum BuildResult {
     /// Build was performed without any internal errors. The payload
-    /// contains current directory at the time, emitted raw diagnostics, and
-    /// Analysis data.
+    /// contains current directory at the time, emitted raw diagnostics,
+    /// Analysis data and list of input files to the compilation.
     /// Final bool is true if and only if compiler's exit code would be 0.
-    Success(PathBuf, Vec<String>, Vec<Analysis>, bool),
+    Success(PathBuf, Vec<String>, Vec<Analysis>, HashMap<PathBuf, HashSet<Crate>>, bool),
     /// Build was coalesced with another build.
     Squashed,
     /// There was an error attempting to build.

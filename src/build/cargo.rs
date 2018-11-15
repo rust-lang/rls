@@ -24,7 +24,7 @@ use serde_json;
 use crate::actions::progress::ProgressUpdate;
 use crate::build::cargo_plan::CargoPlan;
 use crate::build::environment::{self, Environment, EnvironmentLock};
-use crate::build::plan::BuildPlan;
+use crate::build::plan::{BuildPlan, Crate};
 use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
 use crate::config::Config;
 use crate::lsp_data::{Position, Range};
@@ -58,6 +58,8 @@ pub(super) fn cargo(
     let diagnostics_clone = diagnostics.clone();
     let analysis = Arc::new(Mutex::new(vec![]));
     let analysis_clone = analysis.clone();
+    let input_files = Arc::new(Mutex::new(HashMap::new()));
+    let input_files_clone = input_files.clone();
     let out = Arc::new(Mutex::new(vec![]));
     let out_clone = out.clone();
 
@@ -74,6 +76,7 @@ pub(super) fn cargo(
             env_lock,
             diagnostics,
             analysis,
+            input_files,
             out,
             progress_sender,
         )
@@ -93,7 +96,11 @@ pub(super) fn cargo(
                 .unwrap()
                 .into_inner()
                 .unwrap();
-            BuildResult::Success(cwd.clone(), diagnostics, analysis, true)
+            let input_files = Arc::try_unwrap(input_files_clone)
+                .unwrap()
+                .into_inner()
+                .unwrap();
+            BuildResult::Success(cwd.clone(), diagnostics, analysis, input_files, true)
         }
         Err(error) => {
             let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
@@ -123,6 +130,7 @@ fn run_cargo(
     env_lock: Arc<EnvironmentLock>,
     compiler_messages: Arc<Mutex<Vec<String>>>,
     analysis: Arc<Mutex<Vec<Analysis>>>,
+    input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     out: Arc<Mutex<Vec<u8>>>,
     progress_sender: Sender<ProgressUpdate>,
 ) -> Result<PathBuf, failure::Error> {
@@ -163,6 +171,7 @@ fn run_cargo(
         vfs,
         compiler_messages,
         analysis,
+        input_files,
         progress_sender,
         inner_lock,
         restore_env,
@@ -180,6 +189,7 @@ fn run_cargo_ws(
     vfs: Arc<Vfs>,
     compiler_messages: Arc<Mutex<Vec<String>>>,
     analysis: Arc<Mutex<Vec<Analysis>>>,
+    input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     progress_sender: Sender<ProgressUpdate>,
     inner_lock: environment::InnerLock,
     mut restore_env: Environment<'_>,
@@ -275,6 +285,7 @@ fn run_cargo_ws(
         vfs,
         compiler_messages,
         analysis,
+        input_files,
         progress_sender,
         reached_primary.clone(),
     );
@@ -321,6 +332,7 @@ struct RlsExecutor {
     /// Packages which are directly a member of the workspace, for which
     /// analysis and diagnostics will be provided
     member_packages: Mutex<HashSet<PackageId>>,
+    input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     /// JSON compiler messages emitted for each primary compiled crate
     compiler_messages: Arc<Mutex<Vec<String>>>,
     progress_sender: Mutex<Sender<ProgressUpdate>>,
@@ -341,6 +353,7 @@ impl RlsExecutor {
         vfs: Arc<Vfs>,
         compiler_messages: Arc<Mutex<Vec<String>>>,
         analysis: Arc<Mutex<Vec<Analysis>>>,
+        input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
         progress_sender: Sender<ProgressUpdate>,
         reached_primary: Arc<AtomicBool>,
     ) -> RlsExecutor {
@@ -352,6 +365,7 @@ impl RlsExecutor {
             env_lock,
             vfs,
             analysis,
+            input_files,
             member_packages: Mutex::new(member_packages),
             compiler_messages,
             progress_sender: Mutex::new(progress_sender),
@@ -559,17 +573,31 @@ impl Executor for RlsExecutor {
             cx.build_dir.clone().unwrap()
         };
 
-        if let BuildResult::Success(_, mut messages, mut analysis, success) = super::rustc::rustc(
-            &self.vfs,
-            &args,
-            &envs,
-            cargo_cmd.get_cwd(),
-            &build_dir,
-            Arc::clone(&self.config),
-            &self.env_lock.as_facade(),
-        ) {
+        if let BuildResult::Success(_, mut messages, mut analysis, input_files, success) =
+            super::rustc::rustc(
+                &self.vfs,
+                &args,
+                &envs,
+                cargo_cmd.get_cwd(),
+                &build_dir,
+                Arc::clone(&self.config),
+                &self.env_lock.as_facade(),
+            ) {
             self.compiler_messages.lock().unwrap().append(&mut messages);
             self.analysis.lock().unwrap().append(&mut analysis);
+
+            // Cache calculated input files for a given rustc invocation
+            {
+                let mut cx = self.compilation_cx.lock().unwrap();
+                let plan = cx.build_plan.as_cargo_mut().unwrap();
+                let input_files = input_files.keys().cloned().collect();
+                plan.cache_input_files(id, target, mode, input_files, cargo_cmd.get_cwd());
+            }
+
+            let mut self_input_files = self.input_files.lock().unwrap();
+            for (file, inputs) in input_files {
+                    self_input_files.entry(file).or_default().extend(inputs);
+            }
 
             if !success {
                 return Err(format_err!("Build error"));

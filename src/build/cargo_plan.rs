@@ -39,6 +39,7 @@ use url::Url;
 
 use crate::build::PackageArg;
 use crate::build::plan::{BuildKey, BuildGraph, JobQueue, WorkStatus};
+use crate::build::rustc::src_path;
 use crate::lsp_data::parse_file_path;
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
@@ -58,6 +59,9 @@ crate struct CargoPlan {
     crate rev_dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
     /// Cached compiler calls used when creating a compiler call queue.
     crate compiler_jobs: HashMap<UnitKey, ProcessBuilder>,
+    /// Calculated input files that unit depend on.
+    crate input_files: HashMap<UnitKey, Vec<PathBuf>>,
+    crate file_key_mapping: HashMap<PathBuf, HashSet<UnitKey>>,
     // An object for finding the package which a file belongs to and this inferring
     // a package argument.
     package_map: Option<PackageMap>,
@@ -99,6 +103,40 @@ impl CargoPlan {
     ) {
         let unit_key = (id.clone(), target.clone(), mode);
         self.compiler_jobs.insert(unit_key, cmd.clone());
+    }
+
+    crate fn cache_input_files(
+        &mut self,
+        id: &PackageId,
+        target: &Target,
+        mode: CompileMode,
+        input_files: Vec<PathBuf>,
+        cwd: Option<&Path>,
+    ) {
+        let input_files: Vec<_> = input_files
+            .iter()
+            .filter_map(|file| src_path(cwd, file))
+            .filter_map(|file| match std::fs::canonicalize(&file) {
+                Ok(file) => Some(file),
+                Err(err) => {
+                    error!("Couldn't canonicalize `{}`: {}", file.display(), err);
+                    None
+                }
+            })
+            .collect();
+
+        let unit_key = (id.clone(), target.clone(), mode);
+        trace!("Caching these files: {:#?} for {:?} key", &input_files, &unit_key);
+
+        // Create reverse file -> unit mapping (to be used for dirty unit calculation)
+        for file in &input_files {
+            self.file_key_mapping
+                .entry(file.to_path_buf())
+                .or_default()
+                .insert(unit_key.clone());
+        }
+
+        self.input_files.insert(unit_key, input_files);
     }
 
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)

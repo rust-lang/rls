@@ -12,12 +12,12 @@
 
 use crate::actions::InitActionContext;
 use itertools::Itertools;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use racer;
 use rls_data as data;
 use rls_span as span;
 use rls_vfs::FileContents;
-use rustfmt_nightly::{FileLines, FileName, Range as RustfmtRange};
+use rustfmt_nightly::{Edition as RustfmtEdition, FileLines, FileName, Range as RustfmtRange};
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use url::Url;
@@ -26,6 +26,7 @@ use crate::actions::hover;
 use crate::actions::run::collect_run_actions;
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
+use crate::build::Edition;
 use crate::lsp_data;
 use crate::lsp_data::*;
 use crate::server;
@@ -753,6 +754,26 @@ fn reformat(
     }
     if !config.was_set().tab_spaces() {
         config.set().tab_spaces(opts.tab_size as usize);
+    }
+    if !config.was_set().edition() {
+        match ctx.file_edition(path.clone()) {
+            Some(edition) => {
+                let edition = match edition {
+                    Edition::Edition2015 => RustfmtEdition::Edition2015,
+                    Edition::Edition2018 => RustfmtEdition::Edition2018,
+                };
+                config.set().edition(edition);
+                trace!("Detected edition {:?} for file `{}`", edition, path.display());
+            },
+            None => {
+                warn!("Reformat failed: ambiguous edition for `{}`", path.display());
+
+                return Err(ResponseError::Message(
+                    ErrorCode::InternalError,
+                    "Reformat failed to complete successfully".into(),
+                ));
+            }
+        }
     }
 
     if let Some(r) = selection {

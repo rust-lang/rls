@@ -5,6 +5,7 @@
 //! * Cargo - used when we run Cargo in-process and intercept it
 //! * External - dependency graph between invocations
 
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
@@ -113,6 +114,7 @@ impl JobQueue {
 
         let mut compiler_messages = vec![];
         let mut analyses = vec![];
+        let mut input_files = HashMap::<_, HashSet<_>>::new();
         let (build_dir, mut cwd) = {
             let comp_cx = internals.compilation_cx.lock().unwrap();
             (
@@ -188,9 +190,13 @@ impl JobQueue {
                 Arc::clone(&internals.config),
                 &internals.env_lock.as_facade(),
             ) {
-                BuildResult::Success(c, mut messages, mut analysis, success) => {
+                BuildResult::Success(c, mut messages, mut analysis, files, success) => {
                     compiler_messages.append(&mut messages);
                     analyses.append(&mut analysis);
+                    for (file, inputs) in files {
+                        input_files.entry(file).or_default().extend(inputs);
+                    }
+
                     cwd = Some(c);
 
                     // This compilation failed, but the build as a whole does not
@@ -200,6 +206,7 @@ impl JobQueue {
                             cwd.unwrap(),
                             compiler_messages,
                             analyses,
+                            input_files,
                             false,
                         );
                     }
@@ -216,7 +223,32 @@ impl JobQueue {
             cwd.unwrap_or_else(|| PathBuf::from(".")),
             compiler_messages,
             analyses,
+            input_files,
             true,
         )
+    }
+}
+
+/// Build system-agnostic, basic compilation unit
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct Crate {
+    pub name: String,
+    pub src_path: Option<PathBuf>,
+    pub edition: Edition,
+    /// From rustc; mainly used to group other properties used to disambiguate a
+    /// given compilation unit.
+    pub disambiguator: (u64, u64),
+}
+
+// Temporary, until Edition from rustfmt is available
+#[derive(PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy, Clone)]
+pub enum Edition {
+    Edition2015,
+    Edition2018
+}
+
+impl Default for Edition {
+    fn default() -> Edition {
+        Edition::Edition2015
     }
 }

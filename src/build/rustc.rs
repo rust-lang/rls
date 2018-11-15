@@ -43,12 +43,14 @@ use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::syntax::ast;
 use self::syntax::source_map::{FileLoader, RealFileLoader};
+use self::syntax::edition::Edition as RustcEdition;
 
 use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::{BufWriter, BuildResult};
+use crate::build::plan::{Crate, Edition};
 use crate::config::{ClippyPreference, Config};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::io;
@@ -113,8 +115,9 @@ crate fn rustc(
         args.to_owned()
     };
 
-    let analysis = Arc::new(Mutex::new(None));
-    let controller = Box::new(RlsRustcCalls::new(Arc::clone(&analysis), clippy_pref));
+    let analysis = Arc::default();
+    let input_files = Arc::default();
+    let controller = Box::new(RlsRustcCalls::new(Arc::clone(&analysis), Arc::clone(&input_files), clippy_pref));
 
     // rustc explicitly panics in run_compiler() on compile failure, regardless
     // if it encounters an ICE (internal compiler error) or not.
@@ -144,14 +147,13 @@ crate fn rustc(
         .unwrap_or_else(Vec::new);
     log::debug!("rustc: analysis read successfully?: {}", !analysis.is_empty());
 
+    let input_files = Arc::try_unwrap(input_files).unwrap().into_inner().unwrap();
+
     let cwd = cwd
         .unwrap_or_else(|| restore_env.get_old_cwd())
         .to_path_buf();
 
-    match result {
-        Ok(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, true),
-        Err(_) => BuildResult::Success(cwd, stderr_json_msgs, analysis, false),
-    }
+    BuildResult::Success(cwd, stderr_json_msgs, analysis, input_files, result.is_ok())
 }
 
 // Our compiler controller. We mostly delegate to the default rustc
@@ -160,17 +162,20 @@ crate fn rustc(
 struct RlsRustcCalls {
     default_calls: Box<RustcDefaultCalls>,
     analysis: Arc<Mutex<Option<Analysis>>>,
+    input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
 }
 
 impl RlsRustcCalls {
     fn new(
         analysis: Arc<Mutex<Option<Analysis>>>,
+        input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
         clippy_preference: ClippyPreference,
     ) -> RlsRustcCalls {
         RlsRustcCalls {
             default_calls: Box::new(RustcDefaultCalls),
             analysis,
+            input_files,
             clippy_preference,
         }
     }
@@ -267,6 +272,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         matches: &getopts::Matches,
     ) -> CompileController<'a> {
         let analysis = self.analysis.clone();
+        let input_files = self.input_files.clone();
         #[cfg(feature = "clippy")]
         let clippy_preference = self.clippy_preference;
         let mut result = self.default_calls.build_controller(sess, matches);
@@ -278,6 +284,36 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
                 result.after_parse.callback = Box::new(clippy_after_parse_callback);
             }
         }
+
+        result.after_expand.callback = Box::new(move |state| {
+            let cwd = &state.session.working_dir.0;
+
+            let src_path = match state.input {
+                    Input::File(ref name) => Some(name.to_path_buf()),
+                    Input::Str { .. } => None,
+            }.and_then(|path| src_path(Some(cwd), path));
+
+
+            let krate = Crate {
+                name: state.crate_name.expect("missing crate name").to_owned(),
+                src_path,
+                disambiguator: state.session.local_crate_disambiguator().to_fingerprint().as_value(),
+                edition: match state.session.edition() {
+                    RustcEdition::Edition2015 => Edition::Edition2015,
+                    RustcEdition::Edition2018 => Edition::Edition2018,
+                    _ => Edition::default(),
+                },
+            };
+            let files = fetch_input_files(state.session);
+
+            let mut input_files = input_files.lock().unwrap();
+            for file in &files {
+                input_files
+                    .entry(file.to_path_buf())
+                    .or_default()
+                    .insert(krate.clone());
+            }
+        });
 
         result.after_analysis.callback = Box::new(move |state| {
             // There are two ways to move the data from rustc to the RLS, either
@@ -315,6 +351,20 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
         result
     }
+}
+
+fn fetch_input_files(sess: &Session) -> Vec<PathBuf> {
+    let cwd = &sess.working_dir.0;
+
+    sess.source_map()
+        .files()
+        .iter()
+        .filter(|fmap| fmap.is_real_file())
+        .filter(|fmap| !fmap.is_imported())
+        .map(|fmap| fmap.name.to_string())
+        .map(|fmap| src_path(Some(cwd), fmap).unwrap())
+        .map(PathBuf::from)
+        .collect()
 }
 
 /// Tries to read a file from a list of replacements, and if the file is not
@@ -369,4 +419,14 @@ pub(super) fn current_sysroot() -> Option<String> {
                 .map(|s| s.trim().to_owned())
         })
     }
+}
+
+pub fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
+    let path = path.as_ref();
+
+    Some(match (cwd, path.is_absolute()) {
+        (_, true) => path.to_owned(),
+        (Some(cwd), _) => cwd.join(path),
+        (None, _) => std::env::current_dir().ok()?.join(path)
+    })
 }
