@@ -206,11 +206,11 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         racer::MatchType::Macro
         | racer::MatchType::Function
         | racer::MatchType::Method(_)
-        | racer::MatchType::FnArg => CompletionItemKind::Function,
+        | racer::MatchType::FnArg(_) => CompletionItemKind::Function,
         racer::MatchType::Type | racer::MatchType::Trait => {
             CompletionItemKind::Interface
         }
-        racer::MatchType::Let
+        racer::MatchType::Let(_)
         | racer::MatchType::IfLet(_)
         | racer::MatchType::WhileLet(_)
         | racer::MatchType::For(_)
@@ -219,6 +219,11 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         | racer::MatchType::Static => CompletionItemKind::Variable,
         racer::MatchType::TypeParameter(_) => CompletionItemKind::TypeParameter,
         racer::MatchType::Builtin(_) => CompletionItemKind::Keyword,
+        racer::MatchType::UseAlias(m) => match m.mtype {
+            racer::MatchType::UseAlias(_) => unreachable!("Nested use aliases"),
+            typ @ _ => completion_kind_from_match_type(typ),
+        }
+        racer::MatchType::AssocType => CompletionItemKind::TypeParameter,
     }
 }
 

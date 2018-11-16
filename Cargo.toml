@@ -10,6 +10,9 @@ categories = ["development-tools"]
 
 build = "build.rs"
 
+[patch.crates-io]
+racer = { git = "https://github.com/racer-rust/racer", version = "=2.1.12", default-features = false }
+
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "2d0863f657e6f45159fc7412267eee3e659185e5" }
 cargo_metadata = "0.6"

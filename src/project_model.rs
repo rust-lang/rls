@@ -32,6 +32,7 @@ pub struct Package(usize);
 struct PackageData {
     lib: Option<(PathBuf, String)>,
     deps: Vec<Dep>,
+    edition: racer::Edition,
 }
 
 #[derive(Debug)]
@@ -83,6 +84,10 @@ impl ProjectModel {
                     // racer expect name 'underscored'(crate) name
                     .map(|t| (t.src_path().path().to_owned(), t.name().replace('-', "_"))),
                 deps: Vec::new(),
+                edition: match cargo_pkg.manifest().edition() {
+                    cargo::core::Edition::Edition2015 => racer::Edition::Ed2015,
+                    cargo::core::Edition::Edition2018 => racer::Edition::Ed2018,
+                },
             });
             manifest_to_id.insert(manifest, pkg);
         }
@@ -133,6 +138,31 @@ impl Package {
 pub struct RacerProjectModel(pub Arc<ProjectModel>);
 
 impl racer::ProjectModelProvider for RacerProjectModel {
+    fn edition(&self, manifest: &Path) -> Option<racer::Edition> {
+        self.0
+            .package_for_manifest(manifest)
+            .map(|pkg| self.0.get(pkg).edition)
+    }
+
+    fn search_dependencies(
+        &self,
+        manifest: &Path,
+        search_fn: Box<dyn Fn(&str) -> bool>,
+    ) -> Vec<(String, PathBuf)> {
+        let pkg = match self.0.package_for_manifest(manifest) {
+            Some(pkg) => pkg,
+            None => return vec![],
+        };
+
+        pkg.deps(&self.0)
+        .iter()
+        .filter(|d| search_fn(&d.crate_name))
+        .filter_map(|d| self.0.get(d.pkg).lib.as_ref())
+        .cloned()
+        .map(|(src_path, crate_name)| (crate_name, src_path))
+        .collect()
+    }
+
     fn discover_project_manifest(&self, path: &Path) -> Option<PathBuf> {
         match find_root_manifest_for_wd(path) {
             Ok(val) => Some(val),
@@ -164,6 +194,18 @@ impl racer::ProjectModelProvider for RacerProjectModel {
 pub struct RacerFallbackModel;
 
 impl racer::ProjectModelProvider for RacerFallbackModel {
+    fn edition(&self, _manifest: &Path) -> Option<racer::Edition> {
+        None
+    }
+
+    fn search_dependencies(
+        &self,
+        _manifest: &Path,
+        _search_fn: Box<dyn Fn(&str) -> bool>,
+    ) -> Vec<(String, PathBuf)> {
+        Vec::new()
+    }
+
     fn discover_project_manifest(&self, _path: &Path) -> Option<PathBuf> {
         None
     }
