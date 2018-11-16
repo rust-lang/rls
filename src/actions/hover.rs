@@ -613,27 +613,34 @@ fn collapse_parents(path: PathBuf) -> PathBuf {
 /// `None` if the coordinates are not available on the match.
 fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> {
     use racer::MatchType;
-    let kind = match m.mtype {
-        MatchType::Struct(_) => DefKind::Struct,
-        MatchType::Module => DefKind::Mod,
-        MatchType::MatchArm => DefKind::Local,
-        MatchType::Function | MatchType::Method(_) => DefKind::Function,
-        MatchType::Crate => DefKind::Mod,
-        MatchType::Let
-        | MatchType::IfLet(_)
-        | MatchType::WhileLet(_)
-        | MatchType::For(_) => DefKind::Local,
-        MatchType::StructField => DefKind::Field,
-        MatchType::Enum(_) => DefKind::Enum,
-        MatchType::EnumVariant(_) => DefKind::StructVariant,
-        MatchType::Type | MatchType::TypeParameter(_) => DefKind::Type,
-        MatchType::FnArg => DefKind::Local,
-        MatchType::Trait => DefKind::Trait,
-        MatchType::Const => DefKind::Const,
-        MatchType::Static => DefKind::Static,
-        MatchType::Macro => DefKind::Macro,
-        MatchType::Builtin(_) => DefKind::Macro,
-    };
+    fn to_def_kind(kind: &MatchType) -> DefKind {
+        match kind {
+            MatchType::Struct(_) => DefKind::Struct,
+            MatchType::Module => DefKind::Mod,
+            MatchType::MatchArm => DefKind::Local,
+            MatchType::Function | MatchType::Method(_) => DefKind::Function,
+            MatchType::Crate => DefKind::Mod,
+            MatchType::Let(_)
+            | MatchType::IfLet(_)
+            | MatchType::WhileLet(_)
+            | MatchType::For(_) => DefKind::Local,
+            MatchType::StructField => DefKind::Field,
+            MatchType::Enum(_) => DefKind::Enum,
+            MatchType::EnumVariant(_) => DefKind::StructVariant,
+            MatchType::Type | MatchType::TypeParameter(_) | MatchType::AssocType => DefKind::Type,
+            MatchType::FnArg(_) => DefKind::Local,
+            MatchType::Trait => DefKind::Trait,
+            MatchType::Const => DefKind::Const,
+            MatchType::Static => DefKind::Static,
+            MatchType::Macro => DefKind::Macro,
+            MatchType::Builtin(_) => DefKind::Macro,
+            MatchType::UseAlias(m) => match m.mtype {
+                MatchType::UseAlias(_) => unreachable!("Nested use aliases"),
+                _ => to_def_kind(&m.mtype),
+            },
+        }
+    }
+    let kind = to_def_kind(&m.mtype);
 
     let contextstr = if kind == DefKind::Mod {
         use std::env;
