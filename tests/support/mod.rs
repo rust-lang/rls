@@ -412,7 +412,7 @@ pub fn main_file(println: &str, deps: &[&str]) -> String {
     buf.push_str(println);
     buf.push_str("); }\n");
 
-    buf.to_string()
+    buf
 }
 
 pub fn basic_bin_manifest(name: &str) -> String {

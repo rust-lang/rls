@@ -24,7 +24,7 @@ fn test_lens_run() {
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
     let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
         .expect("couldn't convert file path to URL");
-    let text_doc = TextDocumentIdentifier::new(url.clone());
+    let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
         initialize_with_opts(
             0,
@@ -37,7 +37,7 @@ fn test_lens_run() {
         request::<requests::CodeLensRequest>(
             100,
             CodeLensParams {
-                text_document: text_doc.clone(),
+                text_document: text_doc,
             },
         ).to_string(),
     ];
