@@ -122,7 +122,7 @@ fn test_shutdown() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_message(&mut server, results.clone(), &ExpectedMessage::new(Some(1)));
+    expect_message(&mut server, results, &ExpectedMessage::new(Some(1)));
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn test_goto_def() {
     // TODO structural checking of result, rather than looking for a string - src(&source_file_path, 12, "world")
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#),
     );
 }
@@ -218,7 +218,7 @@ fn test_hover() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(11))
                 .expect_contains(r#"[{"language":"rust","value":"&str"},{"language":"rust","value":"let world = \"world\";"}]"#)
     );
@@ -321,7 +321,7 @@ fn test_hover_after_src_line_change() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None).expect_contains(r#"[{"language":"rust","value":"&str"}]"#),
     );
 }
@@ -364,7 +364,7 @@ fn test_workspace_symbol() {
 
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
             // in main.rs
             .expect_contains(r#"main.rs"#)
@@ -485,7 +485,7 @@ fn test_find_all_refs() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
@@ -542,7 +542,7 @@ fn test_find_all_refs_no_cfg_test() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
@@ -581,7 +581,7 @@ fn test_borrow_error() {
             .expect_contains(r#""message":"cannot borrow `x` as mutable more than once at a time"#),
     );
 
-    expect_series(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results, vec!["progress"]);
 }
 
 #[test]
@@ -627,7 +627,7 @@ fn test_highlight() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
@@ -682,7 +682,7 @@ fn test_rename() {
 
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
@@ -737,7 +737,7 @@ fn test_reformat() {
     );
     expect_message(
         &mut server,
-        results.clone(), 
+        results,
         ExpectedMessage::new(Some(42))
             .expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":12,"character":0}}"#)
             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}"#)
@@ -797,7 +797,7 @@ fn test_reformat_with_range() {
         ls_server::LsService::handle_message(&mut server),
         ls_server::ServerStateChange::Continue
     );
-    expect_message(&mut server, results.clone(),
+    expect_message(&mut server, results,
         ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
             .expect_contains(r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"#)
     );
@@ -839,7 +839,7 @@ fn test_multiple_binaries() {
         results.clone(),
         ExpectedMessage::new(None).expect_contains("unused variable: `bin_name"),
     );
-    expect_series(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results, vec!["progress"]);
 }
 
 // FIXME Requires rust-src component, which would break Rust CI
@@ -919,7 +919,7 @@ fn test_bin_lib_project() {
 
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None)
             .expect_contains("progress")
             .expect_contains(r#""done":true"#),
@@ -1005,7 +1005,7 @@ fn test_infer_lib() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None)
             .expect_contains("progress")
             .expect_contains(r#""done":true"#),
@@ -1041,7 +1041,7 @@ fn test_infer_bin() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None)
             .expect_contains("progress")
             .expect_contains(r#""done":true"#),
@@ -1078,7 +1078,7 @@ fn test_infer_custom_bin() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None)
             .expect_contains("progress")
             .expect_contains(r#""done":true"#),
@@ -1107,7 +1107,7 @@ fn test_omit_init_build() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 }
@@ -1177,7 +1177,7 @@ fn test_find_impls() {
         request::<requests::Implementation>(
             2,
             TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier::new(url.clone()),
+                text_document: TextDocumentIdentifier::new(url),
                 position: env
                     .cache
                     .mk_ls_position(src(&source_file_path, 16, "Super")),
@@ -1228,7 +1228,7 @@ fn test_find_impls() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(2))
             .expect_contains(
                 r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#,
@@ -1278,7 +1278,7 @@ fn test_features() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None)
             .expect_contains("progress")
             .expect_contains(r#""done":true"#),
@@ -1306,7 +1306,7 @@ fn test_all_features() {
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
 
-    expect_series(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results, vec!["progress"]);
 }
 
 #[test]
@@ -1344,7 +1344,7 @@ fn test_no_default_features() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None)
             .expect_contains("progress")
             .expect_contains(r#""done":true"#),
@@ -1416,7 +1416,7 @@ fn test_deglob() {
         request::<requests::CodeAction>(
             1100,
             CodeActionParams {
-                text_document: text_doc.clone(),
+                text_document: text_doc,
                 range: env.cache.mk_ls_range_from_line(15),
                 context: CodeActionContext {
                     diagnostics: vec![],
@@ -1438,7 +1438,7 @@ fn test_deglob() {
                     }).unwrap(),
                     serde_json::to_value(&requests::DeglobResult {
                         location: Location {
-                            uri: url.clone(),
+                            uri: url,
                             range: Range::new(Position::new(15, 31), Position::new(15, 32)),
                         },
                         new_text: "max".into(),
@@ -1585,7 +1585,7 @@ fn test_deglob() {
 
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(Some(1200)).expect_contains(r#"null"#),
     );
 }
@@ -1626,7 +1626,7 @@ fn test_all_targets() {
     );
     expect_message(
         &mut server,
-        results.clone(),
+        results,
         ExpectedMessage::new(None)
             .expect_contains("progress")
             .expect_contains(r#""done":true"#),
@@ -1648,7 +1648,7 @@ fn ignore_uninitialized_notification() {
     let messages = vec![
         notification::<notifications::DidChangeTextDocument>(DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier {
-                uri: url.clone(),
+                uri: url,
                 version: Some(2),
             },
             content_changes: vec![TextDocumentContentChangeEvent {
@@ -1688,7 +1688,7 @@ fn ignore_uninitialized_notification() {
         ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
     );
 
-    expect_series(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results, vec!["progress"]);
 }
 
 /// Handle receiving requests before the `initialize` request by returning an error response
@@ -1746,7 +1746,7 @@ fn fail_uninitialized_request() {
         ExpectedMessage::new(Some(1)).expect_contains("capabilities"),
     );
 
-    expect_series(&mut server, results.clone(), vec!["progress"]);
+    expect_series(&mut server, results, vec!["progress"]);
 }
 
 // FIXME disabled since it is failing in the Rust repo.

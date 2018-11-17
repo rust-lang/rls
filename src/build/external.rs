@@ -135,7 +135,7 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
         .map(|(idx, a)| (a.prelude.as_ref().unwrap().crate_id.disambiguator, idx))
         .collect();
 
-    let invocations: Vec<RawInvocation> = analysis.into_iter()
+    let invocations: Vec<RawInvocation> = analysis.iter()
         .map(|a| {
             let CompilationOptions { ref directory, ref program, ref arguments, ref output } =
                 a.compilation.as_ref().ok_or(())?;

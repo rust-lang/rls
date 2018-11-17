@@ -1145,7 +1145,7 @@ fn cmd_format_utf16_range() {
 
     let result = json["result"].as_array().unwrap();
     let new_text: Vec<_> = result
-        .into_iter()
+        .iter()
         .map(|o| o["newText"].as_str().unwrap())
         .collect();
     // Actual formatting isn't important - what is, is that the buffer isn't

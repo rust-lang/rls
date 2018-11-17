@@ -1090,7 +1090,7 @@ pub mod test {
         fn run(&self, project_dir: &Path, ctx: &InitActionContext) -> TestResult {
             let url =
                 Url::from_file_path(project_dir.join("src").join(&self.file)).expect(&self.file);
-            let doc_id = TextDocumentIdentifier::new(url.clone());
+            let doc_id = TextDocumentIdentifier::new(url);
             let position = Position::new(self.line - 1u64, self.col - 1u64);
             let params = TextDocumentPositionParams::new(doc_id, position);
             let result = tooltip(&ctx, &params).map_err(|e| format!("tooltip error: {:?}", e));
@@ -1177,9 +1177,9 @@ pub mod test {
             let vfs = Arc::new(Vfs::new());
 
             let ctx = InitActionContext::new(
-                analysis.clone(),
-                vfs.clone(),
-                config.clone(),
+                analysis,
+                vfs,
+                config,
                 client_caps,
                 project_dir.clone(),
                 pid,
@@ -1635,7 +1635,7 @@ pub mod test {
             )
         ",
         );
-        let result = format_method(fmt.clone(), config, input);
+        let result = format_method(fmt, config, input);
         assert_eq!(expected, result, "function with multiline args");
     }
 
@@ -1800,7 +1800,7 @@ pub mod test {
                 U: Clone,
         ",
         );
-        let result = format_object(fmt.clone(), config, input.into());
+        let result = format_object(fmt, config, input.into());
         assert_eq!(expected, result, "trait with where clause");
     }
 
