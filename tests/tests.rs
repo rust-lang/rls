@@ -1300,6 +1300,7 @@ fn cmd_format_utf16_range() {
     let new_text: Vec<_> = result
         .iter()
         .map(|o| o["newText"].as_str().unwrap())
+        .map(|text| text.replace('\r', ""))
         .collect();
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
