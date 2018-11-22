@@ -37,8 +37,8 @@ use rls_analysis::SymbolQuery;
 use crate::lsp_data::request::ApplyWorkspaceEdit;
 pub use crate::lsp_data::request::{
     CodeActionRequest as CodeAction, CodeLensRequest, Completion,
-    DocumentHighlightRequest as DocumentHighlight, DocumentSymbol as Symbols, ExecuteCommand,
-    Formatting, GotoDefinition as Definition, GotoImplementation as Implementation,
+    DocumentHighlightRequest as DocumentHighlight, DocumentSymbolRequest as Symbols,
+    ExecuteCommand, Formatting, GotoDefinition as Definition, GotoImplementation as Implementation,
     HoverRequest as Hover, RangeFormatting, References, Rename,
     ResolveCompletionItem as ResolveCompletion, WorkspaceSymbol,
 };
@@ -74,21 +74,22 @@ impl RequestAction for WorkspaceSymbol {
         let query = SymbolQuery::subsequence(&params.query).limit(512);
         let defs = analysis.query_defs(query).unwrap_or_else(|_| vec![]);
 
-        Ok(defs.into_iter()
-                // Sometimes analysis will return duplicate symbols
-                // for the same location, fix that up.
-                .unique_by(|d| (d.span.clone(), d.name.clone()))
-                .map(|d| {
-                    SymbolInformation {
-                        name: d.name,
-                        kind: source_kind_from_def_kind(d.kind),
-                        location: ls_util::rls_to_location(&d.span),
-                        container_name: d.parent
-                            .and_then(|id| analysis.get_def(id).ok())
-                            .map(|parent| parent.name),
-                    }
-                })
-                .collect())
+        Ok(defs
+            .into_iter()
+            // Sometimes analysis will return duplicate symbols
+            // for the same location, fix that up.
+            .unique_by(|d| (d.span.clone(), d.name.clone()))
+            .map(|d| SymbolInformation {
+                name: d.name,
+                kind: source_kind_from_def_kind(d.kind),
+                location: ls_util::rls_to_location(&d.span),
+                container_name: d
+                    .parent
+                    .and_then(|id| analysis.get_def(id).ok())
+                    .map(|parent| parent.name),
+                deprecated: None,
+            })
+            .collect())
     }
 }
 
@@ -114,7 +115,8 @@ impl RequestAction for Symbols {
             .filter(|s| {
                 let range = ls_util::rls_to_range(s.span.range);
                 range.start != range.end
-            }).map(|s| SymbolInformation {
+            })
+            .map(|s| SymbolInformation {
                 name: s.name,
                 kind: source_kind_from_def_kind(s.kind),
                 location: ls_util::rls_to_location(&s.span),
@@ -122,7 +124,9 @@ impl RequestAction for Symbols {
                     .parent
                     .and_then(|id| analysis.get_def(id).ok())
                     .map(|parent| parent.name),
-            }).collect())
+                deprecated: None,
+            })
+            .collect())
     }
 }
 
@@ -312,7 +316,8 @@ impl RequestAction for Completion {
                     }
                 }
                 item
-            }).collect())
+            })
+            .collect())
     }
 }
 
@@ -346,11 +351,10 @@ impl RequestAction for DocumentHighlight {
                 } else {
                     None
                 }
-            }).collect())
+            })
+            .collect())
     }
 }
-
-
 
 impl RequestAction for Rename {
     type Response = ResponseWithMessage<WorkspaceEdit>;
@@ -387,19 +391,38 @@ impl RequestAction for Rename {
             };
         }
 
-        let id = unwrap_or_fallback!(analysis.crate_local_id(&span), "Rename failed: no information for symbol");
-        let def = unwrap_or_fallback!(analysis.get_def(id), "Rename failed: no definition for symbol");
+        let id = unwrap_or_fallback!(
+            analysis.crate_local_id(&span),
+            "Rename failed: no information for symbol"
+        );
+        let def = unwrap_or_fallback!(
+            analysis.get_def(id),
+            "Rename failed: no definition for symbol"
+        );
         if def.name == "self" || def.name == "Self"
             // FIXME(#578)
             || def.kind == data::DefKind::Mod
         {
-            return Ok(ResponseWithMessage::Warn(format!("Rename failed: cannot rename {}", if def.kind == data::DefKind::Mod { "modules" } else { &def.name })));
+            return Ok(ResponseWithMessage::Warn(format!(
+                "Rename failed: cannot rename {}",
+                if def.kind == data::DefKind::Mod {
+                    "modules"
+                } else {
+                    &def.name
+                }
+            )));
         }
 
-        let result = unwrap_or_fallback!(analysis.find_all_refs(&span, true, true), "Rename failed: error finding references");
+        let result = unwrap_or_fallback!(
+            analysis.find_all_refs(&span, true, true),
+            "Rename failed: error finding references"
+        );
 
         if result.is_empty() {
-            return Ok(ResponseWithMessage::Warn("Rename failed: RLS found nothing to rename - possibly due to multiple defs".to_owned()));
+            return Ok(ResponseWithMessage::Warn(
+                "Rename failed: RLS found nothing to rename - possibly due to multiple defs"
+                    .to_owned(),
+            ));
         }
 
         let mut edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
@@ -416,7 +439,9 @@ impl RequestAction for Rename {
         }
 
         if !ctx.quiescent.load(Ordering::SeqCst) {
-            return Ok(ResponseWithMessage::Warn("Rename failed: RLS busy, please retry".to_owned()));
+            return Ok(ResponseWithMessage::Warn(
+                "Rename failed: RLS busy, please retry".to_owned(),
+            ));
         }
 
         Ok(ResponseWithMessage::Response(WorkspaceEdit {
@@ -509,7 +534,8 @@ fn apply_deglobs(
         .map(|res| TextEdit {
             range: res.location.range,
             new_text: res.new_text,
-        }).collect();
+        })
+        .collect();
     // all deglob results will share the same URI
     let changes: HashMap<_, _> = vec![(uri, text_edits)].into_iter().collect();
 
@@ -584,7 +610,8 @@ fn make_deglob_actions(
 
                 // load the deglob type information
                 ctx.analysis.show_type(&span).ok().map(|ty| (ty, span))
-            }).map(|(mut deglob_str, span)| {
+            })
+            .map(|(mut deglob_str, span)| {
                 // Handle multiple imports from one *
                 if deglob_str.contains(',') || deglob_str.is_empty() {
                     deglob_str = format!("{{{}}}", sort_deglob_str(&deglob_str));
@@ -598,7 +625,8 @@ fn make_deglob_actions(
 
                 // Convert to json
                 serde_json::to_value(&deglob_result).unwrap()
-            }).collect();
+            })
+            .collect();
 
         if !deglob_results.is_empty() {
             // extend result list
@@ -763,10 +791,17 @@ fn reformat(
                     Edition::Edition2018 => RustfmtEdition::Edition2018,
                 };
                 config.set().edition(edition);
-                trace!("Detected edition {:?} for file `{}`", edition, path.display());
-            },
+                trace!(
+                    "Detected edition {:?} for file `{}`",
+                    edition,
+                    path.display()
+                );
+            }
             None => {
-                warn!("Reformat failed: ambiguous edition for `{}`", path.display());
+                warn!(
+                    "Reformat failed: ambiguous edition for `{}`",
+                    path.display()
+                );
 
                 return Err(ResponseError::Message(
                     ErrorCode::InternalError,

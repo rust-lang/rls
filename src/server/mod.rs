@@ -31,9 +31,9 @@ pub use languageserver_types::notification::Exit as ExitNotification;
 pub use languageserver_types::request::Initialize as InitializeRequest;
 pub use languageserver_types::request::Shutdown as ShutdownRequest;
 use languageserver_types::{
-    CodeLensOptions, CompletionOptions, ExecuteCommandOptions, ImplementationProviderCapability,
-    InitializeParams, InitializeResult, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind,
+    CodeActionProviderCapability, CodeLensOptions, CompletionOptions, ExecuteCommandOptions,
+    ImplementationProviderCapability, InitializeParams, InitializeResult, RenameProviderCapability,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use log::{debug, error, trace, warn};
 use rls_analysis::AnalysisHost;
@@ -372,7 +372,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         document_highlight_provider: Some(true),
         document_symbol_provider: Some(true),
         workspace_symbol_provider: Some(true),
-        code_action_provider: Some(true),
+        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         document_formatting_provider: Some(true),
         execute_command_provider: Some(ExecuteCommandOptions {
             // We append our pid to the command so that if there are multiple
@@ -383,7 +383,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
                 format!("rls.deglobImports-{}", ctx.pid()),
             ],
         }),
-        rename_provider: Some(true),
+        rename_provider: Some(RenameProviderCapability::Simple(true)),
         color_provider: None,
 
         // These are supported if the `unstable_features` option is set.
@@ -396,6 +396,9 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         }),
         document_on_type_formatting_provider: None,
         signature_help_provider: None,
+
+        folding_range_provider: None,
+        workspace: None,
     }
 }
 
@@ -406,7 +409,8 @@ fn get_root_path(params: &InitializeParams) -> PathBuf {
         .map(|uri| {
             assert!(uri.scheme() == "file");
             uri.to_file_path().expect("Could not convert URI to path")
-        }).unwrap_or_else(|| {
+        })
+        .unwrap_or_else(|| {
             params
                 .root_path
                 .as_ref()
@@ -432,6 +436,7 @@ mod test {
                 experimental: None,
             },
             trace: Some(languageserver_types::TraceOption::Off),
+            workspace_folders: None,
         }
     }
 
@@ -471,7 +476,8 @@ mod test {
     fn parse_shutdown_object_params() {
         let raw = RawMessage::try_parse(
             r#"{"jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": {}}"#,
-        ).ok()
+        )
+        .ok()
         .and_then(|x| x)
         .expect("raw parse failed");
 
