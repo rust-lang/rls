@@ -375,6 +375,7 @@ impl Project {
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .current_dir(self.root())
+                .env("__CARGO_TEST_ROOT", self.root())
                 .spawn()
                 .unwrap(),
         )
