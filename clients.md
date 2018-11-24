@@ -25,11 +25,11 @@ If there is LSP support then you can get a pretty good 'out of the box' experien
 
 ## Preliminaries
 
-Check the [tracking issue](https://github.com/rust-lang-nursery/rls/issues/87)
+Check the [tracking issue](https://github.com/rust-lang/rls/issues/87)
 to see if support already exists or is in development. If not, comment there to
 let us know you are starting work. If you would like, open an issue dedicated to
 your editor, if one doesn't exist already. You should glance at
-[issues with the clients label](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aopen+is%3Aissue+label%3Aclients).
+[issues with the clients label](https://github.com/rust-lang/rls/issues?q=is%3Aopen+is%3Aissue+label%3Aclients).
 
 If there are things that can be fixed on the RLS side, please submit a PR or
 file an issue.
@@ -48,11 +48,11 @@ re-started after a crash - the LSP client may or may not do this automatically
 
 Once you have this basic support in place, the hard work begins:
 
-* Implement [extensions to the protocol](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md#extensions-to-the-language-server-protocol)
+* Implement [extensions to the protocol](https://github.com/rust-lang/rls/blob/master/contributing.md#extensions-to-the-language-server-protocol)
 * Client-side configuration.
   - You'll need to send the `workspace/didChangeConfiguration` notification when
     configuration changes.
-  - For the config options, see [config.rs](https://github.com/rust-lang-nursery/rls/blob/master/src/config.rs#L99-L117)
+  - For the config options, see [config.rs](https://github.com/rust-lang/rls/blob/master/src/config.rs#L99-L117)
 * Check for and install the RLS
   - you should use Rustup
   - you should check the RLS is installed, and if not, install it and the `rust-analysis` and `rust-src` components
@@ -122,15 +122,15 @@ From Server to client:
 * `client/registerCapability`
 * `client/unregisterCapability`
 
-The RLS also uses some [custom messages](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md#extensions-to-the-language-server-protocol).
+The RLS also uses some [custom messages](https://github.com/rust-lang/rls/blob/master/contributing.md#extensions-to-the-language-server-protocol).
 
 
 ## Resources
 
 * [LSP spec](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md)
 * [contributing.md](contributing.md) - overview of the RLS and how to build, test, etc.
-* [VSCode reference implementation](https://github.com/rust-lang-nursery/rls-vscode) - an example of what client support looks like
-* [Tracking issue](https://github.com/rust-lang-nursery/rls/issues/87)
+* [VSCode reference implementation](https://github.com/rust-lang/rls-vscode) - an example of what client support looks like
+* [Tracking issue](https://github.com/rust-lang/rls/issues/87)
 
 
 ## Getting help

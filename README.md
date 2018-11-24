@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/rust-lang-nursery/rls.svg?branch=master)](https://travis-ci.org/rust-lang-nursery/rls) [![Build status](https://ci.appveyor.com/api/projects/status/cxfejvsqnnc1oygs?svg=true)](https://ci.appveyor.com/project/jonathandturner/rls-x6grn)
+[![Build Status](https://travis-ci.org/rust-lang/rls.svg?branch=master)](https://travis-ci.org/rust-lang/rls) [![Build status](https://ci.appveyor.com/api/projects/status/cxfejvsqnnc1oygs?svg=true)](https://ci.appveyor.com/project/jonathandturner/rls-x6grn)
 [![Nightly status](https://img.shields.io/badge/dynamic/json.svg?label=rls-preview%20(Windows)&url=https%3A%2F%2Fraw.githubusercontent.com%2Frust-lang-nursery%2Frust-toolstate%2Fmaster%2F_data%2Flatest.json&query=%24%5B%3F(%40.tool%3D%3D%22rls%22)%5D.windows&colorB=lightgrey)](https://rust-lang-nursery.github.io/rust-toolstate/)
 [![Nightly status](https://img.shields.io/badge/dynamic/json.svg?label=rls-preview%20(Linux)&url=https%3A%2F%2Fraw.githubusercontent.com%2Frust-lang-nursery%2Frust-toolstate%2Fmaster%2F_data%2Flatest.json&query=%24%5B%3F(%40.tool%3D%3D%22rls%22)%5D.linux&colorB=lightgrey)](https://rust-lang-nursery.github.io/rust-toolstate/)
 
@@ -24,7 +24,7 @@ better experience for larger and larger crates.
 
 The RLS is designed to be frontend-independent. We hope it will be widely
 adopted by different editors and IDEs. To seed development, we provide a
-[reference implementation of an RLS frontend](https://github.com/rust-lang-nursery/rls-vscode)
+[reference implementation of an RLS frontend](https://github.com/rust-lang/rls-vscode)
 for [Visual Studio Code](https://code.visualstudio.com/).
 
 
@@ -57,13 +57,13 @@ rustup component add rls-preview rust-analysis rust-src
 #### Note (nightly only)
 Sometimes the `rls-preview` component is not included in a nightly build due to
 certain issues. To see if the component is included in a particular build and
-what to do if it's not, check [#641](https://github.com/rust-lang-nursery/rls/issues/641).
+what to do if it's not, check [#641](https://github.com/rust-lang/rls/issues/641).
 
 
 ## Running
 
 The RLS is built to work with many IDEs and editors, we mostly use
-VSCode to test the RLS. The easiest way is to use the [published extension](https://github.com/rust-lang-nursery/rls-vscode).
+VSCode to test the RLS. The easiest way is to use the [published extension](https://github.com/rust-lang/rls-vscode).
 
 You'll know it's working when you see this in the status bar at the bottom, with
 a spinning indicator:
@@ -151,7 +151,7 @@ For tips on debugging and troubleshooting, see [debugging.md](debugging.md).
 
 ## Contributing
 
-You can look in the [contributing.md](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md)
+You can look in the [contributing.md](https://github.com/rust-lang/rls/blob/master/contributing.md)
 in this repo to learn more about contributing to this project.
 
 If you want to implement RLS support in an editor, see [clients.md](clients.md).

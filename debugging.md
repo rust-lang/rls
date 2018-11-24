@@ -29,7 +29,7 @@ happens occasionally when the RLS cannot be built with the current compiler. To
 work around this issue you can use an RLS from the beta or stable channels, wait
 for a new nightly which does contain the RLS component, or use an older nightly
 which includes the RLS component. To do the latter follow [these
-instructions](https://github.com/rust-lang-nursery/rls-vscode/issues/181#issue-269383659),
+instructions](https://github.com/rust-lang/rls-vscode/issues/181#issue-269383659),
 then avoid `rustup update`.
 
 ### Out of date components
@@ -223,7 +223,7 @@ from source).
 
 ## Getting more help
 
-Please feel free to [open an issue](https://github.com/rust-lang-nursery/rls/issues/new)
+Please feel free to [open an issue](https://github.com/rust-lang/rls/issues/new)
 to discuss any problem.
 
 If you use Discord, you can ask in #dev-tools on the Rust lang server. You can
