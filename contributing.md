@@ -7,8 +7,8 @@ The RLS is open source and we'd love you to contribute to the project. Testing,
 reporting issues, writing documentation, writing tests, writing code, and
 implementing clients are all extremely valuable.
 
-Here is the list of known [issues](https://github.com/rust-lang-nursery/rls/issues).
-These are [good issues to start on](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+Here is the list of known [issues](https://github.com/rust-lang/rls/issues).
+These are [good issues to start on](https://github.com/rust-lang/rls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 We're happy to help however we can. The best way to get help is either to
 leave a comment on an issue in this repo, or to ping us (nrc) in #rust-dev-tools
@@ -41,7 +41,7 @@ Since the RLS is closely linked to the compiler and is in active development,
 you'll need a recent nightly compiler to build it.
 
 ```
-git clone https://github.com/rust-lang-nursery/rls.git
+git clone https://github.com/rust-lang/rls.git
 cd rls
 cargo build --release
 ```
@@ -112,7 +112,7 @@ cargo run
 Though more commonly, you'll use an IDE plugin to invoke it for you
 (see [README.md](README.md) for details).
 
-We recommend using https://github.com/rust-lang-nursery/rls-vscode in VSCode.
+We recommend using https://github.com/rust-lang/rls-vscode in VSCode.
 You can configure `rls-vscode` to use custom built binary by changing the
 `rust-client.rlsPath` setting to a full path to the binary you want to use.
 
@@ -128,7 +128,7 @@ find the `eprintln` macro useful.
 Test using `cargo test`.
 
 Testing is unfortunately minimal. There is support for regression tests, but not
-many actual tests exists yet. There is significant [work to do](https://github.com/rust-lang-nursery/rls/issues/12)
+many actual tests exists yet. There is significant [work to do](https://github.com/rust-lang/rls/issues/12)
 before we have a comprehensive testing story.
 
 You can run the RLS in command line mode by running with a `--cli` flag,
@@ -276,7 +276,7 @@ at all.
 The command line we got from Cargo, we chop up and feed to the in-process
 compiler. We then collect error messages and analysis data in JSON format
 (although this is inefficient and [should
-change](https://github.com/rust-lang-nursery/rls/issues/25)).
+change](https://github.com/rust-lang/rls/issues/25)).
 
 ### Analysis data
 

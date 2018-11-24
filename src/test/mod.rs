@@ -1163,7 +1163,7 @@ fn test_find_impls() {
     // This test contains code for testing implementations of `Eq`. However, `rust-analysis` is not
     // installed on Travis making rls-analysis fail why retrieving the typeid. Installing
     // `rust-analysis` is also not an option, because this makes other test timeout.
-    // e.g., https://travis-ci.org/rust-lang-nursery/rls/jobs/265339002
+    // e.g., https://travis-ci.org/rust-lang/rls/jobs/265339002
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
