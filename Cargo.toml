@@ -5,7 +5,7 @@ edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>", "The RLS developers"]
 description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
 license = "Apache-2.0/MIT"
-repository = "https://github.com/rust-lang-nursery/rls"
+repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 build = "build.rs"
@@ -13,7 +13,7 @@ build = "build.rs"
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "b3d0b2e545b61d4cd08096911724b7d49d213f73" }
 cargo_metadata = "0.6"
-clippy_lints = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "f5d868c9edfc6c2a9310d564a2f738bec67dfd6b", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "2f6881c62325c34115502b8901bf3ef0931b23cd", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
 itertools = "0.7.3"
@@ -31,7 +31,7 @@ rls-data = { version = "0.18.1", features = ["serialize-serde", "serialize-rustc
 rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.7"
-rustc_tools_util = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "f5d868c9edfc6c2a9310d564a2f738bec67dfd6b" }
+rustc_tools_util = { git = "https://github.com/rust-lang/rust-clippy", rev = "2f6881c62325c34115502b8901bf3ef0931b23cd" }
 rustfmt-nightly = "1.0.0"
 rustc-serialize = "0.3"
 serde = "1.0"
@@ -50,7 +50,7 @@ toml = "0.4"
 rustc-workspace-hack = "1.0.0"
 
 [build-dependencies]
-rustc_tools_util = { git = "https://github.com/rust-lang-nursery/rust-clippy", rev = "f5d868c9edfc6c2a9310d564a2f738bec67dfd6b" }
+rustc_tools_util = { git = "https://github.com/rust-lang/rust-clippy", rev = "2f6881c62325c34115502b8901bf3ef0931b23cd" }
 
 [features]
 default = ["clippy"]
