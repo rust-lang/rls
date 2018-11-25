@@ -9,6 +9,7 @@ cache: cargo
 os:
 - linux
 - osx
+- windows
 rust:
 - nightly
 install: |
