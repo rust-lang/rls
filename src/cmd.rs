@@ -351,6 +351,7 @@ fn code_action(
         },
         context: CodeActionContext {
             diagnostics: Vec::new(),
+            only: None,
         },
     };
     Request {
@@ -400,6 +401,7 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
             experimental: None,
         },
         trace: Some(TraceOption::Off),
+        workspace_folders: None,
     };
     Request {
         id: next_id(),

@@ -221,7 +221,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         racer::MatchType::Builtin(_) => CompletionItemKind::Keyword,
         racer::MatchType::UseAlias(m) => match m.mtype {
             racer::MatchType::UseAlias(_) => unreachable!("Nested use aliases"),
-            typ @ _ => completion_kind_from_match_type(typ),
+            typ => completion_kind_from_match_type(typ),
         }
         racer::MatchType::AssocType => CompletionItemKind::TypeParameter,
     }
