@@ -309,11 +309,16 @@ impl InitActionContext {
     fn init<O: Output>(&self, init_options: InitializationOptions, out: &O) {
         let current_project = self.current_project.clone();
 
-        if let Some(config) = init_options.settings.map(|s| s.rust) {
-            self.config.lock().unwrap().update(config);
-        }
+        let needs_inference = {
+            let mut config = self.config.lock().unwrap();
 
-        if self.config.lock().unwrap().needs_inference() {
+            if let Some(init_config) = init_options.settings.map(|s| s.rust) {
+                config.update(init_config);
+            }
+            config.needs_inference()
+        };
+
+        if needs_inference {
             let config = Arc::clone(&self.config);
             // Spawn another thread since we're shelling out to Cargo and this can
             // cause a non-trivial amount of time due to disk access

@@ -42,7 +42,6 @@ fn initialize_with_opts(
     root_path: Option<String>,
     initialization_options: Option<serde_json::Value>,
 ) -> Request<ls_server::InitializeRequest> {
-    // let init_opts = initialization_options.map(|val| serde_json::to_value(val).unwrap());
     let params = InitializeParams {
         process_id: None,
         root_path,
