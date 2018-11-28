@@ -98,10 +98,16 @@ impl BlockingRequestAction for InitializeRequest {
         let init_options: InitializationOptions = params
             .initialization_options
             .as_ref()
-            .and_then(|options| serde_json::from_value(options.to_owned()).ok())
+            .and_then(|options| {
+                let de = serde_json::from_value(options.to_owned());
+                if let Err(ref e) = de {
+                    warn!("initialization_options: {}", e);
+                }
+                de.ok()
+            })
             .unwrap_or_default();
 
-        trace!("init: {:?}", init_options);
+        trace!("init: {:?} -> {:?}", params.initialization_options, init_options);
 
         if ctx.inited().is_ok() {
             return Err(ResponseError::Message(
@@ -120,7 +126,7 @@ impl BlockingRequestAction for InitializeRequest {
         result.send(id, &out);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        ctx.init(get_root_path(&params), &init_options, capabilities, &out)
+        ctx.init(get_root_path(&params), init_options, capabilities, &out)
             .unwrap();
 
         Ok(NoResponse)

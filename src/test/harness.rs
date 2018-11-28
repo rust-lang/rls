@@ -95,7 +95,7 @@ impl Environment {
     crate fn mock_server(
         &mut self,
         messages: Vec<String>,
-    ) -> (ls_server::LsService<RecordOutput>, LsResultList) {
+    ) -> (ls_server::LsService<RecordOutput>, LsResultList, Arc<Mutex<Config>>) {
         let analysis = Arc::new(AnalysisHost::new(Target::Debug));
         let vfs = Arc::new(Vfs::new());
         let config = Arc::new(Mutex::new(self.config.take().unwrap()));
@@ -103,8 +103,9 @@ impl Environment {
         let output = RecordOutput::new();
         let results = output.output.clone();
         (
-            ls_server::LsService::new(analysis, vfs, config, reader, output),
+            ls_server::LsService::new(analysis, vfs, Arc::clone(&config), reader, output),
             results,
+            config,
         )
     }
 }

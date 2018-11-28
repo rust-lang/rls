@@ -11,11 +11,9 @@
 //! One-way notifications that the RLS receives from the client.
 
 use crate::actions::{FileWatch, InitActionContext, VersionOrdering};
-use crate::config::Config;
 use crate::Span;
 use log::{debug, trace, warn};
 use rls_vfs::{Change, VfsSpan};
-use serde::de::Error;
 use serde::Deserialize;
 use serde_json;
 use std::sync::atomic::Ordering;
@@ -158,16 +156,12 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         out: O,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
-        let config = params
-            .settings
-            .get("rust")
-            .ok_or_else(|| serde_json::Error::missing_field("rust"))
-            .and_then(Config::deserialize);
+        let settings = ChangeConfigSettings::deserialize(&params.settings);
 
-        let new_config = match config {
+        let new_config = match settings {
             Ok(mut value) => {
-                value.normalise();
-                value
+                value.rust.normalise();
+                value.rust
             }
             Err(err) => {
                 warn!(

@@ -6,7 +6,6 @@ use url::Url;
 
 use crate::{
     actions::requests,
-    lsp_data::InitializationOptions,
     server as ls_server,
     test::{
         harness::{compare_json, expect_message, expect_series, Environment, ExpectedMessage},
@@ -16,6 +15,8 @@ use crate::{
 
 #[test]
 fn test_lens_run() {
+    use serde_json::json;
+
     let mut env = Environment::new("lens_run");
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -29,10 +30,7 @@ fn test_lens_run() {
         initialize_with_opts(
             0,
             root_path,
-            Some(InitializationOptions {
-                omit_init_build: false,
-                cmd_run: true,
-            }),
+            Some(json!({ "cmdRun": true })),
         ).to_string(),
         request::<requests::CodeLensRequest>(
             100,
@@ -42,7 +40,7 @@ fn test_lens_run() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),

@@ -1186,8 +1186,7 @@ pub mod test {
                 true,
             );
 
-            let init_options = InitializationOptions::default();
-            ctx.init(&init_options, output);
+            ctx.init(InitializationOptions::default(), output);
             ctx.build(&project_dir, BuildPriority::Immediate, output);
 
             TooltipTestHarness {

@@ -21,6 +21,7 @@ use rls_span as span;
 use serde_derive::{Deserialize, Serialize};
 use url::Url;
 
+use crate::config;
 use crate::actions::hover;
 
 pub use languageserver_types::notification::Notification as LSPNotification;
@@ -256,16 +257,24 @@ impl RangeExt for Range {
     }
 }
 
+/// `DidChangeConfigurationParams.settings` payload reading the { rust: {...} } bit.
+#[derive(Debug, Deserialize)]
+pub struct ChangeConfigSettings {
+    pub rust: config::Config,
+}
+
 /* -----------------  JSON-RPC protocol types ----------------- */
 
 /// Supported initialization options that can be passed in the `initialize`
 /// request, under `initialization_options` key. These are specific to the RLS.
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct InitializationOptions {
     /// Should the build not be triggered immediately after receiving `initialize`
     pub omit_init_build: bool,
     pub cmd_run: bool,
+    /// `DidChangeConfigurationParams.settings` payload for upfront configuration.
+    pub settings: Option<ChangeConfigSettings>,
 }
 
 impl Default for InitializationOptions {
@@ -273,6 +282,7 @@ impl Default for InitializationOptions {
         InitializationOptions {
             omit_init_build: false,
             cmd_run: false,
+            settings: None,
         }
     }
 }
