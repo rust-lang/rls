@@ -201,14 +201,16 @@ impl RequestAction for Definition {
         let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
         let analysis = ctx.analysis.clone();
 
-        match analysis.goto_def(&span) {
-            Ok(out) => {
-                let result = vec![ls_util::rls_to_location(&out)];
-                trace!("goto_def (compiler): {:?}", result);
-                Ok(result)
-            }
-            // If analysis failed & `racer_completion` is enabled try racer
-            _ if ctx.config.lock().unwrap().racer_completion => {
+        if let Ok(out) = analysis.goto_def(&span) {
+            let result = vec![ls_util::rls_to_location(&out)];
+            trace!("goto_def (compiler): {:?}", result);
+            Ok(result)
+        } else {
+            let racer_enabled = {
+                let config = ctx.config.lock().unwrap();
+                config.racer_completion
+            };
+            if racer_enabled {
                 let cache = ctx.racer_cache();
                 let session = ctx.racer_session(&cache);
                 let location = pos_to_racer_location(params.position);
@@ -220,8 +222,9 @@ impl RequestAction for Definition {
 
                 trace!("goto_def (Racer): {:?}", r);
                 Ok(r)
+            } else {
+                Self::fallback_response()
             }
-            _ => Self::fallback_response(),
         }
     }
 }
