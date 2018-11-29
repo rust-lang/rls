@@ -23,7 +23,6 @@ use self::harness::{
     compare_json, expect_message, expect_series, src, Environment, ExpectedMessage, RecordOutput,
 };
 
-use crate::lsp_data::InitializationOptions;
 use languageserver_types::*;
 
 use env_logger;
@@ -41,14 +40,13 @@ fn initialize(id: usize, root_path: Option<String>) -> Request<ls_server::Initia
 fn initialize_with_opts(
     id: usize,
     root_path: Option<String>,
-    initialization_options: Option<InitializationOptions>,
+    initialization_options: Option<serde_json::Value>,
 ) -> Request<ls_server::InitializeRequest> {
-    let init_opts = initialization_options.map(|val| serde_json::to_value(val).unwrap());
     let params = InitializeParams {
         process_id: None,
         root_path,
         root_uri: None,
-        initialization_options: init_opts,
+        initialization_options,
         capabilities: ClientCapabilities {
             workspace: None,
             text_document: None,
@@ -104,7 +102,7 @@ fn test_shutdown() {
         blocking_request::<ShutdownRequest>(1, ()).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -149,7 +147,7 @@ fn test_goto_def() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -199,7 +197,7 @@ fn test_hover() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -282,7 +280,7 @@ fn test_hover_after_src_line_change() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -344,7 +342,7 @@ fn test_workspace_symbol() {
     ];
 
     env.with_config(|c| c.cfg_test = true);
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -400,7 +398,7 @@ fn test_workspace_symbol_duplicates() {
     ];
 
     env.with_config(|c| c.cfg_test = true);
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -466,7 +464,7 @@ fn test_find_all_refs() {
     ];
 
     env.with_config(|c| c.cfg_test = true);
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -523,7 +521,7 @@ fn test_find_all_refs_no_cfg_test() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -561,7 +559,7 @@ fn test_borrow_error() {
     let messages =
         vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -608,7 +606,7 @@ fn test_highlight() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -662,7 +660,7 @@ fn test_rename() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -718,7 +716,7 @@ fn test_reformat() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -779,7 +777,7 @@ fn test_reformat_with_range() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
 
     // Initialize and build.
     assert_eq!(
@@ -813,7 +811,7 @@ fn test_multiple_binaries() {
         vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| c.build_bin = Inferrable::Specified(Some("bin2".to_owned())));
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -866,7 +864,7 @@ fn test_multiple_binaries() {
 //         }).to_string(),
 //     ];
 
-//     let (mut server, results) = env.mock_server(messages);
+//     let (mut server, results, ..) = env.mock_server(messages);
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
@@ -896,7 +894,7 @@ fn test_bin_lib_project() {
         c.cfg_test = true;
         c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
     });
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -942,7 +940,7 @@ fn test_bin_lib_project() {
 //         c.build_lib = Inferrable::Specified(false);
 //         c.build_bin = Inferrable::Specified(Some("bin_lib".into()));
 //     });
-//     let (mut server, results) = env.mock_server(messages);
+//     let (mut server, results, ..) = env.mock_server(messages);
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
@@ -963,7 +961,7 @@ fn test_bin_lib_project() {
 //         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
 //     ];
 
-//     let (mut server, results) = env.mock_server(messages);
+//     let (mut server, results, ..) = env.mock_server(messages);
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
@@ -985,7 +983,7 @@ fn test_infer_lib() {
     let messages =
         vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1021,7 +1019,7 @@ fn test_infer_bin() {
     let messages =
         vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1057,7 +1055,7 @@ fn test_infer_custom_bin() {
     let messages =
         vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1088,19 +1086,19 @@ fn test_infer_custom_bin() {
 
 #[test]
 fn test_omit_init_build() {
+    use serde_json::json;
+
     let mut env = Environment::new("common");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
-    let init_options = Some(InitializationOptions {
-        omit_init_build: true,
-        cmd_run: true,
+    let init_options = json!({
+        "omitInitBuild": true,
+        "cmdRun": true
     });
-    let initialize = initialize_with_opts(0, root_path, init_options);
+    let initialize = initialize_with_opts(0, root_path, Some(init_options));
 
-    let messages = vec![initialize.to_string()];
-
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(vec![initialize.to_string()]);
 
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1111,6 +1109,46 @@ fn test_omit_init_build() {
         results,
         ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
     );
+}
+
+#[test]
+fn test_init_with_configuration() {
+    use serde_json::json;
+
+    let mut env = Environment::new("common");
+
+    let root_path = env.cache.abs_path(Path::new("."));
+    let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
+    let init_options = json!({
+        "settings": {
+            "rust": {
+                "features": ["some_feature"],
+                "all_targets": false
+            }
+        }
+    });
+
+    let initialize = initialize_with_opts(0, root_path, Some(init_options));
+
+    let (mut server, results, config) = env.mock_server(vec![initialize.to_string()]);
+
+    assert!(
+        &config.lock().unwrap().features.is_empty(),
+        "Default config should have no explicit features enabled"
+    );
+
+    assert_eq!(
+        ls_server::LsService::handle_message(&mut server),
+        ls_server::ServerStateChange::Continue
+    );
+    expect_message(
+        &mut server,
+        results,
+        ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+    );
+
+    assert_eq!(&config.lock().unwrap().features, &["some_feature"]);
+    assert_eq!(config.lock().unwrap().all_targets, false);
 }
 
 #[test]
@@ -1194,7 +1232,7 @@ fn test_find_impls() {
         //     ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1256,7 +1294,7 @@ fn test_features() {
         vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| c.features = vec!["foo".to_owned()]);
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1295,7 +1333,7 @@ fn test_all_features() {
         vec![initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()];
 
     env.with_config(|c| c.all_features = true);
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1322,7 +1360,7 @@ fn test_no_default_features() {
         c.no_default_features = true;
         c.features = vec!["foo".to_owned(), "bar".to_owned()]
     });
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1362,7 +1400,7 @@ fn test_no_default_features() {
 //         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
 //     ];
 //
-//     let (mut server, results) = env.mock_server(messages);
+//     let (mut server, results, ..) = env.mock_server(messages);
 //     // Initialize and build.
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
@@ -1451,7 +1489,7 @@ fn test_deglob() {
         ).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1606,7 +1644,7 @@ fn test_all_targets() {
         c.all_targets = true;
         c.cfg_test = true;
     });
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
     // Initialize and build.
     assert_eq!(
         ls_server::LsService::handle_message(&mut server),
@@ -1672,7 +1710,7 @@ fn ignore_uninitialized_notification() {
         initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
 
     // Ignore notification
     assert_eq!(
@@ -1718,7 +1756,7 @@ fn fail_uninitialized_request() {
         initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
-    let (mut server, results) = env.mock_server(messages);
+    let (mut server, results, ..) = env.mock_server(messages);
 
     // Return error response to pre `initialize` request, keep running.
     assert_eq!(
@@ -1763,7 +1801,7 @@ fn fail_uninitialized_request() {
 //         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
 //     ];
 
-//     let (mut server, results) = env.mock_server(messages);
+//     let (mut server, results, ..) = env.mock_server(messages);
 //     // Initialize and build.
 //     assert_eq!(
 //         ls_server::LsService::handle_message(&mut server),

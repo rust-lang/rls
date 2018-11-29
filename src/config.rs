@@ -114,7 +114,7 @@ impl<T> AsRef<T> for Inferrable<T> {
 }
 
 /// RLS configuration options.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[allow(missing_docs)]
 #[serde(default)]
 pub struct Config {

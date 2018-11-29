@@ -89,7 +89,7 @@ impl ActionContext {
     pub fn init<O: Output>(
         &mut self,
         current_project: PathBuf,
-        init_options: &InitializationOptions,
+        init_options: InitializationOptions,
         client_capabilities: lsp_data::ClientCapabilities,
         out: &O,
     ) -> Result<(), ()> {
@@ -306,20 +306,32 @@ impl InitActionContext {
         }
     }
 
-    fn init<O: Output>(&self, init_options: &InitializationOptions, out: &O) {
+    fn init<O: Output>(&self, init_options: InitializationOptions, out: &O) {
         let current_project = self.current_project.clone();
-        let config = self.config.clone();
-        // Spawn another thread since we're shelling out to Cargo and this can
-        // cause a non-trivial amount of time due to disk access
-        thread::spawn(move || {
-            let mut config = config.lock().unwrap();
-            if let Err(e) = config.infer_defaults(&current_project) {
-                debug!(
-                    "Encountered an error while trying to infer config defaults: {:?}",
-                    e
-                );
+
+        let needs_inference = {
+            let mut config = self.config.lock().unwrap();
+
+            if let Some(init_config) = init_options.settings.map(|s| s.rust) {
+                config.update(init_config);
             }
-        });
+            config.needs_inference()
+        };
+
+        if needs_inference {
+            let config = Arc::clone(&self.config);
+            // Spawn another thread since we're shelling out to Cargo and this can
+            // cause a non-trivial amount of time due to disk access
+            thread::spawn(move || {
+                let mut config = config.lock().unwrap();
+                if let Err(e) = config.infer_defaults(&current_project) {
+                    debug!(
+                        "Encountered an error while trying to infer config defaults: {:?}",
+                        e
+                    );
+                }
+            });
+        }
 
         if !init_options.omit_init_build {
             self.build_current_project(BuildPriority::Cargo, out);
