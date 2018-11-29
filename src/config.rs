@@ -127,7 +127,6 @@ pub struct Config {
     pub unstable_features: bool,
     pub wait_to_build: Option<u64>,
     pub show_warnings: bool,
-    pub goto_def_racer_fallback: bool,
     /// Clear the RUST_LOG env variable before calling rustc/cargo? Default: true
     pub clear_env_rust_log: bool,
     /// Build the project only when a file got saved and not on file change. Default: false
@@ -140,7 +139,10 @@ pub struct Config {
     pub no_default_features: bool,
     pub jobs: Option<u32>,
     pub all_targets: bool,
-    /// Enable use of racer for `textDocument/completion` requests
+    /// Enable use of racer for `textDocument/completion` requests.
+    ///
+    /// Enabled also enables racer fallbacks for hover & go-to-definition functionality
+    /// if rustc analysis should fail.
     pub racer_completion: bool,
     #[serde(deserialize_with = "deserialize_clippy_preference")]
     pub clippy_preference: ClippyPreference,
@@ -177,7 +179,6 @@ impl Default for Config {
             unstable_features: false,
             wait_to_build: None,
             show_warnings: true,
-            goto_def_racer_fallback: false,
             clear_env_rust_log: true,
             build_on_save: false,
             use_crate_blacklist: true,
