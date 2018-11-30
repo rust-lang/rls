@@ -1157,6 +1157,13 @@ pub mod test {
         /// Creates a new `TooltipTestHarness`. The `project_dir` must contain
         /// a valid rust project with a `Cargo.toml`.
         pub fn new<O: Output>(project_dir: PathBuf, output: &O) -> TooltipTestHarness {
+            use env_logger;
+            let _ = env_logger::try_init();
+
+            if env::var("RUSTC").is_err() {
+                env::set_var("RUSTC", "rustc");
+            }
+
             let pid = process::id();
             let client_caps = ClientCapabilities {
                 code_completion_has_snippet_support: true,
