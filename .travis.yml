@@ -5,7 +5,9 @@ branches:
   except:
   - staging.tmp
   - trying.tmp
-cache: cargo
+cache:
+  cargo: true
+  timeout: 300
 os:
 - linux
 - osx
