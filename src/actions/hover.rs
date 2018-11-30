@@ -1160,6 +1160,8 @@ pub mod test {
             use env_logger;
             let _ = env_logger::try_init();
 
+            // Prevent the hover test project build from trying to use the rls test
+            // binary as a rustc shim. See RlsExecutor::exec for more information.
             if env::var("RUSTC").is_err() {
                 env::set_var("RUSTC", "rustc");
             }
