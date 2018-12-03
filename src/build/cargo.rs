@@ -376,8 +376,8 @@ impl RlsExecutor {
     /// Returns whether a given package is a primary one (every member of the
     /// workspace is considered as such). Used to determine whether the RLS
     /// should cache invocations for these packages and rebuild them on changes.
-    fn is_primary_package(&self, id: &PackageId) -> bool {
-        id.source_id().is_path() || self.member_packages.lock().unwrap().contains(id)
+    fn is_primary_package(&self, id: PackageId) -> bool {
+        id.source_id().is_path() || self.member_packages.lock().unwrap().contains(&id)
     }
 }
 
@@ -413,7 +413,7 @@ impl Executor for RlsExecutor {
     fn exec(
         &self,
         mut cargo_cmd: ProcessBuilder,
-        id: &PackageId,
+        id: PackageId,
         target: &Target,
         mode: CompileMode,
     ) -> CargoResult<()> {
@@ -840,7 +840,7 @@ impl ManifestAwareError {
             if let Some(member) = resolve_err
                 .package_path()
                 .iter()
-                .filter_map(|pkg| ws.members().find(|m| m.package_id() == pkg))
+                .filter_map(|pkg| ws.members().find(|m| m.package_id() == *pkg))
                 .next()
             {
                 err_path = member.manifest_path();

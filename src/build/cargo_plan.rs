@@ -96,18 +96,18 @@ impl CargoPlan {
     /// cached build plan.
     crate fn cache_compiler_job(
         &mut self,
-        id: &PackageId,
+        id: PackageId,
         target: &Target,
         mode: CompileMode,
         cmd: &ProcessBuilder,
     ) {
-        let unit_key = (id.clone(), target.clone(), mode);
+        let unit_key = (id, target.clone(), mode);
         self.compiler_jobs.insert(unit_key, cmd.clone());
     }
 
     crate fn cache_input_files(
         &mut self,
-        id: &PackageId,
+        id: PackageId,
         target: &Target,
         mode: CompileMode,
         input_files: Vec<PathBuf>,
