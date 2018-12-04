@@ -690,16 +690,28 @@ pub fn make_cargo_config(
             .entry("build".to_owned())
             .or_insert_with(|| ConfigValue::Table(HashMap::new(), config_path.clone()));
 
-        let target_dir = target_dir
-            .map(|d| d.to_str().unwrap().to_owned())
-            .unwrap_or_else(|| {
-                build_dir
-                    .join("target")
-                    .join("rls")
-                    .to_str()
-                    .unwrap()
-                    .to_owned()
-            });
+            let target_dir = target_dir
+                .map(|d| d.to_str().unwrap().to_owned())
+                .unwrap_or_else(|| {
+                    // Try to use .cargo/config build.target-dir + "/rls"
+                    let cargo_target = build_value
+                        .table("build")
+                        .ok()
+                        .and_then(|(build, _)| build.get("target-dir"))
+                        .and_then(|td| td.string("target-dir").ok())
+                        .map(|(target, _)| {
+                            let t_path = Path::new(target);
+                            if t_path.is_absolute() {
+                                t_path.into()
+                            } else {
+                                build_dir.join(t_path)
+                            }
+                        })
+                        .unwrap_or_else(|| build_dir.join("target"));
+
+                    cargo_target.join("rls").to_str().unwrap().to_owned()
+                });
+
         let td_value = ConfigValue::String(target_dir, config_path);
         if let ConfigValue::Table(ref mut build_table, _) = *build_value {
             build_table.insert("target-dir".to_owned(), td_value);
