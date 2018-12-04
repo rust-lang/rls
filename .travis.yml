@@ -22,6 +22,7 @@ install: |
     rustup component add rust-src
     rustup component add rust-analysis
 script:
+- git config --global core.autocrlf input
 - cargo build -v
 - cargo test -v
 env:
