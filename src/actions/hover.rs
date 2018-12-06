@@ -142,7 +142,7 @@ pub fn extract_docs(
             };
         }
 
-        if in_meta {
+        if !hit_top && in_meta {
             // Ignore milti-line attributes
             trace!(
                 "extract_docs: ignoring multi-line attribute, next_row: {:?}, up: {}, in_meta: {}",
