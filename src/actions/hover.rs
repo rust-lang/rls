@@ -1289,6 +1289,10 @@ pub mod test {
 
     impl Drop for TooltipTestHarness {
         fn drop(&mut self) {
+            if let Ok(mut jobs) = self.ctx.jobs.lock() {
+                jobs.wait_for_all();
+            }
+
             if fs::metadata(&self.working_dir).is_ok() {
                 fs::remove_dir_all(&self.working_dir).expect("failed to tidy up");
             }
