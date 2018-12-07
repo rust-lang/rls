@@ -2030,8 +2030,6 @@ pub mod test {
     }
 
     #[test]
-    // doesn't work in the rust-lang/rust repo, enable on CI
-    #[cfg_attr(not(enable_tooltip_tests), ignore)]
     fn test_tooltip() -> Result<(), Box<dyn std::error::Error>> {
         use self::test::{LineOutput, Test, TooltipTestHarness};
         use std::env;
@@ -2090,6 +2088,43 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
             Test::new("test_tooltip_mod_use_external.rs", 14, 12),
             Test::new("test_tooltip_mod_use_external.rs", 15, 12),
+        ];
+
+        let cwd = env::current_dir()?;
+        let out = LineOutput::default();
+        let proj_dir = cwd.join("test_data").join("hover");
+        let save_dir = cwd
+            .join("target")
+            .join("tests")
+            .join("hover")
+            .join("save_data");
+        let load_dir = proj_dir.join("save_data");
+
+        let harness = TooltipTestHarness::new(proj_dir, &out);
+
+        out.reset();
+
+        let failures = harness.run_tests(&tests, load_dir, save_dir)?;
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            eprintln!("{}\n\n", out.reset().join("\n"));
+            eprintln!("{:#?}\n\n", failures);
+            Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
+        }
+    }
+
+    /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
+    /// It is enabled on CI.
+    /// Run with `cargo test test_tooltip_std -- --ignored`
+    #[test]
+    #[ignore]
+    fn test_tooltip_std() -> Result<(), Box<dyn std::error::Error>> {
+        use self::test::{LineOutput, Test, TooltipTestHarness};
+        use std::env;
+
+        let tests = vec![
             Test::new("test_tooltip_std.rs", 18, 15),
             Test::new("test_tooltip_std.rs", 18, 27),
             Test::new("test_tooltip_std.rs", 19, 7),

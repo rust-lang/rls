@@ -20,9 +20,10 @@ install: |
 script:
 - cargo build -v
 - cargo test -v
+- cargo test test_tooltip_std -- --ignored
+
 env:
   global:
-  - RUSTFLAGS=--cfg=enable_tooltip_tests
   - RUST_BACKTRACE=1
   - RLS_TEST_WAIT_FOR_AGES=1
   - CARGO_INCREMENTAL=0
