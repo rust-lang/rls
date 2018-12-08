@@ -11,7 +11,7 @@ categories = ["development-tools"]
 build = "build.rs"
 
 [patch.crates-io]
-rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt" }
+rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "8222381d8f47f2a40dfbb11c5b28bddbd2f62f97" }
 
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "5e85ba14aaa20f8133863373404cb0af69eeef2c" }
