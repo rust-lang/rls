@@ -37,6 +37,7 @@
 )]
 extern "C" {}
 
+use log::warn;
 use env_logger;
 use rustc_tools_util::*;
 
@@ -60,6 +61,7 @@ pub mod server;
 mod test;
 
 const RUSTC_SHIM_ENV_VAR_NAME: &str = "RLS_RUSTC_SHIM";
+const RUSTC_WRAPPER_ENV_VAR: &str = "RUSTC_WRAPPER";
 
 type Span = rls_span::Span<rls_span::ZeroIndexed>;
 
@@ -72,6 +74,19 @@ pub fn main() {
 
 fn main_inner() -> i32 {
     env_logger::init();
+
+    // [workaround]
+    // Currently sccache breaks RLS with obscure error messages.
+    // Until it's actually fixed disable the wrapper completely
+    // in the current process tree.
+    //
+    // See https://github.com/rust-lang/rls/issues/703
+    // and https://github.com/mozilla/sccache/issues/303
+    if env::var_os(RUSTC_WRAPPER_ENV_VAR).is_some() {
+        warn!("The {} environment variable is incompatible with RLS, \
+               removing it from the process environment", RUSTC_WRAPPER_ENV_VAR);
+        env::remove_var(RUSTC_WRAPPER_ENV_VAR);
+    }
 
     if env::var(RUSTC_SHIM_ENV_VAR_NAME)
         .map(|v| v != "0")
