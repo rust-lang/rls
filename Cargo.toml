@@ -10,6 +10,9 @@ categories = ["development-tools"]
 
 build = "build.rs"
 
+[patch.crates-io]
+rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt" }
+
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "5e85ba14aaa20f8133863373404cb0af69eeef2c" }
 cargo_metadata = "0.6"
@@ -22,7 +25,7 @@ languageserver-types = "0.51"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "=2.1.13", default-features = false }
+racer = { version = "=2.1.16", default-features = false }
 rand = "0.5.5"
 rayon = "1"
 rls-analysis = "0.16.10"
