@@ -782,13 +782,17 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
         format!("{}{{}}", trimmed)
     };
 
-    let formatted = match rustfmt.format(object.clone(), config) {
-        Ok(lines) => match lines.rfind('{') {
+    let formatted = match std::panic::catch_unwind(|| rustfmt.format(object.clone(), config)) {
+        Ok(Ok(lines)) => match lines.rfind('{') {
             Some(pos) => lines[0..pos].into(),
             None => lines,
         },
-        Err(e) => {
+        Ok(Err(e)) => {
             error!("format_object: error: {:?}, input: {:?}", e, object);
+            trimmed.to_string()
+        }
+        Err(_) => {
+            error!("format_object: rustfmt panicked on input: {:?}", object);
             trimmed.to_string()
         }
     };
@@ -2035,6 +2039,7 @@ pub mod test {
 
     #[test]
     fn test_tooltip() -> Result<(), Box<dyn std::error::Error>> {
+        let _ = env_logger::try_init();
         use self::test::{LineOutput, Test, TooltipTestHarness};
         use std::env;
 
@@ -2125,6 +2130,7 @@ pub mod test {
     #[test]
     #[ignore]
     fn test_tooltip_std() -> Result<(), Box<dyn std::error::Error>> {
+        let _ = env_logger::try_init();
         use self::test::{LineOutput, Test, TooltipTestHarness};
         use std::env;
 
