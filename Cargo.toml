@@ -22,7 +22,7 @@ languageserver-types = "0.51"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "=2.1.13", default-features = false }
+racer = { version = "=2.1.16", default-features = false }
 rand = "0.5.5"
 rayon = "1"
 rls-analysis = "0.16.10"
@@ -32,7 +32,7 @@ rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.7"
 rustc_tools_util = { git = "https://github.com/rust-lang/rust-clippy", rev = "754b4c07233ee18820265bd18467aa82263f9a3a" }
-rustfmt-nightly = "1.0.0"
+rustfmt-nightly = "1.0.1"
 rustc-serialize = "0.3"
 serde = "1.0"
 serde_json = "1.0"
