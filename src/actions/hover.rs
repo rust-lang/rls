@@ -2095,8 +2095,6 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 11, 7),
             Test::new("test_tooltip_mod_use_external.rs", 12, 7),
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
-            Test::new("test_tooltip_mod_use_external.rs", 14, 12),
-            Test::new("test_tooltip_mod_use_external.rs", 15, 12),
         ];
 
         let cwd = env::current_dir()?;
@@ -2135,6 +2133,10 @@ pub mod test {
         use std::env;
 
         let tests = vec![
+            // these test std stuff
+            Test::new("test_tooltip_mod_use_external.rs", 14, 12),
+            Test::new("test_tooltip_mod_use_external.rs", 15, 12),
+
             Test::new("test_tooltip_std.rs", 18, 15),
             Test::new("test_tooltip_std.rs", 18, 27),
             Test::new("test_tooltip_std.rs", 19, 7),
