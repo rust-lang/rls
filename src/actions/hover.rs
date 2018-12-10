@@ -991,6 +991,7 @@ pub mod test {
     use std::path::PathBuf;
     use std::process;
     use std::sync::{Arc, Mutex};
+    use std::fmt;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
     pub struct Test {
@@ -1106,7 +1107,7 @@ pub mod test {
         }
     }
 
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+    #[derive(PartialEq, Eq)]
     pub struct TestFailure {
         /// The test case, indicating file, line, and column
         pub test: Test,
@@ -1122,6 +1123,23 @@ pub mod test {
         /// is the output from `hover::tooltip`.
         pub actual_data: Result<Result<Vec<MarkedString>, String>, ()>,
     }
+
+    impl fmt::Debug for TestFailure {
+        fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt.debug_struct("TestFailure")
+                .field("test", &self.test)
+                .field("expect_file", &self.expect_file)
+                .field("actual_file", &self.actual_file)
+                .field("expect_data", &self.expect_data)
+                .field("actual_data", &self.actual_data)
+                .finish()?;
+
+            let expected = format!("{:#?}", self.expect_data);
+            let actual = format!("{:#?}", self.actual_data);
+            write!(fmt, "-diff: {}", difference::Changeset::new(&expected, &actual, ""))
+        }
+    }
+
 
     #[derive(Clone, Default)]
     pub struct LineOutput {
@@ -2117,7 +2135,7 @@ pub mod test {
             Ok(())
         } else {
             eprintln!("{}\n\n", out.reset().join("\n"));
-            eprintln!("{:#?}\n\n", failures);
+            eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
             Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
         }
     }
@@ -2172,7 +2190,7 @@ pub mod test {
             Ok(())
         } else {
             eprintln!("{}\n\n", out.reset().join("\n"));
-            eprintln!("{:#?}\n\n", failures);
+            eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
             Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
         }
     }
