@@ -13,7 +13,7 @@ build = "build.rs"
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "5e85ba14aaa20f8133863373404cb0af69eeef2c" }
 cargo_metadata = "0.6"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "754b4c07233ee18820265bd18467aa82263f9a3a", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "a3c77f6ad1c1c185e561e9cd7fdec7db569169d1", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
 itertools = "0.7.3"
@@ -31,7 +31,7 @@ rls-data = { version = "0.18.1", features = ["serialize-serde", "serialize-rustc
 rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.7"
-rustc_tools_util = { git = "https://github.com/rust-lang/rust-clippy", rev = "754b4c07233ee18820265bd18467aa82263f9a3a" }
+rustc_tools_util = { git = "https://github.com/rust-lang/rust-clippy", rev = "a3c77f6ad1c1c185e561e9cd7fdec7db569169d1" }
 rustfmt-nightly = "1.0.1"
 rustc-serialize = "0.3"
 serde = "1.0"
@@ -50,7 +50,7 @@ toml = "0.4"
 rustc-workspace-hack = "1.0.0"
 
 [build-dependencies]
-rustc_tools_util = { git = "https://github.com/rust-lang/rust-clippy", rev = "754b4c07233ee18820265bd18467aa82263f9a3a" }
+rustc_tools_util = { git = "https://github.com/rust-lang/rust-clippy", rev = "a3c77f6ad1c1c185e561e9cd7fdec7db569169d1" }
 
 [features]
 default = ["clippy"]
