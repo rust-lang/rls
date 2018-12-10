@@ -6,11 +6,7 @@ branches:
   - staging.tmp
   - trying.tmp
 cache:
-  cargo: true
-  timeout: 300
-# Quicker to fetch that during the build than to transmit as part of the cache
-before_cache:
-- rm -rf /home/travis/.cargo/registry
+  cargo: false
 os:
 - linux
 - osx
@@ -29,3 +25,4 @@ env:
   - RUSTFLAGS=--cfg=enable_tooltip_tests
   - RUST_BACKTRACE=1
   - RLS_TEST_WAIT_FOR_AGES=1
+  - CARGO_INCREMENTAL=0
