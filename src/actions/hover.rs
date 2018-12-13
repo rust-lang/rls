@@ -987,6 +987,7 @@ pub mod test {
     use std::path::PathBuf;
     use std::process;
     use std::sync::{Arc, Mutex};
+    use std::fmt;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
     pub struct Test {
@@ -1102,7 +1103,7 @@ pub mod test {
         }
     }
 
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+    #[derive(PartialEq, Eq)]
     pub struct TestFailure {
         /// The test case, indicating file, line, and column
         pub test: Test,
@@ -1118,6 +1119,23 @@ pub mod test {
         /// is the output from `hover::tooltip`.
         pub actual_data: Result<Result<Vec<MarkedString>, String>, ()>,
     }
+
+    impl fmt::Debug for TestFailure {
+        fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt.debug_struct("TestFailure")
+                .field("test", &self.test)
+                .field("expect_file", &self.expect_file)
+                .field("actual_file", &self.actual_file)
+                .field("expect_data", &self.expect_data)
+                .field("actual_data", &self.actual_data)
+                .finish()?;
+
+            let expected = format!("{:#?}", self.expect_data);
+            let actual = format!("{:#?}", self.actual_data);
+            write!(fmt, "-diff: {}", difference::Changeset::new(&expected, &actual, ""))
+        }
+    }
+
 
     #[derive(Clone, Default)]
     pub struct LineOutput {
@@ -1289,6 +1307,10 @@ pub mod test {
 
     impl Drop for TooltipTestHarness {
         fn drop(&mut self) {
+            if let Ok(mut jobs) = self.ctx.jobs.lock() {
+                jobs.wait_for_all();
+            }
+
             if fs::metadata(&self.working_dir).is_ok() {
                 fs::remove_dir_all(&self.working_dir).expect("failed to tidy up");
             }
@@ -2030,9 +2052,8 @@ pub mod test {
     }
 
     #[test]
-    // doesn't work in the rust-lang/rust repo, enable on CI
-    #[cfg_attr(not(enable_tooltip_tests), ignore)]
     fn test_tooltip() -> Result<(), Box<dyn std::error::Error>> {
+        let _ = env_logger::try_init();
         use self::test::{LineOutput, Test, TooltipTestHarness};
         use std::env;
 
@@ -2088,8 +2109,48 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 11, 7),
             Test::new("test_tooltip_mod_use_external.rs", 12, 7),
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
+        ];
+
+        let cwd = env::current_dir()?;
+        let out = LineOutput::default();
+        let proj_dir = cwd.join("test_data").join("hover");
+        let save_dir = cwd
+            .join("target")
+            .join("tests")
+            .join("hover")
+            .join("save_data");
+        let load_dir = proj_dir.join("save_data");
+
+        let harness = TooltipTestHarness::new(proj_dir, &out);
+
+        out.reset();
+
+        let failures = harness.run_tests(&tests, load_dir, save_dir)?;
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            eprintln!("{}\n\n", out.reset().join("\n"));
+            eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
+            Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
+        }
+    }
+
+    /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
+    /// It is enabled on CI.
+    /// Run with `cargo test test_tooltip_std -- --ignored`
+    #[test]
+    #[ignore]
+    fn test_tooltip_std() -> Result<(), Box<dyn std::error::Error>> {
+        let _ = env_logger::try_init();
+        use self::test::{LineOutput, Test, TooltipTestHarness};
+        use std::env;
+
+        let tests = vec![
+            // these test std stuff
             Test::new("test_tooltip_mod_use_external.rs", 14, 12),
             Test::new("test_tooltip_mod_use_external.rs", 15, 12),
+
             Test::new("test_tooltip_std.rs", 18, 15),
             Test::new("test_tooltip_std.rs", 18, 27),
             Test::new("test_tooltip_std.rs", 19, 7),
@@ -2125,7 +2186,7 @@ pub mod test {
             Ok(())
         } else {
             eprintln!("{}\n\n", out.reset().join("\n"));
-            eprintln!("{:#?}\n\n", failures);
+            eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
             Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
         }
     }
