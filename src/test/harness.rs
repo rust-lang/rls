@@ -291,14 +291,14 @@ crate fn compare_json(actual: &serde_json::Value, expected: &str) {
 }
 
 #[derive(Clone, Copy, Debug)]
-crate struct Src<'a, 'b> {
+crate struct Src<'a> {
     crate file_name: &'a Path,
     // 1 indexed
     crate line: usize,
-    crate name: &'b str,
+    crate name: &'a str,
 }
 
-crate fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, 'b> {
+crate fn src<'a>(file_name: &'a Path, line: usize, name: &'a str) -> Src<'a> {
     Src {
         file_name,
         line,
@@ -319,7 +319,7 @@ impl Cache {
         }
     }
 
-    crate fn mk_ls_position(&mut self, src: Src<'_, '_>) -> ls_types::Position {
+    crate fn mk_ls_position(&mut self, src: Src<'_>) -> ls_types::Position {
         let line = self.get_line(src);
         let col = line
             .find(src.name)
@@ -352,7 +352,7 @@ impl Cache {
         }
     }
 
-    fn get_line(&mut self, src: Src<'_, '_>) -> String {
+    fn get_line(&mut self, src: Src<'_>) -> String {
         let base_path = &self.base_path;
         let lines = self
             .files
