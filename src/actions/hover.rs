@@ -782,17 +782,13 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
         format!("{}{{}}", trimmed)
     };
 
-    let formatted = match std::panic::catch_unwind(|| rustfmt.format(object.clone(), config)) {
-        Ok(Ok(lines)) => match lines.rfind('{') {
+    let formatted = match rustfmt.format(object.clone(), config) {
+        Ok(lines) => match lines.rfind('{') {
             Some(pos) => lines[0..pos].into(),
             None => lines,
         },
-        Ok(Err(e)) => {
+        Err(e) => {
             error!("format_object: error: {:?}, input: {:?}", e, object);
-            trimmed.to_string()
-        }
-        Err(_) => {
-            error!("format_object: rustfmt panicked on input: {:?}", object);
             trimmed.to_string()
         }
     };
