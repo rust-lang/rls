@@ -301,7 +301,6 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
                 edition: match state.session.edition() {
                     RustcEdition::Edition2015 => Edition::Edition2015,
                     RustcEdition::Edition2018 => Edition::Edition2018,
-                    _ => Edition::default(),
                 },
             };
             let files = fetch_input_files(state.session);
