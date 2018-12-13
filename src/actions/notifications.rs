@@ -15,7 +15,6 @@ use crate::Span;
 use log::{debug, trace, warn};
 use rls_vfs::{Change, VfsSpan};
 use serde::Deserialize;
-use serde_json;
 use std::sync::atomic::Ordering;
 
 use crate::build::*;
