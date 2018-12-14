@@ -330,7 +330,7 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                     }
                 ],
                 "textDocument": {
-                    "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
+                    "uri": format!("file://{}/library/src/lib.rs", root_path.display()),
                     "version": 0
                 }
             })),
@@ -385,7 +385,7 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
                     }
                 ],
                 "textDocument": {
-                    "uri": format!("file://{}/library/src/lib.rs", root_path.as_path().display()),
+                    "uri": format!("file://{}/library/src/lib.rs", root_path.display()),
                     "version": 1
                 }
             })),
@@ -501,7 +501,7 @@ fn cmd_implicit_workspace_pick_up_lib_changes() {
                     }
                 ],
                 "textDocument": {
-                    "uri": format!("file://{}/inner/src/lib.rs", root_path.as_path().display()),
+                    "uri": format!("file://{}/inner/src/lib.rs", root_path.display()),
                     "version": 0
                 }
             })),
@@ -543,7 +543,7 @@ fn cmd_implicit_workspace_pick_up_lib_changes() {
                     }
                 ],
                 "textDocument": {
-                    "uri": format!("file://{}/inner/src/lib.rs", root_path.as_path().display()),
+                    "uri": format!("file://{}/inner/src/lib.rs", root_path.display()),
                     "version": 1
                 }
             })),
@@ -640,7 +640,7 @@ fn cmd_test_complete_self_crate_name() {
                     "line": 2
                 },
                 "textDocument": {
-                    "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                    "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
                     "version": 1
                 }
             })),
@@ -734,7 +734,7 @@ fn test_completion_suggests_arguments_in_statements() {
                     "line": 3
                 },
                 "textDocument": {
-                    "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                    "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
                     "version": 1
                 }
             })),
@@ -819,7 +819,7 @@ fn test_use_statement_completion_doesnt_suggest_arguments() {
                     "line": 2
                 },
                 "textDocument": {
-                    "uri": format!("file://{}/library/tests/test.rs", root_path.as_path().display()),
+                    "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
                     "version": 1
                 }
             })),
@@ -924,7 +924,7 @@ fn cmd_dependency_typo_and_fix() {
         "workspace/didChangeWatchedFiles",
         Some(json!({
             "changes": [{
-                "uri": format!("file://{}/Cargo.toml", root_path.as_path().display()),
+                "uri": format!("file://{}/Cargo.toml", root_path.display()),
                 "type": 2
             }],
         })),
@@ -951,7 +951,7 @@ fn cmd_dependency_typo_and_fix() {
         "workspace/didChangeWatchedFiles",
         Some(json!({
             "changes": [{
-                "uri": format!("file://{}/Cargo.toml", root_path.as_path().display()),
+                "uri": format!("file://{}/Cargo.toml", root_path.display()),
                 "type": 2
             }],
         })),
@@ -1220,7 +1220,7 @@ fn cmd_handle_utf16_unit_text_edits() {
         "textDocument/didChange",
         Some(json!(
         {"textDocument": {
-                "uri": format!("file://{}/src/unrelated.rs", root_path.as_path().display()),
+                "uri": format!("file://{}/src/unrelated.rs", root_path.display()),
                 "version": 1
             },
             // "😢" -> ""
@@ -1283,7 +1283,7 @@ fn cmd_format_utf16_range() {
         Some(json!(
         {
             "textDocument": {
-                "uri": format!("file://{}/src/main.rs", root_path.as_path().display()),
+                "uri": format!("file://{}/src/main.rs", root_path.display()),
                 "version": 1
             },
             "options": {

@@ -365,8 +365,8 @@ impl ProjectBuilder {
 }
 
 impl Project {
-    pub fn root(&self) -> PathBuf {
-        self.root.clone()
+    pub fn root(&self) -> &Path {
+        &self.root
     }
 
     pub fn spawn_rls(&self) -> RlsHandle {
