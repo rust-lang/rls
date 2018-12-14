@@ -27,6 +27,13 @@ use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
 
+#[path = "../../tests/support/mod.rs"]
+mod support;
+
+lazy_static! {
+    static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
+}
+
 crate struct Environment {
     crate config: Option<Config>,
     crate cache: Cache,
@@ -34,13 +41,43 @@ crate struct Environment {
 }
 
 impl Environment {
-    crate fn new(project_dir: &str) -> Self {
-        use std::sync::atomic::{AtomicUsize, Ordering};
+    crate fn generate_from_fixture(fixture_dir: impl AsRef<Path>) -> Self {
+        let fixture_dir = fixture_dir.as_ref();
 
-        lazy_static! {
-            static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let _ = env_logger::try_init();
+        if env::var("RUSTC").is_err() {
+            env::set_var("RUSTC", "rustc");
         }
 
+        let manifest_dir = &Path::new(env!("CARGO_MANIFEST_DIR"));
+        let fixture_dir = manifest_dir.join("test_data").join(fixture_dir);
+
+        let project = support::ProjectBuilder::try_from_fixture(fixture_dir)
+            .unwrap()
+            .build();
+
+        let target_dir = env::var("CARGO_TARGET_DIR")
+            .map(|s| Path::new(&s).to_owned())
+            .unwrap_or_else(|_| manifest_dir.join("target"));
+
+        let working_dir = target_dir
+            .join("tests")
+            .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
+
+        let mut config = Config::default();
+        config.target_dir = Inferrable::Specified(Some(working_dir.clone()));
+        config.unstable_features = true;
+
+        let cache = Cache::new(project.root().to_owned());
+
+        Self {
+            config: Some(config),
+            cache,
+            target_path: working_dir,
+        }
+    }
+
+    crate fn new(project_dir: &str) -> Self {
         let _ = env_logger::try_init();
         if env::var("RUSTC").is_err() {
             env::set_var("RUSTC", "rustc");

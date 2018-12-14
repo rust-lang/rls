@@ -8,7 +8,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use serde_json;
+use serde_json::{self, json};
+use walkdir::WalkDir;
+
 use std::env;
 use std::fs;
 use std::io::{self, Read, Write};
@@ -333,6 +335,33 @@ impl ProjectBuilder {
             root: Project { root },
             files: vec![],
         }
+    }
+
+    pub fn try_from_fixture(fixture_dir: impl AsRef<Path>) -> std::io::Result<Self> {
+        let fixture_dir = fixture_dir.as_ref();
+
+        let dirname = fixture_dir.file_name()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No filename"))?;
+
+        // Generate a new, unique directory for working dir under target/
+        let genroot = paths::root();
+        let mut builder = ProjectBuilder::new(genroot.join(dirname));
+
+        // Read existing fixture data to be later copied into scratch genroot
+        for entry in WalkDir::new(fixture_dir).into_iter() {
+            let entry = entry?;
+            let path = entry.path();
+            let body = if !std::fs::metadata(path)?.is_dir() {
+                std::fs::read_to_string(path)?
+            } else {
+                continue;
+            };
+
+            let relative = entry.path().strip_prefix(fixture_dir).unwrap();
+            builder._file(relative, &body);
+        }
+
+        Ok(builder)
     }
 
     pub fn file<B: AsRef<Path>>(mut self, path: B, body: &str) -> Self {
