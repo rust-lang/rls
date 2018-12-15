@@ -96,7 +96,7 @@ fn notification<A: ls_server::BlockingNotificationAction>(params: A::Params) -> 
 
 #[test]
 fn test_shutdown() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let root_path = env.cache.abs_path(Path::new("."));
 
@@ -129,7 +129,7 @@ fn test_shutdown() {
 
 #[test]
 fn test_goto_def() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -179,7 +179,7 @@ fn test_goto_def() {
 
 #[test]
 fn test_hover() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -229,7 +229,7 @@ fn test_hover() {
 /// Test hover continues to work after the source has moved line
 #[test]
 fn test_hover_after_src_line_change() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -330,7 +330,7 @@ fn test_hover_after_src_line_change() {
 
 #[test]
 fn test_workspace_symbol() {
-    let mut env = Environment::new("workspace_symbol");
+    let mut env = Environment::generate_from_fixture("workspace_symbol");
 
     let root_path = env.cache.abs_path(Path::new("."));
 
@@ -386,7 +386,7 @@ fn test_workspace_symbol() {
 
 #[test]
 fn test_workspace_symbol_duplicates() {
-    let mut env = Environment::new("workspace_symbol_duplicates");
+    let mut env = Environment::generate_from_fixture("workspace_symbol_duplicates");
 
     let root_path = env.cache.abs_path(Path::new("."));
 
@@ -444,7 +444,7 @@ fn test_workspace_symbol_duplicates() {
 
 #[test]
 fn test_find_all_refs() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -501,7 +501,7 @@ fn test_find_all_refs() {
 
 #[test]
 fn test_find_all_refs_no_cfg_test() {
-    let mut env = Environment::new("find_all_refs_no_cfg_test");
+    let mut env = Environment::generate_from_fixture("find_all_refs_no_cfg_test");
     env.with_config(|c| c.all_targets = false);
 
     let source_file_path = Path::new("src").join("main.rs");
@@ -556,7 +556,7 @@ fn test_find_all_refs_no_cfg_test() {
 
 #[test]
 fn test_borrow_error() {
-    let mut env = Environment::new("borrow_error");
+    let mut env = Environment::generate_from_fixture("borrow_error");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -588,7 +588,7 @@ fn test_borrow_error() {
 
 #[test]
 fn test_highlight() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -641,7 +641,7 @@ fn test_highlight() {
 
 #[test]
 fn test_rename() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -696,7 +696,7 @@ fn test_rename() {
 
 #[test]
 fn test_reformat() {
-    let mut env = Environment::new("reformat");
+    let mut env = Environment::generate_from_fixture("reformat");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -748,7 +748,7 @@ fn test_reformat() {
 
 #[test]
 fn test_reformat_with_range() {
-    let mut env = Environment::new("reformat_with_range");
+    let mut env = Environment::generate_from_fixture("reformat_with_range");
     let source_file_path = Path::new("src").join("main.rs");
 
     let root_path = env.cache.abs_path(Path::new("."));
@@ -809,7 +809,7 @@ fn test_reformat_with_range() {
 
 #[test]
 fn test_multiple_binaries() {
-    let mut env = Environment::new("multiple_bins");
+    let mut env = Environment::generate_from_fixture("multiple_bins");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -849,7 +849,7 @@ fn test_multiple_binaries() {
 // FIXME Requires rust-src component, which would break Rust CI
 // #[test]
 // fn test_completion() {
-//     let mut env = Environment::new("common");
+//     let mut env = Environment::generate_from_fixture("common");
 
 //     let source_file_path = Path::new("src").join("main.rs");
 
@@ -888,7 +888,7 @@ fn test_multiple_binaries() {
 
 #[test]
 fn test_bin_lib_project() {
-    let mut env = Environment::new("bin_lib");
+    let mut env = Environment::generate_from_fixture("bin_lib");
 
     let root_path = env.cache.abs_path(Path::new("."));
 
@@ -933,7 +933,7 @@ fn test_bin_lib_project() {
 // FIXME(#524) timing issues when run concurrently with `test_bin_lib_project`
 // #[test]
 // fn test_bin_lib_project_no_cfg_test() {
-//     let mut env = Environment::new("bin_lib");
+//     let mut env = Environment::generate_from_fixture("bin_lib");
 
 //     let root_path = env.cache.abs_path(Path::new("."));
 
@@ -958,7 +958,7 @@ fn test_bin_lib_project() {
 // FIXME(#455) reinstate this test
 // #[test]
 // fn test_simple_workspace() {
-//     let mut env = Environment::new("simple_workspace");
+//     let mut env = Environment::generate_from_fixture("simple_workspace");
 
 //     let root_path = env.cache.abs_path(Path::new("."));
 
@@ -982,7 +982,7 @@ fn test_bin_lib_project() {
 
 #[test]
 fn test_infer_lib() {
-    let mut env = Environment::new("infer_lib");
+    let mut env = Environment::generate_from_fixture("infer_lib");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -1018,7 +1018,7 @@ fn test_infer_lib() {
 
 #[test]
 fn test_infer_bin() {
-    let mut env = Environment::new("infer_bin");
+    let mut env = Environment::generate_from_fixture("infer_bin");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -1054,7 +1054,7 @@ fn test_infer_bin() {
 
 #[test]
 fn test_infer_custom_bin() {
-    let mut env = Environment::new("infer_custom_bin");
+    let mut env = Environment::generate_from_fixture("infer_custom_bin");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -1093,7 +1093,7 @@ fn test_infer_custom_bin() {
 fn test_omit_init_build() {
     use serde_json::json;
 
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
@@ -1120,7 +1120,7 @@ fn test_omit_init_build() {
 fn test_init_with_configuration() {
     use serde_json::json;
 
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
@@ -1196,7 +1196,7 @@ fn test_parse_error_on_malformed_input() {
 
 #[test]
 fn test_find_impls() {
-    let mut env = Environment::new("find_impls");
+    let mut env = Environment::generate_from_fixture("find_impls");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -1292,7 +1292,7 @@ fn test_find_impls() {
 
 #[test]
 fn test_features() {
-    let mut env = Environment::new("features");
+    let mut env = Environment::generate_from_fixture("features");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -1331,7 +1331,7 @@ fn test_features() {
 
 #[test]
 fn test_all_features() {
-    let mut env = Environment::new("features");
+    let mut env = Environment::generate_from_fixture("features");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -1355,7 +1355,7 @@ fn test_all_features() {
 
 #[test]
 fn test_no_default_features() {
-    let mut env = Environment::new("features");
+    let mut env = Environment::generate_from_fixture("features");
 
     let root_path = env.cache.abs_path(Path::new("."));
     let messages =
@@ -1397,7 +1397,7 @@ fn test_no_default_features() {
 
 // #[test]
 // fn test_handle_utf8_directory() {
-//     let mut env = Environment::new("unicødë");
+//     let mut env = Environment::generate_from_fixture("unicødë");
 //
 //     let root_path = env.cache.abs_path(Path::new("."));
 //     let root_url = Url::from_directory_path(&root_path).unwrap();
@@ -1419,7 +1419,7 @@ fn test_no_default_features() {
 
 #[test]
 fn test_deglob() {
-    let mut env = Environment::new("deglob");
+    let mut env = Environment::generate_from_fixture("deglob");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -1638,7 +1638,7 @@ fn test_deglob() {
 
 #[test]
 fn test_all_targets() {
-    let mut env = Environment::new("bin_lib");
+    let mut env = Environment::generate_from_fixture("bin_lib");
 
     let root_path = env.cache.abs_path(Path::new("."));
 
@@ -1683,7 +1683,7 @@ fn test_all_targets() {
 /// continuing to run
 #[test]
 fn ignore_uninitialized_notification() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
 
@@ -1741,7 +1741,7 @@ fn ignore_uninitialized_notification() {
 /// and continuing to run
 #[test]
 fn fail_uninitialized_request() {
-    let mut env = Environment::new("common");
+    let mut env = Environment::generate_from_fixture("common");
 
     let source_file_path = Path::new("src").join("main.rs");
     let root_path = env.cache.abs_path(Path::new("."));
@@ -1798,7 +1798,7 @@ fn fail_uninitialized_request() {
 // FIXME disabled since it is failing in the Rust repo.
 // #[test]
 // fn test_dep_fail() {
-//     let mut env = Environment::new("dep_fail");
+//     let mut env = Environment::generate_from_fixture("dep_fail");
 
 //     let root_path = env.cache.abs_path(Path::new("."));
 

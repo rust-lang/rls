@@ -17,7 +17,7 @@ use crate::{
 fn test_lens_run() {
     use serde_json::json;
 
-    let mut env = Environment::new("lens_run");
+    let mut env = Environment::generate_from_fixture("lens_run");
 
     let source_file_path = Path::new("src").join("main.rs");
 
