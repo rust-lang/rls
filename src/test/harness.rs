@@ -32,6 +32,8 @@ mod support;
 
 lazy_static! {
     static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
+    static ref MANIFEST_DIR: &'static Path = Path::new(env!("CARGO_MANIFEST_DIR"));
+    static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("test_data");
 }
 
 crate struct Environment {
@@ -42,23 +44,19 @@ crate struct Environment {
 
 impl Environment {
     crate fn generate_from_fixture(fixture_dir: impl AsRef<Path>) -> Self {
-        let fixture_dir = fixture_dir.as_ref();
-
         let _ = env_logger::try_init();
         if env::var("RUSTC").is_err() {
             env::set_var("RUSTC", "rustc");
         }
 
-        let manifest_dir = &Path::new(env!("CARGO_MANIFEST_DIR"));
-        let fixture_dir = manifest_dir.join("test_data").join(fixture_dir);
-
+        let fixture_dir = FIXTURES_DIR.join(fixture_dir.as_ref());
         let project = support::ProjectBuilder::try_from_fixture(fixture_dir)
             .unwrap()
             .build();
 
         let target_dir = env::var("CARGO_TARGET_DIR")
             .map(|s| Path::new(&s).to_owned())
-            .unwrap_or_else(|_| manifest_dir.join("target"));
+            .unwrap_or_else(|_| MANIFEST_DIR.join("target"));
 
         let working_dir = target_dir
             .join("tests")
@@ -83,18 +81,9 @@ impl Environment {
             env::set_var("RUSTC", "rustc");
         }
 
-        // Acquire the current directory, but this is changing when tests are
-        // running so we need to be sure to access it in a synchronized fashion.
-        let cur_dir = {
-            use crate::build::environment::{Environment, EnvironmentLock};
-            let env = EnvironmentLock::get();
-            let (guard, _other) = env.lock();
-            let env = Environment::push_with_lock(&HashMap::new(), None, guard);
-            match env::var_os("RLS_TEST_WORKSPACE_DIR") {
-                Some(cur_dir) => cur_dir.into(),
-                None => env.get_old_cwd().to_path_buf(),
-            }
-        };
+        let cur_dir = env::var_os("RLS_TEST_WORKSPACE_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| MANIFEST_DIR.to_owned());
         let project_path = cur_dir.join("test_data").join(project_dir);
 
         let target_dir = env::var("CARGO_TARGET_DIR")
