@@ -8,15 +8,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#[macro_use]
-extern crate serde_json;
+use serde_json::{self, json};
 
-mod support;
-
-use self::support::{basic_bin_manifest, project};
-use crate::support::RlsStdout;
 use std::io::Write;
 use std::time::Duration;
+
+use self::support::{basic_bin_manifest, RlsStdout};
+use self::support::project_builder::project;
+
+mod support;
 
 /// Returns a timeout for waiting for rls stdout messages
 ///

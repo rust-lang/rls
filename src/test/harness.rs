@@ -27,8 +27,8 @@ use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
 
-#[path = "../../tests/support/mod.rs"]
-mod support;
+#[path = "../../tests/support/project_builder.rs"]
+mod project_builder;
 
 lazy_static! {
     static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -50,7 +50,7 @@ impl Environment {
         }
 
         let fixture_dir = FIXTURES_DIR.join(fixture_dir.as_ref());
-        let project = support::ProjectBuilder::try_from_fixture(fixture_dir)
+        let project = project_builder::ProjectBuilder::try_from_fixture(fixture_dir)
             .unwrap()
             .build();
 
@@ -67,38 +67,6 @@ impl Environment {
         config.unstable_features = true;
 
         let cache = Cache::new(project.root().to_owned());
-
-        Self {
-            config: Some(config),
-            cache,
-            target_path: working_dir,
-        }
-    }
-
-    crate fn new(project_dir: &str) -> Self {
-        let _ = env_logger::try_init();
-        if env::var("RUSTC").is_err() {
-            env::set_var("RUSTC", "rustc");
-        }
-
-        let cur_dir = env::var_os("RLS_TEST_WORKSPACE_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| MANIFEST_DIR.to_owned());
-        let project_path = cur_dir.join("test_data").join(project_dir);
-
-        let target_dir = env::var("CARGO_TARGET_DIR")
-            .map(|s| Path::new(&s).to_owned())
-            .unwrap_or_else(|_| cur_dir.join("target"));
-
-        let working_dir = target_dir
-            .join("tests")
-            .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
-
-        let mut config = Config::default();
-        config.target_dir = Inferrable::Specified(Some(working_dir.clone()));
-        config.unstable_features = true;
-
-        let cache = Cache::new(project_path);
 
         Self {
             config: Some(config),
