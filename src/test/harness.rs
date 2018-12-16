@@ -33,7 +33,7 @@ mod project_builder;
 lazy_static! {
     static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
     static ref MANIFEST_DIR: &'static Path = Path::new(env!("CARGO_MANIFEST_DIR"));
-    pub static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("test_data");
+    pub static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("tests").join("fixtures");
 }
 
 crate struct Environment {
