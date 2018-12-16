@@ -28,7 +28,7 @@ use crate::build::{BuildResult, Crate};
 use crate::concurrency::JobToken;
 use crate::lsp_data::{Range, PublishDiagnosticsParams};
 
-use cargo::CargoError;
+use failure;
 use itertools::Itertools;
 use languageserver_types::DiagnosticSeverity;
 use log::{trace, warn};
@@ -122,7 +122,13 @@ impl PostBuildHandler {
         }
     }
 
-    fn handle_cargo_error(&self, manifest: PathBuf, manifest_error_range: Option<Range>, error: &CargoError, stdout: &str) {
+    fn handle_cargo_error(
+        &self,
+        manifest: PathBuf,
+        manifest_error_range: Option<Range>,
+        error: &failure::Error,
+        stdout: &str,
+    ) {
         use crate::lsp_data::{Diagnostic, Position};
         use std::fmt::Write;
 
