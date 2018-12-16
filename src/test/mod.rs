@@ -33,6 +33,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use url::Url;
 
+pub use self::harness::FIXTURES_DIR;
+
 fn initialize(id: usize, root_path: Option<String>) -> Request<ls_server::InitializeRequest> {
     initialize_with_opts(id, root_path, None)
 }
