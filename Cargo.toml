@@ -1,6 +1,6 @@
 [package]
 name = "rls"
-version = "1.31.6"
+version = "1.31.7"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>", "The RLS developers"]
 description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
@@ -25,7 +25,7 @@ num_cpus = "1"
 racer = { version = "=2.1.13", default-features = false }
 rand = "0.5.5"
 rayon = "1"
-rls-analysis = "0.16.8"
+rls-analysis = "=0.16.10-stable"
 rls-blacklist = "0.1.2"
 rls-data = { version = "0.18.1", features = ["serialize-serde", "serialize-rustc"] }
 rls-rustc = "0.5.0"
