@@ -1303,7 +1303,9 @@ fn cmd_format_utf16_range() {
         .collect();
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
-    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
+    let mut new_text = new_text[0];
+    new_text.retain(|c| !c.is_whitespace());
+    assert_eq!(new_text, "/*😢😢😢😢😢😢😢*/fnmain(){}");
 
     rls.shutdown(rls_timeout());
 }
