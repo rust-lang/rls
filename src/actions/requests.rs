@@ -112,6 +112,7 @@ impl RequestAction for Symbols {
 
         Ok(symbols
             .into_iter()
+            .filter(|s| !s.name.is_empty()) // HACK: VS Code chokes on empty names
             .filter(|s| {
                 let range = ls_util::rls_to_range(s.span.range);
                 range.start != range.end
