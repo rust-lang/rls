@@ -206,6 +206,7 @@ impl Config {
         new.target_dir = self.target_dir.combine_with_default(&new.target_dir, None);
         new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
+        new.full_docs = self.full_docs.combine_with_default(&new.full_docs, false);
 
         *self = new;
     }
