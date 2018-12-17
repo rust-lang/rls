@@ -9,12 +9,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use std::io::{Write};
 
-use self::paths::TestPathExt;
-
-// Modules are organized: support/mod.rs -> project_builder.rs -> paths.rs,
-// see note in support.mod.rs
-#[path = "paths.rs"]
-mod paths;
+use super::paths::{self, TestPathExt};
 
 #[derive(PartialEq, Clone)]
 struct FileBuilder {

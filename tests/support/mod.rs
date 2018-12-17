@@ -21,11 +21,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-// FIXME(move unit tests here): Right now the modules are organized as follows:
-// support/mod.rs -> project_builder.rs -> paths.rs.
-// This is done so that the main binary can directly pull in project_builder.rs
-// to not duplicate logic and use it for generating data for project unit tests.
 pub mod project_builder;
+pub mod paths;
 
 /// Parse valid LSP stdout into a list of json messages
 pub fn parse_messages(stdout: &str) -> Vec<String> {
