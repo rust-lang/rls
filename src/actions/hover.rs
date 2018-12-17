@@ -540,18 +540,18 @@ fn create_tooltip(
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// # use std::path::Path;
 ///
-/// let base_path = Path::from(".rustup/toolchains/nightly-x86_64-pc-windows-msvc/lib/rustlib/src/rust/src/liballoc/string.rs");
+/// let base_path = Path::new(".rustup/toolchains/nightly-x86_64-pc-windows-msvc/lib/rustlib/src/rust/src/liballoc/string.rs");
 /// let tidy_path = skip_path_components(base_path.to_path_buf(), ".rustup", 8);
 /// assert_eq!("liballoc/string.rs", tidy_path);
 ///
-/// let base_path = Path::from(".cargo/registry/src/github.com-1ecc6299db9ec823/smallvec-0.6.2/lib.rs");
+/// let base_path = Path::new(".cargo/registry/src/github.com-1ecc6299db9ec823/smallvec-0.6.2/lib.rs");
 /// let tidy_path = skip_path_components(base_path.to_path_buf(), ".cargo", 4);
 /// assert_eq!("smallvec-0.6.2/lib.rs", tidy_path);
 ///
-/// let base_path = Path::from("some/unknown/path/lib.rs");
+/// let base_path = Path::new("some/unknown/path/lib.rs");
 /// let tidy_path = skip_path_components(base_path.to_path_buf(), ".rustup", 4);
 /// assert_eq!("some/unknown/path/lib.rs", tidy_path);
 /// ```
@@ -578,7 +578,7 @@ fn skip_path_components<P: AsRef<Path>>(
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// # use std::path::PathBuf;
 ///
 /// let path = PathBuf::from("libstd/../liballoc/string.rs");
