@@ -541,7 +541,7 @@ fn create_tooltip(
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// # use std::path::Path;
 ///
 /// let base_path = Path::new(".rustup/toolchains/nightly-x86_64-pc-windows-msvc/lib/rustlib/src/rust/src/liballoc/string.rs");
@@ -580,7 +580,7 @@ fn skip_path_components<P: AsRef<Path>>(
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// # use std::path::PathBuf;
 ///
 /// let path = PathBuf::from("libstd/../liballoc/string.rs");
