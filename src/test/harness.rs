@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -26,9 +26,7 @@ use lazy_static::lazy_static;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
-
-#[path = "../../tests/support/project_builder.rs"]
-mod project_builder;
+use walkdir::WalkDir;
 
 lazy_static! {
     static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -50,9 +48,8 @@ impl Environment {
         }
 
         let fixture_dir = FIXTURES_DIR.join(fixture_dir.as_ref());
-        let project = project_builder::ProjectBuilder::try_from_fixture(fixture_dir)
-            .unwrap()
-            .build();
+        let scratchpad_dir = build_scratchpad_from_fixture(fixture_dir)
+            .expect("Can't copy fixture files to scratchpad");
 
         let target_dir = env::var("CARGO_TARGET_DIR")
             .map(|s| Path::new(&s).to_owned())
@@ -66,7 +63,7 @@ impl Environment {
         config.target_dir = Inferrable::Specified(Some(working_dir.clone()));
         config.unstable_features = true;
 
-        let cache = Cache::new(project.root().to_owned());
+        let cache = Cache::new(scratchpad_dir);
 
         Self {
             config: Some(config),
@@ -112,6 +109,32 @@ impl Drop for Environment {
             fs::remove_dir_all(&self.target_path).expect("failed to tidy up");
         }
     }
+}
+
+pub fn build_scratchpad_from_fixture(fixture_dir: impl AsRef<Path>) -> io::Result<PathBuf> {
+    let fixture_dir = fixture_dir.as_ref();
+
+    let dirname = fixture_dir.file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No filename"))?;
+
+    // FIXME: For now persist the path; ideally we should clean up after every test
+    let genroot = tempfile::tempdir()?.into_path().join(dirname);
+    // Recursively copy read-only fixture files to freshly generated scratchpad
+    for entry in WalkDir::new(fixture_dir).into_iter() {
+        let entry = entry?;
+        let src = entry.path();
+
+        let relative = src.strip_prefix(fixture_dir).unwrap();
+        let dst = genroot.join(relative);
+
+        if std::fs::metadata(src)?.is_dir() {
+            std::fs::create_dir(dst)?;
+        } else {
+            std::fs::copy(src, dst)?;
+        }
+    }
+
+    Ok(genroot)
 }
 
 struct MockMsgReader {
