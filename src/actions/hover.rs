@@ -2052,15 +2052,29 @@ pub mod test {
         assert_eq!(expected, actual);
     }
 
+    enum Racer {
+        Yes,
+        No,
+    }
+
+    impl Into<bool> for Racer {
+        fn into(self) -> bool {
+            match self {
+                Racer::Yes => true,
+                Racer::No => false,
+            }
+        }
+    }
+
     // Common logic used in `test_tooltip_*` tests below
-    fn run_tooltip_tests(tests: &[Test], proj_dir: PathBuf, racer_completion: bool) -> Result<(), Box<dyn std::error::Error>> {
+    fn run_tooltip_tests(tests: &[Test], proj_dir: PathBuf, racer_completion: Racer) -> Result<(), Box<dyn std::error::Error>> {
         let out = LineOutput::default();
 
         let save_dir_guard = tempfile::tempdir().unwrap();
         let save_dir = save_dir_guard.path().to_owned();
         let load_dir = proj_dir.join("save_data");
 
-        let harness = TooltipTestHarness::new(proj_dir, &out, racer_completion);
+        let harness = TooltipTestHarness::new(proj_dir, &out, racer_completion.into());
 
         out.reset();
 
@@ -2127,7 +2141,7 @@ pub mod test {
             Test::new("test_tooltip_mod_use.rs", 13, 28),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), false)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::No)
     }
 
     #[test]
@@ -2142,7 +2156,7 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), true)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::Yes)
     }
 
     /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
@@ -2169,7 +2183,7 @@ pub mod test {
             Test::new("test_tooltip_std.rs", 25, 25),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), false)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::No)
     }
 
     /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
@@ -2186,6 +2200,6 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 15, 12),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), true)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::Yes)
     }
 }
