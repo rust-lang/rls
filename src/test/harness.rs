@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -26,6 +26,13 @@ use lazy_static::lazy_static;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
+use walkdir::WalkDir;
+
+lazy_static! {
+    static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
+    static ref MANIFEST_DIR: &'static Path = Path::new(env!("CARGO_MANIFEST_DIR"));
+    pub static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("tests").join("fixtures");
+}
 
 crate struct Environment {
     crate config: Option<Config>,
@@ -34,35 +41,19 @@ crate struct Environment {
 }
 
 impl Environment {
-    crate fn new(project_dir: &str) -> Self {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-
-        lazy_static! {
-            static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
-        }
-
+    crate fn generate_from_fixture(fixture_dir: impl AsRef<Path>) -> Self {
         let _ = env_logger::try_init();
         if env::var("RUSTC").is_err() {
             env::set_var("RUSTC", "rustc");
         }
 
-        // Acquire the current directory, but this is changing when tests are
-        // running so we need to be sure to access it in a synchronized fashion.
-        let cur_dir = {
-            use crate::build::environment::{Environment, EnvironmentLock};
-            let env = EnvironmentLock::get();
-            let (guard, _other) = env.lock();
-            let env = Environment::push_with_lock(&HashMap::new(), None, guard);
-            match env::var_os("RLS_TEST_WORKSPACE_DIR") {
-                Some(cur_dir) => cur_dir.into(),
-                None => env.get_old_cwd().to_path_buf(),
-            }
-        };
-        let project_path = cur_dir.join("test_data").join(project_dir);
+        let fixture_dir = FIXTURES_DIR.join(fixture_dir.as_ref());
+        let scratchpad_dir = build_scratchpad_from_fixture(fixture_dir)
+            .expect("Can't copy fixture files to scratchpad");
 
         let target_dir = env::var("CARGO_TARGET_DIR")
             .map(|s| Path::new(&s).to_owned())
-            .unwrap_or_else(|_| cur_dir.join("target"));
+            .unwrap_or_else(|_| MANIFEST_DIR.join("target"));
 
         let working_dir = target_dir
             .join("tests")
@@ -72,7 +63,7 @@ impl Environment {
         config.target_dir = Inferrable::Specified(Some(working_dir.clone()));
         config.unstable_features = true;
 
-        let cache = Cache::new(project_path);
+        let cache = Cache::new(scratchpad_dir);
 
         Self {
             config: Some(config),
@@ -118,6 +109,32 @@ impl Drop for Environment {
             fs::remove_dir_all(&self.target_path).expect("failed to tidy up");
         }
     }
+}
+
+pub fn build_scratchpad_from_fixture(fixture_dir: impl AsRef<Path>) -> io::Result<PathBuf> {
+    let fixture_dir = fixture_dir.as_ref();
+
+    let dirname = fixture_dir.file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No filename"))?;
+
+    // FIXME: For now persist the path; ideally we should clean up after every test
+    let genroot = tempfile::tempdir()?.into_path().join(dirname);
+    // Recursively copy read-only fixture files to freshly generated scratchpad
+    for entry in WalkDir::new(fixture_dir).into_iter() {
+        let entry = entry?;
+        let src = entry.path();
+
+        let relative = src.strip_prefix(fixture_dir).unwrap();
+        let dst = genroot.join(relative);
+
+        if std::fs::metadata(src)?.is_dir() {
+            std::fs::create_dir(dst)?;
+        } else {
+            std::fs::copy(src, dst)?;
+        }
+    }
+
+    Ok(genroot)
 }
 
 struct MockMsgReader {
@@ -291,14 +308,14 @@ crate fn compare_json(actual: &serde_json::Value, expected: &str) {
 }
 
 #[derive(Clone, Copy, Debug)]
-crate struct Src<'a, 'b> {
+crate struct Src<'a> {
     crate file_name: &'a Path,
     // 1 indexed
     crate line: usize,
-    crate name: &'b str,
+    crate name: &'a str,
 }
 
-crate fn src<'a, 'b>(file_name: &'a Path, line: usize, name: &'b str) -> Src<'a, 'b> {
+crate fn src<'a>(file_name: &'a Path, line: usize, name: &'a str) -> Src<'a> {
     Src {
         file_name,
         line,
@@ -319,7 +336,7 @@ impl Cache {
         }
     }
 
-    crate fn mk_ls_position(&mut self, src: Src<'_, '_>) -> ls_types::Position {
+    crate fn mk_ls_position(&mut self, src: Src<'_>) -> ls_types::Position {
         let line = self.get_line(src);
         let col = line
             .find(src.name)
@@ -352,7 +369,7 @@ impl Cache {
         }
     }
 
-    fn get_line(&mut self, src: Src<'_, '_>) -> String {
+    fn get_line(&mut self, src: Src<'_>) -> String {
         let base_path = &self.base_path;
         let lines = self
             .files

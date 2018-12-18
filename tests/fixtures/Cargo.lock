@@ -1,0 +1,89 @@
+[[package]]
+name = "bin_lib"
+version = "0.1.0"
+
+[[package]]
+name = "borrow_error"
+version = "0.1.0"
+
+[[package]]
+name = "compile_fail"
+version = "0.1.0"
+
+[[package]]
+name = "completion"
+version = "0.1.0"
+
+[[package]]
+name = "deglob"
+version = "0.1.0"
+
+[[package]]
+name = "dep_fail"
+version = "0.1.0"
+dependencies = [
+ "compile_fail 0.1.0",
+]
+
+[[package]]
+name = "features"
+version = "0.1.0"
+
+[[package]]
+name = "find_all_refs_no_cfg_test"
+version = "0.1.0"
+
+[[package]]
+name = "find_impls"
+version = "0.1.0"
+
+[[package]]
+name = "fnv"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "hover"
+version = "0.1.0"
+dependencies = [
+ "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "infer_bin"
+version = "0.1.0"
+
+[[package]]
+name = "infer_custom_bin"
+version = "0.1.0"
+
+[[package]]
+name = "infer_lib"
+version = "0.1.0"
+
+[[package]]
+name = "multiple_bins"
+version = "0.1.0"
+
+[[package]]
+name = "reformat"
+version = "0.1.0"
+
+[[package]]
+name = "reformat_with_range"
+version = "0.1.0"
+
+[[package]]
+name = "run"
+version = "0.1.0"
+
+[[package]]
+name = "workspace_symbol"
+version = "0.1.0"
+
+[[package]]
+name = "workspace_symbol_duplicates"
+version = "0.1.0"
+
+[metadata]
+"checksum fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "2fad85553e09a6f881f739c29f0b00b0f01357c743266d478b68951ce23285f3"

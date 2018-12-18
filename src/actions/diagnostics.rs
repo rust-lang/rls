@@ -344,11 +344,16 @@ impl IsWithin for Range {
 
 /// Tests for formatted messages from the compilers json output
 /// run cargo with `--message-format=json` to generate the json for new tests and add .json
-/// message files to '../../test_data/compiler_message/'
+/// message files to '$(crate::test::FIXTURES_DIR)/compiler_message/'
 #[cfg(test)]
 mod diagnostic_message_test {
     use super::*;
     use languageserver_types::Position;
+    pub(super) use crate::test::FIXTURES_DIR;
+
+    pub(super) fn read_fixture(path: impl AsRef<Path>) -> String {
+        std::fs::read_to_string(FIXTURES_DIR.join(path.as_ref())).unwrap()
+    }
 
     pub(super) fn parse_compiler_message(
         compiler_message: &str,
@@ -413,7 +418,7 @@ mod diagnostic_message_test {
     #[test]
     fn message_use_after_move() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/use-after-move.json"),
+            &read_fixture("compiler_message/use-after-move.json"),
             true,
         );
 
@@ -443,7 +448,7 @@ mod diagnostic_message_test {
     #[test]
     fn message_type_annotations_needed() {
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/type-annotations-needed.json"),
+            &read_fixture("compiler_message/type-annotations-needed.json"),
             true,
         ).to_messages();
         assert_eq!(
@@ -460,7 +465,7 @@ mod diagnostic_message_test {
         // Check if we don't emit related information if it's not supported and
         // if secondary spans are emitted as separate diagnostics
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/type-annotations-needed.json"),
+            &read_fixture("compiler_message/type-annotations-needed.json"),
             false,
         );
 
@@ -486,7 +491,7 @@ mod diagnostic_message_test {
     #[test]
     fn message_mismatched_types() {
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/mismatched-types.json"),
+            &read_fixture("compiler_message/mismatched-types.json"),
             true,
         ).to_messages();
         assert_eq!(
@@ -513,7 +518,7 @@ mod diagnostic_message_test {
     #[test]
     fn message_not_mutable() {
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/not-mut.json"),
+            &read_fixture("compiler_message/not-mut.json"),
             true,
         ).to_messages();
         assert_eq!(
@@ -542,7 +547,7 @@ mod diagnostic_message_test {
     #[test]
     fn message_consider_borrowing() {
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/consider-borrowing.json"),
+            &read_fixture("compiler_message/consider-borrowing.json"),
             true,
         ).to_messages();
         assert_eq!(
@@ -573,7 +578,7 @@ help: consider borrowing here: `&string`"#,
     #[test]
     fn message_move_out_of_borrow() {
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/move-out-of-borrow.json"),
+            &read_fixture("compiler_message/move-out-of-borrow.json"),
             true,
         ).to_messages();
         assert_eq!(
@@ -596,7 +601,7 @@ help: consider borrowing here: `&string`"#,
     #[test]
     fn message_unused_use() {
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/unused-use.json"),
+            &read_fixture("compiler_message/unused-use.json"),
             true,
         ).to_messages();
 
@@ -616,7 +621,7 @@ help: consider borrowing here: `&string`"#,
     #[test]
     fn message_cannot_find_type() {
         let messages = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/cannot-find-type.json"),
+            &read_fixture("compiler_message/cannot-find-type.json"),
             true,
         ).to_messages();
         assert_eq!(
@@ -634,7 +639,7 @@ help: consider borrowing here: `&string`"#,
     #[test]
     fn message_clippy_identity_op() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/clippy-identity-op.json"),
+            &read_fixture("compiler_message/clippy-identity-op.json"),
             true,
         );
 
@@ -674,7 +679,7 @@ help: consider borrowing here: `&string`"#,
     #[test]
     fn macro_error_no_trait() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/macro-error-no-trait.json"),
+            &read_fixture("compiler_message/macro-error-no-trait.json"),
             true,
         );
         assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
@@ -717,7 +722,7 @@ help: consider borrowing here: `&string`"#,
     #[test]
     fn macro_expected_token_nested_expansion() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/macro-expected-token.json"),
+            &read_fixture("compiler_message/macro-expected-token.json"),
             true,
         );
         assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
@@ -756,7 +761,7 @@ mod diagnostic_suggestion_test {
     #[test]
     fn suggest_use_when_cannot_find_type() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/cannot-find-type.json"),
+            &read_fixture("compiler_message/cannot-find-type.json"),
             true,
         );
 
@@ -787,7 +792,7 @@ mod diagnostic_suggestion_test {
     #[test]
     fn suggest_mut_when_not_mut() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/not-mut.json"),
+            &read_fixture("compiler_message/not-mut.json"),
             true,
         );
 
@@ -818,7 +823,7 @@ mod diagnostic_suggestion_test {
     #[test]
     fn suggest_clippy_const_static() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/clippy-const-static-lifetime.json"),
+            &read_fixture("compiler_message/clippy-const-static-lifetime.json"),
             true,
         );
 
@@ -846,7 +851,7 @@ mod diagnostic_suggestion_test {
     #[test]
     fn suggest_macro_error_no_trait() {
         let diag = parse_compiler_message(
-            include_str!("../../test_data/compiler_message/macro-error-no-trait.json"),
+            &read_fixture("compiler_message/macro-error-no-trait.json"),
             true,
         );
         let diagnostics = diag.diagnostics.values().nth(0).unwrap();

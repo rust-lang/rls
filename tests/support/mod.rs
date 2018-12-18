@@ -8,21 +8,20 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use serde_json;
+use serde_json::{self, json};
+
 use std::env;
-use std::fs;
 use std::io::{self, Read, Write};
 use std::mem;
 use std::panic;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::str;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use self::paths::TestPathExt;
-
+pub mod project_builder;
 pub mod paths;
 
 /// Parse valid LSP stdout into a list of json messages
@@ -287,88 +286,7 @@ impl RlsStdout {
     }
 }
 
-#[derive(PartialEq, Clone)]
-struct FileBuilder {
-    path: PathBuf,
-    body: String,
-}
-
-impl FileBuilder {
-    pub fn new(path: PathBuf, body: &str) -> FileBuilder {
-        FileBuilder {
-            path,
-            body: body.to_string(),
-        }
-    }
-
-    fn mk(&self) {
-        self.dirname().mkdir_p();
-
-        let mut file = fs::File::create(&self.path)
-            .unwrap_or_else(|e| panic!("could not create file {}: {}", self.path.display(), e));
-
-        file.write_all(self.body.as_bytes()).unwrap();
-    }
-
-    fn dirname(&self) -> &Path {
-        self.path.parent().unwrap()
-    }
-}
-
-#[derive(PartialEq, Clone)]
-pub struct Project {
-    root: PathBuf,
-}
-
-#[must_use]
-#[derive(PartialEq, Clone)]
-pub struct ProjectBuilder {
-    root: Project,
-    files: Vec<FileBuilder>,
-}
-
-impl ProjectBuilder {
-    pub fn new(root: PathBuf) -> ProjectBuilder {
-        ProjectBuilder {
-            root: Project { root },
-            files: vec![],
-        }
-    }
-
-    pub fn file<B: AsRef<Path>>(mut self, path: B, body: &str) -> Self {
-        self._file(path.as_ref(), body);
-        self
-    }
-
-    fn _file(&mut self, path: &Path, body: &str) {
-        self.files
-            .push(FileBuilder::new(self.root.root.join(path), body));
-    }
-
-    pub fn build(self) -> Project {
-        // First, clean the directory if it already exists
-        self.rm_root();
-
-        // Create the empty directory
-        self.root.root.mkdir_p();
-
-        for file in &self.files {
-            file.mk();
-        }
-
-        self.root
-    }
-
-    fn rm_root(&self) {
-        self.root.root.rm_rf()
-    }
-}
-
-impl Project {
-    pub fn root(&self) -> PathBuf {
-        self.root.clone()
-    }
-
+impl project_builder::Project {
     pub fn spawn_rls(&self) -> RlsHandle {
         RlsHandle::new(
             Command::new(rls_exe())
@@ -379,11 +297,6 @@ impl Project {
                 .unwrap(),
         )
     }
-}
-
-// Generates a project layout
-pub fn project(name: &str) -> ProjectBuilder {
-    ProjectBuilder::new(paths::root().join(name))
 }
 
 // Path to cargo executables

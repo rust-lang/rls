@@ -977,6 +977,7 @@ pub mod test {
     use crate::lsp_data::{ClientCapabilities, InitializationOptions};
     use crate::lsp_data::{Position, TextDocumentIdentifier, TextDocumentPositionParams};
     use crate::server::{Output, RequestId};
+    use crate::test::FIXTURES_DIR;
     use rls_analysis as analysis;
     use serde_derive::{Deserialize, Serialize};
     use serde_json as json;
@@ -991,7 +992,7 @@ pub mod test {
 
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
     pub struct Test {
-        /// Relative to the project _source_ dir (e.g. relative to test_data/hover/src)
+        /// Relative to the project _source_ dir (e.g. relative to FIXTURES_DIR/hover/src)
         pub file: String,
         /// One-based line number
         pub line: u64,
@@ -1672,67 +1673,67 @@ pub mod test {
     #[test]
     fn test_extract_decl() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_decl.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_decl.rs");
 
         let expected = "pub fn foo() -> Foo<u32>";
         let row_start = Row::new_zero_indexed(10);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("function declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct Foo<T>";
         let row_start = Row::new_zero_indexed(15);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("struct declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub enum Bar";
         let row_start = Row::new_zero_indexed(20);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("enum declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct NewType(pub u32, f32)";
         let row_start = Row::new_zero_indexed(25);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("tuple declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn new() -> NewType";
         let row_start = Row::new_zero_indexed(28);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("struct function declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn bar<T: Copy + Add>(&self, the_really_long_name_string: String, the_really_long_name_foo: Foo<T>) -> Vec<(String, Foo<T>)>";
         let row_start = Row::new_zero_indexed(32);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("long struct method declaration with generics")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub trait Baz<T> where T: Copy";
         let row_start = Row::new_zero_indexed(37);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("enum declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
         let row_start = Row::new_zero_indexed(38);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("trait method declaration")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
         let row_start = Row::new_zero_indexed(42);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("trait method implementation")
             .join("\n");
         assert_eq!(expected, actual);
@@ -1745,7 +1746,7 @@ pub mod test {
         ",
         );
         let row_start = Row::new_zero_indexed(47);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("trait declaration multiline")
             .join("\n");
         assert_eq!(expected, actual);
@@ -1759,7 +1760,7 @@ pub mod test {
         ",
         );
         let row_start = Row::new_zero_indexed(53);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("function declaration multiline")
             .join("\n");
         assert_eq!(expected, actual);
@@ -1837,7 +1838,7 @@ pub mod test {
     #[test]
     fn test_extract_decl_multiline_empty_function() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_decl_multiline_empty_function.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_decl_multiline_empty_function.rs");
 
         let expected = noindent(
             "
@@ -1850,7 +1851,7 @@ pub mod test {
         ",
         );
         let row_start = Row::new_zero_indexed(21);
-        let actual = extract_decl(&vfs, file, row_start)
+        let actual = extract_decl(&vfs, &file, row_start)
             .expect("the empty body should not be extracted")
             .join("\n");
         assert_eq!(expected, actual);
@@ -1859,7 +1860,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_module_docs_with_attribute() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_docs_module_docs_with_attribute.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_module_docs_with_attribute.rs");
         let row_start = Row::new_zero_indexed(0);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1883,7 +1884,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_module_docs_no_copyright() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_docs_module_docs_no_copyright.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_module_docs_no_copyright.rs");
         let row_start = Row::new_zero_indexed(0);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1907,7 +1908,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_comment_block() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_docs_comment_block.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_comment_block.rs");
         let row_start = Row::new_zero_indexed(21);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1931,7 +1932,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_empty_line_before_decl() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_docs_empty_line_before_decl.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_empty_line_before_decl.rs");
         let row_start = Row::new_zero_indexed(18);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1955,7 +1956,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_module_docs() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_docs_module_docs.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_module_docs.rs");
 
         let row_start = Row::new_zero_indexed(0);
         let actual = extract_docs(&vfs, &file, row_start)
@@ -1995,7 +1996,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_attributes() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_docs_attributes.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_attributes.rs");
 
         let row_start = Row::new_zero_indexed(21);
         let actual = extract_docs(&vfs, &file, row_start)
@@ -2039,7 +2040,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_comment_first_line() {
         let vfs = Vfs::new();
-        let file = Path::new("test_data/hover/src/test_extract_docs_comment_first_line.rs");
+        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_comment_first_line.rs");
 
         let row_start = Row::new_zero_indexed(1);
         let actual = extract_docs(&vfs, &file, row_start)
@@ -2113,7 +2114,7 @@ pub mod test {
 
         let cwd = env::current_dir()?;
         let out = LineOutput::default();
-        let proj_dir = cwd.join("test_data").join("hover");
+        let proj_dir = FIXTURES_DIR.join("hover");
         let save_dir = cwd
             .join("target")
             .join("tests")
@@ -2168,7 +2169,7 @@ pub mod test {
 
         let cwd = env::current_dir()?;
         let out = LineOutput::default();
-        let proj_dir = cwd.join("test_data").join("hover");
+        let proj_dir = FIXTURES_DIR.join("hover");
         let save_dir = cwd
             .join("target")
             .join("tests")
