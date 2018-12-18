@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 
 pub mod project_builder;
 pub mod paths;
+pub mod harness;
 
 /// Parse valid LSP stdout into a list of json messages
 pub fn parse_messages(stdout: &str) -> Vec<String> {
