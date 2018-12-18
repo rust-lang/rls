@@ -1191,14 +1191,9 @@ pub mod test {
                 related_information_support: true,
             };
             let mut config = config::Config::default();
-            let cur_dir = env::current_dir().unwrap();
-            let target_dir = env::var("CARGO_TARGET_DIR")
-                .map(|s| Path::new(&s).to_owned())
-                .unwrap_or_else(|_| cur_dir.join("target"));
 
-            let working_dir = target_dir.join("tests").join("hover").join("working_dir");
-
-            config.target_dir = config::Inferrable::Specified(Some(working_dir.clone()));
+            let temp_dir = tempfile::tempdir().unwrap().into_path();
+            config.target_dir = config::Inferrable::Specified(Some(temp_dir.clone()));
 
             let config = Arc::new(Mutex::new(config));
             let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
@@ -1220,7 +1215,7 @@ pub mod test {
             TooltipTestHarness {
                 ctx,
                 project_dir,
-                working_dir,
+                working_dir: temp_dir
             }
         }
 
@@ -2056,7 +2051,6 @@ pub mod test {
     fn test_tooltip() -> Result<(), Box<dyn std::error::Error>> {
         let _ = env_logger::try_init();
         use self::test::{LineOutput, Test, TooltipTestHarness};
-        use std::env;
 
         let tests = vec![
             Test::new("test_tooltip_01.rs", 13, 11),
@@ -2112,14 +2106,11 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
         ];
 
-        let cwd = env::current_dir()?;
         let out = LineOutput::default();
         let proj_dir = FIXTURES_DIR.join("hover");
-        let save_dir = cwd
-            .join("target")
-            .join("tests")
-            .join("hover")
-            .join("save_data");
+
+        let save_dir_guard = tempfile::tempdir().unwrap();
+        let save_dir = save_dir_guard.path().to_owned();
         let load_dir = proj_dir.join("save_data");
 
         let harness = TooltipTestHarness::new(proj_dir, &out);
@@ -2145,7 +2136,6 @@ pub mod test {
     fn test_tooltip_std() -> Result<(), Box<dyn std::error::Error>> {
         let _ = env_logger::try_init();
         use self::test::{LineOutput, Test, TooltipTestHarness};
-        use std::env;
 
         let tests = vec![
             // these test std stuff
@@ -2167,14 +2157,11 @@ pub mod test {
             Test::new("test_tooltip_std.rs", 25, 25),
         ];
 
-        let cwd = env::current_dir()?;
         let out = LineOutput::default();
         let proj_dir = FIXTURES_DIR.join("hover");
-        let save_dir = cwd
-            .join("target")
-            .join("tests")
-            .join("hover")
-            .join("save_data");
+
+        let save_dir_guard = tempfile::tempdir().unwrap();
+        let save_dir = save_dir_guard.path().to_owned();
         let load_dir = proj_dir.join("save_data");
 
         let harness = TooltipTestHarness::new(proj_dir, &out);

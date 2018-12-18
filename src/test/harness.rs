@@ -29,7 +29,6 @@ use serde_json;
 use walkdir::WalkDir;
 
 lazy_static! {
-    static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
     static ref MANIFEST_DIR: &'static Path = Path::new(env!("CARGO_MANIFEST_DIR"));
     pub static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("tests").join("fixtures");
 }
@@ -51,16 +50,10 @@ impl Environment {
         let scratchpad_dir = build_scratchpad_from_fixture(fixture_dir)
             .expect("Can't copy fixture files to scratchpad");
 
-        let target_dir = env::var("CARGO_TARGET_DIR")
-            .map(|s| Path::new(&s).to_owned())
-            .unwrap_or_else(|_| MANIFEST_DIR.join("target"));
-
-        let working_dir = target_dir
-            .join("tests")
-            .join(format!("{}", COUNTER.fetch_add(1, Ordering::Relaxed)));
+        let target_dir = scratchpad_dir.join("target");
 
         let mut config = Config::default();
-        config.target_dir = Inferrable::Specified(Some(working_dir.clone()));
+        config.target_dir = Inferrable::Specified(Some(target_dir.clone()));
         config.unstable_features = true;
 
         let cache = Cache::new(scratchpad_dir);
@@ -68,7 +61,7 @@ impl Environment {
         Self {
             config: Some(config),
             cache,
-            target_path: working_dir,
+            target_path: target_dir,
         }
     }
 }
