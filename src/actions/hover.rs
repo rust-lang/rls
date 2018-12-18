@@ -2052,16 +2052,16 @@ pub mod test {
         assert_eq!(expected, actual);
     }
 
-    enum Racer {
+    enum RacerFallback {
         Yes,
         No,
     }
 
-    impl Into<bool> for Racer {
-        fn into(self) -> bool {
-            match self {
-                Racer::Yes => true,
-                Racer::No => false,
+    impl From<RacerFallback> for bool {
+        fn from(arg: RacerFallback) -> bool {
+            match arg {
+                RacerFallback::Yes => true,
+                RacerFallback::No => false,
             }
         }
     }
@@ -2070,7 +2070,7 @@ pub mod test {
     fn run_tooltip_tests(
         tests: &[Test],
         proj_dir: PathBuf,
-        racer_completion: Racer,
+        racer_completion: RacerFallback,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let out = LineOutput::default();
 
@@ -2148,7 +2148,7 @@ pub mod test {
             Test::new("test_tooltip_mod_use.rs", 13, 28),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::No)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::No)
     }
 
     #[test]
@@ -2163,7 +2163,7 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::Yes)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::Yes)
     }
 
     /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
@@ -2190,7 +2190,7 @@ pub mod test {
             Test::new("test_tooltip_std.rs", 25, 25),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::No)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::No)
     }
 
     /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
@@ -2207,6 +2207,6 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 15, 12),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), Racer::Yes)
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::Yes)
     }
 }
