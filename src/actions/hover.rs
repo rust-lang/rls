@@ -2067,7 +2067,11 @@ pub mod test {
     }
 
     // Common logic used in `test_tooltip_*` tests below
-    fn run_tooltip_tests(tests: &[Test], proj_dir: PathBuf, racer_completion: Racer) -> Result<(), Box<dyn std::error::Error>> {
+    fn run_tooltip_tests(
+        tests: &[Test],
+        proj_dir: PathBuf,
+        racer_completion: Racer,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let out = LineOutput::default();
 
         let save_dir_guard = tempfile::tempdir().unwrap();
@@ -2084,7 +2088,10 @@ pub mod test {
             Ok(())
         } else {
             eprintln!("{}\n\n", out.reset().join("\n"));
-            eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
+            eprintln!(
+                "Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n",
+                failures
+            );
             Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
         }
     }
