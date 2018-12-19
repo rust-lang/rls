@@ -256,12 +256,12 @@ pub fn extract_decl(
                 row = Row::new_zero_indexed(row.0.saturating_add(1));
                 let mut line = line.trim();
                 if let Some(pos) = line.rfind('{') {
-                    line = &line[0..pos].trim_right();
+                    line = &line[0..pos].trim_end();
                     lines.push(line.into());
                     break;
                 } else if line.ends_with(';') {
                     let pos = line.len() - 1;
-                    line = &line[0..pos].trim_right();
+                    line = &line[0..pos].trim_end();
                     lines.push(line.into());
                     break;
                 } else {
@@ -671,7 +671,7 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
             .and_then(|path| path.to_str().map(|s| s.to_string()))
             .unwrap_or_else(|| contextstr.to_string())
     } else {
-        m.contextstr.trim_right_matches('{').trim().to_string()
+        m.contextstr.trim_end_matches('{').trim().to_string()
     };
 
     let filepath = m.filepath.clone();
@@ -780,7 +780,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     } else if trimmed.ends_with('}') || trimmed.ends_with(';') {
         trimmed.to_string()
     } else if trimmed.ends_with('{') {
-        let trimmed = trimmed.trim_right_matches('{').to_string();
+        let trimmed = trimmed.trim_end_matches('{').to_string();
         format!("{}{{}}", trimmed)
     } else {
         format!("{}{{}}", trimmed)
@@ -800,7 +800,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     // If it's a tuple, remove the trailing ';' and hide non-pub components
     // for pub types
     let result = if formatted.trim().ends_with(';') {
-        let mut decl = formatted.trim().trim_right_matches(';');
+        let mut decl = formatted.trim().trim_end_matches(';');
         if let (Some(pos), true) = (decl.rfind('('), decl.ends_with(')')) {
             let mut hidden_count = 0;
             let tuple_parts = decl[pos + 1..decl.len() - 1]
@@ -836,7 +836,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
 /// in the event of an error.
 fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> String {
     trace!("format_method: {}", the_type);
-    let the_type = the_type.trim().trim_right_matches(';').to_string();
+    let the_type = the_type.trim().trim_end_matches(';').to_string();
 
     let mut config = fmt_config.get_rustfmt_config().clone();
     config.set().newline_style(NewlineStyle::Unix);
@@ -861,7 +861,7 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
                         spaces = spaces.saturating_sub(1);
                         spaces > 0 && c.is_whitespace()
                     };
-                    let line = line.trim_left_matches(should_trim);
+                    let line = line.trim_start_matches(should_trim);
                     format!("{}\n", line)
                 }).collect()
         }
