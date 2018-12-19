@@ -1175,7 +1175,11 @@ pub mod test {
     impl TooltipTestHarness {
         /// Creates a new `TooltipTestHarness`. The `project_dir` must contain
         /// a valid rust project with a `Cargo.toml`.
-        pub fn new<O: Output>(project_dir: PathBuf, output: &O) -> TooltipTestHarness {
+        pub fn new<O: Output>(
+            project_dir: PathBuf,
+            output: &O,
+            racer_fallback_completion: bool,
+        ) -> TooltipTestHarness {
             use env_logger;
             let _ = env_logger::try_init();
 
@@ -1194,6 +1198,11 @@ pub mod test {
 
             let temp_dir = tempfile::tempdir().unwrap().into_path();
             config.target_dir = config::Inferrable::Specified(Some(temp_dir.clone()));
+            config.racer_completion = racer_fallback_completion;
+            // FIXME(#1195): This led to spurious failures on macOS; possibly
+            // because regular build and #[cfg(test)] did race or rls-analysis
+            // didn't lower them properly?
+            config.all_targets = false;
 
             let config = Arc::new(Mutex::new(config));
             let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
@@ -2047,10 +2056,53 @@ pub mod test {
         assert_eq!(expected, actual);
     }
 
+    enum RacerFallback {
+        Yes,
+        No,
+    }
+
+    impl From<RacerFallback> for bool {
+        fn from(arg: RacerFallback) -> bool {
+            match arg {
+                RacerFallback::Yes => true,
+                RacerFallback::No => false,
+            }
+        }
+    }
+
+    // Common logic used in `test_tooltip_*` tests below
+    fn run_tooltip_tests(
+        tests: &[Test],
+        proj_dir: PathBuf,
+        racer_completion: RacerFallback,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let out = LineOutput::default();
+
+        let save_dir_guard = tempfile::tempdir().unwrap();
+        let save_dir = save_dir_guard.path().to_owned();
+        let load_dir = proj_dir.join("save_data");
+
+        let harness = TooltipTestHarness::new(proj_dir, &out, racer_completion.into());
+
+        out.reset();
+
+        let failures = harness.run_tests(tests, load_dir, save_dir)?;
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            eprintln!("{}\n\n", out.reset().join("\n"));
+            eprintln!(
+                "Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n",
+                failures
+            );
+            Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
+        }
+    }
+
     #[test]
     fn test_tooltip() -> Result<(), Box<dyn std::error::Error>> {
         let _ = env_logger::try_init();
-        use self::test::{LineOutput, Test, TooltipTestHarness};
 
         let tests = vec![
             Test::new("test_tooltip_01.rs", 13, 11),
@@ -2082,7 +2134,6 @@ pub mod test {
             Test::new("test_tooltip_01.rs", 68, 11),
             Test::new("test_tooltip_01.rs", 68, 26),
             Test::new("test_tooltip_01.rs", 75, 10),
-            Test::new("test_tooltip_01.rs", 80, 11),
             Test::new("test_tooltip_01.rs", 85, 14),
             Test::new("test_tooltip_01.rs", 85, 50),
             Test::new("test_tooltip_01.rs", 85, 54),
@@ -2091,7 +2142,6 @@ pub mod test {
             Test::new("test_tooltip_01.rs", 87, 20),
             Test::new("test_tooltip_01.rs", 88, 18),
             Test::new("test_tooltip_01.rs", 93, 11),
-            Test::new("test_tooltip_01.rs", 93, 18),
             Test::new("test_tooltip_01.rs", 95, 25),
             Test::new("test_tooltip_01.rs", 109, 21),
             Test::new("test_tooltip_01.rs", 113, 21),
@@ -2100,32 +2150,24 @@ pub mod test {
             Test::new("test_tooltip_mod_use.rs", 12, 14),
             Test::new("test_tooltip_mod_use.rs", 12, 25),
             Test::new("test_tooltip_mod_use.rs", 13, 28),
-            Test::new("test_tooltip_mod_use_external.rs", 11, 7),
+        ];
+
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::No)
+    }
+
+    #[test]
+    fn test_tooltip_racer() -> Result<(), Box<dyn std::error::Error>> {
+        let _ = env_logger::try_init();
+
+        let tests = vec![
+            Test::new("test_tooltip_01.rs", 80, 11),
+            Test::new("test_tooltip_01.rs", 93, 18),
             Test::new("test_tooltip_mod_use_external.rs", 11, 7),
             Test::new("test_tooltip_mod_use_external.rs", 12, 7),
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
         ];
 
-        let out = LineOutput::default();
-        let proj_dir = FIXTURES_DIR.join("hover");
-
-        let save_dir_guard = tempfile::tempdir().unwrap();
-        let save_dir = save_dir_guard.path().to_owned();
-        let load_dir = proj_dir.join("save_data");
-
-        let harness = TooltipTestHarness::new(proj_dir, &out);
-
-        out.reset();
-
-        let failures = harness.run_tests(&tests, load_dir, save_dir)?;
-
-        if failures.is_empty() {
-            Ok(())
-        } else {
-            eprintln!("{}\n\n", out.reset().join("\n"));
-            eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
-            Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
-        }
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::Yes)
     }
 
     /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
@@ -2135,13 +2177,8 @@ pub mod test {
     #[ignore]
     fn test_tooltip_std() -> Result<(), Box<dyn std::error::Error>> {
         let _ = env_logger::try_init();
-        use self::test::{LineOutput, Test, TooltipTestHarness};
 
         let tests = vec![
-            // these test std stuff
-            Test::new("test_tooltip_mod_use_external.rs", 14, 12),
-            Test::new("test_tooltip_mod_use_external.rs", 15, 12),
-
             Test::new("test_tooltip_std.rs", 18, 15),
             Test::new("test_tooltip_std.rs", 18, 27),
             Test::new("test_tooltip_std.rs", 19, 7),
@@ -2157,25 +2194,23 @@ pub mod test {
             Test::new("test_tooltip_std.rs", 25, 25),
         ];
 
-        let out = LineOutput::default();
-        let proj_dir = FIXTURES_DIR.join("hover");
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::No)
+    }
 
-        let save_dir_guard = tempfile::tempdir().unwrap();
-        let save_dir = save_dir_guard.path().to_owned();
-        let load_dir = proj_dir.join("save_data");
+    /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
+    /// It is enabled on CI.
+    /// Run with `cargo test test_tooltip_std -- --ignored`
+    #[test]
+    #[ignore]
+    fn test_tooltip_std_racer() -> Result<(), Box<dyn std::error::Error>> {
+        let _ = env_logger::try_init();
 
-        let harness = TooltipTestHarness::new(proj_dir, &out);
+        let tests = vec![
+            // these test std stuff
+            Test::new("test_tooltip_mod_use_external.rs", 14, 12),
+            Test::new("test_tooltip_mod_use_external.rs", 15, 12),
+        ];
 
-        out.reset();
-
-        let failures = harness.run_tests(&tests, load_dir, save_dir)?;
-
-        if failures.is_empty() {
-            Ok(())
-        } else {
-            eprintln!("{}\n\n", out.reset().join("\n"));
-            eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
-            Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
-        }
+        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::Yes)
     }
 }
