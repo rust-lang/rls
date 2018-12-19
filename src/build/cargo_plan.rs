@@ -212,20 +212,21 @@ impl CargoPlan {
             .units
             .iter()
             .filter(|&(&(_, ref target, _), _)| {
-                *target.kind() == TargetKind::CustomBuild && target.src_path().is_path()
+                target.is_custom_build() && target.src_path().is_path()
             })
-            .map(|(key, unit)| (unit.target.src_path().path(), key.clone()))
+            .map(|(key, unit)| (unit.target.src_path().path().unwrap(), key.clone()))
             .collect();
         let other_targets: HashMap<UnitKey, &Path> = self
             .units
             .iter()
-            .filter(|&(&(_, ref target, _), _)| *target.kind() != TargetKind::CustomBuild)
+            .filter(|&(&(_, ref target, _), _)| !target.is_custom_build())
             .map(|(key, unit)| {
                 (
                     key.clone(),
                     unit.target
                         .src_path()
                         .path()
+                        .expect("normal targets should have a path")
                         .parent()
                         .expect("no parent for src_path"),
                 )
