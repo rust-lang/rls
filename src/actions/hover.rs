@@ -1199,6 +1199,10 @@ pub mod test {
             let temp_dir = tempfile::tempdir().unwrap().into_path();
             config.target_dir = config::Inferrable::Specified(Some(temp_dir.clone()));
             config.racer_completion = racer_fallback_completion;
+            // FIXME(#1195): This led to spurious failures on macOS; possibly
+            // because regular build and #[cfg(test)] did race or rls-analysis
+            // didn't lower them properly?
+            config.all_targets = false;
 
             let config = Arc::new(Mutex::new(config));
             let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
