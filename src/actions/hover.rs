@@ -543,35 +543,36 @@ fn create_tooltip(
 /// ```
 /// # use std::path::Path;
 ///
-/// let base_path = Path::from(".rustup/toolchains/nightly-x86_64-pc-windows-msvc/lib/rustlib/src/rust/src/liballoc/string.rs");
-/// let tidy_path = skip_path_components(base_path.to_path_buf(), ".rustup", 8);
-/// assert_eq!("liballoc/string.rs", tidy_path);
+/// let base_path = Path::new(".rustup/toolchains/nightly-x86_64-pc-windows-msvc/lib/rustlib/src/rust/src/liballoc/string.rs");
+/// let tidy_path = skip_path_components(base_path, ".rustup", 7);
+/// assert_eq!(tidy_path, Some(PathBuf::from("liballoc/string.rs")));
 ///
-/// let base_path = Path::from(".cargo/registry/src/github.com-1ecc6299db9ec823/smallvec-0.6.2/lib.rs");
-/// let tidy_path = skip_path_components(base_path.to_path_buf(), ".cargo", 4);
-/// assert_eq!("smallvec-0.6.2/lib.rs", tidy_path);
+/// let base_path = Path::new("/home/user/.cargo/registry/src/github.com-1ecc6299db9ec823/smallvec-0.6.2/lib.rs");
+/// let tidy_path = skip_path_components(base_path, "/home/user/.cargo", 3);
+/// assert_eq!(tidy_path, Some(PathBuf::from("smallvec-0.6.2/lib.rs")));
 ///
-/// let base_path = Path::from("some/unknown/path/lib.rs");
-/// let tidy_path = skip_path_components(base_path.to_path_buf(), ".rustup", 4);
-/// assert_eq!("some/unknown/path/lib.rs", tidy_path);
+/// let base_path = Path::new("/home/user/.cargo/registry/src/github.com-1ecc6299db9ec823/smallvec-0.6.2/lib.rs");
+/// let tidy_path = skip_path_components(base_path, ".cargo", 3);
+/// assert_eq!(tidy_path, None);
+///
+/// let base_path = Path::new("some/unknown/path/lib.rs");
+/// let tidy_path = skip_path_components(base_path, ".rustup", 4);
+/// assert_eq!(tidy_path, None);
 /// ```
 fn skip_path_components<P: AsRef<Path>>(
-    path: PathBuf,
+    path: &Path,
     prefix: P,
     skip_components: usize,
-) -> PathBuf {
-    if path.starts_with(prefix) {
-        let comps: PathBuf =
-            path.components()
-                .skip(skip_components)
-                .fold(PathBuf::new(), |mut comps, comp| {
-                    comps.push(comp);
-                    comps
-                });
-        comps
-    } else {
-        path
-    }
+) -> Option<PathBuf> {
+    path.strip_prefix(prefix).ok().map(|stripped| {
+        stripped
+            .components()
+            .skip(skip_components)
+            .fold(PathBuf::new(), |mut comps, comp| {
+                comps.push(comp);
+                comps
+            })
+    })
 }
 
 /// Collapse parent directory references inside of paths.
@@ -647,23 +648,26 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
 
         let home = env::var("HOME")
             .or_else(|_| env::var("USERPROFILE"))
-            .map(|dir| PathBuf::from(&dir))
-            .unwrap_or_else(|_| PathBuf::new());
+            .map(PathBuf::from)
+            .unwrap_or_default();
+        let rustup_home = env::var("RUSTUP_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| home.join(".rustup"));
+        let cargo_home = env::var("CARGO_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| home.join(".cargo"));
 
         let contextstr = m.contextstr.replacen("\\\\?\\", "", 1);
         let contextstr_path = PathBuf::from(&contextstr);
         let contextstr_path = collapse_parents(contextstr_path);
 
         // Tidy up the module path
-        contextstr_path
-            // Strip current project dir prefix
-            .strip_prefix(&ctx.current_project)
-            // Strip home directory prefix
-            .or_else(|_| contextstr_path.strip_prefix(&home))
-            .ok()
-            .map(|path| path.to_path_buf())
-            .map(|path| skip_path_components(path, ".rustup", 8))
-            .map(|path| skip_path_components(path, ".cargo", 4))
+        // Skips toolchains/$TOOLCHAIN/lib/rustlib/src/rust/src
+        skip_path_components(&contextstr_path, rustup_home, 7)
+            // Skips /registry/src/github.com-1ecc6299db9ec823/
+            .or_else(|| skip_path_components(&contextstr_path, cargo_home, 3))
+            // Make the path relative to the root of the project, if possible
+            .or_else(|| contextstr_path.strip_prefix(&ctx.current_project).ok().map(|x| x.to_owned()))
             .and_then(|path| path.to_str().map(|s| s.to_string()))
             .unwrap_or_else(|| contextstr.to_string())
     } else {
