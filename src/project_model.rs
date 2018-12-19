@@ -82,7 +82,15 @@ impl ProjectModel {
                     .iter()
                     .find(|t| t.is_lib())
                     // racer expect name 'underscored'(crate) name
-                    .map(|t| (t.src_path().path().to_owned(), t.name().replace('-', "_"))),
+                    .map(|t| {
+                        (
+                            t.src_path()
+                                .path()
+                                .expect("lib must have a path")
+                                .to_owned(),
+                            t.name().replace('-', "_"),
+                        )
+                    }),
                 deps: Vec::new(),
                 edition: match cargo_pkg.manifest().edition() {
                     cargo::core::Edition::Edition2015 => racer::Edition::Ed2015,
