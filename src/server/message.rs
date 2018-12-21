@@ -461,7 +461,7 @@ mod test {
     fn raw_message_parses_valid_jsonrpc_request_with_numeric_id() {
         let raw_json = json!({
             "jsonrpc": "2.0",
-            "id": "1",
+            "id": 1,
             "method": "someRpcCall",
         }).to_string();
 
