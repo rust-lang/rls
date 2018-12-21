@@ -22,7 +22,7 @@ issues.
 
 ### Missing RLS component
 
-You might see an error like `toolchain 'nightly-x86_64-unknown-linux-gnu' does not contain component 'rls-preview' for target 'x86_64-unknown-linux-gnu'`.
+You might see an error like `toolchain 'nightly-x86_64-unknown-linux-gnu' does not contain component 'rls' for target 'x86_64-unknown-linux-gnu'`.
 
 This is due to a nightly release missing the RLS component. That
 happens occasionally when the RLS cannot be built with the current compiler. To
