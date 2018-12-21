@@ -15,15 +15,6 @@
 //! functionality such as 'goto definition', symbol search, reformatting, and
 //! code completion, and enables renaming and refactorings.
 
-#![feature(rustc_private, integer_atomics, drain_filter)]
-#![feature(crate_visibility_modifier)] // needed for edition 2018
-#![allow(unknown_lints)]
-#![warn(clippy::all, rust_2018_idioms)]
-#![allow(
-    clippy::cyclomatic_complexity,
-    clippy::needless_pass_by_value,
-    clippy::too_many_arguments
-)]
 // See rustc/rustc.rs in rust repo for explanation of stack adjustments.
 #![feature(link_args)]
 #[allow(unused_attributes)]
@@ -37,10 +28,7 @@
 )]
 extern "C" {}
 
-use rls;
-
 use log::warn;
-use env_logger;
 use rls_rustc as rustc_shim;
 
 use std::env;
@@ -52,7 +40,7 @@ const RUSTC_WRAPPER_ENV_VAR: &str = "RUSTC_WRAPPER";
 /// server.
 pub fn main() {
     let exit_code = main_inner();
-    ::std::process::exit(exit_code);
+    std::process::exit(exit_code);
 }
 
 fn main_inner() -> i32 {
@@ -71,15 +59,12 @@ fn main_inner() -> i32 {
         env::remove_var(RUSTC_WRAPPER_ENV_VAR);
     }
 
-    if env::var(rls::RUSTC_SHIM_ENV_VAR_NAME)
-        .map(|v| v != "0")
-        .unwrap_or(false)
-    {
+    if env::var(rls::RUSTC_SHIM_ENV_VAR_NAME).ok().map_or(false, |v| v != "0") {
         rustc_shim::run();
         return 0;
     }
 
-    if let Some(first_arg) = ::std::env::args().nth(1) {
+    if let Some(first_arg) = env::args().nth(1) {
         return match first_arg.as_str() {
             "--version" | "-V" => {
                 println!("{}", rls::version());

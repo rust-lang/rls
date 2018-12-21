@@ -21,12 +21,8 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![allow(
     clippy::cyclomatic_complexity,
-    clippy::needless_pass_by_value,
     clippy::too_many_arguments
 )]
-
-use log::warn;
-use rustc_tools_util::*;
 
 pub use rls_analysis::{AnalysisHost, Target};
 pub use rls_vfs::Vfs;
@@ -48,5 +44,7 @@ type Span = rls_span::Span<rls_span::ZeroIndexed>;
 pub const RUSTC_SHIM_ENV_VAR_NAME: &str = "RLS_RUSTC_SHIM";
 
 pub fn version() -> String {
+    use rustc_tools_util::VersionInfo;
+
     rustc_tools_util::get_version_info!().to_string()
 }
