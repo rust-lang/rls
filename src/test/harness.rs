@@ -22,16 +22,12 @@ use crate::config::{Config, Inferrable};
 use crate::server as ls_server;
 use env_logger;
 use languageserver_types as ls_types;
-use lazy_static::lazy_static;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
 use walkdir::WalkDir;
 
-lazy_static! {
-    static ref MANIFEST_DIR: &'static Path = Path::new(env!("CARGO_MANIFEST_DIR"));
-    pub static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("tests").join("fixtures");
-}
+use super::FIXTURES_DIR;
 
 crate struct Environment {
     crate config: Option<Config>,

@@ -10,6 +10,11 @@
 #[macro_use]
 mod harness;
 
+#[path = "../../tests/support/fixtures.rs"]
+mod fixtures;
+
+pub use self::fixtures::FIXTURES_DIR;
+
 use crate::actions::{notifications, requests};
 use crate::config::{Config, Inferrable};
 use crate::server::{self as ls_server, Notification, Request, RequestId, ShutdownRequest};
@@ -31,8 +36,6 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use url::Url;
-
-pub use self::harness::FIXTURES_DIR;
 
 fn initialize(id: usize, root_path: Option<String>) -> Request<ls_server::InitializeRequest> {
     initialize_with_opts(id, root_path, None)
