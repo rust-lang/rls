@@ -9,7 +9,6 @@
 // except according to those terms.
 #[macro_use]
 mod harness;
-mod lens;
 
 use crate::actions::{notifications, requests};
 use crate::config::{Config, Inferrable};

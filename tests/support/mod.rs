@@ -25,6 +25,17 @@ pub mod project_builder;
 pub mod paths;
 pub mod harness;
 
+/// Returns a timeout for waiting for rls stdout messages
+///
+/// Env var `RLS_TEST_WAIT_FOR_AGES` allows super long waiting for CI
+pub fn rls_timeout() -> Duration {
+    Duration::from_secs(if std::env::var("RLS_TEST_WAIT_FOR_AGES").is_ok() {
+        300
+    } else {
+        15
+    })
+}
+
 /// Parse valid LSP stdout into a list of json messages
 pub fn parse_messages(stdout: &str) -> Vec<String> {
     let mut messages = vec![];

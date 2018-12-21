@@ -13,22 +13,11 @@ use serde_json::{self, json};
 use std::io::Write;
 use std::time::Duration;
 
-use self::support::{basic_bin_manifest, RlsStdout};
+use self::support::{basic_bin_manifest, RlsStdout, rls_timeout};
 use self::support::project_builder::project;
 
 #[allow(dead_code)]
 mod support;
-
-/// Returns a timeout for waiting for rls stdout messages
-///
-/// Env var `RLS_TEST_WAIT_FOR_AGES` allows super long waiting for CI
-fn rls_timeout() -> Duration {
-    Duration::from_secs(if std::env::var("RLS_TEST_WAIT_FOR_AGES").is_ok() {
-        300
-    } else {
-        15
-    })
-}
 
 #[test]
 fn cmd_test_infer_bin() {
