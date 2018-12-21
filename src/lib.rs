@@ -36,9 +36,6 @@ pub mod lsp_data;
 pub mod project_model;
 pub mod server;
 
-#[cfg(test)]
-mod test;
-
 type Span = rls_span::Span<rls_span::ZeroIndexed>;
 
 pub const RUSTC_SHIM_ENV_VAR_NAME: &str = "RLS_RUSTC_SHIM";

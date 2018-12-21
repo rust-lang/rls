@@ -979,7 +979,6 @@ pub mod test {
     use crate::lsp_data::{ClientCapabilities, InitializationOptions};
     use crate::lsp_data::{Position, TextDocumentIdentifier, TextDocumentPositionParams};
     use crate::server::{Output, RequestId};
-    use crate::test::FIXTURES_DIR;
     use rls_analysis as analysis;
     use serde_derive::{Deserialize, Serialize};
     use serde_json as json;
@@ -992,9 +991,13 @@ pub mod test {
     use std::sync::{Arc, Mutex};
     use std::fmt;
 
+    pub fn fixtures_dir() -> &'static Path {
+        Path::new(env!("FIXTURES_DIR"))
+    }
+
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
     pub struct Test {
-        /// Relative to the project _source_ dir (e.g. relative to FIXTURES_DIR/hover/src)
+        /// Relative to the project _source_ dir (e.g. relative to $FIXTURES_DIR/hover/src)
         pub file: String,
         /// One-based line number
         pub line: u64,
@@ -1658,7 +1661,7 @@ pub mod test {
     #[test]
     fn test_extract_decl() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_decl.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_decl.rs");
 
         let expected = "pub fn foo() -> Foo<u32>";
         let row_start = Row::new_zero_indexed(10);
@@ -1823,7 +1826,7 @@ pub mod test {
     #[test]
     fn test_extract_decl_multiline_empty_function() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_decl_multiline_empty_function.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_decl_multiline_empty_function.rs");
 
         let expected = noindent(
             "
@@ -1845,7 +1848,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_module_docs_with_attribute() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_module_docs_with_attribute.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_docs_module_docs_with_attribute.rs");
         let row_start = Row::new_zero_indexed(0);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1869,7 +1872,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_module_docs_no_copyright() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_module_docs_no_copyright.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_docs_module_docs_no_copyright.rs");
         let row_start = Row::new_zero_indexed(0);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1893,7 +1896,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_comment_block() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_comment_block.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_docs_comment_block.rs");
         let row_start = Row::new_zero_indexed(21);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1917,7 +1920,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_empty_line_before_decl() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_empty_line_before_decl.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_docs_empty_line_before_decl.rs");
         let row_start = Row::new_zero_indexed(18);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
@@ -1941,7 +1944,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_module_docs() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_module_docs.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_docs_module_docs.rs");
 
         let row_start = Row::new_zero_indexed(0);
         let actual = extract_docs(&vfs, &file, row_start)
@@ -1981,7 +1984,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_attributes() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_attributes.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_docs_attributes.rs");
 
         let row_start = Row::new_zero_indexed(21);
         let actual = extract_docs(&vfs, &file, row_start)
@@ -2025,7 +2028,7 @@ pub mod test {
     #[test]
     fn test_extract_docs_comment_first_line() {
         let vfs = Vfs::new();
-        let file = FIXTURES_DIR.join("hover/src/test_extract_docs_comment_first_line.rs");
+        let file = fixtures_dir().join("hover/src/test_extract_docs_comment_first_line.rs");
 
         let row_start = Row::new_zero_indexed(1);
         let actual = extract_docs(&vfs, &file, row_start)
@@ -2133,7 +2136,7 @@ pub mod test {
             Test::new("test_tooltip_mod_use.rs", 13, 28),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::No)
+        run_tooltip_tests(&tests, fixtures_dir().join("hover"), RacerFallback::No)
     }
 
     #[test]
@@ -2148,7 +2151,7 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 12, 12),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::Yes)
+        run_tooltip_tests(&tests, fixtures_dir().join("hover"), RacerFallback::Yes)
     }
 
     /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
@@ -2175,7 +2178,7 @@ pub mod test {
             Test::new("test_tooltip_std.rs", 25, 25),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::No)
+        run_tooltip_tests(&tests, fixtures_dir().join("hover"), RacerFallback::No)
     }
 
     /// Note: This test is ignored as it doesn't work in the rust-lang/rust repo.
@@ -2192,6 +2195,6 @@ pub mod test {
             Test::new("test_tooltip_mod_use_external.rs", 15, 12),
         ];
 
-        run_tooltip_tests(&tests, FIXTURES_DIR.join("hover"), RacerFallback::Yes)
+        run_tooltip_tests(&tests, fixtures_dir().join("hover"), RacerFallback::Yes)
     }
 }
