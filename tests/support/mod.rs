@@ -14,7 +14,7 @@ use std::env;
 use std::io::{self, Read, Write};
 use std::mem;
 use std::panic;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::str;
 use std::sync::{Arc, Mutex};
@@ -24,6 +24,11 @@ use std::time::{Duration, Instant};
 pub mod project_builder;
 pub mod paths;
 pub mod harness;
+
+/// Returns a path to directory containing test fixtures.
+pub fn fixtures_dir() -> &'static Path {
+    Path::new(env!("FIXTURES_DIR"))
+}
 
 /// Returns a timeout for waiting for rls stdout messages
 ///

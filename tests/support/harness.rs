@@ -22,16 +22,12 @@ use rls::config::{Config, Inferrable};
 use rls::server as ls_server;
 use env_logger;
 use languageserver_types as ls_types;
-use lazy_static::lazy_static;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
 use walkdir::WalkDir;
 
-lazy_static! {
-    static ref MANIFEST_DIR: &'static Path = Path::new(env!("CARGO_MANIFEST_DIR"));
-    pub static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("tests").join("fixtures");
-}
+use super::fixtures_dir;
 
 pub(crate) struct Environment {
     pub(crate) config: Option<Config>,
@@ -46,7 +42,7 @@ impl Environment {
             env::set_var("RUSTC", "rustc");
         }
 
-        let fixture_dir = FIXTURES_DIR.join(fixture_dir.as_ref());
+        let fixture_dir = fixtures_dir().join(fixture_dir.as_ref());
         let scratchpad_dir = build_scratchpad_from_fixture(fixture_dir)
             .expect("Can't copy fixture files to scratchpad");
 

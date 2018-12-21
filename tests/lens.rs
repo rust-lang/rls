@@ -2,8 +2,8 @@ use rls::actions::requests;
 
 use languageserver_types::request::Request as _;
 
-use self::support::rls_timeout;
-use self::support::harness::{compare_json, FIXTURES_DIR};
+use self::support::{fixtures_dir, rls_timeout};
+use self::support::harness::compare_json;
 use self::support::project_builder::ProjectBuilder;
 use serde_json;
 use serde_json::json;
@@ -13,7 +13,7 @@ mod support;
 
 #[test]
 fn cmd_lens_run() {
-    let p = ProjectBuilder::try_from_fixture(FIXTURES_DIR.join("lens_run"))
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("lens_run"))
         .unwrap()
         .build();
     let root_path = p.root();
