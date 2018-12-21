@@ -15,6 +15,7 @@ use crate::config::FmtConfig;
 use crate::lsp_data::*;
 use crate::server::ResponseError;
 
+use home;
 use racer;
 use rls_analysis::{Def, DefKind};
 use rls_span::{Column, Row, Span, ZeroIndexed};
@@ -646,10 +647,7 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
     let contextstr = if kind == DefKind::Mod {
         use std::env;
 
-        let home = env::var("HOME")
-            .or_else(|_| env::var("USERPROFILE"))
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let home = home::home_dir().unwrap_or_default();
         let rustup_home = env::var("RUSTUP_HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(".rustup"));

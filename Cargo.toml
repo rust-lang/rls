@@ -16,6 +16,7 @@ cargo_metadata = "0.6"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "a3c77f6ad1c1c185e561e9cd7fdec7db569169d1", optional = true }
 env_logger = "0.5"
 failure = "0.1.1"
+home = "0.3"
 itertools = "0.7.3"
 jsonrpc-core = "8.0.1"
 languageserver-types = "0.51"
