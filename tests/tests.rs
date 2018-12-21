@@ -16,6 +16,7 @@ use std::time::Duration;
 use self::support::{basic_bin_manifest, RlsStdout};
 use self::support::project_builder::project;
 
+#[allow(dead_code)]
 mod support;
 
 /// Returns a timeout for waiting for rls stdout messages
