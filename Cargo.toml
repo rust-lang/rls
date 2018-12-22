@@ -10,6 +10,14 @@ categories = ["development-tools"]
 
 build = "build.rs"
 
+[lib]
+name = "rls"
+doctest = false
+
+[[bin]]
+name = "rls"
+test = false
+
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "2a9f16da7ffc4877aacf7547bac705f0d82de2d6" }
 cargo_metadata = "0.6"
