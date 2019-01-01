@@ -1,5 +1,3 @@
-use serde_json::{self, json};
-
 use self::support::project_builder::project;
 
 #[allow(dead_code)]
@@ -86,15 +84,22 @@ fn client_test_simple_workspace() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.send(json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "initialize",
-        "params": {
-            "rootPath": root_path,
-            "capabilities": {}
-        }
-    }));
+    rls.request::<languageserver_types::request::Initialize>(
+        0,
+        languageserver_types::InitializeParams {
+            process_id: None,
+            root_uri: None,
+            root_path: Some(root_path.display().to_string()),
+            initialization_options: None,
+            capabilities: languageserver_types::ClientCapabilities {
+                workspace: None,
+                text_document: None,
+                experimental: None,
+            },
+            trace: None,
+            workspace_folders: None,
+        },
+    );
 
     rls.wait_for_indexing();
 
