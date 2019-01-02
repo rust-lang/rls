@@ -170,7 +170,7 @@ impl<O: Output> LsService<O> {
         }
     }
 
-    fn dispatch_message(&mut self, msg: &RawMessage) -> Result<(), jsonrpc::Error> {
+    fn dispatch_message(&mut self, msg: RawMessage) -> Result<(), jsonrpc::Error> {
         macro_rules! match_action {
             (
                 $method: expr;
@@ -334,9 +334,12 @@ impl<O: Output> LsService<O> {
             }
         }
 
-        if let Err(e) = self.dispatch_message(&raw_message) {
+        // Workaround https://github.com/rust-lang/rust/pull/55937 by moving
+        // raw_message instead of borrowing.
+        let id = raw_message.id.clone();
+        if let Err(e) = self.dispatch_message(raw_message) {
             error!("dispatch error: {:?}, message: `{}`", e, msg_string);
-            self.output.failure(raw_message.id, e);
+            self.output.failure(id, e);
             return ServerStateChange::Break { exit_code: 101 };
         }
 
