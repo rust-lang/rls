@@ -1245,9 +1245,8 @@ pub mod test {
                 }).collect();
 
             let failures: Vec<TestFailure> = results
-                .iter()
-                .map(|actual_result: &TestResult| {
-                    let actual_result = actual_result.clone();
+                .into_iter()
+                .map(|actual_result| {
                     match actual_result.test.load_result(&load_dir) {
                         Ok(expect_result) => {
                             if actual_result.test != expect_result.test {
