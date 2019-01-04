@@ -1023,26 +1023,6 @@ pub mod test {
         data: Result<Vec<MarkedString>, String>,
     }
 
-    // MarkedString nad LanguageString don't implement clone
-    impl Clone for TestResult {
-        fn clone(&self) -> TestResult {
-            let ls_clone = |ls: &LanguageString| LanguageString {
-                language: ls.language.clone(),
-                value: ls.value.clone(),
-            };
-            let ms_clone = |ms: &MarkedString| match ms {
-                MarkedString::String(ref s) => MarkedString::String(s.clone()),
-                MarkedString::LanguageString(ref ls) => MarkedString::LanguageString(ls_clone(ls)),
-            };
-            let test = self.test.clone();
-            let data = match self.data {
-                Ok(ref data) => Ok(data.iter().map(|ms| ms_clone(ms)).collect()),
-                Err(ref e) => Err(e.clone()),
-            };
-            TestResult { test, data }
-        }
-    }
-
     impl TestResult {
         fn save(&self, result_dir: &Path) -> Result<(), String> {
             let path = self.test.path(result_dir);
@@ -1265,9 +1245,8 @@ pub mod test {
                 }).collect();
 
             let failures: Vec<TestFailure> = results
-                .iter()
-                .map(|actual_result: &TestResult| {
-                    let actual_result = actual_result.clone();
+                .into_iter()
+                .map(|actual_result| {
                     match actual_result.test.load_result(&load_dir) {
                         Ok(expect_result) => {
                             if actual_result.test != expect_result.test {
