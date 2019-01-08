@@ -22,17 +22,17 @@ test = false
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "2a9f16da7ffc4877aacf7547bac705f0d82de2d6" }
 cargo_metadata = "0.6"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "c63b6349b44019146cc2edcef8141692891b9401", optional = true }
-env_logger = "0.5"
+env_logger = "0.6"
 failure = "0.1.1"
 home = "0.3"
-itertools = "0.7.3"
+itertools = "0.8"
 jsonrpc-core = "9"
-languageserver-types = "0.51.1"
+languageserver-types = "0.53.1"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
 racer = { version = "=2.1.16", default-features = false }
-rand = "0.5.5"
+rand = "0.6"
 rayon = "1"
 rls-analysis = "0.16.10"
 rls-blacklist = "0.1.3"
@@ -50,7 +50,7 @@ url = "1"
 walkdir = "2"
 regex = "1"
 ordslice = "0.3"
-crossbeam-channel = "0.2.3"
+crossbeam-channel = "0.3"
 toml = "0.4"
 
 # A noop dependency that changes in the Rust repository, it's a bit of a hack.

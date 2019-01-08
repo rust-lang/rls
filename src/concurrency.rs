@@ -1,7 +1,6 @@
 use std::thread;
 
-use crossbeam_channel::select;
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{bounded, select, Receiver, Select, Sender};
 
 /// `ConcurrentJob` is a handle for some long-running computation
 /// off the main thread. It can be used, indirectly, to wait for
@@ -41,13 +40,16 @@ impl Jobs {
     pub fn wait_for_all(&mut self) {
         while !self.jobs.is_empty() {
             let done: usize = {
-                let chans = self.jobs.iter().map(|j| &j.chan);
-                select! {
-                    recv(chans, msg, from) => {
-                        assert!(msg.is_none());
-                        self.jobs.iter().position(|j| &j.chan == from).unwrap()
-                    }
+                let mut select = Select::new();
+                for job in &self.jobs {
+                    select.recv(&job.chan);
                 }
+
+                let oper = select.select();
+                let oper_index = oper.index();
+                let chan = &self.jobs[oper_index].chan;
+                assert!(oper.recv(chan).is_err());
+                oper_index
             };
             drop(self.jobs.swap_remove(done));
         }
@@ -88,10 +90,10 @@ enum Never {}
 /// Nonblocking
 fn is_closed(chan: &Receiver<Never>) -> bool {
     select! {
-        recv(chan, msg) => match msg {
-            None => true,
-            Some(never) => match never {}
-        }
+        recv(chan) -> msg => match msg {
+            Err(_) => true,
+            Ok(never) => match never {}
+        },
         default => false,
     }
 }

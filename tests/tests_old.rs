@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![allow(clippy::cyclomatic_complexity)]
+
 use rls::actions::{notifications, requests};
 use rls::config::{Config, Inferrable};
 use rls::server::{self as ls_server, Notification, Request, RequestId, ShutdownRequest};
