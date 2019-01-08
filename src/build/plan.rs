@@ -53,6 +53,7 @@ crate enum WorkStatus {
     Execute(JobQueue),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 crate enum BuildPlan {
     External(ExternalPlan),

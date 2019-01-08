@@ -24,8 +24,6 @@ use url::Url;
 
 use crate::actions::hover;
 use crate::actions::run::collect_run_actions;
-use crate::actions::work_pool;
-use crate::actions::work_pool::WorkDescription;
 use crate::build::Edition;
 use crate::lsp_data;
 use crate::lsp_data::*;
@@ -204,45 +202,30 @@ impl RequestAction for Definition {
         let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
         let analysis = ctx.analysis.clone();
 
-        // If configured start racer concurrently and fallback to racer result
-        let racer_receiver = {
-            if ctx.config.lock().unwrap().goto_def_racer_fallback {
-                Some(work_pool::receive_from_thread(
-                    move || {
-                        let cache = ctx.racer_cache();
-                        let session = ctx.racer_session(&cache);
-                        let location = pos_to_racer_location(params.position);
+        if let Ok(out) = analysis.goto_def(&span) {
+            let result = vec![ls_util::rls_to_location(&out)];
+            trace!("goto_def (compiler): {:?}", result);
+            Ok(result)
+        } else {
+            let racer_enabled = {
+                let config = ctx.config.lock().unwrap();
+                config.racer_completion
+            };
+            if racer_enabled {
+                let cache = ctx.racer_cache();
+                let session = ctx.racer_session(&cache);
+                let location = pos_to_racer_location(params.position);
 
-                        racer::find_definition(file_path, location, &session)
-                            .and_then(|rm| location_from_racer_match(&rm))
-                    },
-                    WorkDescription("textDocument/definition-racer"),
-                ))
+                let r = racer::find_definition(file_path, location, &session)
+                    .and_then(|rm| location_from_racer_match(&rm))
+                    .map(|l| vec![l])
+                    .unwrap_or_default();
+
+                trace!("goto_def (Racer): {:?}", r);
+                Ok(r)
             } else {
-                None
+                Self::fallback_response()
             }
-        };
-
-        match analysis.goto_def(&span) {
-            Ok(out) => {
-                let result = vec![ls_util::rls_to_location(&out)];
-                trace!("goto_def (compiler): {:?}", result);
-                Ok(result)
-            }
-            _ => match racer_receiver {
-                Some(receiver) => match receiver.recv() {
-                    Ok(Some(r)) => {
-                        trace!("goto_def (Racer): {:?}", r);
-                        Ok(vec![r])
-                    }
-                    Ok(None) => {
-                        trace!("goto_def (Racer): None");
-                        Ok(vec![])
-                    }
-                    _ => Self::fallback_response(),
-                },
-                _ => Self::fallback_response(),
-            },
         }
     }
 }
