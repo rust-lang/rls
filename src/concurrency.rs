@@ -41,8 +41,8 @@ impl Jobs {
         while !self.jobs.is_empty() {
             let done: usize = {
                 let mut select = Select::new();
-                for (index, chan) in self.jobs.iter().map(|j| &j.chan).enumerate() {
-                    assert_eq!(index, select.recv(chan));
+                for job in &self.jobs {
+                    select.recv(&job.chan);
                 }
 
                 let oper = select.select();
