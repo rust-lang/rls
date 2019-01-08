@@ -7,19 +7,16 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-#[macro_use]
-mod harness;
-mod lens;
 
-use crate::actions::{notifications, requests};
-use crate::config::{Config, Inferrable};
-use crate::server::{self as ls_server, Notification, Request, RequestId, ShutdownRequest};
+use rls::actions::{notifications, requests};
+use rls::config::{Config, Inferrable};
+use rls::server::{self as ls_server, Notification, Request, RequestId, ShutdownRequest};
 use jsonrpc_core;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json::Value;
 
-use self::harness::{
+use self::support::harness::{
     compare_json, expect_message, expect_series, src, Environment, ExpectedMessage, RecordOutput,
 };
 
@@ -33,7 +30,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use url::Url;
 
-pub use self::harness::FIXTURES_DIR;
+#[allow(dead_code)]
+mod support;
 
 fn initialize(id: usize, root_path: Option<String>) -> Request<ls_server::InitializeRequest> {
     initialize_with_opts(id, root_path, None)

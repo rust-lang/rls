@@ -344,15 +344,18 @@ impl IsWithin for Range {
 
 /// Tests for formatted messages from the compilers json output
 /// run cargo with `--message-format=json` to generate the json for new tests and add .json
-/// message files to '$(crate::test::FIXTURES_DIR)/compiler_message/'
+/// message files to '$FIXTURES_DIR/compiler_message/'
 #[cfg(test)]
 mod diagnostic_message_test {
     use super::*;
     use languageserver_types::Position;
-    pub(super) use crate::test::FIXTURES_DIR;
+
+    pub(super) fn fixtures_dir() -> &'static Path {
+        Path::new(env!("FIXTURES_DIR"))
+    }
 
     pub(super) fn read_fixture(path: impl AsRef<Path>) -> String {
-        std::fs::read_to_string(FIXTURES_DIR.join(path.as_ref())).unwrap()
+        std::fs::read_to_string(fixtures_dir().join(path.as_ref())).unwrap()
     }
 
     pub(super) fn parse_compiler_message(

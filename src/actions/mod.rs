@@ -381,7 +381,7 @@ impl InitActionContext {
     }
 
     /// Block until any builds and analysis tasks are complete.
-    fn block_on_build(&self) {
+    pub fn block_on_build(&self) {
         self.build_queue.block_on_build();
     }
 

@@ -13,21 +13,15 @@ use serde_json::{self, json};
 use std::io::Write;
 use std::time::Duration;
 
-use self::support::{basic_bin_manifest, RlsStdout};
-use self::support::project_builder::project;
+use rls::actions::requests;
+use rls::lsp_data::request::Request as _;
 
+use self::support::harness::compare_json;
+use self::support::project_builder::{project, ProjectBuilder};
+use self::support::{basic_bin_manifest, fixtures_dir, rls_timeout, RlsStdout};
+
+#[allow(dead_code)]
 mod support;
-
-/// Returns a timeout for waiting for rls stdout messages
-///
-/// Env var `RLS_TEST_WAIT_FOR_AGES` allows super long waiting for CI
-fn rls_timeout() -> Duration {
-    Duration::from_secs(if std::env::var("RLS_TEST_WAIT_FOR_AGES").is_ok() {
-        300
-    } else {
-        15
-    })
-}
 
 #[test]
 fn cmd_test_infer_bin() {
@@ -1305,6 +1299,68 @@ fn cmd_format_utf16_range() {
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
     assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
+
+    rls.shutdown(rls_timeout());
+}
+
+#[test]
+fn cmd_lens_run() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("lens_run"))
+        .unwrap()
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls();
+
+    rls.request(
+        0,
+        "initialize",
+        Some(json!({
+            "rootPath": root_path,
+            "capabilities": {},
+            "initializationOptions": { "cmdRun": true }
+        })),
+    )
+    .unwrap();
+
+    let json: Vec<_> = rls
+        .wait_until_done_indexing(rls_timeout())
+        .to_json_messages()
+        .collect();
+    assert!(json.len() >= 7);
+
+    let request_id = 1;
+    rls.request(
+        request_id,
+        requests::CodeLensRequest::METHOD,
+        Some(json!({
+            "textDocument": {
+                "uri": format!("file://{}/src/main.rs", root_path.display()),
+                "version": 1
+            }
+        })),
+    )
+    .unwrap();
+
+    let json = rls.wait_until_json_id(request_id, rls_timeout());
+
+    compare_json(
+        &json["result"],
+        r#"[{
+            "command": {
+              "command": "rls.run",
+              "title": "Run test",
+              "arguments": [{
+                  "args": [ "test", "--", "--nocapture", "test_foo" ],
+                  "binary": "cargo",
+                  "env": { "RUST_BACKTRACE": "short" }
+              }]
+            },
+            "range": {
+              "start": { "character": 3, "line": 14 },
+              "end": { "character": 11, "line": 14 }
+            }
+        }]"#,
+    );
 
     rls.shutdown(rls_timeout());
 }

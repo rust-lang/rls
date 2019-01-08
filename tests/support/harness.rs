@@ -18,35 +18,31 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::config::{Config, Inferrable};
-use crate::server as ls_server;
+use rls::config::{Config, Inferrable};
+use rls::server as ls_server;
 use env_logger;
 use languageserver_types as ls_types;
-use lazy_static::lazy_static;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
 use walkdir::WalkDir;
 
-lazy_static! {
-    static ref MANIFEST_DIR: &'static Path = Path::new(env!("CARGO_MANIFEST_DIR"));
-    pub static ref FIXTURES_DIR: PathBuf = MANIFEST_DIR.join("tests").join("fixtures");
-}
+use super::fixtures_dir;
 
-crate struct Environment {
-    crate config: Option<Config>,
-    crate cache: Cache,
-    crate target_path: PathBuf,
+pub(crate) struct Environment {
+    pub(crate) config: Option<Config>,
+    pub(crate) cache: Cache,
+    pub(crate) target_path: PathBuf,
 }
 
 impl Environment {
-    crate fn generate_from_fixture(fixture_dir: impl AsRef<Path>) -> Self {
+    pub(crate) fn generate_from_fixture(fixture_dir: impl AsRef<Path>) -> Self {
         let _ = env_logger::try_init();
         if env::var("RUSTC").is_err() {
             env::set_var("RUSTC", "rustc");
         }
 
-        let fixture_dir = FIXTURES_DIR.join(fixture_dir.as_ref());
+        let fixture_dir = fixtures_dir().join(fixture_dir.as_ref());
         let scratchpad_dir = build_scratchpad_from_fixture(fixture_dir)
             .expect("Can't copy fixture files to scratchpad");
 
@@ -67,7 +63,7 @@ impl Environment {
 }
 
 impl Environment {
-    crate fn with_config<F>(&mut self, f: F)
+    pub(crate) fn with_config<F>(&mut self, f: F)
     where
         F: FnOnce(&mut Config),
     {
@@ -76,7 +72,7 @@ impl Environment {
     }
 
     // Initialize and run the internals of an LS protocol RLS server.
-    crate fn mock_server(
+    pub(crate) fn mock_server(
         &mut self,
         messages: Vec<String>,
     ) -> (ls_server::LsService<RecordOutput>, LsResultList, Arc<Mutex<Config>>) {
@@ -162,13 +158,13 @@ impl ls_server::MessageReader for MockMsgReader {
 type LsResultList = Arc<Mutex<Vec<String>>>;
 
 #[derive(Clone)]
-crate struct RecordOutput {
-    crate output: LsResultList,
+pub(crate) struct RecordOutput {
+    pub(crate) output: LsResultList,
     output_id: Arc<Mutex<u64>>,
 }
 
 impl RecordOutput {
-    crate fn new() -> RecordOutput {
+    pub(crate) fn new() -> RecordOutput {
         RecordOutput {
             output: Arc::new(Mutex::new(vec![])),
             // use some distinguishable value
@@ -191,20 +187,20 @@ impl ls_server::Output for RecordOutput {
 }
 
 #[derive(Clone, Debug)]
-crate struct ExpectedMessage {
+pub(crate) struct ExpectedMessage {
     id: Option<u64>,
     contains: Vec<String>,
 }
 
 impl ExpectedMessage {
-    crate fn new(id: Option<u64>) -> ExpectedMessage {
+    pub(crate) fn new(id: Option<u64>) -> ExpectedMessage {
         ExpectedMessage {
             id,
             contains: vec![],
         }
     }
 
-    crate fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
+    pub(crate) fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
         self.contains.push(s.to_owned());
         self
     }
@@ -213,7 +209,7 @@ impl ExpectedMessage {
 /// This function checks for messages with a series of constraints (expecrations)
 /// to appear in the buffer, removing valid messages and returning when encountering
 /// some that didn't meet the expectation
-crate fn expect_series(
+pub(crate) fn expect_series(
     server: &mut ls_server::LsService<RecordOutput>,
     results: LsResultList,
     contains: Vec<&str>,
@@ -229,7 +225,7 @@ crate fn expect_series(
 ///
 /// It panics if the message wasn't valid and removes it from the buffer
 /// if it was
-crate fn expect_message(
+pub(crate) fn expect_message(
     server: &mut ls_server::LsService<RecordOutput>,
     results: LsResultList,
     expected: &ExpectedMessage,
@@ -289,7 +285,7 @@ fn try_expect_message(
     Ok(())
 }
 
-crate fn compare_json(actual: &serde_json::Value, expected: &str) {
+pub(crate) fn compare_json(actual: &serde_json::Value, expected: &str) {
     let expected: serde_json::Value = serde_json::from_str(expected).unwrap();
     if actual != &expected {
         panic!(
@@ -301,14 +297,14 @@ crate fn compare_json(actual: &serde_json::Value, expected: &str) {
 }
 
 #[derive(Clone, Copy, Debug)]
-crate struct Src<'a> {
-    crate file_name: &'a Path,
+pub(crate) struct Src<'a> {
+    pub(crate) file_name: &'a Path,
     // 1 indexed
-    crate line: usize,
-    crate name: &'a str,
+    pub(crate) line: usize,
+    pub(crate) name: &'a str,
 }
 
-crate fn src<'a>(file_name: &'a Path, line: usize, name: &'a str) -> Src<'a> {
+pub(crate) fn src<'a>(file_name: &'a Path, line: usize, name: &'a str) -> Src<'a> {
     Src {
         file_name,
         line,
@@ -316,7 +312,7 @@ crate fn src<'a>(file_name: &'a Path, line: usize, name: &'a str) -> Src<'a> {
     }
 }
 
-crate struct Cache {
+pub(crate) struct Cache {
     base_path: PathBuf,
     files: HashMap<PathBuf, Vec<String>>,
 }
@@ -329,7 +325,7 @@ impl Cache {
         }
     }
 
-    crate fn mk_ls_position(&mut self, src: Src<'_>) -> ls_types::Position {
+    pub(crate) fn mk_ls_position(&mut self, src: Src<'_>) -> ls_types::Position {
         let line = self.get_line(src);
         let col = line
             .find(src.name)
@@ -340,14 +336,14 @@ impl Cache {
     /// Create a range covering the initial position on the line
     ///
     /// The line number uses a 0-based index.
-    crate fn mk_ls_range_from_line(&mut self, line: u64) -> ls_types::Range {
+    pub(crate) fn mk_ls_range_from_line(&mut self, line: u64) -> ls_types::Range {
         ls_types::Range::new(
             ls_types::Position::new(line, 0),
             ls_types::Position::new(line, 0),
         )
     }
 
-    crate fn abs_path(&self, file_name: &Path) -> PathBuf {
+    pub(crate) fn abs_path(&self, file_name: &Path) -> PathBuf {
         let result = self
             .base_path
             .join(file_name)

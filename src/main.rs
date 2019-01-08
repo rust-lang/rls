@@ -15,15 +15,6 @@
 //! functionality such as 'goto definition', symbol search, reformatting, and
 //! code completion, and enables renaming and refactorings.
 
-#![feature(rustc_private, integer_atomics, drain_filter)]
-#![feature(crate_visibility_modifier)] // needed for edition 2018
-#![allow(unknown_lints)]
-#![warn(clippy::all, rust_2018_idioms)]
-#![allow(
-    clippy::cyclomatic_complexity,
-    clippy::needless_pass_by_value,
-    clippy::too_many_arguments
-)]
 // See rustc/rustc.rs in rust repo for explanation of stack adjustments.
 #![feature(link_args)]
 #[allow(unused_attributes)]
@@ -38,38 +29,18 @@
 extern "C" {}
 
 use log::warn;
-use env_logger;
-use rustc_tools_util::*;
+use rls_rustc as rustc_shim;
 
 use std::env;
 use std::sync::Arc;
 
-use rls_analysis::{AnalysisHost, Target};
-use rls_rustc as rustc_shim;
-use rls_vfs::Vfs;
-
-pub mod actions;
-pub mod build;
-pub mod cmd;
-pub mod concurrency;
-pub mod config;
-pub mod lsp_data;
-pub mod project_model;
-pub mod server;
-
-#[cfg(test)]
-mod test;
-
-const RUSTC_SHIM_ENV_VAR_NAME: &str = "RLS_RUSTC_SHIM";
 const RUSTC_WRAPPER_ENV_VAR: &str = "RUSTC_WRAPPER";
-
-type Span = rls_span::Span<rls_span::ZeroIndexed>;
 
 /// The main entry point to the RLS. Parses CLI arguments and then runs the
 /// server.
 pub fn main() {
     let exit_code = main_inner();
-    ::std::process::exit(exit_code);
+    std::process::exit(exit_code);
 }
 
 fn main_inner() -> i32 {
@@ -88,18 +59,15 @@ fn main_inner() -> i32 {
         env::remove_var(RUSTC_WRAPPER_ENV_VAR);
     }
 
-    if env::var(RUSTC_SHIM_ENV_VAR_NAME)
-        .map(|v| v != "0")
-        .unwrap_or(false)
-    {
+    if env::var(rls::RUSTC_SHIM_ENV_VAR_NAME).ok().map_or(false, |v| v != "0") {
         rustc_shim::run();
         return 0;
     }
 
-    if let Some(first_arg) = ::std::env::args().nth(1) {
+    if let Some(first_arg) = env::args().nth(1) {
         return match first_arg.as_str() {
             "--version" | "-V" => {
-                println!("{}", version());
+                println!("{}", rls::version());
                 0
             }
             "--help" | "-h" => {
@@ -107,7 +75,7 @@ fn main_inner() -> i32 {
                 0
             }
             "--cli" => {
-                cmd::run();
+                rls::cmd::run();
                 0
             }
             unknown => {
@@ -121,15 +89,10 @@ fn main_inner() -> i32 {
         };
     }
 
-    let analysis = Arc::new(AnalysisHost::new(Target::Debug));
-    let vfs = Arc::new(Vfs::new());
+    let analysis = Arc::new(rls::AnalysisHost::new(rls::Target::Debug));
+    let vfs = Arc::new(rls::Vfs::new());
 
-    server::run_server(analysis, vfs)
-}
-
-fn version() -> String {
-    let version = rustc_tools_util::get_version_info!();
-    version.to_string()
+    rls::server::run_server(analysis, vfs)
 }
 
 fn help() -> &'static str {
