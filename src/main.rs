@@ -99,7 +99,7 @@ fn main_inner() -> i32 {
     if let Some(first_arg) = ::std::env::args().nth(1) {
         return match first_arg.as_str() {
             "--version" | "-V" => {
-                println!("{}", version().replace("rls", "rls-preview"));
+                println!("{}", version());
                 0
             }
             "--help" | "-h" => {

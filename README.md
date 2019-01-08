@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/rust-lang/rls.svg?branch=master)](https://travis-ci.org/rust-lang/rls)
-[![Nightly status](https://img.shields.io/badge/dynamic/json.svg?label=rls-preview%20(Windows)&url=https%3A%2F%2Fraw.githubusercontent.com%2Frust-lang-nursery%2Frust-toolstate%2Fmaster%2F_data%2Flatest.json&query=%24%5B%3F(%40.tool%3D%3D%22rls%22)%5D.windows&colorB=lightgrey)](https://rust-lang-nursery.github.io/rust-toolstate/)
-[![Nightly status](https://img.shields.io/badge/dynamic/json.svg?label=rls-preview%20(Linux)&url=https%3A%2F%2Fraw.githubusercontent.com%2Frust-lang-nursery%2Frust-toolstate%2Fmaster%2F_data%2Flatest.json&query=%24%5B%3F(%40.tool%3D%3D%22rls%22)%5D.linux&colorB=lightgrey)](https://rust-lang-nursery.github.io/rust-toolstate/)
+[![Nightly status](https://img.shields.io/badge/dynamic/json.svg?label=rls%20(Windows)&url=https%3A%2F%2Fraw.githubusercontent.com%2Frust-lang-nursery%2Frust-toolstate%2Fmaster%2F_data%2Flatest.json&query=%24%5B%3F(%40.tool%3D%3D%22rls%22)%5D.windows&colorB=lightgrey)](https://rust-lang-nursery.github.io/rust-toolstate/)
+[![Nightly status](https://img.shields.io/badge/dynamic/json.svg?label=rls%20(Linux)&url=https%3A%2F%2Fraw.githubusercontent.com%2Frust-lang-nursery%2Frust-toolstate%2Fmaster%2F_data%2Flatest.json&query=%24%5B%3F(%40.tool%3D%3D%22rls%22)%5D.linux&colorB=lightgrey)](https://rust-lang-nursery.github.io/rust-toolstate/)
 
 
 
@@ -51,11 +51,11 @@ If you're going to use the VSCode extension, you can skip step 2.
 Once you have rustup installed, run the following commands:
 
 ```
-rustup component add rls-preview rust-analysis rust-src
+rustup component add rls rust-analysis rust-src
 ```
 
 #### Note (nightly only)
-Sometimes the `rls-preview` component is not included in a nightly build due to
+Sometimes the `rls` component is not included in a nightly build due to
 certain issues. To see if the component is included in a particular build and
 what to do if it's not, check [#641](https://github.com/rust-lang/rls/issues/641).
 

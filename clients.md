@@ -55,8 +55,7 @@ Once you have this basic support in place, the hard work begins:
   - For the config options, see [config.rs](https://github.com/rust-lang/rls/blob/master/src/config.rs#L99-L117)
 * Check for and install the RLS
   - you should use Rustup
-  - you should check the RLS is installed, and if not, install it and the `rust-analysis` and `rust-src` components
-  - be aware that the RLS component is changing name - currently `rls`, will become `rls-preview`.
+  - you should check if the RLS (`rls`) is installed, and if not, install it and the `rust-analysis` and `rust-src` components
   - you should provide a way to update the RLS component
 * Client-side features
   - e.g., code snippets, build tasks, syntax highlighting
