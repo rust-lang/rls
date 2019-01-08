@@ -357,7 +357,7 @@ impl RlsExecutor {
         progress_sender: Sender<ProgressUpdate>,
         reached_primary: Arc<AtomicBool>,
     ) -> RlsExecutor {
-        let member_packages = ws.members().map(|x| x.package_id().clone()).collect();
+        let member_packages = ws.members().map(|x| x.package_id()).collect();
 
         RlsExecutor {
             compilation_cx,

@@ -125,7 +125,7 @@ impl CargoPlan {
             })
             .collect();
 
-        let unit_key = (id.clone(), target.clone(), mode);
+        let unit_key = (id, target.clone(), mode);
         trace!("Caching these files: {:#?} for {:?} key", &input_files, &unit_key);
 
         // Create reverse file -> unit mapping (to be used for dirty unit calculation)
@@ -514,7 +514,7 @@ impl PackageMap {
 
 fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
     (
-        unit.pkg.package_id().clone(),
+        unit.pkg.package_id(),
         unit.target.clone(),
         unit.mode,
     )
@@ -546,7 +546,7 @@ impl BuildKey for OwnedUnit {
     type Key = UnitKey;
 
     fn key(&self) -> UnitKey {
-        (self.id.clone(), self.target.clone(), self.mode)
+        (self.id, self.target.clone(), self.mode)
     }
 }
 
