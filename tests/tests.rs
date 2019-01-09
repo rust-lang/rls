@@ -11,7 +11,6 @@
 use serde_json::{self, json};
 
 use std::io::Write;
-use std::time::Duration;
 
 use rls::actions::requests;
 use rls::lsp_data::request::Request as _;
@@ -617,38 +616,29 @@ fn cmd_test_complete_self_crate_name() {
         .unwrap()
         .contains("expected identifier"));
 
-    let mut json = serde_json::Value::Null;
-    for i in 0..3 {
-        let request_id = 100 + i;
+    let request_id = 101;
 
-        rls.request(
-            request_id,
-            "textDocument/completion",
-            Some(json!({
-                "context": {
-                    "triggerCharacter": ":",
-                    "triggerKind": 2
-                },
-                "position": {
-                    "character": 32,
-                    "line": 2
-                },
-                "textDocument": {
-                    "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
-                    "version": 1
-                }
-            })),
-        )
-        .unwrap();
+    rls.request(
+        request_id,
+        "textDocument/completion",
+        Some(json!({
+            "context": {
+                "triggerCharacter": ":",
+                "triggerKind": 2
+            },
+            "position": {
+                "character": 32,
+                "line": 2
+            },
+            "textDocument": {
+                "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
+                "version": 1
+            }
+        })),
+    )
+    .unwrap();
 
-        json = rls.wait_until_json_id(request_id, rls_timeout());
-
-        if !json["result"].as_array().unwrap().is_empty() {
-            // retry completion message, rls not ready?
-            std::thread::sleep(Duration::from_millis(50));
-            continue;
-        }
-    };
+    let json = rls.wait_until_json_id(request_id, rls_timeout());
     assert_eq!(json["result"][0]["detail"], "pub fn function() -> usize");
 
     rls.shutdown(rls_timeout());
@@ -711,38 +701,31 @@ fn test_completion_suggests_arguments_in_statements() {
     )
     .unwrap();
 
-    let mut json = serde_json::Value::Null;
-    for i in 0..3 {
-        let request_id = 100 + i;
+    rls.wait_until_done_indexing(rls_timeout());
 
-        rls.request(
-            request_id,
-            "textDocument/completion",
-            Some(json!({
-                "context": {
-                    "triggerCharacter": "f",
-                    "triggerKind": 2
-                },
-                "position": {
-                    "character": 41,
-                    "line": 3
-                },
-                "textDocument": {
-                    "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
-                    "version": 1
-                }
-            })),
-        )
-        .unwrap();
+    let request_id = 101;
 
-        json = rls.wait_until_json_id(request_id, rls_timeout());
+    rls.request(
+        request_id,
+        "textDocument/completion",
+        Some(json!({
+            "context": {
+                "triggerCharacter": "f",
+                "triggerKind": 2
+            },
+            "position": {
+                "character": 41,
+                "line": 3
+            },
+            "textDocument": {
+                "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
+                "version": 1
+            }
+        })),
+    )
+    .unwrap();
 
-        if json["result"].as_array().unwrap().is_empty() {
-            // retry completion message, rls not ready?
-            std::thread::sleep(Duration::from_millis(50));
-            continue;
-        }
-    }
+    let json = rls.wait_until_json_id(request_id, rls_timeout());
     assert_eq!(json["result"][0]["insertText"], "function()");
 
     rls.shutdown(rls_timeout());
@@ -796,38 +779,31 @@ fn test_use_statement_completion_doesnt_suggest_arguments() {
     )
     .unwrap();
 
-    let mut json = serde_json::Value::Null;
-    for i in 0..3 {
-        let request_id = 100 + i;
+    rls.wait_until_done_indexing(rls_timeout());
 
-        rls.request(
-            request_id,
-            "textDocument/completion",
-            Some(json!({
-                "context": {
-                    "triggerCharacter": ":",
-                    "triggerKind": 2
-                },
-                "position": {
-                    "character": 32,
-                    "line": 2
-                },
-                "textDocument": {
-                    "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
-                    "version": 1
-                }
-            })),
-        )
-        .unwrap();
+    let request_id = 101;
 
-        json = rls.wait_until_json_id(request_id, rls_timeout());
+    rls.request(
+        request_id,
+        "textDocument/completion",
+        Some(json!({
+            "context": {
+                "triggerCharacter": ":",
+                "triggerKind": 2
+            },
+            "position": {
+                "character": 32,
+                "line": 2
+            },
+            "textDocument": {
+                "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
+                "version": 1
+            }
+        })),
+    )
+    .unwrap();
 
-        if json["result"].as_array().unwrap().is_empty() {
-            // retry completion message, rls not ready?
-            std::thread::sleep(Duration::from_millis(50));
-            continue;
-        }
-    }
+    let json = rls.wait_until_json_id(request_id, rls_timeout());
     assert_eq!(json["result"][0]["insertText"], "function");
 
     rls.shutdown(rls_timeout());
