@@ -134,7 +134,7 @@ fn test_goto_def() {
                 text_document: TextDocumentIdentifier::new(url),
                 position: env
                     .cache
-                    .mk_ls_position(src(&source_file_path, 22, "world")),
+                    .mk_ls_position(src(&source_file_path, 13, "world")),
             },
         ).to_string(),
     ];
@@ -162,7 +162,7 @@ fn test_goto_def() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":20,"character":8}"#),
+        ExpectedMessage::new(Some(11)).expect_contains(r#""start":{"line":11,"character":8}"#),
     );
 }
 
@@ -184,7 +184,7 @@ fn test_hover() {
                 text_document: TextDocumentIdentifier::new(url),
                 position: env
                     .cache
-                    .mk_ls_position(src(&source_file_path, 22, "world")),
+                    .mk_ls_position(src(&source_file_path, 13, "world")),
             },
         ).to_string(),
     ];
@@ -228,7 +228,7 @@ fn test_hover_after_src_line_change() {
 
     let world_src_pos = env
         .cache
-        .mk_ls_position(src(&source_file_path, 21, "world"));
+        .mk_ls_position(src(&source_file_path, 12, "world"));
     let world_src_pos_after = Position {
         line: world_src_pos.line + 1,
         ..world_src_pos
@@ -251,11 +251,11 @@ fn test_hover_after_src_line_change() {
             content_changes: vec![TextDocumentContentChangeEvent {
                 range: Some(Range {
                     start: Position {
-                        line: 19,
+                        line: 10,
                         character: 15,
                     },
                     end: Position {
-                        line: 19,
+                        line: 10,
                         character: 15,
                     },
                 }),
@@ -361,7 +361,7 @@ fn test_workspace_symbol() {
             .expect_contains(r#"main.rs"#)
             .expect_contains(r#""name":"nemo""#)
             .expect_contains(r#""kind":12"#)
-            .expect_contains(r#""range":{"start":{"line":11,"character":11},"end":{"line":11,"character":15}}"#)
+            .expect_contains(r#""range":{"start":{"line":1,"character":11},"end":{"line":1,"character":15}}"#)
             .expect_contains(r#""containerName":"x""#)
 
             // in foo.rs
@@ -421,8 +421,8 @@ fn test_workspace_symbol_duplicates() {
             "kind": 23,
             "location": {
               "range": {
-                "end": { "line": 11, "character": 18 },
-                "start": { "line": 11, "character": 7 }
+                "end": { "line": 1, "character": 18 },
+                "start": { "line": 1, "character": 7 }
               },
               "uri": "shared.rs"
             },
@@ -447,7 +447,7 @@ fn test_find_all_refs() {
             42,
             ReferenceParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env.cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 1, "Bar")),
                 context: ReferenceContext {
                     include_declaration: true,
                 },
@@ -479,11 +479,11 @@ fn test_find_all_refs() {
         results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
-                r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
+                r#"{"start":{"line":0,"character":7},"end":{"line":0,"character":10}}"#,
             ).expect_contains(
-                r#"{"start":{"line":15,"character":14},"end":{"line":15,"character":17}}"#,
+                r#"{"start":{"line":6,"character":14},"end":{"line":6,"character":17}}"#,
             ).expect_contains(
-                r#"{"start":{"line":23,"character":15},"end":{"line":23,"character":18}}"#,
+                r#"{"start":{"line":14,"character":15},"end":{"line":14,"character":18}}"#,
             ),
     );
 }
@@ -505,7 +505,7 @@ fn test_find_all_refs_no_cfg_test() {
             42,
             ReferenceParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env.cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 1, "Bar")),
                 context: ReferenceContext {
                     include_declaration: true,
                 },
@@ -536,9 +536,9 @@ fn test_find_all_refs_no_cfg_test() {
         results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
-                r#"{"start":{"line":9,"character":7},"end":{"line":9,"character":10}}"#,
+                r#"{"start":{"line":0,"character":7},"end":{"line":0,"character":10}}"#,
             ).expect_contains(
-                r#"{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#,
+                r#"{"start":{"line":13,"character":15},"end":{"line":13,"character":18}}"#,
             ),
     );
 }
@@ -593,7 +593,7 @@ fn test_highlight() {
                 text_document: TextDocumentIdentifier::new(url),
                 position: env
                     .cache
-                    .mk_ls_position(src(&source_file_path, 22, "world")),
+                    .mk_ls_position(src(&source_file_path, 13, "world")),
             },
         ).to_string(),
     ];
@@ -621,9 +621,9 @@ fn test_highlight() {
         results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
-                r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
+                r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#,
             ).expect_contains(
-                r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#,
+                r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#,
             ),
     );
 }
@@ -646,7 +646,7 @@ fn test_rename() {
                 text_document: text_doc,
                 position: env
                     .cache
-                    .mk_ls_position(src(&source_file_path, 22, "world")),
+                    .mk_ls_position(src(&source_file_path, 13, "world")),
                 new_name: "foo".to_owned(),
             },
         ).to_string(),
@@ -676,9 +676,9 @@ fn test_rename() {
         results,
         ExpectedMessage::new(Some(42))
             .expect_contains(
-                r#"{"start":{"line":20,"character":8},"end":{"line":20,"character":13}}"#,
+                r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#,
             ).expect_contains(
-                r#"{"start":{"line":21,"character":27},"end":{"line":21,"character":32}}"#,
+                r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#,
             ).expect_contains(r#"{"changes""#),
     );
 }
@@ -1744,7 +1744,7 @@ fn fail_uninitialized_request() {
                 text_document: TextDocumentIdentifier::new(url),
                 position: env
                     .cache
-                    .mk_ls_position(src(&source_file_path, 22, "world")),
+                    .mk_ls_position(src(&source_file_path, 13, "world")),
             },
         ).to_string(),
         initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
