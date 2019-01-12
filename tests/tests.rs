@@ -1,13 +1,3 @@
-// Copyright 2016 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 use serde_json::{self, json};
 
 use std::io::Write;
@@ -307,27 +297,27 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
     rls.notify(
         "textDocument/didChange",
         Some(json!({
-                "contentChanges": [
-                    {
-                        "range": {
-                            "start": {
-                                "line": 1,
-                                "character": 38,
-                            },
-                            "end": {
-                                "line": 1,
-                                "character": 41,
-                            }
+            "contentChanges": [
+                {
+                    "range": {
+                        "start": {
+                            "line": 1,
+                            "character": 38,
                         },
-                        "rangeLength": 3,
-                        "text": "u64"
-                    }
-                ],
-                "textDocument": {
-                    "uri": format!("file://{}/library/src/lib.rs", root_path.display()),
-                    "version": 0
+                        "end": {
+                            "line": 1,
+                            "character": 41,
+                        }
+                    },
+                    "rangeLength": 3,
+                    "text": "u64"
                 }
-            })),
+            ],
+            "textDocument": {
+                "uri": format!("file://{}/library/src/lib.rs", root_path.display()),
+                "version": 0
+            }
+        })),
     )
     .unwrap();
 
@@ -362,27 +352,27 @@ fn cmd_changing_workspace_lib_retains_bin_diagnostics() {
     rls.notify(
         "textDocument/didChange",
         Some(json!({
-                "contentChanges": [
-                    {
-                        "range": {
-                            "start": {
-                                "line": 1,
-                                "character": 38,
-                            },
-                            "end": {
-                                "line": 1,
-                                "character": 41,
-                            }
+            "contentChanges": [
+                {
+                    "range": {
+                        "start": {
+                            "line": 1,
+                            "character": 38,
                         },
-                        "rangeLength": 3,
-                        "text": "u32"
-                    }
-                ],
-                "textDocument": {
-                    "uri": format!("file://{}/library/src/lib.rs", root_path.display()),
-                    "version": 1
+                        "end": {
+                            "line": 1,
+                            "character": 41,
+                        }
+                    },
+                    "rangeLength": 3,
+                    "text": "u32"
                 }
-            })),
+            ],
+            "textDocument": {
+                "uri": format!("file://{}/library/src/lib.rs", root_path.display()),
+                "version": 1
+            }
+        })),
     )
     .unwrap();
 
@@ -478,27 +468,27 @@ fn cmd_implicit_workspace_pick_up_lib_changes() {
     rls.notify(
         "textDocument/didChange",
         Some(json!({
-                "contentChanges": [
-                    {
-                        "range": {
-                            "start": {
-                                "line": 1,
-                                "character": 23,
-                            },
-                            "end": {
-                                "line": 1,
-                                "character": 26,
-                            }
+            "contentChanges": [
+                {
+                    "range": {
+                        "start": {
+                            "line": 1,
+                            "character": 23,
                         },
-                        "rangeLength": 3,
-                        "text": "bar"
-                    }
-                ],
-                "textDocument": {
-                    "uri": format!("file://{}/inner/src/lib.rs", root_path.display()),
-                    "version": 0
+                        "end": {
+                            "line": 1,
+                            "character": 26,
+                        }
+                    },
+                    "rangeLength": 3,
+                    "text": "bar"
                 }
-            })),
+            ],
+            "textDocument": {
+                "uri": format!("file://{}/inner/src/lib.rs", root_path.display()),
+                "version": 0
+            }
+        })),
     )
     .unwrap();
 
@@ -520,27 +510,27 @@ fn cmd_implicit_workspace_pick_up_lib_changes() {
     rls.notify(
         "textDocument/didChange",
         Some(json!({
-                "contentChanges": [
-                    {
-                        "range": {
-                            "start": {
-                                "line": 1,
-                                "character": 23,
-                            },
-                            "end": {
-                                "line": 1,
-                                "character": 26,
-                            }
+            "contentChanges": [
+                {
+                    "range": {
+                        "start": {
+                            "line": 1,
+                            "character": 23,
                         },
-                        "rangeLength": 3,
-                        "text": "foo"
-                    }
-                ],
-                "textDocument": {
-                    "uri": format!("file://{}/inner/src/lib.rs", root_path.display()),
-                    "version": 1
+                        "end": {
+                            "line": 1,
+                            "character": 26,
+                        }
+                    },
+                    "rangeLength": 3,
+                    "text": "foo"
                 }
-            })),
+            ],
+            "textDocument": {
+                "uri": format!("file://{}/inner/src/lib.rs", root_path.display()),
+                "version": 1
+            }
+        })),
     )
     .unwrap();
 
