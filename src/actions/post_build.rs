@@ -30,7 +30,7 @@ use crate::lsp_data::{Range, PublishDiagnosticsParams};
 
 use failure;
 use itertools::Itertools;
-use languageserver_types::DiagnosticSeverity;
+use lsp_types::DiagnosticSeverity;
 use log::{trace, warn};
 use rls_analysis::AnalysisHost;
 use rls_data::Analysis;

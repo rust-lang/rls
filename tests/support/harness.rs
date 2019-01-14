@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use rls::config::{Config, Inferrable};
 use rls::server as ls_server;
 use env_logger;
-use languageserver_types as ls_types;
+use lsp_types;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
@@ -315,21 +315,21 @@ impl Cache {
         }
     }
 
-    pub(crate) fn mk_ls_position(&mut self, src: Src<'_>) -> ls_types::Position {
+    pub(crate) fn mk_ls_position(&mut self, src: Src<'_>) -> lsp_types::Position {
         let line = self.get_line(src);
         let col = line
             .find(src.name)
             .expect(&format!("Line does not contain name {}", src.name));
-        ls_types::Position::new((src.line - 1) as u64, char_of_byte_index(&line, col) as u64)
+        lsp_types::Position::new((src.line - 1) as u64, char_of_byte_index(&line, col) as u64)
     }
 
     /// Create a range covering the initial position on the line
     ///
     /// The line number uses a 0-based index.
-    pub(crate) fn mk_ls_range_from_line(&mut self, line: u64) -> ls_types::Range {
-        ls_types::Range::new(
-            ls_types::Position::new(line, 0),
-            ls_types::Position::new(line, 0),
+    pub(crate) fn mk_ls_range_from_line(&mut self, line: u64) -> lsp_types::Range {
+        lsp_types::Range::new(
+            lsp_types::Position::new(line, 0),
+            lsp_types::Position::new(line, 0),
         )
     }
 

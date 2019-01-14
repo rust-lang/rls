@@ -12,7 +12,7 @@
 
 use crate::actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
-use languageserver_types::notification::ShowMessage;
+use lsp_types::notification::ShowMessage;
 use log::debug;
 use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
@@ -417,7 +417,7 @@ impl Serialize for RawMessage {
 mod test {
     use super::*;
     use crate::server::notifications;
-    use languageserver_types::InitializedParams;
+    use lsp_types::InitializedParams;
     use serde_json::json;
 
     #[test]

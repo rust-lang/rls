@@ -27,10 +27,10 @@ pub use crate::server::message::{
 };
 use crate::version;
 use jsonrpc_core::{self as jsonrpc, types::error::ErrorCode, Id};
-pub use languageserver_types::notification::Exit as ExitNotification;
-pub use languageserver_types::request::Initialize as InitializeRequest;
-pub use languageserver_types::request::Shutdown as ShutdownRequest;
-use languageserver_types::{
+pub use lsp_types::notification::Exit as ExitNotification;
+pub use lsp_types::request::Initialize as InitializeRequest;
+pub use lsp_types::request::Shutdown as ShutdownRequest;
+use lsp_types::{
     CodeActionProviderCapability, CodeLensOptions, CompletionOptions, ExecuteCommandOptions,
     ImplementationProviderCapability, InitializeParams, InitializeResult, RenameProviderCapability,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
@@ -436,12 +436,12 @@ mod test {
             root_path: None,
             root_uri: None,
             initialization_options: None,
-            capabilities: languageserver_types::ClientCapabilities {
+            capabilities: lsp_types::ClientCapabilities {
                 workspace: None,
                 text_document: None,
                 experimental: None,
             },
-            trace: Some(languageserver_types::TraceOption::Off),
+            trace: Some(lsp_types::TraceOption::Off),
             workspace_folders: None,
         }
     }

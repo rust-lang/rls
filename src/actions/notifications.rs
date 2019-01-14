@@ -21,7 +21,7 @@ use crate::build::*;
 use crate::lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
 use crate::lsp_data::*;
 use crate::server::Request;
-use languageserver_types::notification::ShowMessage;
+use lsp_types::notification::ShowMessage;
 
 pub use crate::lsp_data::notification::{
     Cancel, DidChangeConfiguration, DidChangeTextDocument, DidChangeWatchedFiles,

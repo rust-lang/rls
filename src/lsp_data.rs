@@ -4,7 +4,6 @@ use std::error::Error;
 use std::fmt;
 use std::path::PathBuf;
 
-use languageserver_types as ls_types;
 use racer;
 use rls_analysis::DefKind;
 use rls_span as span;
@@ -14,9 +13,9 @@ use url::Url;
 use crate::config;
 use crate::actions::hover;
 
-pub use languageserver_types::notification::Notification as LSPNotification;
-pub use languageserver_types::request::Request as LSPRequest;
-pub use languageserver_types::*;
+pub use lsp_types::notification::Notification as LSPNotification;
+pub use lsp_types::request::Request as LSPRequest;
+pub use lsp_types::*;
 
 /// Errors that can occur when parsing a file URI.
 #[derive(Debug)]
@@ -277,7 +276,7 @@ impl Default for InitializationOptions {
     }
 }
 
-// Subset of flags from ls_types::ClientCapabilities that affects this RLS.
+// Subset of flags from lsp_types::ClientCapabilities that affects this RLS.
 // Passed in the `initialize` request under `capabilities`.
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone, Copy, Default)]
 #[serde(default)]
@@ -287,8 +286,8 @@ pub struct ClientCapabilities {
 }
 
 impl ClientCapabilities {
-    pub fn new(params: &ls_types::InitializeParams) -> ClientCapabilities {
-        // ls_types::ClientCapabilities is a rather awkward object to use internally
+    pub fn new(params: &lsp_types::InitializeParams) -> ClientCapabilities {
+        // lsp_types::ClientCapabilities is a rather awkward object to use internally
         // (for instance it doesn't Clone). Instead we pick out the bits of it that we
         // are going to handle into ClientCapabilities. The upside of
         // using this very simple struct is that it can be kept thread safe

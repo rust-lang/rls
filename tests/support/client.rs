@@ -208,8 +208,8 @@ impl RlsHandle {
     /// Requests the RLS to shut down and waits (with a timeout) until the child
     /// process is terminated.
     pub fn shutdown(mut self) {
-        self.request::<languageserver_types::request::Shutdown>(99999, ());
-        self.notify::<languageserver_types::notification::Exit>(());
+        self.request::<lsp_types::request::Shutdown>(99999, ());
+        self.notify::<lsp_types::notification::Exit>(());
 
         let fut = self.child.wait_with_output().timeout(rls_timeout());
 
