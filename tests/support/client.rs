@@ -205,6 +205,18 @@ impl RlsHandle {
         });
     }
 
+    /// Blocks until a "textDocument/publishDiagnostics" message is received.
+    pub fn wait_for_diagnostics(&mut self) -> lsp_types::PublishDiagnosticsParams {
+        use lsp_types::notification::Notification;
+
+        let msg = self.wait_for_message(|msg| {
+            msg["method"] == lsp_types::notification::PublishDiagnostics::METHOD
+        });
+
+        lsp_types::PublishDiagnosticsParams::deserialize(&msg["params"])
+            .unwrap_or_else(|_| panic!("Can't deserialize params: {:?}", msg))
+    }
+
     /// Requests the RLS to shut down and waits (with a timeout) until the child
     /// process is terminated.
     pub fn shutdown(mut self) {
