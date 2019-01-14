@@ -19,6 +19,8 @@ use futures::stream::Stream;
 use futures::unsync::oneshot;
 use futures::Future;
 use lsp_codec::{LspDecoder, LspEncoder};
+use lsp_types::PublishDiagnosticsParams;
+use lsp_types::notification::{Notification, PublishDiagnostics};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::codec::{FramedRead, FramedWrite};
@@ -133,6 +135,10 @@ impl RlsHandle {
         self.messages.borrow()
     }
 
+    pub fn runtime(&mut self) -> &mut Runtime {
+        &mut self.runtime
+    }
+
     /// Send a request to the RLS and block until we receive the message.
     /// Note that between sending and receiving the response *another* messages
     /// can be received.
@@ -192,6 +198,19 @@ impl RlsHandle {
         rx
     }
 
+    // Returns a future diagnostic message for a given file path suffix.
+    #[rustfmt::skip]
+    pub fn future_diagnostics(
+        &mut self,
+        path: impl AsRef<str> + 'static,
+    ) -> impl Future<Item = PublishDiagnosticsParams, Error = oneshot::Canceled> {
+        self.future_msg(move |msg|
+            msg["method"] == PublishDiagnostics::METHOD &&
+            msg["params"]["uri"].as_str().unwrap().ends_with(path.as_ref())
+        )
+        .and_then(|msg| Ok(PublishDiagnosticsParams::deserialize(&msg["params"]).unwrap()))
+    }
+
     /// Blocks until a message, for which predicate `f` returns true, is received.
     pub fn wait_for_message(&mut self, f: impl Fn(&Value) -> bool + 'static) -> Value {
         let fut = self.future_msg(f);
@@ -207,11 +226,7 @@ impl RlsHandle {
 
     /// Blocks until a "textDocument/publishDiagnostics" message is received.
     pub fn wait_for_diagnostics(&mut self) -> lsp_types::PublishDiagnosticsParams {
-        use lsp_types::notification::Notification;
-
-        let msg = self.wait_for_message(|msg| {
-            msg["method"] == lsp_types::notification::PublishDiagnostics::METHOD
-        });
+        let msg = self.wait_for_message(|msg| msg["method"] == PublishDiagnostics::METHOD);
 
         lsp_types::PublishDiagnosticsParams::deserialize(&msg["params"])
             .unwrap_or_else(|_| panic!("Can't deserialize params: {:?}", msg))

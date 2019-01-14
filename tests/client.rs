@@ -1,9 +1,10 @@
 use std::path::Path;
 
+use futures::future::Future;
+use lsp_types::{*, request::*, notification::*};
+
 use crate::support::basic_bin_manifest;
 use crate::support::project_builder::project;
-
-use lsp_types::{*, request::*};
 
 #[allow(dead_code)]
 mod support;
@@ -147,6 +148,144 @@ fn client_test_simple_workspace() {
         .filter(|msg| msg["params"]["message"].as_str().map(|x| x.starts_with("member_")).unwrap_or(false))
         .count();
     assert_eq!(count, 4);
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_changing_workspace_lib_retains_diagnostics() {
+    let p = project("simple_workspace")
+        .file(
+            "Cargo.toml",
+            r#"
+                [workspace]
+                members = [
+                "library",
+                "binary",
+                ]
+            "#,
+        )
+        .file(
+            "library/Cargo.toml",
+            r#"
+                [package]
+                name = "library"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#,
+        )
+        .file(
+            "library/src/lib.rs",
+            r#"
+                pub fn fetch_u32() -> u32 {
+                    let unused = ();
+                    42
+                }
+                #[cfg(test)]
+                mod test {
+                    #[test]
+                    fn my_test() {
+                        let test_val: u32 = super::fetch_u32();
+                    }
+                }
+            "#,
+        )
+        .file(
+            "binary/Cargo.toml",
+            r#"
+                [package]
+                name = "binary"
+                version = "0.1.0"
+                authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
+
+                [dependencies]
+                library = { path = "../library" }
+            "#,
+        )
+        .file(
+            "binary/src/main.rs",
+            r#"
+                extern crate library;
+
+                fn main() {
+                    let val: u32 = library::fetch_u32();
+                }
+            "#,
+        )
+        .build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let lib = rls.future_diagnostics("library/src/lib.rs");
+    let bin = rls.future_diagnostics("binary/src/main.rs");
+    let (lib, bin) = rls.runtime().block_on(lib.join(bin)).unwrap();
+
+    assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `test_val`")));
+    assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
+    assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
+
+    rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: Position {
+                    line: 1,
+                    character: 38,
+                },
+                end: Position {
+                    line: 1,
+                    character: 41
+                }
+            }),
+            range_length: Some(3),
+            text: "u64".to_string(),
+        }],
+        text_document: VersionedTextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("library/src/lib.rs")).unwrap(),
+            version: Some(0),
+        }
+    });
+
+    let lib = rls.future_diagnostics("library/src/lib.rs");
+    let bin = rls.future_diagnostics("binary/src/main.rs");
+    let (lib, bin) = rls.runtime().block_on(lib.join(bin)).unwrap();
+
+    // lib unit tests have compile errors
+    assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
+    assert!(lib.diagnostics.iter().any(|m| m.message.contains("expected u32, found u64")));
+    // bin depending on lib picks up type mismatch
+    assert!(bin.diagnostics[0].message.contains("mismatched types\n\nexpected u32, found u64"));
+
+    rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: Position {
+                    line: 1,
+                    character: 38,
+                },
+                end: Position {
+                    line: 1,
+                    character: 41
+                }
+            }),
+            range_length: Some(3),
+            text: "u32".to_string(),
+        }],
+        text_document: VersionedTextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("library/src/lib.rs")).unwrap(),
+            version: Some(1),
+        }
+    });
+
+    let lib = rls.future_diagnostics("library/src/lib.rs");
+    let bin = rls.future_diagnostics("binary/src/main.rs");
+    let (lib, bin) = rls.runtime().block_on(lib.join(bin)).unwrap();
+
+    assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `test_val`")));
+    assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
+    assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
 
     rls.shutdown();
 }
