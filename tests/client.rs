@@ -530,6 +530,9 @@ fn client_completion_suggests_arguments_in_statements() {
         workspace_folders: None,
     });
 
+    let diag = rls.wait_for_diagnostics();
+    assert!(diag.diagnostics[0].message.contains("expected one of"));
+
     // Sometimes RLS is not ready immediately for completion
     let mut insert_text = None;
     for id in 100..103 {
@@ -557,4 +560,75 @@ fn client_completion_suggests_arguments_in_statements() {
     }
     // Make sure we get the completion at least once right
     assert_eq!(insert_text.as_ref().unwrap(), "function()");
+}
+
+#[test]
+fn client_use_statement_completion_doesnt_suggest_arguments() {
+    let p = project("ws_with_test_dir")
+        .file(
+            "Cargo.toml",
+            r#"
+                [workspace]
+                members = ["library"]
+            "#,
+        )
+        .file(
+            "library/Cargo.toml",
+            r#"
+                [package]
+                name = "library"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#,
+        )
+        .file(
+            "library/src/lib.rs",
+            r#"
+                pub fn function() -> usize { 5 }
+            "#,
+        )
+        .file(
+            "library/tests/test.rs",
+            r#"
+                   extern crate library;
+                   use library::~;
+            "#,
+        )
+        .build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag = rls.wait_for_diagnostics();
+    assert!(diag.diagnostics[0].message.contains("expected identifier"));
+
+    // Sometimes RLS is not ready immediately for completion
+    let mut insert_text = None;
+    for id in 100..103 {
+        let response = rls.request::<Completion>(id, CompletionParams {
+            context: Some(CompletionContext {
+                trigger_character: Some(":".to_string()),
+                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+            }),
+            position: Position::new(2, 32),
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            }
+        });
+
+        let items = match response {
+            Some(CompletionResponse::Array(items)) => items,
+            Some(CompletionResponse::List(CompletionList { items, ..})) => items,
+            _ => Vec::new(),
+        };
+
+        if let Some(item) = items.get(0) {
+            insert_text = item.insert_text.clone();
+            break;
+        }
+    }
+    // Make sure we get the completion at least once right
+    assert_eq!(insert_text.as_ref().unwrap(), "function");
 }

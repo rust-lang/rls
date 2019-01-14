@@ -1,7 +1,6 @@
 use serde_json::{self, json, Value as JsonValue};
 
 use std::io::Write;
-use std::time::Duration;
 
 use rls::actions::requests;
 use rls::lsp_data::request::Request as _;
@@ -12,91 +11,6 @@ use self::support::{fixtures_dir, rls_timeout};
 
 #[allow(dead_code)]
 mod support;
-
-#[test]
-fn test_use_statement_completion_doesnt_suggest_arguments() {
-    let p = project("ws_with_test_dir")
-        .file(
-            "Cargo.toml",
-            r#"
-                [workspace]
-                members = ["library"]
-            "#,
-        )
-        .file(
-            "library/Cargo.toml",
-            r#"
-                [package]
-                name = "library"
-                version = "0.1.0"
-                authors = ["Example <rls@example.com>"]
-            "#,
-        )
-        .file(
-            "library/src/lib.rs",
-            r#"
-                pub fn function() -> usize { 5 }
-            "#,
-        )
-        .file(
-            "library/tests/test.rs",
-            r#"
-                   extern crate library;
-                   use library::~;
-            "#,
-        )
-        .build();
-
-    //32, 2
-    let root_path = p.root();
-    let mut rls = p.spawn_rls();
-
-    rls.request(
-        0,
-        "initialize",
-        Some(json!({
-            "rootPath": root_path,
-            "capabilities": {}
-        })),
-    )
-    .unwrap();
-
-    let mut json = serde_json::Value::Null;
-    for i in 0..3 {
-        let request_id = 100 + i;
-
-        rls.request(
-            request_id,
-            "textDocument/completion",
-            Some(json!({
-                "context": {
-                    "triggerCharacter": ":",
-                    "triggerKind": 2
-                },
-                "position": {
-                    "character": 32,
-                    "line": 2
-                },
-                "textDocument": {
-                    "uri": format!("file://{}/library/tests/test.rs", root_path.display()),
-                    "version": 1
-                }
-            })),
-        )
-        .unwrap();
-
-        json = rls.wait_until_json_id(request_id, rls_timeout());
-
-        if json["result"].as_array().unwrap().is_empty() {
-            // retry completion message, rls not ready?
-            std::thread::sleep(Duration::from_millis(50));
-            continue;
-        }
-    }
-    assert_eq!(json["result"][0]["insertText"], "function");
-
-    rls.shutdown(rls_timeout());
-}
 
 /// Test simulates typing in a dependency wrongly in a couple of ways before finally getting it
 /// right. Rls should provide Cargo.toml diagnostics.
