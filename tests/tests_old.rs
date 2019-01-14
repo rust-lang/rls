@@ -12,7 +12,7 @@ use self::support::harness::{
     compare_json, expect_message, expect_series, src, Environment, ExpectedMessage, RecordOutput,
 };
 
-use languageserver_types::*;
+use lsp_types::*;
 
 use env_logger;
 use serde_json;

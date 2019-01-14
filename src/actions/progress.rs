@@ -14,7 +14,7 @@ use crate::lsp_data::{
     MessageType, Progress, ProgressParams, PublishDiagnosticsParams, ShowMessageParams,
 };
 use crate::server::{Notification, Output};
-use languageserver_types::notification::{PublishDiagnostics, ShowMessage};
+use lsp_types::notification::{PublishDiagnostics, ShowMessage};
 use lazy_static::lazy_static;
 
 /// Trait for communication of build progress back to the client.

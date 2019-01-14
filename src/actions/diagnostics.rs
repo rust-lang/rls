@@ -19,7 +19,7 @@ use std::iter;
 use std::path::{Path, PathBuf};
 
 use crate::lsp_data::ls_util;
-use languageserver_types::{
+use lsp_types::{
     DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range,
 };
 use log::debug;
@@ -28,7 +28,7 @@ use serde_derive::Deserialize;
 use serde_json;
 use url::Url;
 
-pub use languageserver_types::Diagnostic;
+pub use lsp_types::Diagnostic;
 
 #[derive(Debug)]
 pub struct Suggestion {
@@ -348,7 +348,7 @@ impl IsWithin for Range {
 #[cfg(test)]
 mod diagnostic_message_test {
     use super::*;
-    use languageserver_types::Position;
+    use lsp_types::Position;
 
     pub(super) fn fixtures_dir() -> &'static Path {
         Path::new(env!("FIXTURES_DIR"))
@@ -759,7 +759,7 @@ help: consider borrowing here: `&string`"#,
 mod diagnostic_suggestion_test {
     use self::diagnostic_message_test::*;
     use super::*;
-    use languageserver_types::Position;
+    use lsp_types::Position;
 
     #[test]
     fn suggest_use_when_cannot_find_type() {

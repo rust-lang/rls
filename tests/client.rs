@@ -84,14 +84,14 @@ fn client_test_simple_workspace() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<languageserver_types::request::Initialize>(
+    rls.request::<lsp_types::request::Initialize>(
         0,
-        languageserver_types::InitializeParams {
+        lsp_types::InitializeParams {
             process_id: None,
             root_uri: None,
             root_path: Some(root_path.display().to_string()),
             initialization_options: None,
-            capabilities: languageserver_types::ClientCapabilities {
+            capabilities: lsp_types::ClientCapabilities {
                 workspace: None,
                 text_document: None,
                 experimental: None,

@@ -19,7 +19,7 @@ use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use languageserver_types::{
+use lsp_types::{
     ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
     DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
     FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,
