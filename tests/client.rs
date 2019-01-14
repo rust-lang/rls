@@ -1,8 +1,59 @@
-use self::support::project_builder::project;
+use std::path::Path;
+
+use crate::support::basic_bin_manifest;
+use crate::support::project_builder::project;
+
+use lsp_types::{*, request::*};
 
 #[allow(dead_code)]
 mod support;
 
+fn initialize_params(root_path: &Path) -> InitializeParams {
+    lsp_types::InitializeParams {
+        process_id: None,
+        root_uri: None,
+        root_path: Some(root_path.display().to_string()),
+        initialization_options: None,
+        capabilities: lsp_types::ClientCapabilities {
+            workspace: None,
+            text_document: None,
+            experimental: None,
+        },
+        trace: None,
+        workspace_folders: None,
+    }
+}
+
+#[test]
+fn client_test_infer_bin() {
+    let p = project("simple_workspace")
+        .file("Cargo.toml", &basic_bin_manifest("foo"))
+        .file(
+            "src/main.rs",
+            r#"
+                struct UnusedBin;
+                fn main() {
+                    println!("Hello world!");
+                }
+            "#,
+        )
+        .build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag = rls.wait_for_diagnostics();
+    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedBin`"));
+
+    rls.wait_for_indexing();
+    assert!(rls.messages().iter().filter(|msg| msg["method"] != "window/progress").count() > 1);
+
+    rls.shutdown();
+}
+
+/// Test includes window/progress regression testing
 #[test]
 fn client_test_simple_workspace() {
     let p = project("simple_workspace")
@@ -84,22 +135,7 @@ fn client_test_simple_workspace() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<lsp_types::request::Initialize>(
-        0,
-        lsp_types::InitializeParams {
-            process_id: None,
-            root_uri: None,
-            root_path: Some(root_path.display().to_string()),
-            initialization_options: None,
-            capabilities: lsp_types::ClientCapabilities {
-                workspace: None,
-                text_document: None,
-                experimental: None,
-            },
-            trace: None,
-            workspace_folders: None,
-        },
-    );
+    rls.request::<Initialize>(0, initialize_params(root_path));
 
     rls.wait_for_indexing();
 
