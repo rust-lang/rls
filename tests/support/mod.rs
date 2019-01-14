@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+pub mod client;
 pub mod project_builder;
 pub mod paths;
 pub mod harness;
