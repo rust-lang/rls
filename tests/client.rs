@@ -289,3 +289,108 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     rls.shutdown();
 }
+
+#[test]
+fn client_implicit_workspace_pick_up_lib_changes() {
+    let p = project("simple_workspace")
+        .file(
+            "Cargo.toml",
+            r#"
+                [package]
+                name = "binary"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+
+                [dependencies]
+                inner = { path = "inner" }
+            "#,
+        )
+        .file(
+            "src/main.rs",
+            r#"
+                extern crate inner;
+
+                fn main() {
+                    let val = inner::foo();
+                }
+            "#,
+        )
+        .file(
+            "inner/Cargo.toml",
+            r#"
+                [package]
+                name = "inner"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#,
+        )
+        .file(
+            "inner/src/lib.rs",
+            r#"
+                pub fn foo() -> u32 { 42 }
+            "#,
+        )
+        .build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let bin = rls.future_diagnostics("src/main.rs");
+    let bin = rls.runtime().block_on(bin).unwrap();
+    assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
+
+    rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: Position {
+                    line: 1,
+                    character: 23,
+                },
+                end: Position {
+                    line: 1,
+                    character: 26
+                }
+            }),
+            range_length: Some(3),
+            text: "bar".to_string(),
+        }],
+        text_document: VersionedTextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("inner/src/lib.rs")).unwrap(),
+            version: Some(0),
+        }
+    });
+
+    // bin depending on lib picks up type mismatch
+    let bin = rls.future_diagnostics("src/main.rs");
+    let bin = rls.runtime().block_on(bin).unwrap();
+    assert!(bin.diagnostics[0].message.contains("cannot find function `foo`"));
+
+    rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: Position {
+                    line: 1,
+                    character: 23,
+                },
+                end: Position {
+                    line: 1,
+                    character: 26
+                }
+            }),
+            range_length: Some(3),
+            text: "foo".to_string(),
+        }],
+        text_document: VersionedTextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("inner/src/lib.rs")).unwrap(),
+            version: Some(1),
+        }
+    });
+
+    let bin = rls.future_diagnostics("src/main.rs");
+    let bin = rls.runtime().block_on(bin).unwrap();
+    assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
+
+    rls.shutdown();
+}
