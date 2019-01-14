@@ -467,3 +467,94 @@ fn client_test_complete_self_crate_name() {
 
     rls.shutdown();
 }
+
+#[test]
+fn client_completion_suggests_arguments_in_statements() {
+    let p = project("ws_with_test_dir")
+        .file(
+            "Cargo.toml",
+            r#"
+                [workspace]
+                members = ["library"]
+            "#,
+        )
+        .file(
+            "library/Cargo.toml",
+            r#"
+                [package]
+                name = "library"
+                version = "0.1.0"
+                authors = ["Example <rls@example.com>"]
+            "#,
+        )
+        .file(
+            "library/src/lib.rs",
+            r#"
+                pub fn function() -> usize { 5 }
+            "#,
+        )
+        .file(
+            "library/tests/test.rs",
+            r#"
+                   extern crate library;
+                   fn magic() {
+                       let a = library::f~
+                   }
+            "#,
+        )
+        .build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, lsp_types::InitializeParams {
+        process_id: None,
+        root_uri: None,
+        root_path: Some(root_path.display().to_string()),
+        initialization_options: None,
+        capabilities: lsp_types::ClientCapabilities {
+            workspace: None,
+            text_document: Some(TextDocumentClientCapabilities {
+                completion: Some(CompletionCapability {
+                    completion_item: Some(CompletionItemCapability {
+                        snippet_support: Some(true),
+                        ..CompletionItemCapability::default()
+                    }),
+                    ..CompletionCapability::default()
+                }),
+                ..TextDocumentClientCapabilities::default()
+            }),
+            experimental: None,
+        },
+        trace: None,
+        workspace_folders: None,
+    });
+
+    // Sometimes RLS is not ready immediately for completion
+    let mut insert_text = None;
+    for id in 100..103 {
+        let response = rls.request::<Completion>(id, CompletionParams {
+            context: Some(CompletionContext {
+                trigger_character: Some("f".to_string()),
+                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+            }),
+            position: Position::new(3, 41),
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            }
+        });
+
+        let items = match response {
+            Some(CompletionResponse::Array(items)) => items,
+            Some(CompletionResponse::List(CompletionList { items, ..})) => items,
+            _ => Vec::new(),
+        };
+
+        if let Some(item) = items.get(0) {
+            insert_text = item.insert_text.clone();
+            break;
+        }
+    }
+    // Make sure we get the completion at least once right
+    assert_eq!(insert_text.as_ref().unwrap(), "function()");
+}
