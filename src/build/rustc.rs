@@ -346,7 +346,6 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             );
         });
         result.after_analysis.run_callback_on_error = true;
-        result.make_glob_map = rustc_resolve::MakeGlobMap::Yes;
 
         result
     }
