@@ -2,9 +2,10 @@ use std::path::Path;
 
 use futures::future::Future;
 use lsp_types::{*, request::*, notification::*};
+use serde_json::json;
 
-use crate::support::basic_bin_manifest;
-use crate::support::project_builder::project;
+use crate::support::{basic_bin_manifest, fixtures_dir};
+use crate::support::project_builder::{project, ProjectBuilder};
 
 #[allow(dead_code)]
 mod support;
@@ -969,4 +970,191 @@ fn client_format_utf16_range() {
     assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
 
     rls.shutdown();
+}
+
+#[test]
+fn client_lens_run() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("lens_run"))
+        .unwrap()
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, lsp_types::InitializeParams {
+        process_id: None,
+        root_uri: None,
+        root_path: Some(root_path.display().to_string()),
+        initialization_options: Some(json!({ "cmdRun": true})),
+        capabilities: Default::default(),
+        trace: None,
+        workspace_folders: None,
+    });
+
+    rls.wait_for_indexing();
+    assert!(rls.messages().iter().count() >= 7);
+
+    let lens = rls.request::<CodeLensRequest>(1, CodeLensParams {
+        text_document: TextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+        }
+    });
+
+    let expected = CodeLens {
+        command: Some(Command {
+            command: "rls.run".to_string(),
+            title: "Run test".to_string(),
+            arguments: Some(vec![
+                json!({
+                    "args": [ "test", "--", "--nocapture", "test_foo" ],
+                    "binary": "cargo",
+                    "env": { "RUST_BACKTRACE": "short" }
+                })
+            ]),
+        }),
+        data: None,
+        range: Range {
+            start: Position { line: 14, character: 3 },
+            end: Position { line: 14, character: 11 }
+        }
+    };
+
+    assert_eq!(lens, Some(vec![expected]));
+
+    rls.shutdown();
+}
+
+
+#[test]
+fn client_find_definitions() {
+    const SRC: &str = r#"
+        struct Foo {
+        }
+
+        impl Foo {
+            fn new() {
+            }
+        }
+
+        fn main() {
+            Foo::new();
+        }
+    "#;
+
+    let p = project("simple_workspace")
+        .file("Cargo.toml", &basic_bin_manifest("bar"))
+        .file("src/main.rs", SRC)
+        .build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, lsp_types::InitializeParams {
+        process_id: None,
+        root_uri: None,
+        root_path: Some(root_path.display().to_string()),
+        initialization_options: Some(json!({"settings.rust.racer_completion": false})),
+        capabilities: Default::default(),
+        trace: None,
+        workspace_folders: None,
+    });
+
+    rls.wait_for_indexing();
+
+    let mut results = vec![];
+    for (line_index, line) in SRC.lines().enumerate() {
+        for i in 0..line.len() {
+            let id = (line_index * 100 + i) as u64;
+            let result = rls.request::<GotoDefinition>(id, TextDocumentPositionParams {
+                position: Position { line: line_index as u64, character: i as u64 },
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                }
+            });
+
+            let ranges = result.into_iter().flat_map(|x| match x {
+                GotoDefinitionResponse::Scalar(loc) => vec![loc].into_iter(),
+                GotoDefinitionResponse::Array(locs) => locs.into_iter(),
+                _ => unreachable!(),
+            }).map(|x| x.range).collect();
+
+            if !results.is_empty() {
+                results.push((line_index, i, ranges));
+            }
+        }
+    }
+    rls.shutdown();
+
+    // Foo
+    let foo_definition = Range {
+        start: Position { line: 1, character: 15 },
+        end: Position { line: 1, character: 18 }
+    };
+
+    // Foo::new
+    let foo_new_definition = Range {
+        start: Position { line: 5, character: 15 },
+        end: Position { line: 5, character: 18 }
+    };
+
+    // main
+    let main_definition = Range {
+        start: Position { line: 9, character: 11 },
+        end: Position { line: 9, character: 15 }
+    };
+
+    let expected = [
+        // struct Foo
+        (1, 15, vec![foo_definition.clone()]),
+        (1, 16, vec![foo_definition.clone()]),
+        (1, 17, vec![foo_definition.clone()]),
+        (1, 18, vec![foo_definition.clone()]),
+        // impl Foo
+        (4, 13, vec![foo_definition.clone()]),
+        (4, 14, vec![foo_definition.clone()]),
+        (4, 15, vec![foo_definition.clone()]),
+        (4, 16, vec![foo_definition.clone()]),
+
+        // fn new
+        (5, 15, vec![foo_new_definition.clone()]),
+        (5, 16, vec![foo_new_definition.clone()]),
+        (5, 17, vec![foo_new_definition.clone()]),
+        (5, 18, vec![foo_new_definition.clone()]),
+
+        // fn main
+        (9, 11, vec![main_definition.clone()]),
+        (9, 12, vec![main_definition.clone()]),
+        (9, 13, vec![main_definition.clone()]),
+        (9, 14, vec![main_definition.clone()]),
+        (9, 15, vec![main_definition.clone()]),
+
+        // Foo::new()
+        (10, 12, vec![foo_definition.clone()]),
+        (10, 13, vec![foo_definition.clone()]),
+        (10, 14, vec![foo_definition.clone()]),
+        (10, 15, vec![foo_definition.clone()]),
+        (10, 17, vec![foo_new_definition.clone()]),
+        (10, 18, vec![foo_new_definition.clone()]),
+        (10, 19, vec![foo_new_definition.clone()]),
+        (10, 20, vec![foo_new_definition.clone()]),
+    ];
+
+    if results.len() != expected.len() {
+        panic!(
+            "Got different amount of completions than expected: {} vs. {}: {:#?}",
+            results.len(),
+            expected.len(),
+            results
+        )
+    }
+
+    for (i, (actual, expected)) in results.iter().zip(expected.iter()).enumerate() {
+        if actual != expected {
+            panic!(
+                "Found different definition at index {}. Got {:#?}, expected {:#?}",
+                i,
+                actual,
+                expected
+            )
+        }
+    }
 }
