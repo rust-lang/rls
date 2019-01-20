@@ -12,69 +12,6 @@ use self::support::{fixtures_dir, rls_timeout};
 #[allow(dead_code)]
 mod support;
 
-/// Ensures that wide characters do not prevent RLS from calculating correct
-/// 'whole file' LSP range.
-#[test]
-fn cmd_format_utf16_range() {
-    let project = project("cmd_format_utf16_range")
-        .file(
-            "Cargo.toml",
-            r#"[package]
-            name = "cmd_format_utf16_range"
-            version = "0.1.0"
-            authors = ["example@example.com"]
-            "#,
-        )
-        .file("src/main.rs", "/* 😢😢😢😢😢😢😢 */ fn main() { }")
-        .build();
-    let root_path = project.root();
-    let mut rls = project.spawn_rls();
-
-    rls.request(
-        0,
-        "initialize",
-        Some(json!({
-            "rootPath": root_path,
-            "capabilities": {}
-        })),
-    )
-    .unwrap();
-
-    rls.wait_until_done_indexing(rls_timeout());
-
-    let request_id = 66;
-    rls.request(
-        request_id,
-        "textDocument/formatting",
-        Some(json!(
-        {
-            "textDocument": {
-                "uri": format!("file://{}/src/main.rs", root_path.display()),
-                "version": 1
-            },
-            "options": {
-                "tabSize": 4,
-                "insertSpaces": true
-            }
-        }))
-    ).unwrap();
-
-    let json = rls.wait_until_json_id(request_id, rls_timeout());
-    eprintln!("{:#?}", json);
-
-    let result = json["result"].as_array().unwrap();
-    let new_text: Vec<_> = result
-        .iter()
-        .map(|o| o["newText"].as_str().unwrap())
-        .map(|text| text.replace('\r', ""))
-        .collect();
-    // Actual formatting isn't important - what is, is that the buffer isn't
-    // malformed and code stays semantically equivalent.
-    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
-
-    rls.shutdown(rls_timeout());
-}
-
 #[test]
 fn cmd_lens_run() {
     let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("lens_run"))

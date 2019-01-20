@@ -926,3 +926,47 @@ fn client_handle_utf16_unit_text_edits() {
 
     rls.shutdown();
 }
+
+/// Ensures that wide characters do not prevent RLS from calculating correct
+/// 'whole file' LSP range.
+#[test]
+fn client_format_utf16_range() {
+    let p = project("client_format_utf16_range")
+        .file(
+            "Cargo.toml",
+            r#"[package]
+            name = "client_format_utf16_range"
+            version = "0.1.0"
+            authors = ["example@example.com"]
+            "#,
+        )
+        .file("src/main.rs", "/* 😢😢😢😢😢😢😢 */ fn main() { }")
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let result = rls.request::<Formatting>(66, DocumentFormattingParams {
+        text_document: TextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+        },
+        options: FormattingOptions {
+            tab_size: 4,
+            insert_spaces: true,
+            properties: Default::default(),
+        }
+    });
+
+    let new_text: Vec<_> = result.unwrap()
+        .iter()
+        .map(|edit| edit.new_text.as_str().replace('\r', ""))
+        .collect();
+    // Actual formatting isn't important - what is, is that the buffer isn't
+    // malformed and code stays semantically equivalent.
+    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
+
+    rls.shutdown();
+}
