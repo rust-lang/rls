@@ -880,3 +880,49 @@ fn client_invalid_member_dependency_resolution() {
 
     rls.shutdown();
 }
+
+#[test]
+fn client_handle_utf16_unit_text_edits() {
+    let p = project("client_handle_utf16_unit_text_edits")
+        .file(
+            "Cargo.toml",
+            r#"[package]
+            name = "client_handle_utf16_unit_text_edits"
+            version = "0.1.0"
+            authors = ["example@example.com"]
+            "#,
+        )
+        .file("src/main.rs", "fn main() {}")
+        .file("src/some.rs", "😢")
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("src/some.rs")).unwrap(),
+            version: Some(0),
+        },
+        // "😢" -> ""
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: 0,
+                    character: 2
+                }
+            }),
+            range_length: Some(2),
+            text: "".to_string(),
+        }]
+    });
+
+    rls.shutdown();
+}

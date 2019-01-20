@@ -12,65 +12,6 @@ use self::support::{fixtures_dir, rls_timeout};
 #[allow(dead_code)]
 mod support;
 
-#[test]
-fn cmd_handle_utf16_unit_text_edits() {
-    let project = project("cmd_handle_utf16_unit_text_edits")
-        .file(
-            "Cargo.toml",
-            r#"[package]
-            name = "cmd_handle_utf16_unit_text_edits"
-            version = "0.1.0"
-            authors = ["example@example.com"]
-            "#,
-        )
-        .file("src/main.rs", "fn main() {}")
-        .file("src/unrelated.rs", "😢")
-        .build();
-    let root_path = project.root();
-    let mut rls = project.spawn_rls();
-
-    rls.request(
-        0,
-        "initialize",
-        Some(json!({
-            "rootPath": root_path,
-            "capabilities": {}
-        })),
-    )
-    .unwrap();
-
-    rls.wait_until_done_indexing(rls_timeout());
-
-    rls.notify(
-        "textDocument/didChange",
-        Some(json!(
-        {"textDocument": {
-                "uri": format!("file://{}/src/unrelated.rs", root_path.display()),
-                "version": 1
-            },
-            // "😢" -> ""
-            "contentChanges": [
-                {
-                    "range": {
-                        "start": {
-                            "line":0,
-                            "character":0
-                        },
-                        "end":{
-                            "line":0,
-                            "character":2
-                        }
-                    },
-                    "rangeLength":2,
-                    "text":""
-                }
-            ]
-        }))
-    ).unwrap();
-
-    rls.shutdown(rls_timeout());
-}
-
 /// Ensures that wide characters do not prevent RLS from calculating correct
 /// 'whole file' LSP range.
 #[test]
