@@ -722,3 +722,44 @@ fn client_dependency_typo_and_fix() {
 
     rls.shutdown();
 }
+
+/// Tests correct positioning of a toml parse error, use of `==` instead of `=`.
+#[test]
+fn client_invalid_toml_manifest() {
+    let p = project("invalid_toml")
+        .file(
+            "Cargo.toml",
+            r#"[package]
+            name = "probably_valid"
+            version == "0.1.0"
+            authors = ["alexheretic@gmail.com"]
+            "#,
+        )
+        .file(
+            "src/main.rs",
+            r#"
+                fn main() {
+                    println!("Hello world!");
+                }
+            "#,
+        )
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag: PublishDiagnosticsParams = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("invalid_toml/Cargo.toml"));
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert!(diag.diagnostics[0].message.contains("failed to parse manifest"));
+
+    assert_eq!(diag.diagnostics[0].range, Range {
+        start: Position { line: 2, character: 21 },
+        end: Position { line: 2, character: 22 },
+    });
+
+    rls.shutdown();
+}

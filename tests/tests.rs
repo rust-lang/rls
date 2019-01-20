@@ -12,64 +12,6 @@ use self::support::{fixtures_dir, rls_timeout};
 #[allow(dead_code)]
 mod support;
 
-/// Tests correct positioning of a toml parse error, use of `==` instead of `=`.
-#[test]
-fn cmd_invalid_toml_manifest() {
-    let project = project("invalid_toml")
-        .file(
-            "Cargo.toml",
-            r#"[package]
-            name = "probably_valid"
-            version == "0.1.0"
-            authors = ["alexheretic@gmail.com"]
-            "#,
-        )
-        .file(
-            "src/main.rs",
-            r#"
-                fn main() {
-                    println!("Hello world!");
-                }
-            "#,
-        )
-        .build();
-    let root_path = project.root();
-    let mut rls = project.spawn_rls();
-
-    rls.request(
-        0,
-        "initialize",
-        Some(json!({
-            "rootPath": root_path,
-            "capabilities": {}
-        })),
-    )
-    .unwrap();
-
-    let publish = rls
-        .wait_until_done_indexing(rls_timeout())
-        .to_json_messages()
-        .rfind(|m| m["method"] == "textDocument/publishDiagnostics")
-        .expect("No publishDiagnostics");
-
-    let uri = publish["params"]["uri"].as_str().expect("uri");
-    assert!(uri.ends_with("invalid_toml/Cargo.toml"));
-
-    let diags = &publish["params"]["diagnostics"];
-    assert_eq!(diags.as_array().unwrap().len(), 1);
-    assert_eq!(diags[0]["severity"], 1);
-    assert!(diags[0]["message"]
-        .as_str()
-        .unwrap()
-        .contains("failed to parse manifest"));
-    assert_eq!(
-        diags[0]["range"],
-        json!({ "start": { "line": 2, "character": 21 }, "end": { "line": 2, "character": 22 }})
-    );
-
-    rls.shutdown(rls_timeout());
-}
-
 /// Tests correct file highlighting of workspace member manifest with invalid path dependency.
 #[test]
 fn cmd_invalid_member_toml_manifest() {
