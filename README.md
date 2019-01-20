@@ -54,11 +54,17 @@ Once you have rustup installed, run the following commands:
 rustup component add rls rust-analysis rust-src
 ```
 
-#### Note (nightly only)
-Sometimes the `rls` component is not included in a nightly build due to
-certain issues. To see if the component is included in a particular build and
-what to do if it's not, check [#641](https://github.com/rust-lang/rls/issues/641).
+### error: component 'rls' is unavailable for download (nightly)
+The development of rustc's internals is quite fast paced. Downstream projects that rely on nightly internals, particularly clippy, can break fairly often because of this.
 
+When such breakages occur the nightly release will be missing rls. This is a trade-off compared with the other option of just not publishing the night's release, but does avoid blocking the rust nightly releases for people that don't need clippy/rls.
+
+To mitigate the issues we have:
+* rustup will warn if the update is missing any components you currently have. This means you can no longer accidentally update to a no-rls release. Once rls is available again it'll update.
+* rls, clippy are available on the stable channel. Meaning most developers installing for the first time should use stable.
+* However, if you need latest nightly rls you can use https://mexus.github.io/rustup-components-history/ to find and install a dated nightly release ie `rustup install nightly-2018-12-06`.
+
+Also see [#641](https://github.com/rust-lang/rls/issues/641).
 
 ## Running
 
