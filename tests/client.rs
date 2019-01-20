@@ -632,3 +632,93 @@ fn client_use_statement_completion_doesnt_suggest_arguments() {
     // Make sure we get the completion at least once right
     assert_eq!(insert_text.as_ref().unwrap(), "function");
 }
+
+/// Test simulates typing in a dependency wrongly in a couple of ways before finally getting it
+/// right. Rls should provide Cargo.toml diagnostics.
+///
+/// ```
+/// [dependencies]
+/// version-check = "0.5555"
+/// ```
+///
+/// * Firstly "version-check" doesn't exist, it should be "version_check"
+/// * Secondly version 0.5555 of "version_check" doesn't exist.
+#[test]
+fn client_dependency_typo_and_fix() {
+    let manifest_with_dependency = |dep: &str| {
+        format!(
+            r#"
+            [package]
+            name = "dependency_typo"
+            version = "0.1.0"
+            authors = ["alexheretic@gmail.com"]
+
+            [dependencies]
+            {}
+        "#,
+            dep
+        )
+    };
+
+    let p = project("dependency_typo")
+        .file(
+            "Cargo.toml",
+            &manifest_with_dependency(r#"version-check = "0.5555""#),
+        )
+        .file(
+            "src/main.rs",
+            r#"
+                fn main() {
+                    println!("Hello world!");
+                }
+            "#,
+        )
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag = rls.wait_for_diagnostics();
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert!(diag.diagnostics[0].message.contains("no matching package named `version-check`"));
+
+    let change_manifest = |contents: &str| {
+        std::fs::write(root_path.join("Cargo.toml"), contents).unwrap();
+    };
+
+    // fix naming typo, we now expect a version error diagnostic
+    change_manifest(&manifest_with_dependency(r#"version_check = "0.5555""#));
+    rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
+        changes: vec![
+            FileEvent {
+                uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
+                typ: FileChangeType::Changed
+            }
+        ]
+    });
+
+    let diag = rls.wait_for_diagnostics();
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert!(diag.diagnostics[0].message.contains("^0.5555"));
+
+    // Fix version issue so no error diagnostics occur.
+    // This is kinda slow as cargo will compile the dependency, though I
+    // chose version_check to minimise this as it is a very small dependency.
+    change_manifest(&manifest_with_dependency(r#"version_check = "0.1""#));
+    rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
+        changes: vec![
+            FileEvent {
+                uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
+                typ: FileChangeType::Changed
+            }
+        ]
+    });
+
+    let diag = rls.wait_for_diagnostics();
+    assert_eq!(diag.diagnostics.iter().find(|d| d.severity == Some(DiagnosticSeverity::Error)), None);
+
+    rls.shutdown();
+}
