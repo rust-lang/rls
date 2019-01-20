@@ -763,3 +763,62 @@ fn client_invalid_toml_manifest() {
 
     rls.shutdown();
 }
+
+/// Tests correct file highlighting of workspace member manifest with invalid path dependency.
+#[test]
+fn client_invalid_member_toml_manifest() {
+    let project = project("invalid_member_toml")
+        .file(
+            "Cargo.toml",
+            r#"[package]
+            name = "root_is_fine"
+            version = "0.1.0"
+            authors = ["alexheretic@gmail.com"]
+
+            [dependencies]
+            member_a = { path = "member_a" }
+
+            [workspace]
+            "#,
+        )
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "member_a/Cargo.toml",
+            r#"[package]
+            name = "member_a"
+            version = "0.0.3"
+            authors = ["alexheretic@gmail.com"]
+
+            [dependencies]
+            dodgy_member = { path = "dodgy_member" }
+            "#,
+        )
+        .file("member_a/src/lib.rs", "fn ma() {}")
+        .file(
+            "member_a/dodgy_member/Cargo.toml",
+            r#"[package]
+            name = "dodgy_member"
+            version = "0.5.0"
+            authors = ["alexheretic@gmail.com"]
+
+            [dependencies]
+            nosuch = { path = "not-exist" }
+            "#,
+        )
+        .file("member_a/dodgy_member/src/lib.rs", "fn dm() {}")
+        .build();
+    let root_path = project.root();
+    let mut rls = project.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag: PublishDiagnosticsParams = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("invalid_member_toml/member_a/dodgy_member/Cargo.toml"));
+
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert!(diag.diagnostics[0].message.contains("failed to read"));
+
+    rls.shutdown();
+}
