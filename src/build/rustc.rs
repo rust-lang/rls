@@ -332,7 +332,6 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             save::process_crate(
                 state.tcx.expect("missing tcx"),
                 state.expanded_crate.expect("missing crate"),
-                state.analysis.expect("missing analysis"),
                 state.crate_name.expect("missing crate name"),
                 state.input,
                 None,
