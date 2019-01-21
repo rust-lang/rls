@@ -299,20 +299,25 @@ mod test {
 
     #[test]
     fn learn_client_use_change_watched() {
+        let (project_root, lsp_project_manifest) = if cfg!(windows) {
+            ("C:/some/dir", "file:c:/some/dir/Cargo.toml")
+        } else {
+            ("/some/dir", "file:///some/dir/Cargo.toml")
+        };
+
         let mut ctx = InitActionContext::new(
             Arc::new(AnalysisHost::new(Target::Debug)),
             Arc::new(Vfs::new()),
             <_>::default(),
             <_>::default(),
-            "/some/dir".into(),
+            project_root.into(),
             123,
             false,
         );
 
         assert!(!ctx.client_use_change_watched);
 
-        let manifest_change = Url::parse("file:///some/dir/Cargo.toml").unwrap();
-
+        let manifest_change = Url::parse(lsp_project_manifest).unwrap();
         DidChangeWatchedFiles::handle(
             DidChangeWatchedFilesParams {
                 changes: vec![FileEvent::new(manifest_change, FileChangeType::Changed)],
