@@ -151,6 +151,8 @@ pub struct InitActionContext {
     jobs: Arc<Mutex<Jobs>>,
     client_capabilities: Arc<lsp_data::ClientCapabilities>,
     client_supports_cmd_run: bool,
+    /// Set/confirmed true once a `workspace/didChangeWatchedFile` is processed
+    client_use_change_watched: bool,
     /// Whether the server is performing cleanup (after having received
     /// 'shutdown' request), just before final 'exit' request.
     pub shut_down: Arc<AtomicBool>,
@@ -210,6 +212,7 @@ impl InitActionContext {
             prev_changes: Arc::default(),
             client_capabilities: Arc::new(client_capabilities),
             client_supports_cmd_run,
+            client_use_change_watched: false,
             shut_down: Arc::new(AtomicBool::new(false)),
             pid,
         }
@@ -547,8 +550,8 @@ impl FileWatch {
     // Implementation note: This is expected to be called a large number of times in a loop
     // so should be fast / avoid allocation.
     #[inline]
-    pub fn is_relevant(&self, change: &FileEvent) -> bool {
-        let path = change.uri.as_str();
+    fn relevant_change_kind(&self, change_uri: &Url, kind: FileChangeType) -> bool {
+        let path = change_uri.as_str();
 
         // Prefix-matching file URLs on Windows require special attention -
         // - either file:c/... and file:///c:/ works
@@ -556,7 +559,7 @@ impl FileWatch {
         // - also protects against naive scheme-independent parsing
         //   (https://github.com/Microsoft/vscode-languageserver-node/issues/105)
         if cfg!(windows) {
-            let changed_path = match change.uri.to_file_path() {
+            let changed_path = match change_uri.to_file_path() {
                 Ok(path) => path,
                 Err(_) => return false,
             };
@@ -572,8 +575,17 @@ impl FileWatch {
         }
 
         let local = &path[self.project_uri.len()..];
+        local == "/Cargo.lock" || (local == "/target" && kind == FileChangeType::Deleted)
+    }
 
-        local == "/Cargo.lock" || (local == "/target" && change.typ == FileChangeType::Deleted)
+    #[inline]
+    pub fn is_relevant(&self, change: &FileEvent) -> bool {
+        self.relevant_change_kind(&change.uri, change.typ)
+    }
+
+    #[inline]
+    pub fn is_relevant_save_doc(&self, did_save: &DidSaveTextDocumentParams) -> bool {
+        self.relevant_change_kind(&did_save.text_document.uri, FileChangeType::Changed)
     }
 }
 
@@ -612,13 +624,45 @@ mod test {
         assert_range("span::Position<T|>", (15, 16));
     }
 
+    fn change(url: &str) -> FileEvent {
+        FileEvent::new(Url::parse(url).unwrap(), FileChangeType::Changed)
+    }
+
+    fn did_save(url: &str) -> DidSaveTextDocumentParams {
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier::new(Url::parse(url).unwrap()),
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn file_watch_relevant_files() {
+        let watch = FileWatch::from_project_root("/some/dir".into());
+
+        assert!(watch.is_relevant(&change("file://localhost/some/dir/Cargo.toml")));
+        assert!(watch.is_relevant(&change("file:///some/dir/Cargo.toml")));
+
+        assert!(watch.is_relevant(&change("file:///some/dir/Cargo.lock")));
+        assert!(watch.is_relevant(&change("file:///some/dir/inner/Cargo.toml")));
+
+        assert!(!watch.is_relevant(&change("file:///some/dir/inner/Cargo.lock")));
+        assert!(!watch.is_relevant(&change("file:///Cargo.toml")));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn did_save_relevant_files() {
+        let watch = FileWatch::from_project_root("/some/dir".into());
+
+        assert!(watch.is_relevant_save_doc(&did_save("file:///some/dir/Cargo.lock")));
+        assert!(watch.is_relevant_save_doc(&did_save("file:///some/dir/inner/Cargo.toml")));
+        assert!(!watch.is_relevant_save_doc(&did_save("file:///some/dir/inner/Cargo.lock")));
+        assert!(!watch.is_relevant_save_doc(&did_save("file:///Cargo.toml")));
+    }
+
     #[cfg(windows)]
     #[test]
     fn file_watch_relevant_files() {
-        fn change(url: &str) -> FileEvent {
-            FileEvent::new(Url::parse(url).unwrap(), FileChangeType::Changed)
-        }
-
         let watch = FileWatch::from_project_root("C:/some/dir".into());
 
         assert!(watch.is_relevant(&change("file:c:/some/dir/Cargo.toml")));
@@ -633,22 +677,14 @@ mod test {
         assert!(!watch.is_relevant(&change("file:///c:/Cargo.toml")));
     }
 
-    #[cfg(not(windows))]
+    #[cfg(windows)]
     #[test]
-    fn file_watch_relevant_files() {
-        fn change(url: &str) -> FileEvent {
-            FileEvent::new(Url::parse(url).unwrap(), FileChangeType::Changed)
-        }
+    fn did_save_relevant_files() {
+        let watch = FileWatch::from_project_root("C:/some/dir".into());
 
-        let watch = FileWatch::from_project_root("/some/dir".into());
-
-        assert!(watch.is_relevant(&change("file://localhost/some/dir/Cargo.toml")));
-        assert!(watch.is_relevant(&change("file:///some/dir/Cargo.toml")));
-
-        assert!(watch.is_relevant(&change("file:///some/dir/Cargo.lock")));
-        assert!(watch.is_relevant(&change("file:///some/dir/inner/Cargo.toml")));
-
-        assert!(!watch.is_relevant(&change("file:///some/dir/inner/Cargo.lock")));
-        assert!(!watch.is_relevant(&change("file:///Cargo.toml")));
+        assert!(watch.is_relevant_save_doc(&did_save("file:///c:/some/dir/Cargo.lock")));
+        assert!(watch.is_relevant_save_doc(&did_save("file:///c:/some/dir/inner/Cargo.toml")));
+        assert!(!watch.is_relevant_save_doc(&did_save("file:///c:/some/dir/inner/Cargo.lock")));
+        assert!(!watch.is_relevant_save_doc(&did_save("file:///c:/Cargo.toml")));
     }
 }

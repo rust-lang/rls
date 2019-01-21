@@ -19,9 +19,9 @@ name = "rls"
 test = false
 
 [dependencies]
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "2a9f16da7ffc4877aacf7547bac705f0d82de2d6" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "907c0febe7045fa02dff2a35c5e36d3bd59ea50d" }
 cargo_metadata = "0.6"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "c63b6349b44019146cc2edcef8141692891b9401", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "1838bfe5a9ff951ffd716e4632156113d95d14a4", optional = true }
 env_logger = "0.6"
 failure = "0.1.1"
 home = "0.3"
