@@ -61,7 +61,7 @@ rustc-workspace-hack = "1.0.0"
 [dev-dependencies]
 difference = "2"
 tempfile = "3"
-lsp-codec = "0.1"
+lsp-codec = "0.1.1"
 tokio = "0.1"
 futures = "0.1"
 tokio-process = "0.2"
