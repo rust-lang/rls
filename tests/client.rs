@@ -222,7 +222,7 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
     let bin = rls.future_diagnostics("binary/src/main.rs");
-    let (lib, bin) = rls.runtime().block_on(lib.join(bin)).unwrap();
+    let (lib, bin) = rls.block_on(lib.join(bin)).unwrap();
 
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `test_val`")));
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
@@ -251,7 +251,7 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
     let bin = rls.future_diagnostics("binary/src/main.rs");
-    let (lib, bin) = rls.runtime().block_on(lib.join(bin)).unwrap();
+    let (lib, bin) = rls.block_on(lib.join(bin)).unwrap();
 
     // lib unit tests have compile errors
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
@@ -282,7 +282,7 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
     let bin = rls.future_diagnostics("binary/src/main.rs");
-    let (lib, bin) = rls.runtime().block_on(lib.join(bin)).unwrap();
+    let (lib, bin) = rls.block_on(lib.join(bin)).unwrap();
 
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `test_val`")));
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
@@ -339,7 +339,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
     rls.request::<Initialize>(0, initialize_params(root_path));
 
     let bin = rls.future_diagnostics("src/main.rs");
-    let bin = rls.runtime().block_on(bin).unwrap();
+    let bin = rls.block_on(bin).unwrap();
     assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
 
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
@@ -365,7 +365,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
 
     // bin depending on lib picks up type mismatch
     let bin = rls.future_diagnostics("src/main.rs");
-    let bin = rls.runtime().block_on(bin).unwrap();
+    let bin = rls.block_on(bin).unwrap();
     assert!(bin.diagnostics[0].message.contains("cannot find function `foo`"));
 
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
@@ -390,7 +390,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
     });
 
     let bin = rls.future_diagnostics("src/main.rs");
-    let bin = rls.runtime().block_on(bin).unwrap();
+    let bin = rls.block_on(bin).unwrap();
     assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
 
     rls.shutdown();

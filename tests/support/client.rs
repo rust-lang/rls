@@ -135,8 +135,11 @@ impl RlsHandle {
         self.messages.borrow()
     }
 
-    pub fn runtime(&mut self) -> &mut Runtime {
-        &mut self.runtime
+    /// Block on returned, associated future with a timeout.
+    pub fn block_on<F: Future>(&mut self, f: F) -> Result<F::Item, tokio_timer::timeout::Error<F::Error>> {
+        let future_with_timeout = f.timeout(rls_timeout());
+
+        self.runtime.block_on(future_with_timeout)
     }
 
     /// Send a request to the RLS and block until we receive the message.
@@ -182,7 +185,7 @@ impl RlsHandle {
 
         let fut = writer.send(msg);
 
-        self.writer = Some(self.runtime.block_on(fut).unwrap());
+        self.writer = Some(self.block_on(fut).unwrap());
     }
 
     /// Enqueues a channel that is notified and consumed when a given predicate
@@ -214,7 +217,8 @@ impl RlsHandle {
     /// Blocks until a message, for which predicate `f` returns true, is received.
     pub fn wait_for_message(&mut self, f: impl Fn(&Value) -> bool + 'static) -> Value {
         let fut = self.future_msg(f);
-        self.runtime.block_on(fut).unwrap()
+
+        self.block_on(fut).unwrap()
     }
 
     /// Blocks until the processing (building + indexing) is done by the RLS.
