@@ -245,7 +245,12 @@ impl BlockingNotificationAction for DidSaveTextDocument {
 
         ctx.vfs.file_saved(&file_path).unwrap();
 
-        if ctx.config.lock().unwrap().build_on_save {
+        if !ctx.client_use_change_watched && FileWatch::new(&ctx).is_relevant_save_doc(&params) {
+            // support manifest change rebuilding for client's that don't send
+            // workspace/didChangeWatchedFiles notifications
+            ctx.build_current_project(BuildPriority::Cargo, &out);
+            ctx.invalidate_project_model();
+        } else if ctx.config.lock().unwrap().build_on_save {
             ctx.build_current_project(BuildPriority::Normal, &out);
         }
 
@@ -261,6 +266,7 @@ impl BlockingNotificationAction for DidChangeWatchedFiles {
     ) -> Result<(), ()> {
         trace!("on_cargo_change: thread: {:?}", thread::current().id());
 
+        ctx.client_use_change_watched = true;
         let file_watch = FileWatch::new(&ctx);
 
         if params.changes.iter().any(|c| file_watch.is_relevant(c)) {
@@ -269,5 +275,60 @@ impl BlockingNotificationAction for DidChangeWatchedFiles {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::server::{Output, RequestId};
+    use rls_analysis::{AnalysisHost, Target};
+    use rls_vfs::Vfs;
+    use std::sync::Arc;
+    use url::Url;
+
+    #[derive(Clone, Copy)]
+    struct NoOutput;
+    impl Output for NoOutput {
+        /// Send a response string along the output.
+        fn response(&self, _: String) {}
+        fn provide_id(&self) -> RequestId {
+            RequestId::Num(0)
+        }
+    }
+
+    #[test]
+    fn learn_client_use_change_watched() {
+        let (project_root, lsp_project_manifest) = if cfg!(windows) {
+            ("C:/some/dir", "file:c:/some/dir/Cargo.toml")
+        } else {
+            ("/some/dir", "file:///some/dir/Cargo.toml")
+        };
+
+        let mut ctx = InitActionContext::new(
+            Arc::new(AnalysisHost::new(Target::Debug)),
+            Arc::new(Vfs::new()),
+            <_>::default(),
+            <_>::default(),
+            project_root.into(),
+            123,
+            false,
+        );
+
+        assert!(!ctx.client_use_change_watched);
+
+        let manifest_change = Url::parse(lsp_project_manifest).unwrap();
+        DidChangeWatchedFiles::handle(
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent::new(manifest_change, FileChangeType::Changed)],
+            },
+            &mut ctx,
+            NoOutput,
+        )
+        .unwrap();
+
+        assert!(ctx.client_use_change_watched);
+
+        ctx.wait_for_concurrent_jobs();
     }
 }
