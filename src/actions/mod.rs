@@ -152,6 +152,7 @@ pub struct InitActionContext {
     client_capabilities: Arc<lsp_data::ClientCapabilities>,
     client_supports_cmd_run: bool,
     /// Set/confirmed true once a `workspace/didChangeWatchedFile` is processed
+    /// Used to avoid other notifications like didSave causing double cargo builds
     client_use_change_watched: bool,
     /// Whether the server is performing cleanup (after having received
     /// 'shutdown' request), just before final 'exit' request.
