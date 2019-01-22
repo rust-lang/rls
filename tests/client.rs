@@ -1052,7 +1052,13 @@ fn client_find_definitions() {
         process_id: None,
         root_uri: None,
         root_path: Some(root_path.display().to_string()),
-        initialization_options: Some(json!({"settings.rust.racer_completion": false})),
+        initialization_options: Some(json!({
+            "settings": {
+                "rust": {
+                    "racer_completion": false
+                }
+            }
+        })),
         capabilities: Default::default(),
         trace: None,
         workspace_folders: None,
@@ -1071,13 +1077,13 @@ fn client_find_definitions() {
                 }
             });
 
-            let ranges = result.into_iter().flat_map(|x| match x {
+            let ranges: Vec<_> = result.into_iter().flat_map(|x| match x {
                 GotoDefinitionResponse::Scalar(loc) => vec![loc].into_iter(),
                 GotoDefinitionResponse::Array(locs) => locs.into_iter(),
                 _ => unreachable!(),
             }).map(|x| x.range).collect();
 
-            if !results.is_empty() {
+            if !ranges.is_empty() {
                 results.push((line_index, i, ranges));
             }
         }
