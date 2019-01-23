@@ -1235,6 +1235,8 @@ fn client_deglob() {
         new_text: "{Stdin, Stdout}".to_string(),
     }]);
 
+    rls.wait_for_indexing();
+
     // Test a deglob for double wildcard
     let commands = rls.request::<CodeActionRequest>(1100, CodeActionParams {
         text_document: TextDocumentIdentifier {
@@ -1253,7 +1255,7 @@ fn client_deglob() {
     // Right now we only support deglobbing via commands. Please update this
     // test if we move to making text edits via CodeAction (which we should for
     // deglobbing);
-    let Command { title, command, arguments, .. }= match commands {
+    let Command { title, command, arguments, .. } = match commands {
         CodeActionResponse::Commands(commands) => commands,
         CodeActionResponse::Actions(_) => unimplemented!(),
     }.into_iter().nth(0).unwrap();
