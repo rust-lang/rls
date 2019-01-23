@@ -3,8 +3,15 @@ update_configs:
   - package_manager: "rust:cargo"
     directory: "/"
     update_schedule: "live"
+    allowed_updates:
+      - match:
+          update_type: all
+          dependency_type: direct
+      - match:
+          update_type: security
+          dependency_type: indirect
     automerged_updates:
-    - match:
-        # This breaks the build often so we try here to keep master buildable
-        dependency_name: "clippy_lints"
-        update_type: "all"
+      - match:
+          # This breaks the build often so we try here to keep master buildable
+          dependency_name: "clippy_lints"
+          update_type: "all"
