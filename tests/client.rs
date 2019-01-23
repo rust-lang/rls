@@ -2,6 +2,7 @@ use std::path::Path;
 
 use futures::future::Future;
 use lsp_types::{*, request::*, notification::*};
+use serde::de::Deserialize;
 use serde_json::json;
 
 use crate::support::{basic_bin_manifest, fixtures_dir};
