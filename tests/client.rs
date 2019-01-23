@@ -2,6 +2,7 @@ use std::path::Path;
 
 use futures::future::Future;
 use lsp_types::{*, request::*, notification::*};
+use serde::de::Deserialize;
 use serde_json::json;
 
 use crate::support::{basic_bin_manifest, fixtures_dir};
@@ -1163,4 +1164,138 @@ fn client_find_definitions() {
             )
         }
     }
+}
+
+#[test]
+fn client_deglob() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("deglob"))
+        .unwrap()
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    // Test a single swglob
+    let commands = rls.request::<CodeActionRequest>(100, CodeActionParams {
+        text_document: TextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+        },
+        range: Range {
+            start: Position::new(12, 0),
+            end: Position::new(12, 0),
+        },
+        context: CodeActionContext {
+            diagnostics: vec![],
+            only: None,
+        }
+    }).expect("No code actions returned for line 12");
+
+    // Right now we only support deglobbing via commands. Please update this
+    // test if we move to making text edits via CodeAction (which we should for
+    // deglobbing);
+    let Command { title, command, arguments, .. }= match commands {
+        CodeActionResponse::Commands(commands) => commands,
+        CodeActionResponse::Actions(_) => unimplemented!(),
+    }.into_iter().nth(0).unwrap();
+
+    let arguments = arguments.expect("Missing command arguments");
+
+    assert_eq!(title, "Deglob import".to_string());
+    assert!(command.starts_with("rls.deglobImports-"));
+
+    assert!(arguments[0]["new_text"].as_str() == Some("{Stdin, Stdout}"));
+    assert_eq!(
+        serde_json::from_value::<Location>(arguments[0]["location"].clone()).unwrap(),
+        Location {
+            range: Range {
+                start: Position::new(12, 13),
+                end: Position::new(12, 14),
+            },
+            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+        }
+    );
+
+    rls.request::<ExecuteCommand>(200, ExecuteCommandParams { command, arguments });
+    // Right now the execute command returns an empty response and sends
+    // appropriate apply edit request via a side-channel
+    let result = rls.messages().iter().rfind(|msg| msg["method"] == ApplyWorkspaceEdit::METHOD).unwrap().clone();
+    let params = <ApplyWorkspaceEdit as Request>::Params::deserialize(&result["params"])
+        .expect("Couldn't deserialize params");
+
+    let (url, edits) = params.edit.changes.unwrap().drain().nth(0).unwrap();
+    assert_eq!(url, Url::from_file_path(p.root().join("src/main.rs")).unwrap());
+    assert_eq!(edits, vec![TextEdit {
+        range: Range {
+                start: Position::new(12, 13),
+                end: Position::new(12, 14),
+        },
+        new_text: "{Stdin, Stdout}".to_string(),
+    }]);
+
+    // Test a deglob for double wildcard
+    let commands = rls.request::<CodeActionRequest>(1100, CodeActionParams {
+        text_document: TextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+        },
+        range: Range {
+            start: Position::new(15, 0),
+            end: Position::new(15, 0),
+        },
+        context: CodeActionContext {
+            diagnostics: vec![],
+            only: None,
+        }
+    }).expect("No code actions returned for line 12");
+
+    // Right now we only support deglobbing via commands. Please update this
+    // test if we move to making text edits via CodeAction (which we should for
+    // deglobbing);
+    let Command { title, command, arguments, .. }= match commands {
+        CodeActionResponse::Commands(commands) => commands,
+        CodeActionResponse::Actions(_) => unimplemented!(),
+    }.into_iter().nth(0).unwrap();
+
+    let arguments = arguments.expect("Missing command arguments");
+
+    assert_eq!(title, "Deglob imports".to_string());
+    assert!(command.starts_with("rls.deglobImports-"));
+    let expected = [(14, 15, "size_of"), (31, 32, "max")];
+    for i in 0..2 {
+        assert!(arguments[i]["new_text"].as_str() == Some(expected[i].2));
+        assert_eq!(
+            serde_json::from_value::<Location>(arguments[i]["location"].clone()).unwrap(),
+            Location {
+                range: Range {
+                    start: Position::new(15, expected[i].0),
+                    end: Position::new(15, expected[i].1),
+                },
+                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            }
+        );
+    }
+
+    rls.request::<ExecuteCommand>(1200, ExecuteCommandParams { command, arguments });
+    // Right now the execute command returns an empty response and sends
+    // appropriate apply edit request via a side-channel
+    let result = rls.messages().iter().rfind(|msg| msg["method"] == ApplyWorkspaceEdit::METHOD).unwrap().clone();
+    let params = <ApplyWorkspaceEdit as Request>::Params::deserialize(&result["params"])
+        .expect("Couldn't deserialize params");
+
+    let (url, edits) = params.edit.changes.unwrap().drain().nth(0).unwrap();
+    assert_eq!(url, Url::from_file_path(p.root().join("src/main.rs")).unwrap());
+    assert_eq!(
+        edits,
+        expected.iter().map(|e| TextEdit {
+            range: Range {
+                start: Position::new(15, e.0),
+                end: Position::new(15, e.1)
+            },
+            new_text: e.2.to_string()
+        }).collect::<Vec<_>>()
+    );
+
+    rls.shutdown();
 }
