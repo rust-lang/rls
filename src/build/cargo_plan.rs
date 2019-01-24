@@ -35,12 +35,10 @@ use cargo::core::{PackageId, Target, TargetKind};
 use cargo::util::ProcessBuilder;
 use cargo_metadata;
 use log::{error, trace};
-use url::Url;
 
-use crate::build::PackageArg;
-use crate::build::plan::{BuildKey, BuildGraph, JobQueue, WorkStatus};
+use crate::build::plan::{BuildGraph, BuildKey, JobQueue, WorkStatus};
 use crate::build::rustc::src_path;
-use crate::lsp_data::parse_file_path;
+use crate::build::PackageArg;
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
 /// In Target we're mostly interested in TargetKind (Lib, Bin, ...) and name
@@ -455,19 +453,16 @@ impl PackageMap {
     // Find each package in the workspace and record the root directory and package name.
     fn discover_package_paths(manifest_path: &Path) -> HashMap<PathBuf, String> {
         trace!("read metadata {:?}", manifest_path);
-        let metadata = match cargo_metadata::metadata(Some(manifest_path)) {
-            Ok(metadata) => metadata,
-            Err(_) => return HashMap::new(),
-        };
-        metadata
-            .workspace_members
-            .into_iter()
-            .map(|wm| {
-                assert!(wm.url().starts_with("path+"));
-                let url = Url::parse(&wm.url()[5..]).expect("Bad URL");
-                let path = parse_file_path(&url).expect("URL not a path");
-                (path, wm.name().into())
-            }).collect()
+        cargo_metadata::MetadataCommand::new()
+            .manifest_path(manifest_path)
+            .exec()
+            .iter()
+            .flat_map(|meta| meta.workspace_members.iter().map(move |id| &meta[id]))
+            .filter_map(|pkg| {
+                let dir = pkg.manifest_path.parent()?.to_path_buf();
+                Some((dir, pkg.name.clone()))
+            })
+            .collect()
     }
 
     /// Given modified set of files, returns a set of corresponding dirty packages.
