@@ -1,7 +1,7 @@
 # Rust Language Server (RLS) - Architecture
 
 ## Preface
-In addition to the document below, the architecure overview can be found at @nrc's blog post [How the RLS works](https://www.ncameron.org/blog/how-the-rls-works/) (2017). While some bits have changed, the gist of it stays the same.
+In addition to the document below, an architecture overview can be found at @nrc's blog post [How the RLS works](https://www.ncameron.org/blog/how-the-rls-works/) (2017). While some bits have changed, the gist of it stays the same.
 
 Here, we'll try to explain in-depth about how RLS obtains the underlying data to drive its indexing features as the context for the upcoming IDE planning and discussion at the 2019 Rust All-Hands.
 
@@ -84,7 +84,7 @@ the crate id into our database-wide crate id mapping.
 However, if data for an already lowered crate is loaded again, we simply
 replace the definitions for a given crate and re-index.
 
-One interesting edge is when we lower data for crates having the same name, such
+One interesting edge case is when we lower data for crates having the same name, such
 as binary and `#[cfg(test)]`-compiled version of it. We need to ensure we lower a given definition
 [only once](https://github.com/rust-dev-tools/rls-analysis/blob/bd82c9b38b56e53bbfb199569a32b392056964fd/src/lowering.rs#L258-L263)
 , even if it technically is repeated across multiple crates.
@@ -112,7 +112,7 @@ In our case Cargo is configured to use a separate target directory
 (`$target-dir/rls`) so the analysis does not interfere with regular builds.
 
 We hijack the Cargo build process not only to record the build orchestration
-data mentioned above but also to inject additional compiler flags forcing the
+data mentioned above but also to inject additional compiler flags forcing the compiler
 to dump the JSON save-analysis files for each dependency. This serves as an
 optimization so that we don't have to re-check dependnecies in a fresh run.
 
