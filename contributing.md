@@ -10,6 +10,8 @@ implementing clients are all extremely valuable.
 Here is the list of known [issues](https://github.com/rust-lang/rls/issues).
 These are [good issues to start on](https://github.com/rust-lang/rls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
+A good resource on how RLS works can be found [here](architecture.md).
+
 We're happy to help however we can. The best way to get help is either to
 leave a comment on an issue in this repo, or to ping us (nrc) in #rust-dev-tools
 on IRC.
