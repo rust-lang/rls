@@ -3,7 +3,7 @@
 ## Preface
 In addition to the document below, an architecture overview can be found at @nrc's blog post [How the RLS works](https://www.ncameron.org/blog/how-the-rls-works/) (2017). While some bits have changed, the gist of it stays the same.
 
-Here, we'll try to explain in-depth about how RLS obtains the underlying data to drive its indexing features as the context for the upcoming IDE planning and discussion at the 2019 Rust All-Hands.
+Here we aim to explain in-depth how RLS obtains the underlying data to drive its indexing features as the context for the upcoming IDE planning and discussion at the 2019 Rust All-Hands.
 
 Also the [rust-analyzer](https://github.com/rust-analyzer/rust-analyzer/blob/e0d8c86563b72e5414cf10fe16da5e88201447e2/guide.md) guide is a great resource as it covers a lot of common ground.
 
@@ -14,6 +14,11 @@ At the time of writing, at the highest level RLS compiles your package/workspace
 When initialized, (unless overriden by custom build command) RLS `cargo check`s the current project and collects inter-crate [1] dependency graph along with exact crate compilation invocations, which is used later to run the compiler again itself (but in-process).
 
 In-process compilation runs return populated internal data structures (`rls_data::Analysis`), which are further lowered and cross-referenced to expose a low-level indexing API (`rls_analysis::Analysis`) to finally be consumed by the Rust Language Server in order to answer relevant LSP [2] queries.
+
+The main reason we execute the compilation in-process is to optimize the
+latency - we pass the resulting data structures in-memory. For dependencies that
+don't change often (non-primary/path dependencies) we perform the compilation out of process
+once, where we dump and cache the resulting data into a JSON file, which only needs to be read once at the start of indexing.
 
 [1] *crate* is a single unit of compilation as compiled by `rustc`. For example, Cargo package with bin+lib has *two* crates (sometimes called *targets* by Cargo).
 
@@ -70,7 +75,10 @@ pub struct Analysis {
 This [crate](https://github.com/rust-dev-tools/rls-analysis) is responsible for loading and stitching multiple of
 the `rls_data::Analysis` data structures into a single, coherent interface.
 
-Main reason behind that is that each of those structures contains data centric
+Whereas `rls_data` format can be considered an implementation detail that might
+change, this crate aims to provide a 'stable' API.
+
+Another reason behind that is that each of those structures contains data centric
 to the crate that was being compiled - this [lowering](https://github.com/rust-dev-tools/rls-analysis/blob/bd82c9b38b56e53bbfb199569a32b392056964fd/src/lowering.rs#L167)
 cross-references the data
 and indexes it, resulting in a database spanning multiple crates that can be
@@ -98,10 +106,10 @@ In general, apart from being an LSP server, the RLS is also concerned with
 build orchestration, and coordination of other components, such as
 * Racer for autocompletion
 * Cargo for project layout detection and initial build coordination
-* internal VFS for handling in-memory text buffers,
+* internal virtual file system (VFS) for handling in-memory text buffers,
 * rls-analysis serving as our knowledge database
-
-etc.
+* Clippy performing additional lints
+* Rustfmt driving our formatting capabilities
 
 After doing initial compilation with Cargo, we cache a subgraph of the inter-crate
 dependency graph along with compilation invocations and input files for the
@@ -114,7 +122,7 @@ In our case Cargo is configured to use a separate target directory
 We hijack the Cargo build process not only to record the build orchestration
 data mentioned above but also to inject additional compiler flags forcing the compiler
 to dump the JSON save-analysis files for each dependency. This serves as an
-optimization so that we don't have to re-check dependnecies in a fresh run.
+optimization so that we don't have to re-check dependencies in a fresh run.
 
 Because RLS aims to provide a truthful view of the compilation and to maintain
 parity with regular `cargo check` flow, our Cargo runs also run `build.rs` and
