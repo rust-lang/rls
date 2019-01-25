@@ -11,6 +11,8 @@ editors, and other tools with information about Rust programs. It supports
 functionality such as 'goto definition', symbol search, reformatting, and code
 completion, and enables renaming and refactorings.
 
+A high-level overview of the architecture can be found [here](architecture.md).
+
 The RLS gets its source data from the compiler and from
 [Racer](https://github.com/racer-rust/racer). Where possible it uses data from
 the compiler which is precise and complete. Where it is not possible, (for example
