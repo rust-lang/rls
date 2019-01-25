@@ -30,11 +30,11 @@ The current flow is as follows:
 rustc -> librustc_save_analysis -> rls_data -> rls_analysis -> rls
 ```
 
-### librustc_save_analysis
+### [librustc_save_analysis](https://github.com/rust-lang/rust/tree/master/src/librustc_save_analysis)
 
 The Rust compiler includes the [`librustc_save_analysis`](https://github.com/rust-lang/rust/tree/master/src/librustc_save_analysis) crate, which allows to dump the knowledge about the currently compiled crate. The main entry point is [`process_crate`](https://github.com/rust-lang/rust/blob/7164a9f151a56316a382d8bc2b15ccf373e129ca/src/librustc_save_analysis/lib.rs#L1119), which walks the post-macro-expansion AST and [saves](https://github.com/rust-lang/rust/blob/7164a9f151a56316a382d8bc2b15ccf373e129ca/src/librustc_save_analysis/lib.rs#L1146) the collected knowledge either by [dumping to a JSON file](https://github.com/rust-lang/rust/blob/7164a9f151a56316a382d8bc2b15ccf373e129ca/src/librustc_save_analysis/lib.rs#L1074-L1090) or by [calling back with resulting data structure](https://github.com/rust-lang/rust/blob/7164a9f151a56316a382d8bc2b15ccf373e129ca/src/librustc_save_analysis/lib.rs#L1092-L1117).
 
-### rls_data
+### [rls_data](https://github.com/rust-dev-tools/rls-data)
 
 As mentioned previously, the returned data structure is [`rls_data::Analysis`](https://github.com/rust-dev-tools/rls-data/blob/9edbe8b4947c10ef670c4723be375c6944cab640/src/lib.rs#L30-L48) inside the [`rls_data`](https://github.com/rust-dev-tools/rls-data) crate:
 ```rust
@@ -70,7 +70,7 @@ pub struct Analysis {
 }
 ```
 
-### rls_analysis
+### [rls_analysis](https://github.com/rust-dev-tools/rls-analysis)
 
 This [crate](https://github.com/rust-dev-tools/rls-analysis) is responsible for loading and stitching multiple of
 the `rls_data::Analysis` data structures into a single, coherent interface.
