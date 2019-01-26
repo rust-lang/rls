@@ -43,23 +43,23 @@ use crate::build::PackageArg;
 /// Main key type by which `Unit`s will be distinguished in the build plan.
 /// In Target we're mostly interested in TargetKind (Lib, Bin, ...) and name
 /// (e.g. we can have 2 binary targets with different names).
-crate type UnitKey = (PackageId, Target, CompileMode);
+pub(crate) type UnitKey = (PackageId, Target, CompileMode);
 
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
 #[derive(Debug, Default)]
-crate struct CargoPlan {
+pub(crate) struct CargoPlan {
     /// Stores a full Cargo `Unit` data for a first processed unit with a given key.
-    crate units: HashMap<UnitKey, OwnedUnit>,
+    pub(crate) units: HashMap<UnitKey, OwnedUnit>,
     /// Main dependency graph between the simplified units.
-    crate dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
+    pub(crate) dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
     /// Reverse dependency graph that's used to construct a dirty compiler call queue.
-    crate rev_dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
+    pub(crate) rev_dep_graph: HashMap<UnitKey, HashSet<UnitKey>>,
     /// Cached compiler calls used when creating a compiler call queue.
-    crate compiler_jobs: HashMap<UnitKey, ProcessBuilder>,
+    pub(crate) compiler_jobs: HashMap<UnitKey, ProcessBuilder>,
     /// Calculated input files that unit depend on.
-    crate input_files: HashMap<UnitKey, Vec<PathBuf>>,
-    crate file_key_mapping: HashMap<PathBuf, HashSet<UnitKey>>,
+    pub(crate) input_files: HashMap<UnitKey, Vec<PathBuf>>,
+    pub(crate) file_key_mapping: HashMap<PathBuf, HashSet<UnitKey>>,
     // An object for finding the package which a file belongs to and this inferring
     // a package argument.
     package_map: Option<PackageMap>,
@@ -69,14 +69,14 @@ crate struct CargoPlan {
 }
 
 impl CargoPlan {
-    crate fn with_manifest(manifest_path: &Path) -> CargoPlan {
+    pub(crate) fn with_manifest(manifest_path: &Path) -> CargoPlan {
         CargoPlan {
             package_map: Some(PackageMap::new(manifest_path)),
             ..Default::default()
         }
     }
 
-    crate fn with_packages(manifest_path: &Path, pkgs: HashSet<String>) -> CargoPlan {
+    pub(crate) fn with_packages(manifest_path: &Path, pkgs: HashSet<String>) -> CargoPlan {
         CargoPlan {
             built_packages: pkgs,
             ..Self::with_manifest(manifest_path)
@@ -85,14 +85,14 @@ impl CargoPlan {
 
     /// Returns whether a build plan has cached compiler invocations and dep
     /// graph so it's at all able to return a job queue via `prepare_work`.
-    crate fn is_ready(&self) -> bool {
+    pub(crate) fn is_ready(&self) -> bool {
         !self.compiler_jobs.is_empty()
     }
 
     /// Cache a given compiler invocation in `ProcessBuilder` for a given
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
-    crate fn cache_compiler_job(
+    pub(crate) fn cache_compiler_job(
         &mut self,
         id: PackageId,
         target: &Target,
@@ -103,7 +103,7 @@ impl CargoPlan {
         self.compiler_jobs.insert(unit_key, cmd.clone());
     }
 
-    crate fn cache_input_files(
+    pub(crate) fn cache_input_files(
         &mut self,
         id: PackageId,
         target: &Target,
@@ -140,7 +140,7 @@ impl CargoPlan {
     /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
     /// into the dependency graph as long as the passed `Unit` isn't filtered
     /// out by the `filter` closure.
-    crate fn emplace_dep_with_filter<Filter>(
+    pub(crate) fn emplace_dep_with_filter<Filter>(
         &mut self,
         unit: &Unit<'_>,
         cx: &Context<'_, '_>,
@@ -349,7 +349,7 @@ impl CargoPlan {
         }
     }
 
-    crate fn prepare_work<T: AsRef<Path> + fmt::Debug>(
+    pub(crate) fn prepare_work<T: AsRef<Path> + fmt::Debug>(
         &self,
         modified: &[T],
     ) -> WorkStatus {
@@ -517,12 +517,12 @@ fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 /// An owned version of `cargo::core::Unit`.
-crate struct OwnedUnit {
-    crate id: PackageId,
-    crate target: Target,
-    crate profile: Profile,
-    crate kind: Kind,
-    crate mode: CompileMode,
+pub(crate) struct OwnedUnit {
+    pub(crate) id: PackageId,
+    pub(crate) target: Target,
+    pub(crate) profile: Profile,
+    pub(crate) kind: Kind,
+    pub(crate) mode: CompileMode,
 }
 
 impl<'a> From<Unit<'a>> for OwnedUnit {

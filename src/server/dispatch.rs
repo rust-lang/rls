@@ -37,7 +37,7 @@ pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(3_600_000);
 macro_rules! define_dispatch_request_enum {
     ($($request_type:ident),*$(,)*) => {
         #[allow(clippy::large_enum_variant)] // seems ok for a short lived macro-enum
-        crate enum DispatchRequest {
+        pub(crate) enum DispatchRequest {
             $(
                 $request_type(Request<$request_type>),
             )*
@@ -112,13 +112,13 @@ define_dispatch_request_enum!(
 /// handle the requests sequentially, without blocking stdin.
 /// Requests dispatched this way are automatically timed out & avoid
 /// processing if have already timed out before starting.
-crate struct Dispatcher {
+pub(crate) struct Dispatcher {
     sender: mpsc::Sender<(DispatchRequest, InitActionContext, JobToken)>,
 }
 
 impl Dispatcher {
     /// Creates a new `Dispatcher` starting a new thread and channel
-    crate fn new<O: Output>(out: O) -> Self {
+    pub(crate) fn new<O: Output>(out: O) -> Self {
         let (sender, receiver) = mpsc::channel::<(DispatchRequest, InitActionContext, JobToken)>();
 
         thread::Builder::new()
@@ -134,7 +134,7 @@ impl Dispatcher {
     }
 
     /// Sends a request to the dispatch-worker thread, does not block
-    crate fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R, ctx: InitActionContext) {
+    pub(crate) fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R, ctx: InitActionContext) {
         let (job, token) = ConcurrentJob::new();
         ctx.add_job(job);
         if let Err(err) = self.sender.send((request.into(), ctx, token)) {
