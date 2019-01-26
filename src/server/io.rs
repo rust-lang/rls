@@ -195,7 +195,7 @@ pub(super) struct StdioOutput {
 
 impl StdioOutput {
     /// Construct a new `stdout` output.
-    crate fn new() -> StdioOutput {
+    pub(crate) fn new() -> StdioOutput {
         StdioOutput {
             next_id: Arc::new(AtomicU64::new(1)),
         }

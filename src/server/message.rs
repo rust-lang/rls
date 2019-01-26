@@ -293,13 +293,13 @@ where
 
 #[derive(Debug, PartialEq)]
 pub(super) struct RawMessage {
-    crate method: String,
-    crate id: Id,
-    crate params: serde_json::Value,
+    pub(crate) method: String,
+    pub(crate) id: Id,
+    pub(crate) params: serde_json::Value,
 }
 
 impl RawMessage {
-    crate fn parse_as_request<'de, R>(&'de self) -> Result<Request<R>, jsonrpc::Error>
+    pub(crate) fn parse_as_request<'de, R>(&'de self) -> Result<Request<R>, jsonrpc::Error>
     where
         R: LSPRequest,
         <R as LSPRequest>::Params: serde::Deserialize<'de>,
@@ -334,7 +334,7 @@ impl RawMessage {
         }
     }
 
-    crate fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
+    pub(crate) fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
     where
         T: LSPNotification,
         <T as LSPNotification>::Params: serde::Deserialize<'de>,
@@ -350,7 +350,7 @@ impl RawMessage {
         })
     }
 
-    crate fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
+    pub(crate) fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
         // Parse the message.
         let ls_command: serde_json::Value =
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;

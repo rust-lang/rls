@@ -6,7 +6,6 @@
 //! code completion, and enables renaming and refactorings.
 
 #![feature(rustc_private, integer_atomics, drain_filter)]
-#![feature(crate_visibility_modifier)] // needed for edition 2018
 #![allow(unknown_lints)]
 #![warn(clippy::all, rust_2018_idioms)]
 #![allow(

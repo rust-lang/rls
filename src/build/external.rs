@@ -171,25 +171,25 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
 
 #[derive(Debug, Deserialize)]
 /// Build plan as emitted by `cargo build --build-plan -Zunstable-options`
-crate struct RawPlan {
-    crate invocations: Vec<RawInvocation>,
+pub(crate) struct RawPlan {
+    pub(crate) invocations: Vec<RawInvocation>,
 }
 
 #[derive(Debug, Deserialize)]
-crate struct RawInvocation {
-    crate deps: Vec<usize>,
-    crate outputs: Vec<PathBuf>,
+pub(crate) struct RawInvocation {
+    pub(crate) deps: Vec<usize>,
+    pub(crate) outputs: Vec<PathBuf>,
     #[serde(default)]
-    crate links: BTreeMap<PathBuf, PathBuf>,
-    crate program: String,
-    crate args: Vec<String>,
-    crate env: BTreeMap<String, String>,
+    pub(crate) links: BTreeMap<PathBuf, PathBuf>,
+    pub(crate) program: String,
+    pub(crate) args: Vec<String>,
+    pub(crate) env: BTreeMap<String, String>,
     #[serde(default)]
-    crate cwd: Option<PathBuf>,
+    pub(crate) cwd: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
-crate struct Invocation {
+pub(crate) struct Invocation {
     deps: Vec<usize>, // FIXME: Use arena and store refs instead for ergonomics
     outputs: Vec<PathBuf>,
     links: BTreeMap<PathBuf, PathBuf>,
@@ -201,7 +201,7 @@ crate struct Invocation {
 /// Safe build plan type, invocation dependencies are guaranteed to be inside
 /// the plan.
 #[derive(Debug, Default)]
-crate struct ExternalPlan {
+pub(crate) struct ExternalPlan {
     units: HashMap<u64, Invocation>,
     deps: HashMap<u64, HashSet<u64>>,
     rev_deps: HashMap<u64, HashSet<u64>>,
@@ -248,11 +248,11 @@ impl Invocation {
 }
 
 impl ExternalPlan {
-    crate fn new() -> ExternalPlan {
+    pub(crate) fn new() -> ExternalPlan {
         Default::default()
     }
 
-    crate fn with_units(units: Vec<Invocation>) -> ExternalPlan {
+    pub(crate) fn with_units(units: Vec<Invocation>) -> ExternalPlan {
         let mut plan = ExternalPlan::new();
         for unit in &units {
             for &dep in &unit.deps {
@@ -272,7 +272,7 @@ impl ExternalPlan {
         self.rev_deps.entry(dep).or_insert_with(HashSet::new).insert(key);
     }
 
-    crate fn try_from_raw(build_dir: &Path, raw: RawPlan) -> Result<ExternalPlan, ()> {
+    pub(crate) fn try_from_raw(build_dir: &Path, raw: RawPlan) -> Result<ExternalPlan, ()> {
         // Sanity check, each dependency (index) has to be inside the build plan
         if raw
             .invocations

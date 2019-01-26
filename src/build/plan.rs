@@ -20,12 +20,12 @@ use crate::build::{BuildResult, Internals, PackageArg};
 use crate::build::cargo_plan::CargoPlan;
 use crate::build::external::ExternalPlan;
 
-crate trait BuildKey {
+pub(crate) trait BuildKey {
     type Key: Eq + Hash;
     fn key(&self) -> Self::Key;
 }
 
-crate trait BuildGraph {
+pub(crate) trait BuildGraph {
     type Unit: BuildKey;
 
     fn units(&self) -> Vec<&Self::Unit>;
@@ -48,14 +48,14 @@ crate trait BuildGraph {
 }
 
 #[derive(Debug)]
-crate enum WorkStatus {
+pub(crate) enum WorkStatus {
     NeedsCargo(PackageArg),
     Execute(JobQueue),
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-crate enum BuildPlan {
+pub(crate) enum BuildPlan {
     External(ExternalPlan),
     Cargo(CargoPlan)
 }
@@ -74,7 +74,7 @@ impl BuildPlan {
 }
 
 #[derive(Debug)]
-crate struct JobQueue(Vec<ProcessBuilder>);
+pub(crate) struct JobQueue(Vec<ProcessBuilder>);
 
 /// Returns an immediately next argument to the one specified in a given
 /// ProcessBuilder (or `None` if the searched or the next argument could not be found).
@@ -93,11 +93,11 @@ fn proc_argument_value<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<
 }
 
 impl JobQueue {
-    crate fn with_commands(jobs: Vec<ProcessBuilder>) -> JobQueue {
+    pub(crate) fn with_commands(jobs: Vec<ProcessBuilder>) -> JobQueue {
         JobQueue(jobs)
     }
 
-    crate fn dequeue(&mut self) -> Option<ProcessBuilder> {
+    pub(crate) fn dequeue(&mut self) -> Option<ProcessBuilder> {
         self.0.pop()
     }
 

@@ -59,7 +59,7 @@ use std::sync::{Arc, Mutex};
 use std::process::Command;
 
 // Runs a single instance of rustc. Runs in-process.
-crate fn rustc(
+pub(crate) fn rustc(
     vfs: &Vfs,
     args: &[String],
     envs: &HashMap<String, Option<OsString>>,
