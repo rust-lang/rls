@@ -211,7 +211,7 @@ fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_
     let sess = &state.session;
     let mut ls = sess.lint_store.borrow_mut();
     for pass in early_lint_passes {
-        ls.register_early_pass(Some(sess), true, pass);
+        ls.register_early_pass(Some(sess), true, false, pass);
     }
     for pass in late_lint_passes {
         ls.register_late_pass(Some(sess), true, pass);
