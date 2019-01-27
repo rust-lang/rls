@@ -46,8 +46,18 @@ you'll need a recent nightly compiler to build it.
 git clone https://github.com/rust-lang/rls.git
 cd rls
 cargo build --release
-```
+``````
 
+#### If RLS couldn't be built with clippy
+
+Sometimes nightly toolchain changes break the `clippy_lints` dependency.
+Since RLS depends on `clippy_lints` by default, those changes can also break RLS itself.
+In this case, you can build RLS like this:
+
+`cargo build --no-default-features` (disabling the clippy feature)
+
+And sometimes git revision of `clippy` submodule in the Rust repo (https://github.com/rust-lang/rust/tree/master/src/tools) and `clippy_lints` dependency of RLS is different.
+In this case, submit a PR here updating the `clippy_lints` dependency to the git revision pulled from the Rust tree.
 
 ### Step 3: Connect the RLS to your compiler
 
