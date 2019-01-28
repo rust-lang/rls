@@ -46,7 +46,7 @@ you'll need a recent nightly compiler to build it.
 git clone https://github.com/rust-lang/rls.git
 cd rls
 cargo build --release
-``````
+```
 
 #### If RLS couldn't be built with clippy
 
