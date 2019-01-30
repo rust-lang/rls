@@ -1412,7 +1412,6 @@ dependencies = [
  "rls-rustc 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-vfs 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-workspace-hack 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_tools_util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustfmt-nightly 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",

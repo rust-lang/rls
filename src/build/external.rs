@@ -37,6 +37,7 @@ use cargo::util::{process, ProcessBuilder};
 use log::trace;
 use rls_data::{Analysis, CompilationOptions};
 use serde_derive::Deserialize;
+use serde_json;
 
 fn cmd_line_to_command<S: AsRef<str>>(cmd_line: &S, cwd: &Path) -> Result<Command, ()> {
     let cmd_line = cmd_line.as_ref();
@@ -121,7 +122,7 @@ where
         file.read_to_string(&mut contents)
             .map_err(|e| e.to_string())?;
 
-        let data = rustc_serialize::json::decode(&contents).map_err(|e| e.to_string())?;
+        let data: Analysis = serde_json::from_str(&contents).map_err(|e| e.to_string())?;
         analyses.push(data);
     }
 
