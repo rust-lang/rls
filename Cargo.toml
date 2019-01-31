@@ -21,7 +21,7 @@ test = false
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "907c0febe7045fa02dff2a35c5e36d3bd59ea50d" }
 cargo_metadata = "0.7"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "16c0a2fa6fc34380b60a54282e7e2ec1dafa2f48", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "6ce78d1257ac6fd77f245730fcfbadd536a173eb", optional = true }
 env_logger = "0.6"
 failure = "0.1.1"
 home = "0.3"
