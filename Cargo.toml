@@ -31,7 +31,7 @@ lsp-types = "0.55.1"
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "=2.1.16", default-features = false }
+racer = { version = "=2.1.17", default-features = false }
 rand = "0.6"
 rayon = "1"
 rls-analysis = "0.16.10"
