@@ -1,6 +1,6 @@
 [package]
 name = "rls"
-version = "1.33.0"
+version = "1.34.0"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>", "The RLS developers"]
 description = "Rust Language Server - provides information about Rust programs to IDEs and other tools"
