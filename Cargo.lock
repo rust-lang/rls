@@ -211,7 +211,7 @@ dependencies = [
 [[package]]
 name = "clippy_lints"
 version = "0.0.212"
-source = "git+https://github.com/rust-lang/rust-clippy?rev=6ce78d1257ac6fd77f245730fcfbadd536a173eb#6ce78d1257ac6fd77f245730fcfbadd536a173eb"
+source = "git+https://github.com/rust-lang/rust-clippy?rev=3bda548f81bc268a2e9813ce9168d2e40e8a11bd#3bda548f81bc268a2e9813ce9168d2e40e8a11bd"
 dependencies = [
  "cargo_metadata 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "if_chain 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1388,7 +1388,7 @@ version = "1.34.0"
 dependencies = [
  "cargo 0.35.0 (git+https://github.com/rust-lang/cargo?rev=245818076052dd7178f5bb7585f5aec5b6c1e03e)",
  "cargo_metadata 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "clippy_lints 0.0.212 (git+https://github.com/rust-lang/rust-clippy?rev=6ce78d1257ac6fd77f245730fcfbadd536a173eb)",
+ "clippy_lints 0.0.212 (git+https://github.com/rust-lang/rust-clippy?rev=3bda548f81bc268a2e9813ce9168d2e40e8a11bd)",
  "crossbeam-channel 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "difference 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2286,7 +2286,7 @@ dependencies = [
 "checksum cc 1.0.28 (registry+https://github.com/rust-lang/crates.io-index)" = "bb4a8b715cb4597106ea87c7c84b2f1d452c7492033765df7f32651e66fcf749"
 "checksum cfg-if 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "082bb9b28e00d3c9d39cc03e64ce4cea0f1bb9b3fde493f0cbc008472d22bdf4"
 "checksum clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b957d88f4b6a63b9d70d5f454ac8011819c6efa7727858f458ab71c756ce2d3e"
-"checksum clippy_lints 0.0.212 (git+https://github.com/rust-lang/rust-clippy?rev=6ce78d1257ac6fd77f245730fcfbadd536a173eb)" = "<none>"
+"checksum clippy_lints 0.0.212 (git+https://github.com/rust-lang/rust-clippy?rev=3bda548f81bc268a2e9813ce9168d2e40e8a11bd)" = "<none>"
 "checksum cloudabi 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 "checksum commoncrypto 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d056a8586ba25a1e4d61cb090900e495952c7886786fc55f909ab2f819b69007"
 "checksum commoncrypto-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1fed34f46747aa73dfaa578069fd8279d2818ade2b55f38f22a9401c7f4083e2"
