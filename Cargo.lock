@@ -1412,7 +1412,7 @@ dependencies = [
  "rls-data 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-rustc 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-vfs 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rls-vfs 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-workspace-hack 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_tools_util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1477,7 +1477,7 @@ dependencies = [
 
 [[package]]
 name = "rls-vfs"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2419,7 +2419,7 @@ dependencies = [
 "checksum rls-data 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3a209ce46bb52813cbe0786a7baadc0c1a3f5543ef93f179eda3b841ed72cf2e"
 "checksum rls-rustc 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2f9dba7390427aefa953608429701e3665192ca810ba8ae09301e001b7c7bed0"
 "checksum rls-span 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5d7c7046dc6a92f2ae02ed302746db4382e75131b9ce20ce967259f6b5867a6a"
-"checksum rls-vfs 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "72d56425bd5aa86d9d4372b76f0381d3b4bda9c0220e71956c9fcc929f45c1f1"
+"checksum rls-vfs 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "74698a8492cdc0c378e6a5e4c5ed27a2a32bf708ce0297931801238baba898a9"
 "checksum rustc-ap-arena 306.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cbfb540c1347a3993060896b18e0d64084203fa37aaffdc5e5c31264f275d476"
 "checksum rustc-ap-graphviz 306.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "790ac657d5bf69be9ef56f6810e8a0238b07e8460a88526e11d41f8214eb6c4e"
 "checksum rustc-ap-rustc_cratesio_shim 306.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b721cf32b543f3ee90240d7b757ca4a45930fe9981458a50678b4ccd75c472e2"
