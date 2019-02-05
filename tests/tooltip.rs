@@ -1,4 +1,4 @@
-use rls::actions::hover::tooltip;
+use rls::actions::hover::{tooltip, Tooltip};
 use rls::actions::{ActionContext, InitActionContext};
 use rls::config;
 use rls::lsp_data::{ClientCapabilities, InitializationOptions};
@@ -49,7 +49,7 @@ impl Test {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct TestResult {
     test: Test,
-    data: Result<Vec<MarkedString>, String>,
+    data: Result<Tooltip, String>,
 }
 
 impl TestResult {
@@ -69,9 +69,9 @@ impl TestResult {
     /// `MarkedString::String` in `other` need only start with self's.
     fn has_same_data_start(&self, other: &Self) -> bool {
         match (&self.data, &other.data) {
-            (Ok(data), Ok(them)) if data.len() == them.len() => data
+            (Ok(data), Ok(them)) if data.contents.len() == them.contents.len() => data.contents
                 .iter()
-                .zip(them.iter())
+                .zip(them.contents.iter())
                 .map(|(us, them)| match (us, them) {
                     (MarkedString::String(us), MarkedString::String(them)) => them.starts_with(us),
                     _ => us == them,
@@ -123,10 +123,10 @@ pub struct TestFailure {
     /// The expected outcome. The outer `Result` relates to errors while
     /// loading saved data. The inner `Result` is the saved output from
     /// `hover::tooltip`.
-    pub expect_data: Result<Result<Vec<MarkedString>, String>, String>,
+    pub expect_data: Result<Result<Tooltip, String>, String>,
     /// The current output from `hover::tooltip`. The inner `Result`
     /// is the output from `hover::tooltip`.
-    pub actual_data: Result<Result<Vec<MarkedString>, String>, ()>,
+    pub actual_data: Result<Result<Tooltip, String>, ()>,
 }
 
 impl fmt::Debug for TestFailure {
