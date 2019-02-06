@@ -1,10 +1,6 @@
 language: rust
 dist: trusty
 sudo: false
-branches:
-  except:
-  - staging.tmp
-  - trying.tmp
 cache:
   cargo: false
 os:
