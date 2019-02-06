@@ -49,7 +49,7 @@ impl Test {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct TestResult {
     test: Test,
-    data: Result<Tooltip, String>,
+    data: Result<Vec<MarkedString>, String>,
 }
 
 impl TestResult {
@@ -69,9 +69,9 @@ impl TestResult {
     /// `MarkedString::String` in `other` need only start with self's.
     fn has_same_data_start(&self, other: &Self) -> bool {
         match (&self.data, &other.data) {
-            (Ok(data), Ok(them)) if data.contents.len() == them.contents.len() => data.contents
+            (Ok(data), Ok(them)) if data.len() == them.len() => data
                 .iter()
-                .zip(them.contents.iter())
+                .zip(them.iter())
                 .map(|(us, them)| match (us, them) {
                     (MarkedString::String(us), MarkedString::String(them)) => them.starts_with(us),
                     _ => us == them,
@@ -103,7 +103,9 @@ impl Test {
         let doc_id = TextDocumentIdentifier::new(url);
         let position = Position::new(self.line - 1u64, self.col - 1u64);
         let params = TextDocumentPositionParams::new(doc_id, position);
-        let result = tooltip(&ctx, &params).map_err(|e| format!("tooltip error: {:?}", e));
+        let result = tooltip(&ctx, &params)
+            .map_err(|e| format!("tooltip error: {:?}", e))
+            .map(|v| v.contents);
 
         TestResult {
             test: self.clone(),
@@ -123,10 +125,10 @@ pub struct TestFailure {
     /// The expected outcome. The outer `Result` relates to errors while
     /// loading saved data. The inner `Result` is the saved output from
     /// `hover::tooltip`.
-    pub expect_data: Result<Result<Tooltip, String>, String>,
+    pub expect_data: Result<Result<Vec<MarkedString>, String>, String>,
     /// The current output from `hover::tooltip`. The inner `Result`
     /// is the output from `hover::tooltip`.
-    pub actual_data: Result<Result<Tooltip, String>, ()>,
+    pub actual_data: Result<Result<Vec<MarkedString>, String>, ()>,
 }
 
 impl fmt::Debug for TestFailure {
