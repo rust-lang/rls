@@ -160,8 +160,8 @@ impl BlockingNotificationAction for DidChangeConfiguration {
 
         let new_config = match settings {
             Ok(mut value) => {
-                value.rust.normalise();
-                value.rust
+                value.rust.0.normalise();
+                value.rust.0
             }
             Err(err) => {
                 warn!(

@@ -306,7 +306,7 @@ impl InitActionContext {
         let needs_inference = {
             let mut config = self.config.lock().unwrap();
 
-            if let Some(init_config) = init_options.settings.map(|s| s.rust) {
+            if let Some(init_config) = init_options.settings.map(|s| s.rust.0) {
                 config.update(init_config);
             }
             config.needs_inference()

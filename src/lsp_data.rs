@@ -246,10 +246,31 @@ impl RangeExt for Range {
     }
 }
 
+pub struct Config(pub config::Config);
+
+impl<'de> serde::Deserialize<'de> for Config {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+            use serde::de::Error;
+            let val = transform_json_key_one_level(serde_json::Value::deserialize(deserializer)?);
+            match serde_json::from_value(val) {
+                Ok(config) => Ok(Config(config)),
+                _ => Err(D::Error::custom("unable to deserialize Config")),
+            }
+        }
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
+
 /// `DidChangeConfigurationParams.settings` payload reading the { rust: {...} } bit.
 #[derive(Debug, Deserialize)]
 pub struct ChangeConfigSettings {
-    pub rust: config::Config,
+    pub rust: Config,
 }
 
 /* -----------------  JSON-RPC protocol types ----------------- */
