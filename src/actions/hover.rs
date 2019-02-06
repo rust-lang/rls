@@ -885,7 +885,7 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
 pub fn tooltip(
     ctx: &InitActionContext,
     params: &TextDocumentPositionParams,
-    ) -> Result<Tooltip, ResponseError> {
+) -> Result<Tooltip, ResponseError> {
     let analysis = &ctx.analysis;
 
     let hover_file_path = parse_file_path!(&params.text_document.uri, "hover")?;
