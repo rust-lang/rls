@@ -103,7 +103,9 @@ impl Test {
         let doc_id = TextDocumentIdentifier::new(url);
         let position = Position::new(self.line - 1u64, self.col - 1u64);
         let params = TextDocumentPositionParams::new(doc_id, position);
-        let result = tooltip(&ctx, &params).map_err(|e| format!("tooltip error: {:?}", e));
+        let result = tooltip(&ctx, &params)
+            .map_err(|e| format!("tooltip error: {:?}", e))
+            .map(|v| v.contents);
 
         TestResult {
             test: self.clone(),

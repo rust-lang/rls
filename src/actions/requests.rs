@@ -146,8 +146,8 @@ impl RequestAction for Hover {
         let tooltip = hover::tooltip(&ctx, &params)?;
 
         Ok(lsp_data::Hover {
-            contents: HoverContents::Array(tooltip),
-            range: None, // TODO: maybe add?
+            contents: HoverContents::Array(tooltip.contents),
+            range: Some(ls_util::rls_to_range(tooltip.range)),
         })
     }
 }

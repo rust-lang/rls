@@ -18,12 +18,19 @@ use crate::server::ResponseError;
 use home;
 use racer;
 use rls_analysis::{Def, DefKind};
-use rls_span::{Column, Row, Span, ZeroIndexed};
+use rls_span::{Column, Range, Row, Span, ZeroIndexed};
 use rls_vfs::{self as vfs, Vfs};
 use rustfmt_nightly::NewlineStyle;
+use serde_derive::{Deserialize, Serialize};
 
 use log::*;
 use std::path::{Path, PathBuf};
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Tooltip {
+    pub contents: Vec<MarkedString>,
+    pub range: Range<ZeroIndexed>,
+}
 
 /// Cleanup documentation code blocks. The `docs` are expected to have
 /// the preceding `///` or `//!` prefixes already trimmed away. Rust code
@@ -878,7 +885,7 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
 pub fn tooltip(
     ctx: &InitActionContext,
     params: &TextDocumentPositionParams,
-) -> Result<Vec<MarkedString>, ResponseError> {
+) -> Result<Tooltip, ResponseError> {
     let analysis = &ctx.analysis;
 
     let hover_file_path = parse_file_path!(&params.text_document.uri, "hover")?;
@@ -965,7 +972,7 @@ pub fn tooltip(
         Vec::default()
     };
     debug!("tooltip: contents.len: {}", contents.len());
-    Ok(contents)
+    Ok(Tooltip{ contents, range: hover_span.range })
 }
 
 #[cfg(test)]
