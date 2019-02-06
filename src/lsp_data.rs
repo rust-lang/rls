@@ -395,3 +395,30 @@ pub struct ProgressParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub done: Option<bool>,
 }
+
+pub fn transform_json_key_one_level(mut val: serde_json::Value) -> serde_json::Value {
+    transform_json_key_one_level_(&mut val);
+    val
+}
+
+pub fn transform_json_key_one_level_(val: &mut serde_json::Value) -> &mut serde_json::Value {
+    use heck::SnakeCase;
+    use serde_json::Value;
+    match val {
+        Value::Object(map) => {
+            let mut map1 = serde_json::map::Map::<String, Value>::with_capacity(map.len());
+            for kv in map.into_iter() {
+                match map1.insert(kv.0.as_str().to_snake_case(), kv.1.clone()) {
+                    Some(val) => {
+                        log::error!("Multiple different case uses of `{}` config with value {} and value {}", kv.0, val, kv.1);
+                    }
+                    _ => (),
+                }
+            }
+            std::mem::replace(map, map1);
+        }
+        _ => (),
+    }
+    val
+}
+

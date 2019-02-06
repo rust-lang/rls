@@ -1,4 +1,4 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
+
 // file at the top-level directory of this distribution and at
 // http://rust-lang.org/COPYRIGHT.
 //
@@ -150,11 +150,12 @@ impl BlockingNotificationAction for Cancel {
 
 impl BlockingNotificationAction for DidChangeConfiguration {
     fn handle<O: Output>(
-        params: DidChangeConfigurationParams,
+        mut params: DidChangeConfigurationParams,
         ctx: &mut InitActionContext,
         out: O,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
+	params.settings = crate::lsp_data::transform_json_key_one_level(params.settings);
         let settings = ChangeConfigSettings::deserialize(&params.settings);
 
         let new_config = match settings {
