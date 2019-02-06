@@ -1,4 +1,4 @@
-use rls::actions::hover::{tooltip, Tooltip};
+use rls::actions::hover::tooltip;
 use rls::actions::{ActionContext, InitActionContext};
 use rls::config;
 use rls::lsp_data::{ClientCapabilities, InitializationOptions};
