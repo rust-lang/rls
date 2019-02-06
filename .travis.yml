@@ -4,22 +4,22 @@ sudo: false
 cache:
   cargo: false
 os:
-- linux
-- osx
-- windows
+  - linux
+  - osx
+  - windows
 rust:
-- nightly
-install: |
-    # Required for Racer autoconfiguration
-    rustup component add rust-src
-    rustup component add rust-analysis
+  - nightly
+install:
+  # Required for Racer autoconfiguration
+  - rustup component add rust-src
+  - rustup component add rust-analysis
 script:
-- cargo build -v
-- cargo test -v
-- cargo test test_tooltip_std -- --ignored
+  - cargo build -v
+  - cargo test -v
+  - cargo test test_tooltip_std -- --ignored
 
 env:
   global:
-  - RUST_BACKTRACE=1
-  - RLS_TEST_WAIT_FOR_AGES=1
-  - CARGO_INCREMENTAL=0
+    - RUST_BACKTRACE=1
+    - RLS_TEST_WAIT_FOR_AGES=1
+    - CARGO_INCREMENTAL=0
