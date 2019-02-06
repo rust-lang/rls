@@ -17,6 +17,14 @@ script:
   - cargo build -v
   - cargo test -v
   - cargo test test_tooltip_std -- --ignored
+  # Since the rls-* subcrates use crates.io-based dependencies of themselves it
+  # makes sense to test them in isolation rather than just RLS itself
+  - (cd rls-analysis && cargo test -v)
+  - (cd rls-blacklist && cargo test -v)
+  - (cd rls-data && cargo test -v)
+  - (cd rls-rustc && cargo test -v)
+  - (cd rls-span && cargo test -v)
+  - (cd rls-vfs && cargo test -v)
 
 env:
   global:
