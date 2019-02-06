@@ -22,6 +22,22 @@ issues.
 
 ### Missing RLS component
 
+### stable, beta toolchains
+
+You might see an error like `toolchain 'stable-x86_64-unknown-linux-gnu' does not contain component 'rls' for target 'x86_64-unknown-linux-gnu'`,
+however we guarantee for stable and beta toolchains to contain the `rls` component.
+This might be [rustup.rs issue](https://github.com/rust-lang/rustup.rs/issues/1626).
+Plese submit additional information to above issue if you'd like.
+If you face this case, you may have to reinstall the toolchain.
+
+```
+$ rustup uninstall stable
+$ rustup install stable
+$ rustup component add rls
+```
+
+### nightly toolchain
+
 You might see an error like `toolchain 'nightly-x86_64-unknown-linux-gnu' does not contain component 'rls' for target 'x86_64-unknown-linux-gnu'`.
 
 This is due to a nightly release missing the RLS component. That
