@@ -13,10 +13,12 @@ build = "build.rs"
 [lib]
 name = "rls"
 doctest = false
+path = "rls/src/lib.rs"
 
 [[bin]]
 name = "rls"
 test = false
+path = "rls/src/main.rs"
 
 [dependencies]
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "4e74e2fc0908524d17735c768067117d3e84ee9c" }
