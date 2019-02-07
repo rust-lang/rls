@@ -155,7 +155,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         out: O,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
-	params.settings = crate::lsp_data::transform_json_key_one_level(params.settings);
+	params.settings = crate::lsp_data::json_key_to_snake_case(params.settings);
         let settings = ChangeConfigSettings::deserialize(&params.settings);
 
         let new_config = match settings {

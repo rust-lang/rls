@@ -253,7 +253,7 @@ impl<'de> serde::Deserialize<'de> for Config {
     where
         D: serde::Deserializer<'de> {
             use serde::de::Error;
-            let val = transform_json_key_one_level(serde_json::Value::deserialize(deserializer)?);
+            let val = json_key_to_snake_case(serde_json::Value::deserialize(deserializer)?);
             match serde_json::from_value(val) {
                 Ok(config) => Ok(Config(config)),
                 _ => Err(D::Error::custom("unable to deserialize Config")),
@@ -417,29 +417,29 @@ pub struct ProgressParams {
     pub done: Option<bool>,
 }
 
-pub fn transform_json_key_one_level(mut val: serde_json::Value) -> serde_json::Value {
-    transform_json_key_one_level_(&mut val);
+pub fn json_key_to_snake_case(mut val: serde_json::Value) -> serde_json::Value {
+    fn helper(val: &mut serde_json::Value) -> &mut serde_json::Value {
+        use heck::SnakeCase;
+        use serde_json::Value;
+        match val {
+            Value::Object(map) => {
+                let mut map1 = serde_json::map::Map::<String, Value>::with_capacity(map.len());
+                for kv in map.into_iter() {
+                    match map1.insert(kv.0.as_str().to_snake_case(), kv.1.clone()) {
+                        Some(val) => {
+                            log::error!("Multiple different case uses of `{}` config with value {} and value {}", kv.0, val, kv.1);
+                        }
+                        _ => (),
+                    }
+                }
+                std::mem::replace(map, map1);
+            }
+            _ => (),
+        }
+        val
+    }
+    helper(&mut val);
     val
 }
 
-pub fn transform_json_key_one_level_(val: &mut serde_json::Value) -> &mut serde_json::Value {
-    use heck::SnakeCase;
-    use serde_json::Value;
-    match val {
-        Value::Object(map) => {
-            let mut map1 = serde_json::map::Map::<String, Value>::with_capacity(map.len());
-            for kv in map.into_iter() {
-                match map1.insert(kv.0.as_str().to_snake_case(), kv.1.clone()) {
-                    Some(val) => {
-                        log::error!("Multiple different case uses of `{}` config with value {} and value {}", kv.0, val, kv.1);
-                    }
-                    _ => (),
-                }
-            }
-            std::mem::replace(map, map1);
-        }
-        _ => (),
-    }
-    val
-}
 

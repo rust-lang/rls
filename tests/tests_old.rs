@@ -1125,38 +1125,6 @@ impl ConvertStringCase for CamelCaseConverter {
     }
 }
 
-struct KebabCaseConverter;
-impl ConvertStringCase for KebabCaseConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      use heck::KebabCase;
-      s.to_kebab_case().to_string()
-    }
-}
-
-struct ShoutySnakeCaseConverter;
-impl ConvertStringCase for ShoutySnakeCaseConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      use heck::ShoutySnakeCase;
-      s.to_shouty_snake_case().to_string()
-    }
-}
-
-struct SnakeCaseConverter;
-impl ConvertStringCase for SnakeCaseConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      use heck::SnakeCase;
-      s.to_snake_case().to_string()
-    }
-}
-
-struct TitleCaseConverter;
-impl ConvertStringCase for TitleCaseConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      use heck::TitleCase;
-      s.to_title_case().to_string()
-    }
-}
-
 fn test_init_impl<T:ConvertStringCase>() {
     use serde_json::json;
 
@@ -1204,26 +1172,6 @@ fn test_init_with_configuration() {
 #[test]
 fn test_init_with_configuration_camel_case() {
     test_init_impl::<CamelCaseConverter>();
-}
-
-#[test]
-fn test_init_with_configuration_kebab_case() {
-    test_init_impl::<KebabCaseConverter>();
-}
-
-#[test]
-fn test_init_with_configuration_shouty_snake_case() {
-    test_init_impl::<ShoutySnakeCaseConverter>();
-}
-
-#[test]
-fn test_init_with_configuration_snake_case() {
-    test_init_impl::<SnakeCaseConverter>();
-}
-
-#[test]
-fn test_init_with_configuration_title_case() {
-    test_init_impl::<TitleCaseConverter>();
 }
 
 #[test]
