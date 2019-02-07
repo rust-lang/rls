@@ -44,8 +44,6 @@ fn client_test_infer_bin() {
 
     assert!(diag.uri.as_str().ends_with("src/main.rs"));
     assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedBin`"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -60,8 +58,6 @@ fn client_test_infer_lib() {
 
     assert!(diag.uri.as_str().ends_with("src/lib.rs"));
     assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedLib`"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -77,8 +73,6 @@ fn client_test_infer_custom_bin() {
 
     assert!(diag.uri.as_str().ends_with("src/custom_bin.rs"));
     assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedCustomBin`"));
-
-    rls.shutdown();
 }
 
 /// Test includes window/progress regression testing
@@ -178,8 +172,6 @@ fn client_test_simple_workspace() {
         })
         .count();
     assert_eq!(count, 4);
-
-    rls.shutdown();
 }
 
 #[test]
@@ -304,8 +296,6 @@ fn client_changing_workspace_lib_retains_diagnostics() {
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `test_val`")));
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
     assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -397,8 +387,6 @@ fn client_implicit_workspace_pick_up_lib_changes() {
     let bin = rls.future_diagnostics("src/main.rs");
     let bin = rls.block_on(bin).unwrap();
     assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -465,8 +453,6 @@ fn client_test_complete_self_crate_name() {
 
     let item = items.into_iter().nth(0).expect("Racer autocompletion failed");
     assert_eq!(item.detail.unwrap(), "pub fn function() -> usize");
-
-    rls.shutdown();
 }
 
 #[test]
@@ -559,8 +545,6 @@ fn client_completion_suggests_arguments_in_statements() {
 
     let item = items.into_iter().nth(0).expect("Racer autocompletion failed");
     assert_eq!(item.insert_text.unwrap(), "function()");
-
-    rls.shutdown();
 }
 
 #[test]
@@ -627,8 +611,6 @@ fn client_use_statement_completion_doesnt_suggest_arguments() {
 
     let item = items.into_iter().nth(0).expect("Racer autocompletion failed");
     assert_eq!(item.insert_text.unwrap(), "function");
-
-    rls.shutdown();
 }
 
 /// Test simulates typing in a dependency wrongly in a couple of ways before finally getting it
@@ -713,8 +695,6 @@ fn client_dependency_typo_and_fix() {
         diag.diagnostics.iter().find(|d| d.severity == Some(DiagnosticSeverity::Error)),
         None
     );
-
-    rls.shutdown();
 }
 
 /// Tests correct positioning of a toml parse error, use of `==` instead of `=`.
@@ -757,8 +737,6 @@ fn client_invalid_toml_manifest() {
             end: Position { line: 2, character: 22 },
         }
     );
-
-    rls.shutdown();
 }
 
 /// Tests correct file highlighting of workspace member manifest with invalid path dependency.
@@ -816,8 +794,6 @@ fn client_invalid_member_toml_manifest() {
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
     assert!(diag.diagnostics[0].message.contains("failed to read"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -877,8 +853,6 @@ fn client_invalid_member_dependency_resolution() {
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
     assert!(diag.diagnostics[0].message.contains("no matching package named `nosuchdep123`"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -917,8 +891,6 @@ fn client_handle_utf16_unit_text_edits() {
             text: "".to_string(),
         }],
     });
-
-    rls.shutdown();
 }
 
 /// Ensures that wide characters do not prevent RLS from calculating correct
@@ -962,8 +934,6 @@ fn client_format_utf16_range() {
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
     assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1015,8 +985,6 @@ fn client_lens_run() {
     };
 
     assert_eq!(lens, Some(vec![expected]));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1077,7 +1045,6 @@ fn client_find_definitions() {
             }
         }
     }
-    rls.shutdown();
 
     // Foo
     let foo_definition = Range {
@@ -1288,8 +1255,6 @@ fn client_deglob() {
             })
             .collect::<Vec<_>>()
     );
-
-    rls.shutdown();
 }
 
 fn is_notification_for_unknown_config(msg: &serde_json::Value) -> bool {
@@ -1339,7 +1304,6 @@ fn client_init_duplicated_and_unknown_settings() {
 
     assert!(rls.messages().iter().any(is_notification_for_unknown_config));
     assert!(rls.messages().iter().any(is_notification_for_duplicated_config));
-    rls.shutdown();
 }
 
 #[test]
@@ -1384,8 +1348,6 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
     if !rls.messages().iter().any(is_notification_for_duplicated_config) {
         rls.wait_for_message(is_notification_for_duplicated_config);
     }
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1395,8 +1357,6 @@ fn client_shutdown() {
     let mut rls = p.spawn_rls_async();
 
     rls.request::<Initialize>(0, initialize_params(root_path));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1430,8 +1390,6 @@ fn client_goto_def() {
         .collect();
 
     assert!(ranges.iter().any(|r| r.start == Position { line: 11, character: 8 }));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1463,8 +1421,6 @@ fn client_hover() {
     let contents = contents.map(MarkedString::LanguageString).collect();
 
     assert_eq!(result.contents, HoverContents::Array(contents));
-
-    rls.shutdown();
 }
 
 /// Test hover continues to work after the source has moved line
@@ -1534,8 +1490,6 @@ fn client_hover_after_src_line_change() {
         .unwrap();
 
     assert_eq!(result.contents, HoverContents::Array(contents));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1576,8 +1530,6 @@ fn client_workspace_symbol() {
         dbg!(&sym);
         assert!(symbols.iter().any(|s| *s == sym));
     }
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1612,8 +1564,6 @@ fn client_workspace_symbol_duplicates() {
     };
 
     assert_eq!(symbols, vec![symbol]);
-
-    rls.shutdown();
 }
 
 #[ignore] // FIXME(#1265): This is spurious (we don't pick up reference under #[cfg(test)])-ed code - why?
@@ -1651,8 +1601,6 @@ fn client_find_all_refs_test() {
         dbg!(range);
         assert!(result.iter().any(|x| x.range == range));
     }
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1691,8 +1639,6 @@ fn client_find_all_refs_no_cfg_test() {
         dbg!(range);
         assert!(result.iter().any(|x| x.range == range));
     }
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1707,8 +1653,6 @@ fn client_borrow_error() {
 
     let msg = "cannot borrow `x` as mutable more than once at a time";
     assert!(diag.diagnostics.iter().any(|diag| diag.message.contains(msg)));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1743,8 +1687,6 @@ fn client_highlight() {
         dbg!(range);
         assert!(result.iter().any(|x| x.range == range));
     }
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1785,8 +1727,6 @@ fn client_rename() {
     let changes = std::iter::once((uri, ranges.collect())).collect();
 
     assert_eq!(result.changes, Some(changes));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1820,8 +1760,6 @@ fn client_reformat() {
         },
         new_text: "// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}\n".to_string(),
     });
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1859,8 +1797,6 @@ fn client_reformat_with_range() {
         .replace("\n", newline);
 
     assert_eq!(result.unwrap()[0].new_text, formatted);
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1888,8 +1824,6 @@ fn client_multiple_binaries() {
             assert!(diags.iter().any(|message| message.starts_with(msg)));
         }
     }
-
-    rls.shutdown();
 }
 
 #[ignore] // Requires `rust-src` component, which isn't available in Rust CI.
@@ -1944,8 +1878,6 @@ fn client_completion() {
     );
     let items = completions(result.unwrap());
     assert!(items.iter().any(|item| item_eq!(item, expected[1])));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1963,8 +1895,6 @@ fn client_bin_lib_project() {
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
     assert!(diag.diagnostics[0].message.contains("unused variable: `unused_var`"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -1981,8 +1911,6 @@ fn client_infer_lib() {
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
     assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedLib`"));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -2003,8 +1931,6 @@ fn client_omit_init_build() {
     rls.block_on(response).unwrap();
 
     assert_eq!(rls.messages().iter().count(), 1);
-
-    rls.shutdown();
 }
 
 #[test]
@@ -2066,8 +1992,6 @@ fn client_find_impls() {
     for exp in expected {
         assert!(locs.iter().any(|x| *x == exp));
     }
-
-    rls.shutdown();
 }
 
 #[test]
@@ -2085,8 +2009,6 @@ fn client_features() {
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
     let msg = "cannot find struct, variant or union type `Foo` in this scope";
     assert!(diag.diagnostics[0].message.contains(msg));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -2104,8 +2026,6 @@ fn client_all_features() {
         rls.messages().iter().filter(|x| x["method"] == PublishDiagnostics::METHOD).count(),
         0
     );
-
-    rls.shutdown();
 }
 
 #[test]
@@ -2124,8 +2044,6 @@ fn client_no_default_features() {
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
     let msg = "cannot find struct, variant or union type `Baz` in this scope";
     assert!(diag.diagnostics[0].message.contains(msg));
-
-    rls.shutdown();
 }
 
 #[test]
@@ -2143,8 +2061,6 @@ fn client_all_targets() {
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
     assert!(diag.diagnostics[0].message.contains("unused variable: `unused_var`"));
-
-    rls.shutdown();
 }
 
 /// Handle receiving a notification before the `initialize` request by ignoring and
@@ -2159,8 +2075,6 @@ fn client_ignore_uninitialized_notification() {
     rls.request::<Initialize>(0, initialize_params(root_path));
 
     rls.wait_for_indexing();
-
-    rls.shutdown();
 }
 
 /// Handle receiving requests before the `initialize` request by returning an error response
@@ -2189,8 +2103,6 @@ fn client_fail_uninitialized_request() {
     assert_eq!(err.id, jsonrpc_core::Id::Num(ID));
     assert_eq!(err.error.code, jsonrpc_core::ErrorCode::ServerError(-32002));
     assert_eq!(err.error.message, "not yet received `initialize` request");
-
-    rls.shutdown();
 }
 
 // Test that RLS can accept configuration with config keys in 4 different cases:
@@ -2223,8 +2135,6 @@ fn client_init_impl(convert_case: fn(&str) -> String) {
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
     let msg = "cannot find type `PathBuf` in this scope";
     assert!(diag.diagnostics[0].message.contains(msg));
-
-    rls.shutdown();
 }
 
 #[test]
