@@ -1105,16 +1105,8 @@ fn test_omit_init_build() {
     );
 }
 
-
 pub trait ConvertStringCase {
     fn convert_string_case(s: &str) -> String;
-}
-
-struct IdentityConverter;
-impl ConvertStringCase for IdentityConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      s.to_string()
-    }
 }
 
 struct CamelCaseConverter;
@@ -1122,6 +1114,22 @@ impl ConvertStringCase for CamelCaseConverter {
     fn convert_string_case<'a>(s:&'a str) -> String {
       use heck::CamelCase;
       s.to_camel_case().to_string()
+    }
+}
+
+struct KebabCaseConverter;
+impl ConvertStringCase for KebabCaseConverter {
+    fn convert_string_case<'a>(s:&'a str) -> String {
+      use heck::KebabCase;
+      s.to_kebab_case().to_string()
+    }
+}
+
+struct SnakeCaseConverter;
+impl ConvertStringCase for SnakeCaseConverter {
+    fn convert_string_case<'a>(s:&'a str) -> String {
+      use heck::SnakeCase;
+      s.to_snake_case().to_string()
     }
 }
 
@@ -1165,13 +1173,18 @@ fn test_init_impl<T:ConvertStringCase>() {
 }
 
 #[test]
-fn test_init_with_configuration() {
-    test_init_impl::<IdentityConverter>();
+fn test_init_with_configuration_camel_case() {
+    test_init_impl::<CamelCaseConverter>();
 }
 
 #[test]
-fn test_init_with_configuration_camel_case() {
-    test_init_impl::<CamelCaseConverter>();
+fn test_init_with_configuration_kebab_case() {
+    test_init_impl::<KebabCaseConverter>();
+}
+
+#[test]
+fn test_init_with_configuration_snake_case() {
+    test_init_impl::<SnakeCaseConverter>();
 }
 
 #[test]
