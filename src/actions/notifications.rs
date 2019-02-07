@@ -150,17 +150,18 @@ impl BlockingNotificationAction for Cancel {
 
 impl BlockingNotificationAction for DidChangeConfiguration {
     fn handle<O: Output>(
-        params: DidChangeConfigurationParams,
+        mut params: DidChangeConfigurationParams,
         ctx: &mut InitActionContext,
         out: O,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
+	params.settings = crate::lsp_data::json_key_to_snake_case(params.settings);
         let settings = ChangeConfigSettings::deserialize(&params.settings);
 
         let new_config = match settings {
             Ok(mut value) => {
-                value.rust.normalise();
-                value.rust
+                value.rust.0.normalise();
+                value.rust.0
             }
             Err(err) => {
                 warn!(
