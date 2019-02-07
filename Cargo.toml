@@ -52,7 +52,7 @@ regex = "1"
 ordslice = "0.3"
 crossbeam-channel = "0.3"
 toml = "0.4"
-heck = "0.3.1"
+heck = "0.3"
 
 # A noop dependency that changes in the Rust repository, it's a bit of a hack.
 # See the `src/tools/rustc-workspace-hack/README.md` file in `rust-lang/rust`
