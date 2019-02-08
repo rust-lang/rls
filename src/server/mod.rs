@@ -38,7 +38,6 @@ use lsp_types::{
 use log::{debug, error, trace, warn};
 use rls_analysis::AnalysisHost;
 use rls_vfs::Vfs;
-use serde_json;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -91,21 +90,13 @@ impl BlockingRequestAction for InitializeRequest {
 
     fn handle<O: Output>(
         id: RequestId,
-        params: Self::Params,
+        mut params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
     ) -> Result<NoResponse, ResponseError> {
-        let init_options: InitializationOptions = params
-            .initialization_options
-            .as_ref()
-            .and_then(|options| {
-                let de = serde_json::from_value(options.to_owned());
-                if let Err(ref e) = de {
-                    warn!("initialization_options: {}", e);
-                }
-                de.ok()
-            })
-            .unwrap_or_default();
+        let mut dups = std::collections::HashMap::new();
+        let mut unknowns = Vec::new();
+        let init_options = params.initialization_options.take().and_then(move |opt| InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()).unwrap_or_default();
 
         trace!("init: {:?} -> {:?}", params.initialization_options, init_options);
 

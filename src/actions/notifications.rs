@@ -14,7 +14,6 @@ use crate::actions::{FileWatch, InitActionContext, VersionOrdering};
 use crate::Span;
 use log::{debug, trace, warn};
 use rls_vfs::{Change, VfsSpan};
-use serde::Deserialize;
 use std::sync::atomic::Ordering;
 
 use crate::build::*;
@@ -150,18 +149,19 @@ impl BlockingNotificationAction for Cancel {
 
 impl BlockingNotificationAction for DidChangeConfiguration {
     fn handle<O: Output>(
-        mut params: DidChangeConfigurationParams,
+        params: DidChangeConfigurationParams,
         ctx: &mut InitActionContext,
         out: O,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
-	params.settings = crate::lsp_data::json_key_to_snake_case(params.settings);
-        let settings = ChangeConfigSettings::deserialize(&params.settings);
+        let mut dups = std::collections::HashMap::<String, Vec<String>>::new();
+        let mut unknowns = Vec::<String>::new();
+        let settings = ChangeConfigSettings::try_deserialize(&params.settings, &mut dups, &mut unknowns);
 
         let new_config = match settings {
             Ok(mut value) => {
-                value.rust.0.normalise();
-                value.rust.0
+                value.rust.normalise();
+                value.rust
             }
             Err(err) => {
                 warn!(

@@ -246,31 +246,40 @@ impl RangeExt for Range {
     }
 }
 
-pub struct Config(pub config::Config);
-
-impl<'de> serde::Deserialize<'de> for Config {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de> {
-            use serde::de::Error;
-            let val = json_key_to_snake_case(serde_json::Value::deserialize(deserializer)?);
-            match serde_json::from_value(val) {
-                Ok(config) => Ok(Config(config)),
-                _ => Err(D::Error::custom("unable to deserialize Config")),
-            }
-        }
-}
-
-impl fmt::Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, f)
-    }
-}
-
 /// `DidChangeConfigurationParams.settings` payload reading the { rust: {...} } bit.
 #[derive(Debug, Deserialize)]
 pub struct ChangeConfigSettings {
-    pub rust: Config,
+    pub rust: config::Config,
+}
+
+impl ChangeConfigSettings {
+    /// try to deserialize a ChangeConfigSettings from a json value, val is
+    /// expected to be a Value::Object containing only one key "rust", all first
+    /// level keys of rust's value are converted to snake_case, duplicated and
+    /// unknown keys are reported
+    pub fn try_deserialize(val: &serde_json::value::Value,
+        dups:&mut std::collections::HashMap<String, Vec<String>>, unknowns: &mut Vec<String>)
+            -> Result<ChangeConfigSettings, ()> {
+        let mut ret = Err(());
+        if let serde_json::Value::Object(map) = val {
+            for (k, v) in map.iter() {
+                if k != "rust" {
+                    unknowns.push(k.to_string());
+                    continue;
+                }
+                if let serde_json::Value::Object(_) = v {
+                    let mut unknowns1 = Vec::<String>::new();
+                    if let Ok(rust) = config::Config::try_deserialize(v, dups, &mut unknowns1) {
+                        ret = Ok(ChangeConfigSettings{rust: rust});
+                    }
+                    unknowns.extend(unknowns1.iter().map(|s| format!("rust.{}", s)));
+                } else {
+                    return Err(());
+                }
+            }
+        }
+        ret
+    }
 }
 
 /* -----------------  JSON-RPC protocol types ----------------- */
@@ -285,6 +294,33 @@ pub struct InitializationOptions {
     pub cmd_run: bool,
     /// `DidChangeConfigurationParams.settings` payload for upfront configuration.
     pub settings: Option<ChangeConfigSettings>,
+}
+
+impl InitializationOptions {
+    /// try to deserialize a Initialization from a json value. If exists,
+    /// val.settings is expected to be a Value::Object containing only one key, 
+    /// "rust", all first level keys of rust's value are converted to
+    /// snake_case, duplicated and unknown keys are reported
+    pub fn try_deserialize(val: &serde_json::value::Value,
+        dups:&mut std::collections::HashMap<String, Vec<String>>, unknowns: &mut Vec<String>)
+            -> Result<InitializationOptions, ()> {
+        let mut val = val.to_owned();
+        let mut set = None;
+        if let Some(set1) = val.get_mut("settings") {
+            set = Some(set1.take());
+        }
+        let mut ret:InitializationOptions = 
+        match serde_json::from_value(val) {
+            Ok(ret) => ret,
+            _ => return Err(()),
+        };
+        if let Some(set) = set {
+            if let Ok(set) = ChangeConfigSettings::try_deserialize(&set, dups, unknowns) {
+                ret.settings = Some(set);
+            }
+        }
+        Ok(ret)
+    }
 }
 
 impl Default for InitializationOptions {
@@ -415,30 +451,5 @@ pub struct ProgressParams {
     // No more progress notifications with the same ID should be sent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub done: Option<bool>,
-}
-
-pub fn json_key_to_snake_case(mut val: serde_json::Value) -> serde_json::Value {
-    fn helper(val: &mut serde_json::Value) -> &mut serde_json::Value {
-        use heck::SnakeCase;
-        use serde_json::Value;
-        match val {
-            Value::Object(map) => {
-                let mut map1 = serde_json::map::Map::<String, Value>::with_capacity(map.len());
-                for kv in map.into_iter() {
-                    match map1.insert(kv.0.as_str().to_snake_case(), kv.1.clone()) {
-                        Some(val) => {
-                            log::error!("Multiple different case uses of `{}` config with value {} and value {}", kv.0, val, kv.1);
-                        }
-                        _ => (),
-                    }
-                }
-                std::mem::replace(map, map1);
-            }
-            _ => (),
-        }
-        val
-    }
-    helper(&mut val);
-    val
 }
 
