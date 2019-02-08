@@ -1410,16 +1410,14 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
             "dup-licated": "dup-licated"
         }
     });
-    rls.notify::<DidChangeConfiguration>(
-        DidChangeConfigurationParams {
-            settings:settings.clone(),
-        });
+    rls.notify::<DidChangeConfiguration>(DidChangeConfigurationParams {
+        settings: settings.clone(),
+    });
+
     rls.wait_for_message(is_notification_for_unknown_config);
-    // FIXME: have to resend the notification, or we will miss the second message
-    rls.notify::<DidChangeConfiguration>(
-        DidChangeConfigurationParams {
-            settings:settings.clone(),
-        });
-    rls.wait_for_message(is_notification_for_duplicated_config);
+    if !rls.messages().iter().any(is_notification_for_duplicated_config) {
+        rls.wait_for_message(is_notification_for_duplicated_config);
+    }
+
     rls.shutdown();
 }
