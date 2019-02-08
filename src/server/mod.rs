@@ -15,7 +15,7 @@
 use crate::actions::{notifications, requests, ActionContext};
 use crate::config::Config;
 use crate::lsp_data;
-use crate::lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
+use crate::lsp_data::{InitializationOptions, LSPNotification, LSPRequest, ShowMessageParams, MessageType};
 use crate::server::dispatch::Dispatcher;
 pub use crate::server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
 pub use crate::server::io::{MessageReader, Output};
@@ -27,7 +27,7 @@ pub use crate::server::message::{
 };
 use crate::version;
 use jsonrpc_core::{self as jsonrpc, types::error::ErrorCode, Id};
-pub use lsp_types::notification::Exit as ExitNotification;
+pub use lsp_types::notification::{Exit as ExitNotification, ShowMessage};
 pub use lsp_types::request::Initialize as InitializeRequest;
 pub use lsp_types::request::Shutdown as ShutdownRequest;
 use lsp_types::{
@@ -96,7 +96,7 @@ impl BlockingRequestAction for InitializeRequest {
     ) -> Result<NoResponse, ResponseError> {
         let mut dups = std::collections::HashMap::new();
         let mut unknowns = Vec::new();
-        let init_options = params.initialization_options.take().and_then(move |opt| InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()).unwrap_or_default();
+        let init_options = params.initialization_options.take().and_then(|opt| InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()).unwrap_or_default();
 
         trace!("init: {:?} -> {:?}", params.initialization_options, init_options);
 
@@ -106,6 +106,32 @@ impl BlockingRequestAction for InitializeRequest {
                 ErrorCode::ServerError(123),
                 "Already received an initialize request".to_owned(),
             ));
+        }
+
+        if !dups.is_empty() {
+            let mut msg = String::new();
+            for kv in &dups {
+                msg += &format!("{}: ", kv.0);
+                for v in kv.1 {
+                    msg += &format!("{}, ", v);
+                }
+                msg += "; ";
+            }
+            out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+                typ: MessageType::Warning,
+                message: format!("duplicated option: {}", msg.clone()),
+            }));
+        }
+
+        if !unknowns.is_empty() {
+            let mut msg = String::new();
+            for key in &unknowns {
+                msg += &format!("unknown option: {}; ", key.clone());
+            }
+            out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+                typ: MessageType::Warning,
+                message: format!("unknown option: {}", msg),
+            }));
         }
 
         let result = InitializeResult {

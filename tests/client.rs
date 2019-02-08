@@ -1279,3 +1279,60 @@ fn client_deglob() {
 
     rls.shutdown();
 }
+
+#[test]
+fn client_duplicated_and_unknown_settings() {
+    let p = project("simple_workspace")
+        .file("Cargo.toml", &basic_bin_manifest("foo"))
+        .file(
+            "src/main.rs",
+            r#"
+                struct UnusedBin;
+                fn main() {
+                    println!("Hello world!");
+                }
+            "#,
+        )
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let init_options = json!({
+        "settings": {
+            "rust": {
+                "features": ["some_feature"],
+                "all_targets": false,
+                "unknown1": 1,
+                "unknown2": false,
+                "dup_val": 1,
+                "dup_val": false, 
+                "dup_licated": "dup_lacated",
+                "DupLicated": "DupLicated",
+                "dup-licated": "dup-licated"
+            }
+        }
+    });
+
+    rls.request::<Initialize>(0,
+        lsp_types::InitializeParams {
+            process_id: None,
+            root_uri: None,
+            root_path: Some(root_path.display().to_string()),
+            initialization_options: Some(init_options),
+            capabilities: lsp_types::ClientCapabilities {
+                workspace: None,
+                text_document: None,
+                experimental: None,
+            },
+            trace: None,
+            workspace_folders: None,
+        });
+
+    for m in rls.messages().iter() {
+        eprintln!("msg: {}", m);
+    }
+
+    assert!(rls.messages().iter().filter(|msg| msg["method"] == ShowMessage::METHOD && msg["params"]["message"].as_str().and_then(|val| if val.contains("duplicate") {Some(true)} else {None}).unwrap_or(false)).count() != 0);
+    assert!(rls.messages().iter().filter(|msg| msg["method"] == ShowMessage::METHOD && msg["params"]["message"].as_str().and_then(|val| if val.contains("unknown") {Some(true)} else {None}).unwrap_or(false)).count() != 0);
+    rls.shutdown();
+}

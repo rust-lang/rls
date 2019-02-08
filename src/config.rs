@@ -11,7 +11,6 @@
 //! Configuration for the workspace that RLS is operating within and options for
 //! tweaking the RLS's behavior itself.
 
-
 use std::env;
 use std::fmt;
 use std::fmt::Debug;
@@ -31,7 +30,6 @@ use log::trace;
 
 use rustfmt_nightly::Config as RustfmtConfig;
 use rustfmt_nightly::{load_config, CliOptions, EmitMode, Verbosity};
-
 
 /// Some values in the config can be inferred without an explicit value set by
 /// the user. There are no guarantees which values will or will not be passed
@@ -233,16 +231,14 @@ impl Config {
                     None
                 }
             }));
-            // P0: dups mut borrowed in a lambda
-            // P1: dups.retain(|_, ref v| v.len() > 1);
             match serde_ignored::deserialize(seq, |path|unknowns.push(path.to_string())) {
                 Ok(conf) => {
-                    dups.retain(|_, v| v.len() > 1); // P2
+                    dups.retain(|_, v| v.len() > 1);
                     return Ok(conf)
 
                 },
                 _ => {
-                    dups.retain(|_, v| v.len() > 1); // P3
+                    dups.retain(|_, v| v.len() > 1);
                 },
             }
         }
