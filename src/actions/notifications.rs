@@ -154,9 +154,12 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         out: O,
     ) -> Result<(), ()> {
         trace!("config change: {:?}", params.settings);
-        let mut dups = std::collections::HashMap::<String, Vec<String>>::new();
-        let mut unknowns = Vec::<String>::new();
+        use std::collections::HashMap;
+        let mut dups = HashMap::new();
+        let mut unknowns = vec![];
         let settings = ChangeConfigSettings::try_deserialize(&params.settings, &mut dups, &mut unknowns);
+        crate::server::maybe_notify_unknown_configs(&out, &unknowns);
+        crate::server::maybe_notify_duplicated_configs(&out, &dups);
 
         let new_config = match settings {
             Ok(mut value) => {

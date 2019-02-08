@@ -85,6 +85,40 @@ impl BlockingRequestAction for ShutdownRequest {
     }
 }
 
+pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &Vec<(String)>) {
+    use std::fmt::Write;
+    if unknowns.is_empty() {
+        return;
+    }
+    let mut msg = String::new();
+    for key in unknowns {
+        write!(msg, "unknown RLS configuration: {}; ", key.clone()).ok();
+    }
+    out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+        typ: MessageType::Warning,
+        message: msg,
+    }));
+}
+
+pub(crate) fn maybe_notify_duplicated_configs<O: Output>(out: &O, dups: &std::collections::HashMap<String, Vec<String>>) {
+    use std::fmt::Write;
+    if dups.is_empty() {
+        return;
+    }
+    let mut msg = String::new();
+    for kv in dups {
+        write!(msg, "{}: ", kv.0).ok();
+        for v in kv.1 {
+            write!(msg, "{}, ", v).ok();
+        }
+        msg += "; ";
+    }
+    out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+        typ: MessageType::Warning,
+        message: format!("duplicated RLS configuration: {}", msg.clone()),
+    }));
+}
+
 impl BlockingRequestAction for InitializeRequest {
     type Response = NoResponse;
 
@@ -108,31 +142,8 @@ impl BlockingRequestAction for InitializeRequest {
             ));
         }
 
-        if !dups.is_empty() {
-            let mut msg = String::new();
-            for kv in &dups {
-                msg += &format!("{}: ", kv.0);
-                for v in kv.1 {
-                    msg += &format!("{}, ", v);
-                }
-                msg += "; ";
-            }
-            out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-                typ: MessageType::Warning,
-                message: format!("duplicated option: {}", msg.clone()),
-            }));
-        }
-
-        if !unknowns.is_empty() {
-            let mut msg = String::new();
-            for key in &unknowns {
-                msg += &format!("unknown option: {}; ", key.clone());
-            }
-            out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-                typ: MessageType::Warning,
-                message: format!("unknown option: {}", msg),
-            }));
-        }
+        maybe_notify_unknown_configs(&out, &unknowns);
+        maybe_notify_duplicated_configs(&out, &dups);
 
         let result = InitializeResult {
             capabilities: server_caps(ctx),
