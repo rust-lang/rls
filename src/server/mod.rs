@@ -85,7 +85,7 @@ impl BlockingRequestAction for ShutdownRequest {
     }
 }
 
-pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &Vec<(String)>) {
+pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &[String]) {
     use std::fmt::Write;
     if unknowns.is_empty() {
         return;
@@ -93,7 +93,7 @@ pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &Vec<(S
     let mut msg = "Unknown RLS configuration:".to_string();
     let mut first = true;
     for key in unknowns {
-        write!(msg, "{}`{}` ", if first {' '} else {','}, key.clone()).unwrap();
+        write!(msg, "{}`{}` ", if first {' '} else {','}, key).unwrap();
         first = false;
     }
     out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
