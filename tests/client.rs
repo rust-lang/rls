@@ -1279,3 +1279,143 @@ fn client_deglob() {
 
     rls.shutdown();
 }
+
+fn is_notification_for_unknown_config(msg:&serde_json::Value) -> bool {
+    msg["method"] == ShowMessage::METHOD
+            && msg["params"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Unknown")
+}
+
+fn is_notification_for_duplicated_config(msg:&serde_json::Value) -> bool {
+    msg["method"] == ShowMessage::METHOD
+            && msg["params"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Duplicate")
+}
+
+#[test]
+fn client_init_duplicated_and_unknown_settings() {
+    let p = project("simple_workspace")
+        .file("Cargo.toml", &basic_bin_manifest("foo"))
+        .file(
+            "src/main.rs",
+            r#"
+                struct UnusedBin;
+                fn main() {
+                    println!("Hello world!");
+                }
+            "#,
+        )
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let init_options = json!({
+        "settings": {
+            "rust": {
+                "features": ["some_feature"],
+                "all_targets": false,
+                "unknown1": 1,
+                "unknown2": false,
+                "dup_val": 1,
+                "dup_val": false, 
+                "dup_licated": "dup_lacated",
+                "DupLicated": "DupLicated",
+                "dup-licated": "dup-licated"
+            }
+        }
+    });
+
+    rls.request::<Initialize>(0,
+        lsp_types::InitializeParams {
+            process_id: None,
+            root_uri: None,
+            root_path: Some(root_path.display().to_string()),
+            initialization_options: Some(init_options),
+            capabilities: lsp_types::ClientCapabilities {
+                workspace: None,
+                text_document: None,
+                experimental: None,
+            },
+            trace: None,
+            workspace_folders: None,
+        });
+
+    assert!(rls
+    .messages()
+    .iter()
+    .any(is_notification_for_unknown_config));
+    assert!(rls
+    .messages()
+    .iter()
+    .any(is_notification_for_duplicated_config));
+    rls.shutdown();
+}
+
+#[test]
+fn client_did_change_configuration_duplicated_and_unknown_settings() {
+    let p = project("simple_workspace")
+        .file("Cargo.toml", &basic_bin_manifest("foo"))
+        .file(
+            "src/main.rs",
+            r#"
+                struct UnusedBin;
+                fn main() {
+                    println!("Hello world!");
+                }
+            "#,
+        )
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0,
+        lsp_types::InitializeParams {
+            process_id: None,
+            root_uri: None,
+            root_path: Some(root_path.display().to_string()),
+            initialization_options: None,
+            capabilities: lsp_types::ClientCapabilities {
+                workspace: None,
+                text_document: None,
+                experimental: None,
+            },
+            trace: None,
+            workspace_folders: None,
+        });
+
+    assert!(!rls
+    .messages()
+    .iter()
+    .any(is_notification_for_unknown_config));
+    assert!(!rls
+    .messages()
+    .iter()
+    .any(is_notification_for_duplicated_config));
+    let settings = json!({
+        "rust": {
+            "features": ["some_feature"],
+            "all_targets": false,
+            "unknown1": 1,
+            "unknown2": false,
+            "dup_val": 1,
+            "dup_val": false, 
+            "dup_licated": "dup_lacated",
+            "DupLicated": "DupLicated",
+            "dup-licated": "dup-licated"
+        }
+    });
+    rls.notify::<DidChangeConfiguration>(DidChangeConfigurationParams {
+        settings: settings.clone(),
+    });
+
+    rls.wait_for_message(is_notification_for_unknown_config);
+    if !rls.messages().iter().any(is_notification_for_duplicated_config) {
+        rls.wait_for_message(is_notification_for_duplicated_config);
+    }
+
+    rls.shutdown();
+}

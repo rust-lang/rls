@@ -201,6 +201,50 @@ impl Default for Config {
 }
 
 impl Config {
+    /// try to deserialize a Config from a json value, val is expected to be a
+    /// Value::Object, all first level keys of val are converted to snake_case,
+    /// duplicated and unknown keys are reported
+    pub fn try_deserialize(val: &serde_json::value::Value,
+        dups:&mut std::collections::HashMap<String, Vec<String>>,
+        unknowns: &mut Vec<(String)>)
+            -> Result<Config, ()> {
+
+        #[derive(Clone)]
+        struct JsonValue(serde_json::value::Value);
+
+        impl<'de> serde::de::IntoDeserializer<'de, serde_json::Error> for JsonValue {
+            type Deserializer =  serde_json::value::Value;
+            fn into_deserializer(self) -> Self::Deserializer {
+                self.0
+            }
+        }
+
+        if let serde_json::Value::Object(map) = val {
+            let seq = serde::de::value::MapDeserializer::new(map.iter().filter_map(|(k, v)| {
+                use heck::SnakeCase;
+                let snake_case = k.to_snake_case();
+                let (_, ref mut vec) = dups.raw_entry_mut().from_key(&snake_case).or_insert(snake_case.clone(), vec![]);
+                vec.push(k.to_string());
+                if vec.len() == 1 {
+                    Some((snake_case, JsonValue(v.to_owned().clone())))
+                } else {
+                    None
+                }
+            }));
+            match serde_ignored::deserialize(seq, |path|unknowns.push(path.to_string())) {
+                Ok(conf) => {
+                    dups.retain(|_, v| v.len() > 1);
+                    return Ok(conf)
+
+                },
+                _ => {
+                    dups.retain(|_, v| v.len() > 1);
+                },
+            }
+        }
+        Err(())
+    }
+
     /// Join this configuration with the new config.
     pub fn update(&mut self, mut new: Config) {
         new.normalise();

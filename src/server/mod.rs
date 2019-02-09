@@ -15,7 +15,7 @@
 use crate::actions::{notifications, requests, ActionContext};
 use crate::config::Config;
 use crate::lsp_data;
-use crate::lsp_data::{InitializationOptions, LSPNotification, LSPRequest};
+use crate::lsp_data::{InitializationOptions, LSPNotification, LSPRequest, ShowMessageParams, MessageType};
 use crate::server::dispatch::Dispatcher;
 pub use crate::server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
 pub use crate::server::io::{MessageReader, Output};
@@ -27,7 +27,7 @@ pub use crate::server::message::{
 };
 use crate::version;
 use jsonrpc_core::{self as jsonrpc, types::error::ErrorCode, Id};
-pub use lsp_types::notification::Exit as ExitNotification;
+pub use lsp_types::notification::{Exit as ExitNotification, ShowMessage};
 pub use lsp_types::request::Initialize as InitializeRequest;
 pub use lsp_types::request::Shutdown as ShutdownRequest;
 use lsp_types::{
@@ -38,7 +38,6 @@ use lsp_types::{
 use log::{debug, error, trace, warn};
 use rls_analysis::AnalysisHost;
 use rls_vfs::Vfs;
-use serde_json;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -86,26 +85,56 @@ impl BlockingRequestAction for ShutdownRequest {
     }
 }
 
+pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &[String]) {
+    use std::fmt::Write;
+    if unknowns.is_empty() {
+        return;
+    }
+    let mut msg = "Unknown RLS configuration:".to_string();
+    let mut first = true;
+    for key in unknowns {
+        write!(msg, "{}`{}` ", if first {' '} else {','}, key).unwrap();
+        first = false;
+    }
+    out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+        typ: MessageType::Warning,
+        message: msg,
+    }));
+}
+
+pub(crate) fn maybe_notify_duplicated_configs<O: Output>(out: &O, dups: &std::collections::HashMap<String, Vec<String>>) {
+    use std::fmt::Write;
+    if dups.is_empty() {
+        return;
+    }
+    let mut msg = String::new();
+    for kv in dups {
+        write!(msg, "{}:", kv.0).unwrap();
+        let mut first = true;
+        for v in kv.1 {
+            write!(msg, "{}{}, ", if first {' '} else {','}, v).unwrap();
+            first = false;
+        }
+        msg += "; ";
+    }
+    out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+        typ: MessageType::Warning,
+        message: format!("Duplicated RLS configuration: {}", msg.clone()),
+    }));
+}
+
 impl BlockingRequestAction for InitializeRequest {
     type Response = NoResponse;
 
     fn handle<O: Output>(
         id: RequestId,
-        params: Self::Params,
+        mut params: Self::Params,
         ctx: &mut ActionContext,
         out: O,
     ) -> Result<NoResponse, ResponseError> {
-        let init_options: InitializationOptions = params
-            .initialization_options
-            .as_ref()
-            .and_then(|options| {
-                let de = serde_json::from_value(options.to_owned());
-                if let Err(ref e) = de {
-                    warn!("initialization_options: {}", e);
-                }
-                de.ok()
-            })
-            .unwrap_or_default();
+        let mut dups = std::collections::HashMap::new();
+        let mut unknowns = Vec::new();
+        let init_options = params.initialization_options.take().and_then(|opt| InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()).unwrap_or_default();
 
         trace!("init: {:?} -> {:?}", params.initialization_options, init_options);
 
@@ -116,6 +145,9 @@ impl BlockingRequestAction for InitializeRequest {
                 "Already received an initialize request".to_owned(),
             ));
         }
+
+        maybe_notify_unknown_configs(&out, &unknowns);
+        maybe_notify_duplicated_configs(&out, &dups);
 
         let result = InitializeResult {
             capabilities: server_caps(ctx),
