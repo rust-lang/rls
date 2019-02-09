@@ -268,11 +268,9 @@ impl ChangeConfigSettings {
                     continue;
                 }
                 if let serde_json::Value::Object(_) = v {
-                    let mut unknowns1 = Vec::<String>::new();
-                    if let Ok(rust) = config::Config::try_deserialize(v, dups, &mut unknowns1) {
+                    if let Ok(rust) = config::Config::try_deserialize(v, dups, unknowns) {
                         ret = Ok(ChangeConfigSettings{rust: rust});
                     }
-                    unknowns.extend(unknowns1.iter().map(|s| format!("rust.{}", s)));
                 } else {
                     return Err(());
                 }

@@ -90,9 +90,11 @@ pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &Vec<(S
     if unknowns.is_empty() {
         return;
     }
-    let mut msg = String::new();
+    let mut msg = "Unknown RLS configuration:".to_string();
+    let mut first = true;
     for key in unknowns {
-        write!(msg, "unknown RLS configuration: {}; ", key.clone()).ok();
+        write!(msg, "{}`{}` ", if first {' '} else {','}, key.clone()).unwrap();
+        first = false;
     }
     out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
         typ: MessageType::Warning,
@@ -107,15 +109,17 @@ pub(crate) fn maybe_notify_duplicated_configs<O: Output>(out: &O, dups: &std::co
     }
     let mut msg = String::new();
     for kv in dups {
-        write!(msg, "{}: ", kv.0).ok();
+        write!(msg, "{}:", kv.0).unwrap();
+        let mut first = true;
         for v in kv.1 {
-            write!(msg, "{}, ", v).ok();
+            write!(msg, "{}{}, ", if first {' '} else {','}, v).unwrap();
+            first = false;
         }
         msg += "; ";
     }
     out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
         typ: MessageType::Warning,
-        message: format!("duplicated RLS configuration: {}", msg.clone()),
+        message: format!("Duplicated RLS configuration: {}", msg.clone()),
     }));
 }
 

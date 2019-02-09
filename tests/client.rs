@@ -1281,21 +1281,19 @@ fn client_deglob() {
 }
 
 fn is_notification_for_unknown_config(msg:&serde_json::Value) -> bool {
-    eprintln!("unk msg: {}", msg);
     msg["method"] == ShowMessage::METHOD
             && msg["params"]["message"]
                 .as_str()
                 .unwrap()
-                .contains("unknown")
+                .contains("Unknown")
 }
 
 fn is_notification_for_duplicated_config(msg:&serde_json::Value) -> bool {
-    eprintln!("dup msg: {}", msg);
     msg["method"] == ShowMessage::METHOD
             && msg["params"]["message"]
                 .as_str()
                 .unwrap()
-                .contains("duplicate")
+                .contains("Duplicate")
 }
 
 #[test]
