@@ -67,22 +67,19 @@ fn format_external(
         .map_err(|_| format!("Couldn't spawn `{}`", path.display()))?;
 
     {
-        let stdin = rustfmt
-            .stdin
-            .as_mut()
-            .ok_or_else(|| "Failed to open rustfmt stdin".to_string())?;
+        let stdin =
+            rustfmt.stdin.as_mut().ok_or_else(|| "Failed to open rustfmt stdin".to_string())?;
         stdin
             .write_all(input.as_bytes())
             .map_err(|_| "Failed to pass input to rustfmt".to_string())?;
     }
 
-    rustfmt
-        .wait_with_output()
-        .map_err(|err| format!("Error running rustfmt: {}", err))
-        .and_then(|out| {
+    rustfmt.wait_with_output().map_err(|err| format!("Error running rustfmt: {}", err)).and_then(
+        |out| {
             String::from_utf8(out.stdout)
                 .map_err(|_| "Formatted code is not valid UTF-8".to_string())
-        })
+        },
+    )
 }
 
 fn format_internal(input: String, config: Config) -> Result<String, String> {
@@ -95,10 +92,7 @@ fn format_internal(input: String, config: Config) -> Result<String, String> {
             Ok(report) => {
                 // Session::format returns Ok even if there are any errors, i.e., parsing errors.
                 if session.has_operational_errors() || session.has_parsing_errors() {
-                    debug!(
-                        "reformat: format_input failed: has errors, report = {}",
-                        report
-                    );
+                    debug!("reformat: format_input failed: has errors, report = {}", report);
 
                     return Err("Reformat failed to complete successfully".into());
                 }
@@ -117,7 +111,8 @@ fn format_internal(input: String, config: Config) -> Result<String, String> {
 fn random_file() -> Result<(File, PathBuf), String> {
     const SUFFIX_LEN: usize = 10;
 
-    let suffix: String = thread_rng().sample_iter(&distributions::Alphanumeric).take(SUFFIX_LEN).collect();
+    let suffix: String =
+        thread_rng().sample_iter(&distributions::Alphanumeric).take(SUFFIX_LEN).collect();
     let path = temp_dir().join(suffix);
 
     Ok(File::create(&path)

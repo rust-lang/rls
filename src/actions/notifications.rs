@@ -76,11 +76,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
         ctx: &mut InitActionContext,
         out: O,
     ) -> Result<(), ()> {
-        trace!(
-            "on_change: {:?}, thread: {:?}",
-            params,
-            thread::current().id()
-        );
+        trace!("on_change: {:?}, thread: {:?}", params, thread::current().id());
 
         if params.content_changes.is_empty() {
             return Ok(());
@@ -112,20 +108,16 @@ impl BlockingNotificationAction for DidChangeTextDocument {
                         // LSP sends UTF-16 code units based offsets and length
                         span: VfsSpan::from_utf16(
                             Span::from_range(range, file_path.clone()),
-                            i.range_length
+                            i.range_length,
                         ),
                         text: i.text.clone(),
                     }
                 } else {
-                    Change::AddFile {
-                        file: file_path.clone(),
-                        text: i.text.clone(),
-                    }
+                    Change::AddFile { file: file_path.clone(), text: i.text.clone() }
                 }
-            }).collect();
-        ctx.vfs
-            .on_changes(&changes)
-            .expect("error committing to VFS");
+            })
+            .collect();
+        ctx.vfs.on_changes(&changes).expect("error committing to VFS");
 
         ctx.build_queue.mark_file_dirty(file_path, version_num);
 
@@ -157,7 +149,8 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         use std::collections::HashMap;
         let mut dups = HashMap::new();
         let mut unknowns = vec![];
-        let settings = ChangeConfigSettings::try_deserialize(&params.settings, &mut dups, &mut unknowns);
+        let settings =
+            ChangeConfigSettings::try_deserialize(&params.settings, &mut dups, &mut unknowns);
         crate::server::maybe_notify_unknown_configs(&out, &unknowns);
         crate::server::maybe_notify_duplicated_configs(&out, &dups);
 
@@ -167,10 +160,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
                 value.rust
             }
             Err(err) => {
-                warn!(
-                    "Received unactionable config: {:?} (error: {:?})",
-                    params.settings, err
-                );
+                warn!("Received unactionable config: {:?} (error: {:?})", params.settings, err);
                 return Err(());
             }
         };

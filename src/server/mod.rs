@@ -15,7 +15,9 @@
 use crate::actions::{notifications, requests, ActionContext};
 use crate::config::Config;
 use crate::lsp_data;
-use crate::lsp_data::{InitializationOptions, LSPNotification, LSPRequest, ShowMessageParams, MessageType};
+use crate::lsp_data::{
+    InitializationOptions, LSPNotification, LSPRequest, MessageType, ShowMessageParams,
+};
 use crate::server::dispatch::Dispatcher;
 pub use crate::server::dispatch::{RequestAction, DEFAULT_REQUEST_TIMEOUT};
 pub use crate::server::io::{MessageReader, Output};
@@ -27,6 +29,7 @@ pub use crate::server::message::{
 };
 use crate::version;
 use jsonrpc_core::{self as jsonrpc, types::error::ErrorCode, Id};
+use log::{debug, error, trace, warn};
 pub use lsp_types::notification::{Exit as ExitNotification, ShowMessage};
 pub use lsp_types::request::Initialize as InitializeRequest;
 pub use lsp_types::request::Shutdown as ShutdownRequest;
@@ -35,7 +38,6 @@ use lsp_types::{
     ImplementationProviderCapability, InitializeParams, InitializeResult, RenameProviderCapability,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
-use log::{debug, error, trace, warn};
 use rls_analysis::AnalysisHost;
 use rls_vfs::Vfs;
 use std::path::PathBuf;
@@ -93,7 +95,7 @@ pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &[Strin
     let mut msg = "Unknown RLS configuration:".to_string();
     let mut first = true;
     for key in unknowns {
-        write!(msg, "{}`{}` ", if first {' '} else {','}, key).unwrap();
+        write!(msg, "{}`{}` ", if first { ' ' } else { ',' }, key).unwrap();
         first = false;
     }
     out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
@@ -102,7 +104,10 @@ pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &[Strin
     }));
 }
 
-pub(crate) fn maybe_notify_duplicated_configs<O: Output>(out: &O, dups: &std::collections::HashMap<String, Vec<String>>) {
+pub(crate) fn maybe_notify_duplicated_configs<O: Output>(
+    out: &O,
+    dups: &std::collections::HashMap<String, Vec<String>>,
+) {
     use std::fmt::Write;
     if dups.is_empty() {
         return;
@@ -112,7 +117,7 @@ pub(crate) fn maybe_notify_duplicated_configs<O: Output>(out: &O, dups: &std::co
         write!(msg, "{}:", kv.0).unwrap();
         let mut first = true;
         for v in kv.1 {
-            write!(msg, "{}{}, ", if first {' '} else {','}, v).unwrap();
+            write!(msg, "{}{}, ", if first { ' ' } else { ',' }, v).unwrap();
             first = false;
         }
         msg += "; ";
@@ -134,7 +139,13 @@ impl BlockingRequestAction for InitializeRequest {
     ) -> Result<NoResponse, ResponseError> {
         let mut dups = std::collections::HashMap::new();
         let mut unknowns = Vec::new();
-        let init_options = params.initialization_options.take().and_then(|opt| InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()).unwrap_or_default();
+        let init_options = params
+            .initialization_options
+            .take()
+            .and_then(|opt| {
+                InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()
+            })
+            .unwrap_or_default();
 
         trace!("init: {:?} -> {:?}", params.initialization_options, init_options);
 
@@ -149,17 +160,14 @@ impl BlockingRequestAction for InitializeRequest {
         maybe_notify_unknown_configs(&out, &unknowns);
         maybe_notify_duplicated_configs(&out, &dups);
 
-        let result = InitializeResult {
-            capabilities: server_caps(ctx),
-        };
+        let result = InitializeResult { capabilities: server_caps(ctx) };
 
         // send response early before `ctx.init` to enforce
         // initialize-response-before-all-other-messages constraint
         result.send(id, &out);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
-        ctx.init(get_root_path(&params), init_options, capabilities, &out)
-            .unwrap();
+        ctx.init(get_root_path(&params), init_options, capabilities, &out).unwrap();
 
         Ok(NoResponse)
     }
@@ -429,9 +437,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         // info from the client.
         document_range_formatting_provider: Some(false),
 
-        code_lens_provider: Some(CodeLensOptions {
-            resolve_provider: Some(false),
-        }),
+        code_lens_provider: Some(CodeLensOptions { resolve_provider: Some(false) }),
         document_on_type_formatting_provider: None,
         signature_help_provider: None,
 
@@ -449,11 +455,7 @@ fn get_root_path(params: &InitializeParams) -> PathBuf {
             uri.to_file_path().expect("Could not convert URI to path")
         })
         .unwrap_or_else(|| {
-            params
-                .root_path
-                .as_ref()
-                .map(PathBuf::from)
-                .expect("No root path or URI")
+            params.root_path.as_ref().map(PathBuf::from).expect("No root path or URI")
         })
 }
 
@@ -519,8 +521,7 @@ mod test {
         .and_then(|x| x)
         .expect("raw parse failed");
 
-        let _request: Request<ShutdownRequest> = raw
-            .parse_as_request()
-            .expect("Boring validation is happening");
+        let _request: Request<ShutdownRequest> =
+            raw.parse_as_request().expect("Boring validation is happening");
     }
 }

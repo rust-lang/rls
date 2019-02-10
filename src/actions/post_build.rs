@@ -15,23 +15,23 @@
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::panic::RefUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, Thread};
-use std::ops::Deref;
 
 use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnostics, Suggestion};
 use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::{BuildResult, Crate};
 use crate::concurrency::JobToken;
-use crate::lsp_data::{Range, PublishDiagnosticsParams};
+use crate::lsp_data::{PublishDiagnosticsParams, Range};
 
 use failure;
 use itertools::Itertools;
-use lsp_types::DiagnosticSeverity;
 use log::{trace, warn};
+use lsp_types::DiagnosticSeverity;
 use rls_analysis::AnalysisHost;
 use rls_data::Analysis;
 use url::Url;
@@ -92,12 +92,7 @@ impl PostBuildHandler {
                 self.notifier.notify_end_diagnostics();
                 self.active_build_count.fetch_sub(1, Ordering::SeqCst);
             }
-            BuildResult::CargoError {
-                error,
-                stdout,
-                manifest_path,
-                manifest_error_range,
-            } => {
+            BuildResult::CargoError { error, stdout, manifest_path, manifest_error_range } => {
                 trace!("build - CargoError: {}, stdout: {:?}", error, stdout);
                 self.notifier.notify_begin_diagnostics();
 
@@ -107,13 +102,9 @@ impl PostBuildHandler {
                 } else if self.shown_cargo_error.swap(true, Ordering::SeqCst) {
                     warn!("Not reporting: {} {:?}", error, stdout);
                 } else {
-                    let stdout_msg = if stdout.is_empty() {
-                        stdout
-                    } else {
-                        format!("({})", stdout)
-                    };
-                    self.notifier
-                        .notify_error_diagnostics(format!("{}{}", error, stdout_msg));
+                    let stdout_msg =
+                        if stdout.is_empty() { stdout } else { format!("({})", stdout) };
+                    self.notifier.notify_error_diagnostics(format!("{}{}", error, stdout_msg));
                 }
 
                 self.notifier.notify_end_diagnostics();
@@ -139,10 +130,8 @@ impl PostBuildHandler {
         results.values_mut().for_each(Vec::clear);
 
         // cover whole manifest if we haven't any better idea.
-        let range = manifest_error_range.unwrap_or_else(|| Range {
-            start: Position::new(0, 0),
-            end: Position::new(9999, 0),
-        });
+        let range = manifest_error_range
+            .unwrap_or_else(|| Range { start: Position::new(0, 0), end: Position::new(9999, 0) });
 
         let mut message = format!("{}", error);
         for cause in error.iter_causes() {
@@ -186,10 +175,7 @@ impl PostBuildHandler {
             .flat_map(|ParsedDiagnostics { diagnostics }| diagnostics);
 
         for (file_path, diagnostics) in file_diagnostics {
-            results
-                .entry(file_path)
-                .or_insert_with(Vec::new)
-                .extend(diagnostics);
+            results.entry(file_path).or_insert_with(Vec::new).extend(diagnostics);
         }
 
         self.emit_notifications(&results);
@@ -216,9 +202,7 @@ impl PostBuildHandler {
                 )
                 .unwrap();
         } else {
-            self.analysis
-                .reload_from_analysis(analysis, &self.project_path, cwd, &[])
-                .unwrap();
+            self.analysis.reload_from_analysis(analysis, &self.project_path, cwd, &[]).unwrap();
         }
     }
 
@@ -272,15 +256,10 @@ impl AnalysisQueue {
     pub fn init() -> AnalysisQueue {
         let queue = Arc::new(Mutex::new(Vec::new()));
         let queue_clone = queue.clone();
-        let worker_thread = thread::spawn(move || AnalysisQueue::run_worker_thread(queue_clone))
-            .thread()
-            .clone();
+        let worker_thread =
+            thread::spawn(move || AnalysisQueue::run_worker_thread(queue_clone)).thread().clone();
 
-        AnalysisQueue {
-            cur_cwd: Mutex::new(None),
-            queue,
-            worker_thread,
-        }
+        AnalysisQueue { cur_cwd: Mutex::new(None), queue, worker_thread }
     }
 
     fn enqueue(&self, job: Job) {
@@ -371,12 +350,7 @@ impl Job {
                 hasher.finish()
             });
 
-        Job {
-            handler,
-            analysis,
-            cwd,
-            hash,
-        }
+        Job { handler, analysis, cwd, hash }
     }
 
     fn process(self) {
@@ -392,8 +366,7 @@ impl Job {
             self.handler.reload_analysis_from_disk(&self.cwd);
         } else {
             trace!("reloading from memory: {:?}", self.cwd);
-            self.handler
-                .reload_analysis_from_memory(&self.cwd, self.analysis);
+            self.handler.reload_analysis_from_memory(&self.cwd, self.analysis);
         }
 
         self.handler.finalize();

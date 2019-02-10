@@ -60,10 +60,7 @@ where
         if work.len() >= *NUM_THREADS {
             // there are already N ongoing tasks, that may or may not have timed out
             // don't add yet more to the queue fail fast to allow the work pool to recover
-            warn!(
-                "Could not start `{}` as at work capacity, {:?} in progress",
-                description, *work,
-            );
+            warn!("Could not start `{}` as at work capacity, {:?} in progress", description, *work,);
             return receiver;
         }
         if work.iter().filter(|desc| *desc == &description).count() >= MAX_SIMILAR_CONCURRENT_WORK {

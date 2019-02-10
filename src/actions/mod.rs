@@ -175,12 +175,7 @@ impl UninitActionContext {
         vfs: Arc<Vfs>,
         config: Arc<Mutex<Config>>,
     ) -> UninitActionContext {
-        UninitActionContext {
-            analysis,
-            vfs,
-            config,
-            pid: ::std::process::id(),
-        }
+        UninitActionContext { analysis, vfs, config, pid: ::std::process::id() }
     }
 }
 
@@ -243,10 +238,9 @@ impl InitActionContext {
             fn load_file(&self, path: &Path) -> io::Result<String> {
                 match self.0.load_file(path) {
                     Ok(FileContents::Text(t)) => Ok(t),
-                    Ok(FileContents::Binary(_)) => Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        rls_vfs::Error::BadFileKind,
-                    )),
+                    Ok(FileContents::Binary(_)) => {
+                        Err(io::Error::new(io::ErrorKind::Other, rls_vfs::Error::BadFileKind))
+                    }
                     Err(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
                 }
             }
@@ -287,11 +281,7 @@ impl InitActionContext {
     fn file_edition(&self, file: PathBuf) -> Option<Edition> {
         let files_to_crates = self.file_to_crates.lock().unwrap();
 
-        let editions: HashSet<_> = files_to_crates
-            .get(&file)?
-            .iter()
-            .map(|c| c.edition)
-            .collect();
+        let editions: HashSet<_> = files_to_crates.get(&file)?.iter().map(|c| c.edition).collect();
 
         let mut iter = editions.into_iter();
         match (iter.next(), iter.next()) {
@@ -319,10 +309,7 @@ impl InitActionContext {
             thread::spawn(move || {
                 let mut config = config.lock().unwrap();
                 if let Err(e) = config.infer_defaults(&current_project) {
-                    debug!(
-                        "Encountered an error while trying to infer config defaults: {:?}",
-                        e
-                    );
+                    debug!("Encountered an error while trying to infer config defaults: {:?}", e);
                 }
             });
         }
@@ -358,8 +345,7 @@ impl InitActionContext {
         let notifier = Box::new(BuildProgressNotifier::new(out.clone()));
 
         self.active_build_count.fetch_add(1, Ordering::SeqCst);
-        self.build_queue
-            .request_build(project_path, priority, notifier, pbh);
+        self.build_queue.request_build(project_path, priority, notifier, pbh);
     }
 
     fn build_current_project<O: Output>(&self, priority: BuildPriority, out: &O) {
@@ -486,10 +472,7 @@ fn find_word_at_pos(line: &str, pos: Column) -> (Column, Column) {
         .map(|(i, _)| i)
         .unwrap_or(col) as u32;
 
-    (
-        span::Column::new_zero_indexed(start),
-        span::Column::new_zero_indexed(end),
-    )
+    (span::Column::new_zero_indexed(start), span::Column::new_zero_indexed(end))
 }
 
 /// Client file-watching request / filtering logic
@@ -506,25 +489,16 @@ impl FileWatch {
     }
 
     pub fn from_project_root(root: PathBuf) -> Self {
-        Self {
-            project_uri: Url::from_file_path(&root).unwrap().into_string(),
-            project_path: root,
-        }
+        Self { project_uri: Url::from_file_path(&root).unwrap().into_string(), project_path: root }
     }
 
     /// Returns json config for desired file watches
     pub fn watchers_config(&self) -> serde_json::Value {
         fn watcher(pat: String) -> FileSystemWatcher {
-            FileSystemWatcher {
-                glob_pattern: pat,
-                kind: None,
-            }
+            FileSystemWatcher { glob_pattern: pat, kind: None }
         }
         fn watcher_with_kind(pat: String, kind: WatchKind) -> FileSystemWatcher {
-            FileSystemWatcher {
-                glob_pattern: pat,
-                kind: Some(kind),
-            }
+            FileSystemWatcher { glob_pattern: pat, kind: Some(kind) }
         }
 
         let project_str = self.project_path.to_str().unwrap();

@@ -1,8 +1,8 @@
 use rls::actions::hover::tooltip;
 use rls::actions::{ActionContext, InitActionContext};
 use rls::config;
-use rls::lsp_data::{ClientCapabilities, InitializationOptions};
 use rls::lsp_data::MarkedString;
+use rls::lsp_data::{ClientCapabilities, InitializationOptions};
 use rls::lsp_data::{Position, TextDocumentIdentifier, TextDocumentPositionParams};
 use rls::server::{Output, RequestId};
 use rls_analysis as analysis;
@@ -36,12 +36,8 @@ impl Test {
         let path = self.path(dir);
         let file = fs::File::open(path.clone())
             .map_err(|e| format!("failed to open hover test result: {:?} ({:?})", path, e))?;
-        let result: Result<TestResult, String> = json::from_reader(file).map_err(|e| {
-            format!(
-                "failed to deserialize hover test result: {:?} ({:?})",
-                path, e
-            )
-        });
+        let result: Result<TestResult, String> = json::from_reader(file)
+            .map_err(|e| format!("failed to deserialize hover test result: {:?} ({:?})", path, e));
         result
     }
 }
@@ -55,12 +51,8 @@ struct TestResult {
 impl TestResult {
     fn save(&self, result_dir: &Path) -> Result<(), String> {
         let path = self.test.path(result_dir);
-        let data = json::to_string_pretty(&self).map_err(|e| {
-            format!(
-                "failed to serialize hover test result: {:?} ({:?})",
-                path, e
-            )
-        })?;
+        let data = json::to_string_pretty(&self)
+            .map_err(|e| format!("failed to serialize hover test result: {:?} ({:?})", path, e))?;
         fs::write(&path, data)
             .map_err(|e| format!("failed to save hover test result: {:?} ({:?})", path, e))
     }
@@ -84,18 +76,11 @@ impl TestResult {
 
 impl Test {
     pub fn new(file: &str, line: u64, col: u64) -> Test {
-        Test {
-            file: file.into(),
-            line,
-            col,
-        }
+        Test { file: file.into(), line, col }
     }
 
     fn path(&self, result_dir: &Path) -> PathBuf {
-        result_dir.join(format!(
-            "{}.{:04}_{:03}.json",
-            self.file, self.line, self.col
-        ))
+        result_dir.join(format!("{}.{:04}_{:03}.json", self.file, self.line, self.col))
     }
 
     fn run(&self, project_dir: &Path, ctx: &InitActionContext) -> TestResult {
@@ -107,10 +92,7 @@ impl Test {
             .map_err(|e| format!("tooltip error: {:?}", e))
             .map(|v| v.contents);
 
-        TestResult {
-            test: self.clone(),
-            data: result,
-        }
+        TestResult { test: self.clone(), data: result }
     }
 }
 
@@ -143,11 +125,7 @@ impl fmt::Debug for TestFailure {
 
         let expected = format!("{:#?}", self.expect_data);
         let actual = format!("{:#?}", self.actual_data);
-        write!(
-            fmt,
-            "-diff: {}",
-            difference::Changeset::new(&expected, &actual, "")
-        )
+        write!(fmt, "-diff: {}", difference::Changeset::new(&expected, &actual, ""))
     }
 }
 
@@ -225,23 +203,14 @@ impl TooltipTestHarness {
 
         let ctx = {
             let mut ctx = ActionContext::new(analysis, vfs, config);
-            ctx.init(
-                project_dir.clone(),
-                InitializationOptions::default(),
-                client_caps,
-                output,
-            )
-            .unwrap();
+            ctx.init(project_dir.clone(), InitializationOptions::default(), client_caps, output)
+                .unwrap();
             ctx.inited().unwrap()
         };
 
         ctx.block_on_build();
 
-        TooltipTestHarness {
-            ctx,
-            project_dir,
-            _working_dir,
-        }
+        TooltipTestHarness { ctx, project_dir, _working_dir }
     }
 
     /// Execute a series of tooltip tests. The test results will be saved in `save_dir`.
@@ -257,16 +226,10 @@ impl TooltipTestHarness {
         save_dir: PathBuf,
     ) -> Result<Vec<TestFailure>, String> {
         fs::create_dir_all(&load_dir).map_err(|e| {
-            format!(
-                "load_dir does not exist and could not be created: {:?} ({:?})",
-                load_dir, e
-            )
+            format!("load_dir does not exist and could not be created: {:?} ({:?})", load_dir, e)
         })?;
         fs::create_dir_all(&save_dir).map_err(|e| {
-            format!(
-                "save_dir does not exist and could not be created: {:?} ({:?})",
-                save_dir, e
-            )
+            format!("save_dir does not exist and could not be created: {:?} ({:?})", save_dir, e)
         })?;
 
         let results: Vec<TestResult> = tests
@@ -280,21 +243,19 @@ impl TooltipTestHarness {
 
         let failures: Vec<TestFailure> = results
             .into_iter()
-            .map(
-                |actual_result: TestResult| match actual_result.test.load_result(&load_dir) {
-                    Ok(expect_result) => {
-                        if actual_result.test != expect_result.test {
-                            let e = format!("Mismatched test: {:?}", expect_result.test);
-                            Some((Err(e), actual_result))
-                        } else if expect_result.has_same_data_start(&actual_result) {
-                            None
-                        } else {
-                            Some((Ok(expect_result), actual_result))
-                        }
+            .map(|actual_result: TestResult| match actual_result.test.load_result(&load_dir) {
+                Ok(expect_result) => {
+                    if actual_result.test != expect_result.test {
+                        let e = format!("Mismatched test: {:?}", expect_result.test);
+                        Some((Err(e), actual_result))
+                    } else if expect_result.has_same_data_start(&actual_result) {
+                        None
+                    } else {
+                        Some((Ok(expect_result), actual_result))
                     }
-                    Err(e) => Some((Err(e), actual_result)),
-                },
-            )
+                }
+                Err(e) => Some((Err(e), actual_result)),
+            })
             .filter_map(|failed_result| failed_result)
             .map(|(result, actual_result)| {
                 let load_file = actual_result.test.path(&load_dir);
@@ -355,10 +316,7 @@ fn run_tooltip_tests(
         Ok(())
     } else {
         eprintln!("{}\n\n", out.reset().join("\n"));
-        eprintln!(
-            "Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n",
-            failures
-        );
+        eprintln!("Failures (\x1b[91mexpected\x1b[92mactual\x1b[0m): {:#?}\n\n", failures);
         Err(format!("{} of {} tooltip tests failed", failures.len(), tests.len()).into())
     }
 }

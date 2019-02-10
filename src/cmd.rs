@@ -56,9 +56,7 @@ pub fn run() {
         print!("> ");
         stdout().flush().unwrap();
         let mut input = String::new();
-        stdin()
-            .read_line(&mut input)
-            .expect("Could not read from stdin");
+        stdin().read_line(&mut input).expect("Could not read from stdin");
 
         // Split the input into an action command and args
         let mut bits = input.split_whitespace();
@@ -113,26 +111,14 @@ pub fn run() {
             }
             "range_format" => {
                 let file_name = bits.next().expect("Expected file name");
-                let start_row: u64 = bits
-                    .next()
-                    .expect("Expected start line")
-                    .parse()
-                    .expect("Bad start line");
-                let start_col: u64 = bits
-                    .next()
-                    .expect("Expected start column")
-                    .parse()
-                    .expect("Bad start column");
-                let end_row: u64 = bits
-                    .next()
-                    .expect("Expected end line")
-                    .parse()
-                    .expect("Bad end line");
-                let end_col: u64 = bits
-                    .next()
-                    .expect("Expected end column")
-                    .parse()
-                    .expect("Bad end column");
+                let start_row: u64 =
+                    bits.next().expect("Expected start line").parse().expect("Bad start line");
+                let start_col: u64 =
+                    bits.next().expect("Expected start column").parse().expect("Bad start column");
+                let end_row: u64 =
+                    bits.next().expect("Expected end line").parse().expect("Bad end line");
+                let end_col: u64 =
+                    bits.next().expect("Expected end column").parse().expect("Bad end column");
                 let tab_size: u64 = bits
                     .next()
                     .unwrap_or("4")
@@ -151,30 +137,19 @@ pub fn run() {
                     end_col,
                     tab_size,
                     insert_spaces,
-                ).to_string()
+                )
+                .to_string()
             }
             "code_action" => {
                 let file_name = bits.next().expect("Expect file name");
-                let start_row: u64 = bits
-                    .next()
-                    .expect("Expect start line")
-                    .parse()
-                    .expect("Bad start line");
-                let start_col: u64 = bits
-                    .next()
-                    .expect("Expect start column")
-                    .parse()
-                    .expect("Bad start column");
-                let end_row: u64 = bits
-                    .next()
-                    .expect("Expect end line")
-                    .parse()
-                    .expect("Bad end line");
-                let end_col: u64 = bits
-                    .next()
-                    .expect("Expect end column")
-                    .parse()
-                    .expect("Bad end column");
+                let start_row: u64 =
+                    bits.next().expect("Expect start line").parse().expect("Bad start line");
+                let start_col: u64 =
+                    bits.next().expect("Expect start column").parse().expect("Bad start column");
+                let end_row: u64 =
+                    bits.next().expect("Expect end line").parse().expect("Bad end line");
+                let end_col: u64 =
+                    bits.next().expect("Expect end column").parse().expect("Bad end column");
                 code_action(file_name, start_row, start_col, end_row, end_col).to_string()
             }
             "resolve" => {
@@ -187,12 +162,8 @@ pub fn run() {
                 continue;
             }
             "q" | "quit" => {
-                sender
-                    .send(shutdown().to_string())
-                    .expect("Error sending on channel");
-                sender
-                    .send(exit().to_string())
-                    .expect("Error sending on channel");
+                sender.send(shutdown().to_string()).expect("Error sending on channel");
+                sender.send(exit().to_string()).expect("Error sending on channel");
                 // Sometimes we don't quite exit in time and we get an error on the channel. Hack it.
                 thread::sleep(Duration::from_millis(100));
                 return;
@@ -219,12 +190,7 @@ fn def(file_name: &str, row: &str, col: &str) -> Request<requests::Definition> {
             u64::from_str(col).expect("Bad column number"),
         ),
     };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requests::Rename> {
@@ -236,12 +202,7 @@ fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requ
         ),
         new_name: new_name.to_owned(),
     };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn hover(file_name: &str, row: &str, col: &str) -> Request<requests::Hover> {
@@ -252,24 +213,12 @@ fn hover(file_name: &str, row: &str, col: &str) -> Request<requests::Hover> {
             u64::from_str(col).expect("Bad column number"),
         ),
     };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn workspace_symbol(query: &str) -> Request<requests::WorkspaceSymbol> {
-    let params = WorkspaceSymbolParams {
-        query: query.to_owned(),
-    };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    let params = WorkspaceSymbolParams { query: query.to_owned() };
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<requests::Formatting> {
@@ -278,30 +227,15 @@ fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<reques
 
     let params = DocumentFormattingParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
-        options: FormattingOptions {
-            tab_size,
-            insert_spaces,
-            properties,
-        },
+        options: FormattingOptions { tab_size, insert_spaces, properties },
     };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn document_symbol(file_name: &str) -> Request<requests::Symbols> {
-    let params = DocumentSymbolParams {
-        text_document: TextDocumentIdentifier::new(url(file_name)),
-    };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    let params =
+        DocumentSymbolParams { text_document: TextDocumentIdentifier::new(url(file_name)) };
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn range_format(
@@ -322,18 +256,9 @@ fn range_format(
             start: Position::new(start_row, start_col),
             end: Position::new(end_row, end_col),
         },
-        options: FormattingOptions {
-            tab_size,
-            insert_spaces,
-            properties,
-        },
+        options: FormattingOptions { tab_size, insert_spaces, properties },
     };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn code_action(
@@ -349,44 +274,23 @@ fn code_action(
             start: Position::new(start_row, start_col),
             end: Position::new(end_row, end_col),
         },
-        context: CodeActionContext {
-            diagnostics: Vec::new(),
-            only: None,
-        },
+        context: CodeActionContext { diagnostics: Vec::new(), only: None },
     };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn resolve_completion(label: &str, detail: &str) -> Request<requests::ResolveCompletion> {
     let params = CompletionItem::new_simple(label.to_owned(), detail.to_owned());
 
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn shutdown() -> Request<server::ShutdownRequest> {
-    Request {
-        id: next_id(),
-        params: (),
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params: (), received: Instant::now(), _action: PhantomData }
 }
 
 fn exit() -> Notification<server::ExitNotification> {
-    Notification {
-        params: (),
-        _action: PhantomData,
-    }
+    Notification { params: (), _action: PhantomData }
 }
 
 fn initialize(root_path: String) -> Request<server::InitializeRequest> {
@@ -403,18 +307,11 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
         trace: Some(TraceOption::Off),
         workspace_folders: None,
     };
-    Request {
-        id: next_id(),
-        params,
-        received: Instant::now(),
-        _action: PhantomData,
-    }
+    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn url(file_name: &str) -> Url {
-    let canonical = Path::new(file_name)
-        .canonicalize()
-        .expect("Could not canonicalize file name");
+    let canonical = Path::new(file_name).canonicalize().expect("Could not canonicalize file name");
     let mut path = canonical.to_str().unwrap();
 
     // workaround for UNC path see https://github.com/rust-lang/rust/issues/42869
@@ -454,9 +351,7 @@ struct ChannelMsgReader {
 
 impl ChannelMsgReader {
     fn new(rx: Receiver<String>) -> ChannelMsgReader {
-        ChannelMsgReader {
-            channel: Mutex::new(rx),
-        }
+        ChannelMsgReader { channel: Mutex::new(rx) }
     }
 }
 
@@ -486,14 +381,9 @@ fn init() -> Sender<String> {
 
     sender
         .send(
-            initialize(
-                ::std::env::current_dir()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_owned(),
-            ).to_string(),
-        ).expect("Error sending init");
+            initialize(::std::env::current_dir().unwrap().to_str().unwrap().to_owned()).to_string(),
+        )
+        .expect("Error sending init");
     println!("Initializing (look for `progress[done:true]` message)...");
 
     sender
@@ -553,9 +443,5 @@ fn url_workaround_unc_canonicals() {
     let url = url(current_dir.to_str().unwrap());
 
     let url_str = format!("{}", url);
-    assert!(
-        !url_str.starts_with(r"file:////?\"),
-        "Unexpected UNC url {}",
-        url
-    );
+    assert!(!url_str.starts_with(r"file:////?\"), "Unexpected UNC url {}", url);
 }

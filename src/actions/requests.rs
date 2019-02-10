@@ -133,10 +133,7 @@ impl RequestAction for Hover {
     type Response = lsp_data::Hover;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(lsp_data::Hover {
-            contents: HoverContents::Array(vec![]),
-            range: None,
-        })
+        Ok(lsp_data::Hover { contents: HoverContents::Array(vec![]), range: None })
     }
 
     fn handle(
@@ -168,12 +165,9 @@ impl RequestAction for Implementation {
         let analysis = ctx.analysis;
 
         let type_id = analysis.id(&span).map_err(|_| ResponseError::Empty)?;
-        let result = analysis.find_impls(type_id).map(|spans| {
-            spans
-                .into_iter()
-                .map(|x| ls_util::rls_to_location(&x))
-                .collect()
-        });
+        let result = analysis
+            .find_impls(type_id)
+            .map(|spans| spans.into_iter().map(|x| ls_util::rls_to_location(&x)).collect());
 
         trace!("find_impls: {:?}", result);
 
@@ -245,18 +239,12 @@ impl RequestAction for References {
         let span = ctx.convert_pos_to_span(file_path, params.position);
 
         let result =
-            match ctx
-                .analysis
-                .find_all_refs(&span, params.context.include_declaration, false)
-            {
+            match ctx.analysis.find_all_refs(&span, params.context.include_declaration, false) {
                 Ok(t) => t,
                 _ => vec![],
             };
 
-        Ok(result
-            .iter()
-            .map(|item| ls_util::rls_to_location(item))
-            .collect())
+        Ok(result.iter().map(|item| ls_util::rls_to_location(item)).collect())
     }
 }
 
@@ -319,10 +307,7 @@ impl RequestAction for DocumentHighlight {
         let file_path = parse_file_path!(&params.text_document.uri, "highlight")?;
         let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
 
-        let result = ctx
-            .analysis
-            .find_all_refs(&span, true, false)
-            .unwrap_or_else(|_| vec![]);
+        let result = ctx.analysis.find_all_refs(&span, true, false).unwrap_or_else(|_| vec![]);
 
         Ok(result
             .iter()
@@ -344,10 +329,7 @@ impl RequestAction for Rename {
     type Response = ResponseWithMessage<WorkspaceEdit>;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(ResponseWithMessage::Response(WorkspaceEdit {
-            changes: None,
-            document_changes: None,
-        }))
+        Ok(ResponseWithMessage::Response(WorkspaceEdit { changes: None, document_changes: None }))
     }
 
     fn handle(
@@ -379,21 +361,15 @@ impl RequestAction for Rename {
             analysis.crate_local_id(&span),
             "Rename failed: no information for symbol"
         );
-        let def = unwrap_or_fallback!(
-            analysis.get_def(id),
-            "Rename failed: no definition for symbol"
-        );
+        let def =
+            unwrap_or_fallback!(analysis.get_def(id), "Rename failed: no definition for symbol");
         if def.name == "self" || def.name == "Self"
             // FIXME(#578)
             || def.kind == data::DefKind::Mod
         {
             return Ok(ResponseWithMessage::Warn(format!(
                 "Rename failed: cannot rename {}",
-                if def.kind == data::DefKind::Mod {
-                    "modules"
-                } else {
-                    &def.name
-                }
+                if def.kind == data::DefKind::Mod { "modules" } else { &def.name }
             )));
         }
 
@@ -416,10 +392,7 @@ impl RequestAction for Rename {
             edits
                 .entry(loc.uri)
                 .or_insert_with(Vec::new)
-                .push(TextEdit {
-                    range: loc.range,
-                    new_text: params.new_name.clone(),
-                });
+                .push(TextEdit { range: loc.range, new_text: params.new_name.clone() });
         }
 
         if !ctx.quiescent.load(Ordering::SeqCst) {
@@ -447,9 +420,7 @@ impl server::Response for ExecuteCommandResponse {
         match self {
             ExecuteCommandResponse::ApplyEdit(ref params) => {
                 let id = out.provide_id();
-                let params = ApplyWorkspaceEditParams {
-                    edit: params.edit.clone(),
-                };
+                let params = ApplyWorkspaceEditParams { edit: params.edit.clone() };
 
                 let request = Request::<ApplyWorkspaceEdit>::new(id, params);
                 out.request(request);
@@ -480,10 +451,7 @@ impl RequestAction for ExecuteCommand {
             apply_deglobs(params.arguments, &ctx).map(ExecuteCommandResponse::ApplyEdit)
         } else {
             debug!("Unknown command: {}", params.command);
-            Err(ResponseError::Message(
-                ErrorCode::MethodNotFound,
-                "Unknown command".to_owned(),
-            ))
+            Err(ResponseError::Message(ErrorCode::MethodNotFound, "Unknown command".to_owned()))
         }
     }
 }
@@ -493,9 +461,7 @@ fn apply_suggestion(args: &[serde_json::Value]) -> Result<ApplyWorkspaceEditPara
     let new_text = serde_json::from_value(args[1].clone()).expect("Bad argument");
 
     trace!("apply_suggestion {:?} {}", location, new_text);
-    Ok(ApplyWorkspaceEditParams {
-        edit: make_workspace_edit(location, new_text),
-    })
+    Ok(ApplyWorkspaceEditParams { edit: make_workspace_edit(location, new_text) })
 }
 
 fn apply_deglobs(
@@ -503,10 +469,8 @@ fn apply_deglobs(
     ctx: &InitActionContext,
 ) -> Result<ApplyWorkspaceEditParams, ResponseError> {
     ctx.quiescent.store(true, Ordering::SeqCst);
-    let deglob_results: Vec<DeglobResult> = args
-        .into_iter()
-        .map(|res| serde_json::from_value(res).expect("Bad argument"))
-        .collect();
+    let deglob_results: Vec<DeglobResult> =
+        args.into_iter().map(|res| serde_json::from_value(res).expect("Bad argument")).collect();
 
     trace!("apply_deglobs {:?}", deglob_results);
 
@@ -515,18 +479,12 @@ fn apply_deglobs(
 
     let text_edits: Vec<_> = deglob_results
         .into_iter()
-        .map(|res| TextEdit {
-            range: res.location.range,
-            new_text: res.new_text,
-        })
+        .map(|res| TextEdit { range: res.location.range, new_text: res.new_text })
         .collect();
     // all deglob results will share the same URI
     let changes: HashMap<_, _> = vec![(uri, text_edits)].into_iter().collect();
 
-    let edit = WorkspaceEdit {
-        changes: Some(changes),
-        document_changes: None,
-    };
+    let edit = WorkspaceEdit { changes: Some(changes), document_changes: None };
 
     if !ctx.quiescent.load(Ordering::SeqCst) {
         return Err(ResponseError::Empty);
@@ -549,10 +507,7 @@ fn make_suggestion_fix_actions(
             .filter(|(diag, _)| diag.range.overlaps(&params.range))
             .flat_map(|(_, suggestions)| suggestions);
         for s in suggestions {
-            let span = Location {
-                uri: params.text_document.uri.clone(),
-                range: s.range,
-            };
+            let span = Location { uri: params.text_document.uri.clone(), range: s.range };
             let span = serde_json::to_value(&span).unwrap();
             let new_text = serde_json::to_value(&s.new_text).unwrap();
             let cmd = Command {
@@ -574,10 +529,7 @@ fn make_deglob_actions(
     code_actions_result: &mut <CodeAction as RequestAction>::Response,
 ) {
     // search for a glob in the line
-    if let Ok(line) = ctx
-        .vfs
-        .load_line(file_path, ls_util::range_to_rls(params.range).row_start)
-    {
+    if let Ok(line) = ctx.vfs.load_line(file_path, ls_util::range_to_rls(params.range).row_start) {
         let span = Location::new(params.text_document.uri.clone(), params.range);
 
         // for all indices which are a `*`
@@ -615,10 +567,7 @@ fn make_deglob_actions(
         if !deglob_results.is_empty() {
             // extend result list
             let cmd = Command {
-                title: format!(
-                    "Deglob import{}",
-                    if deglob_results.len() > 1 { "s" } else { "" }
-                ),
+                title: format!("Deglob import{}", if deglob_results.len() > 1 { "s" } else { "" }),
                 command: format!("rls.deglobImports-{}", ctx.pid),
                 arguments: Some(deglob_results),
             };
@@ -635,10 +584,8 @@ fn sort_deglob_str(s: &str) -> String {
 
         // Algorithm taken from rustfmt (rustfmt/src/imports.rs)
 
-        let is_upper_snake_case = |s: &str| {
-            s.chars()
-                .all(|c| c.is_uppercase() || c == '_' || c.is_numeric())
-        };
+        let is_upper_snake_case =
+            |s: &str| s.chars().all(|c| c.is_uppercase() || c == '_' || c.is_numeric());
 
         // snake_case < CamelCase < UPPER_SNAKE_CASE
         if a.starts_with(char::is_uppercase) && b.starts_with(char::is_lowercase) {
@@ -716,12 +663,7 @@ impl RequestAction for RangeFormatting {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        reformat(
-            &params.text_document,
-            Some(params.range),
-            &params.options,
-            &ctx,
-        )
+        reformat(&params.text_document, Some(params.range), &params.options, &ctx)
     }
 }
 
@@ -732,13 +674,7 @@ fn reformat(
     ctx: &InitActionContext,
 ) -> Result<[TextEdit; 1], ResponseError> {
     ctx.quiescent.store(true, Ordering::SeqCst);
-    trace!(
-        "Reformat: {:?} {:?} {} {}",
-        doc,
-        selection,
-        opts.tab_size,
-        opts.insert_spaces
-    );
+    trace!("Reformat: {:?} {:?} {} {}", doc, selection, opts.tab_size, opts.insert_spaces);
     let path = parse_file_path!(&doc.uri, "reformat")?;
 
     let input = match ctx.vfs.load_file(&path) {
@@ -775,17 +711,10 @@ fn reformat(
                     Edition::Edition2018 => RustfmtEdition::Edition2018,
                 };
                 config.set().edition(edition);
-                trace!(
-                    "Detected edition {:?} for file `{}`",
-                    edition,
-                    path.display()
-                );
+                trace!("Detected edition {:?} for file `{}`", edition, path.display());
             }
             None => {
-                warn!(
-                    "Reformat failed: ambiguous edition for `{}`",
-                    path.display()
-                );
+                warn!("Reformat failed: ambiguous edition for `{}`", path.display());
 
                 return Err(ResponseError::Message(
                     ErrorCode::InternalError,
@@ -797,10 +726,8 @@ fn reformat(
 
     if let Some(r) = selection {
         let range_of_rls = ls_util::range_to_rls(r).one_indexed();
-        let range = RustfmtRange::new(
-            range_of_rls.row_start.0 as usize,
-            range_of_rls.row_end.0 as usize,
-        );
+        let range =
+            RustfmtRange::new(range_of_rls.row_start.0 as usize, range_of_rls.row_end.0 as usize);
         let mut ranges = HashMap::new();
         ranges.insert(FileName::Stdin, vec![range]);
         let file_lines = FileLines::from_ranges(ranges);
@@ -824,10 +751,7 @@ fn reformat(
 
     // If Rustfmt returns range of text that changed,
     // we will be able to pass only range of changed text to the client.
-    Ok([TextEdit {
-        range: range_whole_file,
-        new_text: formatted_text,
-    }])
+    Ok([TextEdit { range: range_whole_file, new_text: formatted_text }])
 }
 
 impl RequestAction for ResolveCompletion {
@@ -894,11 +818,7 @@ impl RequestAction for CodeLensRequest {
                     arguments: Some(vec![serde_json::to_value(&action.cmd).unwrap()]),
                 };
                 let range = ls_util::rls_to_range(action.target_element);
-                let lens = CodeLens {
-                    range,
-                    command: Some(command),
-                    data: None,
-                };
+                let lens = CodeLens { range, command: Some(command), data: None };
                 ret.push(lens);
             }
         }

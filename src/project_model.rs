@@ -84,10 +84,7 @@ impl ProjectModel {
                     // racer expect name 'underscored'(crate) name
                     .map(|t| {
                         (
-                            t.src_path()
-                                .path()
-                                .expect("lib must have a path")
-                                .to_owned(),
+                            t.src_path().path().expect("lib must have a path").to_owned(),
                             t.name().replace('-', "_"),
                         )
                     }),
@@ -105,17 +102,13 @@ impl ProjectModel {
                 let lib = pkg.targets().iter().find(|t| t.is_lib());
                 if let Some(lib) = lib {
                     let crate_name = resolve.extern_crate_name(pkg_id, dep_id, &lib)?;
-                    packages[pkg_id_to_pkg[&pkg_id].0].deps.push(Dep {
-                        crate_name,
-                        pkg: pkg_id_to_pkg[&dep_id],
-                    })
+                    packages[pkg_id_to_pkg[&pkg_id].0]
+                        .deps
+                        .push(Dep { crate_name, pkg: pkg_id_to_pkg[&dep_id] })
                 }
             }
         }
-        Ok(ProjectModel {
-            manifest_to_id,
-            packages,
-        })
+        Ok(ProjectModel { manifest_to_id, packages })
     }
 
     pub fn package_for_manifest(&self, manifest_path: &Path) -> Option<Package> {
@@ -147,9 +140,7 @@ pub struct RacerProjectModel(pub Arc<ProjectModel>);
 
 impl racer::ProjectModelProvider for RacerProjectModel {
     fn edition(&self, manifest: &Path) -> Option<racer::Edition> {
-        self.0
-            .package_for_manifest(manifest)
-            .map(|pkg| self.0.get(pkg).edition)
+        self.0.package_for_manifest(manifest).map(|pkg| self.0.get(pkg).edition)
     }
 
     fn search_dependencies(
@@ -163,12 +154,12 @@ impl racer::ProjectModelProvider for RacerProjectModel {
         };
 
         pkg.deps(&self.0)
-        .iter()
-        .filter(|d| search_fn(&d.crate_name))
-        .filter_map(|d| self.0.get(d.pkg).lib.as_ref())
-        .cloned()
-        .map(|(src_path, crate_name)| (crate_name, src_path))
-        .collect()
+            .iter()
+            .filter(|d| search_fn(&d.crate_name))
+            .filter_map(|d| self.0.get(d.pkg).lib.as_ref())
+            .cloned()
+            .map(|(src_path, crate_name)| (crate_name, src_path))
+            .collect()
     }
 
     fn discover_project_manifest(&self, path: &Path) -> Option<PathBuf> {
@@ -189,11 +180,7 @@ impl racer::ProjectModelProvider for RacerProjectModel {
                 return Some(lib.0.clone());
             }
         }
-        let dep = pkg
-            .deps(&self.0)
-            .iter()
-            .find(|dep| dep.crate_name == libname)?
-            .pkg;
+        let dep = pkg.deps(&self.0).iter().find(|dep| dep.crate_name == libname)?.pkg;
 
         dep.lib_root(&self.0).map(|p| p.to_owned())
     }
@@ -228,14 +215,5 @@ fn resolve_with_prev<'cfg>(
     ws: &Workspace<'cfg>,
     prev: Option<&Resolve>,
 ) -> CargoResult<Resolve> {
-    ops::resolve_with_previous(
-        registry,
-        ws,
-        Method::Everything,
-        prev,
-        None,
-        &[],
-        true,
-        false,
-    )
+    ops::resolve_with_previous(registry, ws, Method::Everything, prev, None, &[], true, false)
 }

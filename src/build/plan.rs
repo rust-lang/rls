@@ -6,9 +6,9 @@
 //! * External - dependency graph between invocations
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
-use std::ffi::OsStr;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -16,9 +16,9 @@ use cargo::util::ProcessBuilder;
 use log::trace;
 
 use crate::actions::progress::ProgressUpdate;
-use crate::build::{BuildResult, Internals, PackageArg};
 use crate::build::cargo_plan::CargoPlan;
 use crate::build::external::ExternalPlan;
+use crate::build::{BuildResult, Internals, PackageArg};
 
 pub(crate) trait BuildKey {
     type Key: Eq + Hash;
@@ -57,7 +57,7 @@ pub(crate) enum WorkStatus {
 #[derive(Debug)]
 pub(crate) enum BuildPlan {
     External(ExternalPlan),
-    Cargo(CargoPlan)
+    Cargo(CargoPlan),
 }
 
 impl BuildPlan {
@@ -84,10 +84,7 @@ pub(crate) struct JobQueue(Vec<ProcessBuilder>);
 /// then proc_arg(prc, "--crate-name") returns Some(&OsStr::new("rls"));
 fn proc_argument_value<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
     let args = prc.get_args();
-    let (idx, _) = args
-        .iter()
-        .enumerate()
-        .find(|(_, arg)| arg.as_os_str() == key.as_ref())?;
+    let (idx, _) = args.iter().enumerate().find(|(_, arg)| arg.as_os_str() == key.as_ref())?;
 
     Some(args.get(idx + 1)?.as_os_str())
 }
@@ -118,10 +115,7 @@ impl JobQueue {
         let mut input_files = HashMap::<_, HashSet<_>>::new();
         let (build_dir, mut cwd) = {
             let comp_cx = internals.compilation_cx.lock().unwrap();
-            (
-                comp_cx.build_dir.clone().expect("no build directory"),
-                comp_cx.cwd.clone(),
-            )
+            (comp_cx.build_dir.clone().expect("no build directory"), comp_cx.cwd.clone())
         };
 
         // Go through cached compiler invocations sequentially, collecting each
@@ -135,11 +129,8 @@ impl JobQueue {
                 .map(|x| x.into_string().expect("cannot stringify job args"))
                 .collect();
 
-            let program = job
-                .get_program()
-                .clone()
-                .into_string()
-                .expect("cannot stringify job program");
+            let program =
+                job.get_program().clone().into_string().expect("cannot stringify job program");
             args.insert(0, program.clone());
 
             // Needed to parse rustc diagnostics
@@ -177,9 +168,7 @@ impl JobQueue {
                     }
                 };
 
-                progress_sender
-                    .send(update)
-                    .expect("Failed to send progress update");
+                progress_sender.send(update).expect("Failed to send progress update");
             }
 
             match super::rustc::rustc(
@@ -245,7 +234,7 @@ pub struct Crate {
 #[derive(PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy, Clone)]
 pub enum Edition {
     Edition2015,
-    Edition2018
+    Edition2018,
 }
 
 impl Default for Edition {

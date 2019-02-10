@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use rls::config::{Config, Inferrable};
-use rls::server as ls_server;
 use env_logger;
 use lsp_types;
+use rls::config::{Config, Inferrable};
+use rls::server as ls_server;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json;
@@ -44,11 +44,7 @@ impl Environment {
 
         let cache = Cache::new(scratchpad_dir);
 
-        Self {
-            config: Some(config),
-            cache,
-            target_path: target_dir,
-        }
+        Self { config: Some(config), cache, target_path: target_dir }
     }
 }
 
@@ -93,7 +89,8 @@ impl Drop for Environment {
 pub fn build_scratchpad_from_fixture(fixture_dir: impl AsRef<Path>) -> io::Result<PathBuf> {
     let fixture_dir = fixture_dir.as_ref();
 
-    let dirname = fixture_dir.file_name()
+    let dirname = fixture_dir
+        .file_name()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No filename"))?;
 
     // FIXME: For now persist the path; ideally we should clean up after every test
@@ -123,10 +120,7 @@ struct MockMsgReader {
 
 impl MockMsgReader {
     fn new(messages: Vec<String>) -> MockMsgReader {
-        MockMsgReader {
-            messages,
-            cur: AtomicUsize::new(0),
-        }
+        MockMsgReader { messages, cur: AtomicUsize::new(0) }
     }
 }
 
@@ -184,10 +178,7 @@ pub(crate) struct ExpectedMessage {
 
 impl ExpectedMessage {
     pub(crate) fn new(id: Option<u64>) -> ExpectedMessage {
-        ExpectedMessage {
-            id,
-            contains: vec![],
-        }
+        ExpectedMessage { id, contains: vec![] }
     }
 
     pub(crate) fn expect_contains(&mut self, s: &str) -> &mut ExpectedMessage {
@@ -243,24 +234,12 @@ fn try_expect_message(
     };
 
     let values: serde_json::Value = serde_json::from_str(&found).unwrap();
-    if values
-        .get("jsonrpc")
-        .expect("Missing jsonrpc field")
-        .as_str()
-        .unwrap()
-        != "2.0"
-    {
+    if values.get("jsonrpc").expect("Missing jsonrpc field").as_str().unwrap() != "2.0" {
         return Err("Bad jsonrpc field".into());
     }
 
     if let Some(id) = expected.id {
-        if values
-            .get("id")
-            .expect("Missing id field")
-            .as_u64()
-            .unwrap()
-            != id
-        {
+        if values.get("id").expect("Missing id field").as_u64().unwrap() != id {
             return Err("Unexpected id".into());
         }
     }
@@ -295,11 +274,7 @@ pub(crate) struct Src<'a> {
 }
 
 pub(crate) fn src<'a>(file_name: &'a Path, line: usize, name: &'a str) -> Src<'a> {
-    Src {
-        file_name,
-        line,
-        name,
-    }
+    Src { file_name, line, name }
 }
 
 pub(crate) struct Cache {
@@ -309,17 +284,12 @@ pub(crate) struct Cache {
 
 impl Cache {
     fn new(base_path: PathBuf) -> Cache {
-        Cache {
-            base_path,
-            files: HashMap::new(),
-        }
+        Cache { base_path, files: HashMap::new() }
     }
 
     pub(crate) fn mk_ls_position(&mut self, src: Src<'_>) -> lsp_types::Position {
         let line = self.get_line(src);
-        let col = line
-            .find(src.name)
-            .expect(&format!("Line does not contain name {}", src.name));
+        let col = line.find(src.name).expect(&format!("Line does not contain name {}", src.name));
         lsp_types::Position::new((src.line - 1) as u64, char_of_byte_index(&line, col) as u64)
     }
 
@@ -327,18 +297,12 @@ impl Cache {
     ///
     /// The line number uses a 0-based index.
     pub(crate) fn mk_ls_range_from_line(&mut self, line: u64) -> lsp_types::Range {
-        lsp_types::Range::new(
-            lsp_types::Position::new(line, 0),
-            lsp_types::Position::new(line, 0),
-        )
+        lsp_types::Range::new(lsp_types::Position::new(line, 0), lsp_types::Position::new(line, 0))
     }
 
     pub(crate) fn abs_path(&self, file_name: &Path) -> PathBuf {
-        let result = self
-            .base_path
-            .join(file_name)
-            .canonicalize()
-            .expect("Couldn't canonicalise path");
+        let result =
+            self.base_path.join(file_name).canonicalize().expect("Couldn't canonicalise path");
         if cfg!(windows) {
             // FIXME: If the \\?\ prefix is not stripped from the canonical path, the HTTP server tests fail. Why?
             let result_string = result.to_str().expect("Path contains non-utf8 characters.");
@@ -350,16 +314,13 @@ impl Cache {
 
     fn get_line(&mut self, src: Src<'_>) -> String {
         let base_path = &self.base_path;
-        let lines = self
-            .files
-            .entry(src.file_name.to_owned())
-            .or_insert_with(|| {
-                let file_name = &base_path.join(src.file_name);
-                let file =
-                    File::open(file_name).expect(&format!("Couldn't find file: {:?}", file_name));
-                let lines = BufReader::new(file).lines();
-                lines.collect::<Result<Vec<_>, _>>().unwrap()
-            });
+        let lines = self.files.entry(src.file_name.to_owned()).or_insert_with(|| {
+            let file_name = &base_path.join(src.file_name);
+            let file =
+                File::open(file_name).expect(&format!("Couldn't find file: {:?}", file_name));
+            let lines = BufReader::new(file).lines();
+            lines.collect::<Result<Vec<_>, _>>().unwrap()
+        });
 
         if src.line > lines.len() {
             panic!("Line {} not in file, found {} lines", src.line, lines.len());

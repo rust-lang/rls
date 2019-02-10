@@ -74,11 +74,7 @@ pub struct LineIndex {
 
 impl LineIndex {
     pub fn new(text: &str) -> LineIndex {
-        let newlines = text
-            .bytes()
-            .enumerate()
-            .filter(|&(_i, b)| b == b'\n')
-            .map(|(i, _b)| i + 1);
+        let newlines = text.bytes().enumerate().filter(|&(_i, b)| b == b'\n').map(|(i, _b)| i + 1);
         let newlines = iter::once(0).chain(newlines).collect();
         LineIndex { newlines }
     }
@@ -87,9 +83,6 @@ impl LineIndex {
         let line = self.newlines.upper_bound(&offset) - 1;
         let line_start_offset = self.newlines[line];
         let col = offset - line_start_offset;
-        Position::new(
-            Row::new_zero_indexed(line as u32),
-            Column::new_zero_indexed(col as u32),
-        )
+        Position::new(Row::new_zero_indexed(line as u32), Column::new_zero_indexed(col as u32))
     }
 }

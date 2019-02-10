@@ -1,12 +1,12 @@
 use std::path::Path;
 
 use futures::future::Future;
-use lsp_types::{*, request::*, notification::*};
+use lsp_types::{notification::*, request::*, *};
 use serde::de::Deserialize;
 use serde_json::json;
 
-use crate::support::{basic_bin_manifest, fixtures_dir};
 use crate::support::project_builder::{project, ProjectBuilder};
+use crate::support::{basic_bin_manifest, fixtures_dir};
 
 #[allow(dead_code)]
 mod support;
@@ -143,11 +143,14 @@ fn client_test_simple_workspace() {
     rls.wait_for_indexing();
 
     // Check if we built member_lib and member_bin + their cfg(test) variants
-    let count = rls.messages()
+    let count = rls
+        .messages()
         .iter()
         .filter(|msg| msg["method"] == "window/progress")
         .filter(|msg| msg["params"]["title"] == "Building")
-        .filter(|msg| msg["params"]["message"].as_str().map(|x| x.starts_with("member_")).unwrap_or(false))
+        .filter(|msg| {
+            msg["params"]["message"].as_str().map(|x| x.starts_with("member_")).unwrap_or(false)
+        })
         .count();
     assert_eq!(count, 4);
 
@@ -232,14 +235,8 @@ fn client_changing_workspace_lib_retains_diagnostics() {
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
         content_changes: vec![TextDocumentContentChangeEvent {
             range: Some(Range {
-                start: Position {
-                    line: 1,
-                    character: 38,
-                },
-                end: Position {
-                    line: 1,
-                    character: 41
-                }
+                start: Position { line: 1, character: 38 },
+                end: Position { line: 1, character: 41 },
             }),
             range_length: Some(3),
             text: "u64".to_string(),
@@ -247,7 +244,7 @@ fn client_changing_workspace_lib_retains_diagnostics() {
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("library/src/lib.rs")).unwrap(),
             version: Some(0),
-        }
+        },
     });
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
@@ -263,14 +260,8 @@ fn client_changing_workspace_lib_retains_diagnostics() {
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
         content_changes: vec![TextDocumentContentChangeEvent {
             range: Some(Range {
-                start: Position {
-                    line: 1,
-                    character: 38,
-                },
-                end: Position {
-                    line: 1,
-                    character: 41
-                }
+                start: Position { line: 1, character: 38 },
+                end: Position { line: 1, character: 41 },
             }),
             range_length: Some(3),
             text: "u32".to_string(),
@@ -278,7 +269,7 @@ fn client_changing_workspace_lib_retains_diagnostics() {
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("library/src/lib.rs")).unwrap(),
             version: Some(1),
-        }
+        },
     });
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
@@ -346,14 +337,8 @@ fn client_implicit_workspace_pick_up_lib_changes() {
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
         content_changes: vec![TextDocumentContentChangeEvent {
             range: Some(Range {
-                start: Position {
-                    line: 1,
-                    character: 23,
-                },
-                end: Position {
-                    line: 1,
-                    character: 26
-                }
+                start: Position { line: 1, character: 23 },
+                end: Position { line: 1, character: 26 },
             }),
             range_length: Some(3),
             text: "bar".to_string(),
@@ -361,7 +346,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("inner/src/lib.rs")).unwrap(),
             version: Some(0),
-        }
+        },
     });
 
     // bin depending on lib picks up type mismatch
@@ -372,14 +357,8 @@ fn client_implicit_workspace_pick_up_lib_changes() {
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
         content_changes: vec![TextDocumentContentChangeEvent {
             range: Some(Range {
-                start: Position {
-                    line: 1,
-                    character: 23,
-                },
-                end: Position {
-                    line: 1,
-                    character: 26
-                }
+                start: Position { line: 1, character: 23 },
+                end: Position { line: 1, character: 26 },
             }),
             range_length: Some(3),
             text: "foo".to_string(),
@@ -387,7 +366,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("inner/src/lib.rs")).unwrap(),
             version: Some(1),
-        }
+        },
     });
 
     let bin = rls.future_diagnostics("src/main.rs");
@@ -439,20 +418,23 @@ fn client_test_complete_self_crate_name() {
     let diag = rls.wait_for_diagnostics();
     assert!(diag.diagnostics[0].message.contains("expected identifier"));
 
-    let response = rls.request::<Completion>(100, CompletionParams {
-        context: Some(CompletionContext {
-            trigger_character: Some(":".to_string()),
-            trigger_kind: CompletionTriggerKind::TriggerCharacter,
-        }),
-        position: Position::new(2, 32),
-        text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
-        }
-    });
+    let response = rls.request::<Completion>(
+        100,
+        CompletionParams {
+            context: Some(CompletionContext {
+                trigger_character: Some(":".to_string()),
+                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+            }),
+            position: Position::new(2, 32),
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            },
+        },
+    );
 
     let items = match response {
         Some(CompletionResponse::Array(items)) => items,
-        Some(CompletionResponse::List(CompletionList { items, ..})) => items,
+        Some(CompletionResponse::List(CompletionList { items, .. })) => items,
         _ => Vec::new(),
     };
 
@@ -501,46 +483,52 @@ fn client_completion_suggests_arguments_in_statements() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(0, lsp_types::InitializeParams {
-        process_id: None,
-        root_uri: None,
-        root_path: Some(root_path.display().to_string()),
-        initialization_options: None,
-        capabilities: lsp_types::ClientCapabilities {
-            workspace: None,
-            text_document: Some(TextDocumentClientCapabilities {
-                completion: Some(CompletionCapability {
-                    completion_item: Some(CompletionItemCapability {
-                        snippet_support: Some(true),
-                        ..CompletionItemCapability::default()
+    rls.request::<Initialize>(
+        0,
+        lsp_types::InitializeParams {
+            process_id: None,
+            root_uri: None,
+            root_path: Some(root_path.display().to_string()),
+            initialization_options: None,
+            capabilities: lsp_types::ClientCapabilities {
+                workspace: None,
+                text_document: Some(TextDocumentClientCapabilities {
+                    completion: Some(CompletionCapability {
+                        completion_item: Some(CompletionItemCapability {
+                            snippet_support: Some(true),
+                            ..CompletionItemCapability::default()
+                        }),
+                        ..CompletionCapability::default()
                     }),
-                    ..CompletionCapability::default()
+                    ..TextDocumentClientCapabilities::default()
                 }),
-                ..TextDocumentClientCapabilities::default()
-            }),
-            experimental: None,
+                experimental: None,
+            },
+            trace: None,
+            workspace_folders: None,
         },
-        trace: None,
-        workspace_folders: None,
-    });
+    );
 
     let diag = rls.wait_for_diagnostics();
     assert!(diag.diagnostics[0].message.contains("expected one of"));
 
-    let response = rls.request::<Completion>(100, CompletionParams {
-        context: Some(CompletionContext {
-            trigger_character: Some("f".to_string()),
-            trigger_kind: CompletionTriggerKind::TriggerCharacter,
-        }),
-        position: Position::new(3, 41),
-        text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
-        }
-    });
+    let response = rls.request::<Completion>(
+        100,
+        CompletionParams {
+            context: Some(CompletionContext {
+                trigger_character: Some("f".to_string()),
+                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+            }),
+            position: Position::new(3, 41),
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            },
+        },
+    );
 
     let items = match response {
         Some(CompletionResponse::Array(items)) => items,
-        Some(CompletionResponse::List(CompletionList { items, ..})) => items,
+        Some(CompletionResponse::List(CompletionList { items, .. })) => items,
         _ => Vec::new(),
     };
 
@@ -592,20 +580,23 @@ fn client_use_statement_completion_doesnt_suggest_arguments() {
     let diag = rls.wait_for_diagnostics();
     assert!(diag.diagnostics[0].message.contains("expected identifier"));
 
-    let response = rls.request::<Completion>(100, CompletionParams {
-        context: Some(CompletionContext {
-            trigger_character: Some(":".to_string()),
-            trigger_kind: CompletionTriggerKind::TriggerCharacter,
-        }),
-        position: Position::new(2, 32),
-        text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
-        }
-    });
+    let response = rls.request::<Completion>(
+        100,
+        CompletionParams {
+            context: Some(CompletionContext {
+                trigger_character: Some(":".to_string()),
+                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+            }),
+            position: Position::new(2, 32),
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            },
+        },
+    );
 
     let items = match response {
         Some(CompletionResponse::Array(items)) => items,
-        Some(CompletionResponse::List(CompletionList { items, ..})) => items,
+        Some(CompletionResponse::List(CompletionList { items, .. })) => items,
         _ => Vec::new(),
     };
 
@@ -643,10 +634,7 @@ fn client_dependency_typo_and_fix() {
     };
 
     let p = project("dependency_typo")
-        .file(
-            "Cargo.toml",
-            &manifest_with_dependency(r#"version-check = "0.5555""#),
-        )
+        .file("Cargo.toml", &manifest_with_dependency(r#"version-check = "0.5555""#))
         .file(
             "src/main.rs",
             r#"
@@ -673,12 +661,10 @@ fn client_dependency_typo_and_fix() {
     // fix naming typo, we now expect a version error diagnostic
     change_manifest(&manifest_with_dependency(r#"version_check = "0.5555""#));
     rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
-        changes: vec![
-            FileEvent {
-                uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
-                typ: FileChangeType::Changed
-            }
-        ]
+        changes: vec![FileEvent {
+            uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
+            typ: FileChangeType::Changed,
+        }],
     });
 
     let diag = rls.wait_for_diagnostics();
@@ -691,16 +677,17 @@ fn client_dependency_typo_and_fix() {
     // chose version_check to minimise this as it is a very small dependency.
     change_manifest(&manifest_with_dependency(r#"version_check = "0.1""#));
     rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
-        changes: vec![
-            FileEvent {
-                uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
-                typ: FileChangeType::Changed
-            }
-        ]
+        changes: vec![FileEvent {
+            uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
+            typ: FileChangeType::Changed,
+        }],
     });
 
     let diag = rls.wait_for_diagnostics();
-    assert_eq!(diag.diagnostics.iter().find(|d| d.severity == Some(DiagnosticSeverity::Error)), None);
+    assert_eq!(
+        diag.diagnostics.iter().find(|d| d.severity == Some(DiagnosticSeverity::Error)),
+        None
+    );
 
     rls.shutdown();
 }
@@ -738,10 +725,13 @@ fn client_invalid_toml_manifest() {
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
     assert!(diag.diagnostics[0].message.contains("failed to parse manifest"));
 
-    assert_eq!(diag.diagnostics[0].range, Range {
-        start: Position { line: 2, character: 21 },
-        end: Position { line: 2, character: 22 },
-    });
+    assert_eq!(
+        diag.diagnostics[0].range,
+        Range {
+            start: Position { line: 2, character: 21 },
+            end: Position { line: 2, character: 22 },
+        }
+    );
 
     rls.shutdown();
 }
@@ -854,7 +844,10 @@ fn client_invalid_member_dependency_resolution() {
 
     let diag: PublishDiagnosticsParams = rls.wait_for_diagnostics();
 
-    assert!(diag.uri.as_str().ends_with("invalid_member_resolution/member_a/dodgy_member/Cargo.toml"));
+    assert!(diag
+        .uri
+        .as_str()
+        .ends_with("invalid_member_resolution/member_a/dodgy_member/Cargo.toml"));
 
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
@@ -892,18 +885,12 @@ fn client_handle_utf16_unit_text_edits() {
         // "😢" -> ""
         content_changes: vec![TextDocumentContentChangeEvent {
             range: Some(Range {
-                start: Position {
-                    line: 0,
-                    character: 0,
-                },
-                end: Position {
-                    line: 0,
-                    character: 2
-                }
+                start: Position { line: 0, character: 0 },
+                end: Position { line: 0, character: 2 },
             }),
             range_length: Some(2),
             text: "".to_string(),
-        }]
+        }],
     });
 
     rls.shutdown();
@@ -931,21 +918,22 @@ fn client_format_utf16_range() {
 
     rls.wait_for_indexing();
 
-    let result = rls.request::<Formatting>(66, DocumentFormattingParams {
-        text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+    let result = rls.request::<Formatting>(
+        66,
+        DocumentFormattingParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            },
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                properties: Default::default(),
+            },
         },
-        options: FormattingOptions {
-            tab_size: 4,
-            insert_spaces: true,
-            properties: Default::default(),
-        }
-    });
+    );
 
-    let new_text: Vec<_> = result.unwrap()
-        .iter()
-        .map(|edit| edit.new_text.as_str().replace('\r', ""))
-        .collect();
+    let new_text: Vec<_> =
+        result.unwrap().iter().map(|edit| edit.new_text.as_str().replace('\r', "")).collect();
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
     assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
@@ -955,55 +943,56 @@ fn client_format_utf16_range() {
 
 #[test]
 fn client_lens_run() {
-    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("lens_run"))
-        .unwrap()
-        .build();
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("lens_run")).unwrap().build();
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(0, lsp_types::InitializeParams {
-        process_id: None,
-        root_uri: None,
-        root_path: Some(root_path.display().to_string()),
-        initialization_options: Some(json!({ "cmdRun": true})),
-        capabilities: Default::default(),
-        trace: None,
-        workspace_folders: None,
-    });
+    rls.request::<Initialize>(
+        0,
+        lsp_types::InitializeParams {
+            process_id: None,
+            root_uri: None,
+            root_path: Some(root_path.display().to_string()),
+            initialization_options: Some(json!({ "cmdRun": true})),
+            capabilities: Default::default(),
+            trace: None,
+            workspace_folders: None,
+        },
+    );
 
     rls.wait_for_indexing();
     assert!(rls.messages().iter().count() >= 7);
 
-    let lens = rls.request::<CodeLensRequest>(1, CodeLensParams {
-        text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
-        }
-    });
+    let lens = rls.request::<CodeLensRequest>(
+        1,
+        CodeLensParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            },
+        },
+    );
 
     let expected = CodeLens {
         command: Some(Command {
             command: "rls.run".to_string(),
             title: "Run test".to_string(),
-            arguments: Some(vec![
-                json!({
-                    "args": [ "test", "--", "--nocapture", "test_foo" ],
-                    "binary": "cargo",
-                    "env": { "RUST_BACKTRACE": "short" }
-                })
-            ]),
+            arguments: Some(vec![json!({
+                "args": [ "test", "--", "--nocapture", "test_foo" ],
+                "binary": "cargo",
+                "env": { "RUST_BACKTRACE": "short" }
+            })]),
         }),
         data: None,
         range: Range {
             start: Position { line: 14, character: 3 },
-            end: Position { line: 14, character: 11 }
-        }
+            end: Position { line: 14, character: 11 },
+        },
     };
 
     assert_eq!(lens, Some(vec![expected]));
 
     rls.shutdown();
 }
-
 
 #[test]
 fn client_find_definitions() {
@@ -1029,21 +1018,24 @@ fn client_find_definitions() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(0, lsp_types::InitializeParams {
-        process_id: None,
-        root_uri: None,
-        root_path: Some(root_path.display().to_string()),
-        initialization_options: Some(json!({
-            "settings": {
-                "rust": {
-                    "racer_completion": false
+    rls.request::<Initialize>(
+        0,
+        lsp_types::InitializeParams {
+            process_id: None,
+            root_uri: None,
+            root_path: Some(root_path.display().to_string()),
+            initialization_options: Some(json!({
+                "settings": {
+                    "rust": {
+                        "racer_completion": false
+                    }
                 }
-            }
-        })),
-        capabilities: Default::default(),
-        trace: None,
-        workspace_folders: None,
-    });
+            })),
+            capabilities: Default::default(),
+            trace: None,
+            workspace_folders: None,
+        },
+    );
 
     rls.wait_for_indexing();
 
@@ -1051,18 +1043,25 @@ fn client_find_definitions() {
     for (line_index, line) in SRC.lines().enumerate() {
         for i in 0..line.len() {
             let id = (line_index * 100 + i) as u64;
-            let result = rls.request::<GotoDefinition>(id, TextDocumentPositionParams {
-                position: Position { line: line_index as u64, character: i as u64 },
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
-                }
-            });
+            let result = rls.request::<GotoDefinition>(
+                id,
+                TextDocumentPositionParams {
+                    position: Position { line: line_index as u64, character: i as u64 },
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
+                },
+            );
 
-            let ranges: Vec<_> = result.into_iter().flat_map(|x| match x {
-                GotoDefinitionResponse::Scalar(loc) => vec![loc].into_iter(),
-                GotoDefinitionResponse::Array(locs) => locs.into_iter(),
-                _ => unreachable!(),
-            }).map(|x| x.range).collect();
+            let ranges: Vec<_> = result
+                .into_iter()
+                .flat_map(|x| match x {
+                    GotoDefinitionResponse::Scalar(loc) => vec![loc].into_iter(),
+                    GotoDefinitionResponse::Array(locs) => locs.into_iter(),
+                    _ => unreachable!(),
+                })
+                .map(|x| x.range)
+                .collect();
 
             if !ranges.is_empty() {
                 results.push((line_index, i, ranges));
@@ -1074,19 +1073,19 @@ fn client_find_definitions() {
     // Foo
     let foo_definition = Range {
         start: Position { line: 1, character: 15 },
-        end: Position { line: 1, character: 18 }
+        end: Position { line: 1, character: 18 },
     };
 
     // Foo::new
     let foo_new_definition = Range {
         start: Position { line: 5, character: 15 },
-        end: Position { line: 5, character: 18 }
+        end: Position { line: 5, character: 18 },
     };
 
     // main
     let main_definition = Range {
         start: Position { line: 9, character: 11 },
-        end: Position { line: 9, character: 15 }
+        end: Position { line: 9, character: 15 },
     };
 
     let expected = [
@@ -1100,20 +1099,17 @@ fn client_find_definitions() {
         (4, 14, vec![foo_definition.clone()]),
         (4, 15, vec![foo_definition.clone()]),
         (4, 16, vec![foo_definition.clone()]),
-
         // fn new
         (5, 15, vec![foo_new_definition.clone()]),
         (5, 16, vec![foo_new_definition.clone()]),
         (5, 17, vec![foo_new_definition.clone()]),
         (5, 18, vec![foo_new_definition.clone()]),
-
         // fn main
         (9, 11, vec![main_definition.clone()]),
         (9, 12, vec![main_definition.clone()]),
         (9, 13, vec![main_definition.clone()]),
         (9, 14, vec![main_definition.clone()]),
         (9, 15, vec![main_definition.clone()]),
-
         // Foo::new()
         (10, 12, vec![foo_definition.clone()]),
         (10, 13, vec![foo_definition.clone()]),
@@ -1138,9 +1134,7 @@ fn client_find_definitions() {
         if actual != expected {
             panic!(
                 "Found different definition at index {}. Got {:#?}, expected {:#?}",
-                i,
-                actual,
-                expected
+                i, actual, expected
             )
         }
     }
@@ -1148,9 +1142,7 @@ fn client_find_definitions() {
 
 #[test]
 fn client_deglob() {
-    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("deglob"))
-        .unwrap()
-        .build();
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("deglob")).unwrap().build();
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
@@ -1159,27 +1151,29 @@ fn client_deglob() {
     rls.wait_for_indexing();
 
     // Test a single swglob
-    let commands = rls.request::<CodeActionRequest>(100, CodeActionParams {
-        text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
-        },
-        range: Range {
-            start: Position::new(12, 0),
-            end: Position::new(12, 0),
-        },
-        context: CodeActionContext {
-            diagnostics: vec![],
-            only: None,
-        }
-    }).expect("No code actions returned for line 12");
+    let commands = rls
+        .request::<CodeActionRequest>(
+            100,
+            CodeActionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+                range: Range { start: Position::new(12, 0), end: Position::new(12, 0) },
+                context: CodeActionContext { diagnostics: vec![], only: None },
+            },
+        )
+        .expect("No code actions returned for line 12");
 
     // Right now we only support deglobbing via commands. Please update this
     // test if we move to making text edits via CodeAction (which we should for
     // deglobbing);
-    let Command { title, command, arguments, .. }= match commands {
+    let Command { title, command, arguments, .. } = match commands {
         CodeActionResponse::Commands(commands) => commands,
         CodeActionResponse::Actions(_) => unimplemented!(),
-    }.into_iter().nth(0).unwrap();
+    }
+    .into_iter()
+    .nth(0)
+    .unwrap();
 
     let arguments = arguments.expect("Missing command arguments");
 
@@ -1190,10 +1184,7 @@ fn client_deglob() {
     assert_eq!(
         serde_json::from_value::<Location>(arguments[0]["location"].clone()).unwrap(),
         Location {
-            range: Range {
-                start: Position::new(12, 13),
-                end: Position::new(12, 14),
-            },
+            range: Range { start: Position::new(12, 13), end: Position::new(12, 14) },
             uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
         }
     );
@@ -1201,42 +1192,49 @@ fn client_deglob() {
     rls.request::<ExecuteCommand>(200, ExecuteCommandParams { command, arguments });
     // Right now the execute command returns an empty response and sends
     // appropriate apply edit request via a side-channel
-    let result = rls.messages().iter().rfind(|msg| msg["method"] == ApplyWorkspaceEdit::METHOD).unwrap().clone();
+    let result = rls
+        .messages()
+        .iter()
+        .rfind(|msg| msg["method"] == ApplyWorkspaceEdit::METHOD)
+        .unwrap()
+        .clone();
     let params = <ApplyWorkspaceEdit as Request>::Params::deserialize(&result["params"])
         .expect("Couldn't deserialize params");
 
     let (url, edits) = params.edit.changes.unwrap().drain().nth(0).unwrap();
     assert_eq!(url, Url::from_file_path(p.root().join("src/main.rs")).unwrap());
-    assert_eq!(edits, vec![TextEdit {
-        range: Range {
-                start: Position::new(12, 13),
-                end: Position::new(12, 14),
-        },
-        new_text: "{Stdin, Stdout}".to_string(),
-    }]);
+    assert_eq!(
+        edits,
+        vec![TextEdit {
+            range: Range { start: Position::new(12, 13), end: Position::new(12, 14) },
+            new_text: "{Stdin, Stdout}".to_string(),
+        }]
+    );
 
     // Test a deglob for double wildcard
-    let commands = rls.request::<CodeActionRequest>(1100, CodeActionParams {
-        text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
-        },
-        range: Range {
-            start: Position::new(15, 0),
-            end: Position::new(15, 0),
-        },
-        context: CodeActionContext {
-            diagnostics: vec![],
-            only: None,
-        }
-    }).expect("No code actions returned for line 12");
+    let commands = rls
+        .request::<CodeActionRequest>(
+            1100,
+            CodeActionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+                range: Range { start: Position::new(15, 0), end: Position::new(15, 0) },
+                context: CodeActionContext { diagnostics: vec![], only: None },
+            },
+        )
+        .expect("No code actions returned for line 12");
 
     // Right now we only support deglobbing via commands. Please update this
     // test if we move to making text edits via CodeAction (which we should for
     // deglobbing);
-    let Command { title, command, arguments, .. }= match commands {
+    let Command { title, command, arguments, .. } = match commands {
         CodeActionResponse::Commands(commands) => commands,
         CodeActionResponse::Actions(_) => unimplemented!(),
-    }.into_iter().nth(0).unwrap();
+    }
+    .into_iter()
+    .nth(0)
+    .unwrap();
 
     let arguments = arguments.expect("Missing command arguments");
 
@@ -1260,7 +1258,12 @@ fn client_deglob() {
     rls.request::<ExecuteCommand>(1200, ExecuteCommandParams { command, arguments });
     // Right now the execute command returns an empty response and sends
     // appropriate apply edit request via a side-channel
-    let result = rls.messages().iter().rfind(|msg| msg["method"] == ApplyWorkspaceEdit::METHOD).unwrap().clone();
+    let result = rls
+        .messages()
+        .iter()
+        .rfind(|msg| msg["method"] == ApplyWorkspaceEdit::METHOD)
+        .unwrap()
+        .clone();
     let params = <ApplyWorkspaceEdit as Request>::Params::deserialize(&result["params"])
         .expect("Couldn't deserialize params");
 
@@ -1268,32 +1271,26 @@ fn client_deglob() {
     assert_eq!(url, Url::from_file_path(p.root().join("src/main.rs")).unwrap());
     assert_eq!(
         edits,
-        expected.iter().map(|e| TextEdit {
-            range: Range {
-                start: Position::new(15, e.0),
-                end: Position::new(15, e.1)
-            },
-            new_text: e.2.to_string()
-        }).collect::<Vec<_>>()
+        expected
+            .iter()
+            .map(|e| TextEdit {
+                range: Range { start: Position::new(15, e.0), end: Position::new(15, e.1) },
+                new_text: e.2.to_string()
+            })
+            .collect::<Vec<_>>()
     );
 
     rls.shutdown();
 }
 
-fn is_notification_for_unknown_config(msg:&serde_json::Value) -> bool {
+fn is_notification_for_unknown_config(msg: &serde_json::Value) -> bool {
     msg["method"] == ShowMessage::METHOD
-            && msg["params"]["message"]
-                .as_str()
-                .unwrap()
-                .contains("Unknown")
+        && msg["params"]["message"].as_str().unwrap().contains("Unknown")
 }
 
-fn is_notification_for_duplicated_config(msg:&serde_json::Value) -> bool {
+fn is_notification_for_duplicated_config(msg: &serde_json::Value) -> bool {
     msg["method"] == ShowMessage::METHOD
-            && msg["params"]["message"]
-                .as_str()
-                .unwrap()
-                .contains("Duplicate")
+        && msg["params"]["message"].as_str().unwrap().contains("Duplicate")
 }
 
 #[test]
@@ -1321,7 +1318,7 @@ fn client_init_duplicated_and_unknown_settings() {
                 "unknown1": 1,
                 "unknown2": false,
                 "dup_val": 1,
-                "dup_val": false, 
+                "dup_val": false,
                 "dup_licated": "dup_lacated",
                 "DupLicated": "DupLicated",
                 "dup-licated": "dup-licated"
@@ -1329,7 +1326,8 @@ fn client_init_duplicated_and_unknown_settings() {
         }
     });
 
-    rls.request::<Initialize>(0,
+    rls.request::<Initialize>(
+        0,
         lsp_types::InitializeParams {
             process_id: None,
             root_uri: None,
@@ -1342,16 +1340,11 @@ fn client_init_duplicated_and_unknown_settings() {
             },
             trace: None,
             workspace_folders: None,
-        });
+        },
+    );
 
-    assert!(rls
-    .messages()
-    .iter()
-    .any(is_notification_for_unknown_config));
-    assert!(rls
-    .messages()
-    .iter()
-    .any(is_notification_for_duplicated_config));
+    assert!(rls.messages().iter().any(is_notification_for_unknown_config));
+    assert!(rls.messages().iter().any(is_notification_for_duplicated_config));
     rls.shutdown();
 }
 
@@ -1372,7 +1365,8 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(0,
+    rls.request::<Initialize>(
+        0,
         lsp_types::InitializeParams {
             process_id: None,
             root_uri: None,
@@ -1385,16 +1379,11 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
             },
             trace: None,
             workspace_folders: None,
-        });
+        },
+    );
 
-    assert!(!rls
-    .messages()
-    .iter()
-    .any(is_notification_for_unknown_config));
-    assert!(!rls
-    .messages()
-    .iter()
-    .any(is_notification_for_duplicated_config));
+    assert!(!rls.messages().iter().any(is_notification_for_unknown_config));
+    assert!(!rls.messages().iter().any(is_notification_for_duplicated_config));
     let settings = json!({
         "rust": {
             "features": ["some_feature"],
@@ -1402,7 +1391,7 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
             "unknown1": 1,
             "unknown2": false,
             "dup_val": 1,
-            "dup_val": false, 
+            "dup_val": false,
             "dup_licated": "dup_lacated",
             "DupLicated": "DupLicated",
             "dup-licated": "dup-licated"

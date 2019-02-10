@@ -105,7 +105,7 @@ fn read_message<R: BufRead>(input: &mut R) -> Result<String, io::Error> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Message is missing 'content-length' header",
-            ))
+            ));
         }
     };
     trace!("reading: {:?} bytes", size);
@@ -127,22 +127,14 @@ pub trait Output: Sync + Send + Clone + 'static {
 
     /// Notify the client of a failure.
     fn failure(&self, id: jsonrpc::Id, error: jsonrpc::Error) {
-        let response = response::Failure {
-            jsonrpc: Some(version::Version::V2),
-            id,
-            error,
-        };
+        let response = response::Failure { jsonrpc: Some(version::Version::V2), id, error };
 
         self.response(serde_json::to_string(&response).unwrap());
     }
 
     /// Notify the client of a failure with the given diagnostic message.
     fn failure_message<M: Into<String>>(&self, id: RequestId, code: jsonrpc::ErrorCode, msg: M) {
-        let error = jsonrpc::Error {
-            code,
-            message: msg.into(),
-            data: None,
-        };
+        let error = jsonrpc::Error { code, message: msg.into(), data: None };
         self.failure(Id::from(&id), error);
     }
 
@@ -196,9 +188,7 @@ pub(super) struct StdioOutput {
 impl StdioOutput {
     /// Construct a new `stdout` output.
     pub(crate) fn new() -> StdioOutput {
-        StdioOutput {
-            next_id: Arc::new(AtomicU64::new(1)),
-        }
+        StdioOutput { next_id: Arc::new(AtomicU64::new(1)) }
     }
 }
 

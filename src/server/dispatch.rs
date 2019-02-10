@@ -128,13 +128,18 @@ impl Dispatcher {
                     request.handle(ctx, &out);
                     drop(token);
                 }
-            }).unwrap();
+            })
+            .unwrap();
 
         Self { sender }
     }
 
     /// Sends a request to the dispatch-worker thread, does not block
-    pub(crate) fn dispatch<R: Into<DispatchRequest>>(&mut self, request: R, ctx: InitActionContext) {
+    pub(crate) fn dispatch<R: Into<DispatchRequest>>(
+        &mut self,
+        request: R,
+        ctx: InitActionContext,
+    ) {
         let (job, token) = ConcurrentJob::new();
         ctx.add_job(job);
         if let Err(err) = self.sender.send((request.into(), ctx, token)) {

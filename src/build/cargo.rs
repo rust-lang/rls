@@ -82,24 +82,11 @@ pub(super) fn cargo(
         )
     });
 
-    match handle
-        .join()
-        .map_err(|_| failure::err_msg("thread panicked"))
-        .and_then(|res| res)
-    {
+    match handle.join().map_err(|_| failure::err_msg("thread panicked")).and_then(|res| res) {
         Ok(ref cwd) => {
-            let diagnostics = Arc::try_unwrap(diagnostics_clone)
-                .unwrap()
-                .into_inner()
-                .unwrap();
-            let analysis = Arc::try_unwrap(analysis_clone)
-                .unwrap()
-                .into_inner()
-                .unwrap();
-            let input_files = Arc::try_unwrap(input_files_clone)
-                .unwrap()
-                .into_inner()
-                .unwrap();
+            let diagnostics = Arc::try_unwrap(diagnostics_clone).unwrap().into_inner().unwrap();
+            let analysis = Arc::try_unwrap(analysis_clone).unwrap().into_inner().unwrap();
+            let input_files = Arc::try_unwrap(input_files_clone).unwrap().into_inner().unwrap();
             BuildResult::Success(cwd.clone(), diagnostics, analysis, input_files, true)
         }
         Err(error) => {
@@ -107,17 +94,9 @@ pub(super) fn cargo(
 
             let (manifest_path, manifest_error_range) = {
                 let mae = error.downcast_ref::<ManifestAwareError>();
-                (
-                    mae.map(|e| e.manifest_path().clone()),
-                    mae.map(|e| e.manifest_error_range()),
-                )
+                (mae.map(|e| e.manifest_path().clone()), mae.map(|e| e.manifest_error_range()))
             };
-            BuildResult::CargoError {
-                error,
-                stdout,
-                manifest_path,
-                manifest_error_range,
-            }
+            BuildResult::CargoError { error, stdout, manifest_path, manifest_error_range }
         }
     }
 }
@@ -218,21 +197,13 @@ fn run_cargo_ws(
             }
         }
 
-        (
-            opts,
-            rustflags,
-            rls_config.clear_env_rust_log,
-            rls_config.cfg_test,
-        )
+        (opts, rustflags, rls_config.clear_env_rust_log, rls_config.cfg_test)
     };
 
     let spec = Packages::from_flags(all, Vec::new(), packages)?;
 
-    let pkg_names = spec
-        .to_package_id_specs(&ws)?
-        .iter()
-        .map(|pkg_spec| pkg_spec.name().to_owned())
-        .collect();
+    let pkg_names =
+        spec.to_package_id_specs(&ws)?.iter().map(|pkg_spec| pkg_spec.name().to_owned()).collect();
     trace!("Specified packages to be built by Cargo: {:#?}", pkg_names);
 
     // Since Cargo build routine will try to regenerate the unit dep graph,
@@ -388,7 +359,9 @@ impl Executor for RlsExecutor {
     /// is fresh and won't be compiled.
     fn init(&self, cx: &Context<'_, '_>, unit: &Unit<'_>) {
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
-        let plan = compilation_cx.build_plan.as_cargo_mut()
+        let plan = compilation_cx
+            .build_plan
+            .as_cargo_mut()
             .expect("Build plan should be properly initialized before running Cargo");
 
         let only_primary = |unit: &Unit<'_>| self.is_primary_package(unit.pkg.package_id());
@@ -439,7 +412,8 @@ impl Executor for RlsExecutor {
                     format!("{} cfg(test)", crate_name)
                 } else {
                     crate_name.clone()
-                })).expect("Failed to send progress update");
+                }))
+                .expect("Failed to send progress update");
         }
 
         let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
@@ -476,19 +450,14 @@ impl Executor for RlsExecutor {
         // env::current_exe() returns) for the shim.
         let rustc_shim = env::var("RUSTC")
             .ok()
-            .or_else(|| {
-                env::current_exe()
-                    .ok()
-                    .and_then(|x| x.to_str().map(String::from))
-            }).expect("Couldn't set executable for RLS rustc shim");
+            .or_else(|| env::current_exe().ok().and_then(|x| x.to_str().map(String::from)))
+            .expect("Couldn't set executable for RLS rustc shim");
         cmd.program(rustc_shim);
         cmd.env(crate::RUSTC_SHIM_ENV_VAR_NAME, "1");
 
         // Add args and envs to cmd.
-        let mut args: Vec<_> = cargo_args
-            .iter()
-            .map(|a| a.clone().into_string().unwrap())
-            .collect();
+        let mut args: Vec<_> =
+            cargo_args.iter().map(|a| a.clone().into_string().unwrap()).collect();
         let envs = cargo_cmd.get_envs().clone();
 
         let sysroot = super::rustc::current_sysroot()
@@ -513,11 +482,7 @@ impl Executor for RlsExecutor {
         // Currently we don't cache nor modify build script args
         let is_build_script = *target.kind() == TargetKind::CustomBuild;
         if !self.is_primary_package(id) || is_build_script {
-            let build_script_notice = if is_build_script {
-                " (build script)"
-            } else {
-                ""
-            };
+            let build_script_notice = if is_build_script { " (build script)" } else { "" };
             trace!(
                 "rustc not intercepted - {}{} - args: {:?} envs: {:?}",
                 id.name(),
@@ -536,11 +501,8 @@ impl Executor for RlsExecutor {
             let mut save_config = rls_data::config::Config::default();
             save_config.pub_only = true;
             save_config.reachable_only = true;
-            save_config.full_docs = self
-                .config
-                .lock()
-                .map(|config| *config.full_docs.as_ref())
-                .unwrap();
+            save_config.full_docs =
+                self.config.lock().map(|config| *config.full_docs.as_ref()).unwrap();
             let save_config = serde_json::to_string(&save_config)?;
             cmd.env("RUST_SAVE_ANALYSIS_CONFIG", &OsString::from(save_config));
 
@@ -583,7 +545,8 @@ impl Executor for RlsExecutor {
                 &build_dir,
                 Arc::clone(&self.config),
                 &self.env_lock.as_facade(),
-            ) {
+            )
+        {
             self.compiler_messages.lock().unwrap().append(&mut messages);
             self.analysis.lock().unwrap().append(&mut analysis);
 
@@ -597,7 +560,7 @@ impl Executor for RlsExecutor {
 
             let mut self_input_files = self.input_files.lock().unwrap();
             for (file, inputs) in input_files {
-                    self_input_files.entry(file).or_default().extend(inputs);
+                self_input_files.entry(file).or_default().extend(inputs);
             }
 
             if !success {
@@ -690,27 +653,25 @@ pub fn make_cargo_config(
             .entry("build".to_owned())
             .or_insert_with(|| ConfigValue::Table(HashMap::new(), config_path.clone()));
 
-            let target_dir = target_dir
-                .map(|d| d.to_str().unwrap().to_owned())
-                .unwrap_or_else(|| {
-                    // Try to use .cargo/config build.target-dir + "/rls"
-                    let cargo_target = build_value
-                        .table("build")
-                        .ok()
-                        .and_then(|(build, _)| build.get("target-dir"))
-                        .and_then(|td| td.string("target-dir").ok())
-                        .map(|(target, _)| {
-                            let t_path = Path::new(target);
-                            if t_path.is_absolute() {
-                                t_path.into()
-                            } else {
-                                build_dir.join(t_path)
-                            }
-                        })
-                        .unwrap_or_else(|| build_dir.join("target"));
+        let target_dir = target_dir.map(|d| d.to_str().unwrap().to_owned()).unwrap_or_else(|| {
+            // Try to use .cargo/config build.target-dir + "/rls"
+            let cargo_target = build_value
+                .table("build")
+                .ok()
+                .and_then(|(build, _)| build.get("target-dir"))
+                .and_then(|td| td.string("target-dir").ok())
+                .map(|(target, _)| {
+                    let t_path = Path::new(target);
+                    if t_path.is_absolute() {
+                        t_path.into()
+                    } else {
+                        build_dir.join(t_path)
+                    }
+                })
+                .unwrap_or_else(|| build_dir.join("target"));
 
-                    cargo_target.join("rls").to_str().unwrap().to_owned()
-                });
+            cargo_target.join("rls").to_str().unwrap().to_owned()
+        });
 
         let td_value = ConfigValue::String(target_dir, config_path);
         if let ConfigValue::Table(ref mut build_table, _) = *build_value {
@@ -770,10 +731,7 @@ fn dedup_flags(flag_str: &str) -> String {
         } else {
             // A standalone arg with no flag, no deduplication to do. We merge these
             // together, which is probably not ideal, but is simple.
-            flags
-                .entry(String::new())
-                .or_insert_with(String::new)
-                .push_str(&format!(" {}", bit));
+            flags.entry(String::new()).or_insert_with(String::new).push_str(&format!(" {}", bit));
         }
     }
 
@@ -810,20 +768,14 @@ impl ManifestAwareError {
         let project_dir = root_manifest.parent().unwrap();
         let mut err_path = root_manifest;
         // cover whole manifest if we haven't any better idea.
-        let mut err_range = Range {
-            start: Position::new(0, 0),
-            end: Position::new(9999, 0),
-        };
+        let mut err_range = Range { start: Position::new(0, 0), end: Position::new(9999, 0) };
 
         if let Some(manifest_err) = cause.downcast_ref::<ManifestError>() {
             // Scan through any manifest errors to pin the error more precisely
             let is_project_manifest =
                 |path: &PathBuf| path.is_file() && path.starts_with(project_dir);
 
-            let last_cause = manifest_err
-                .manifest_causes()
-                .last()
-                .unwrap_or(manifest_err);
+            let last_cause = manifest_err.manifest_causes().last().unwrap_or(manifest_err);
             if is_project_manifest(last_cause.manifest_path()) {
                 // manifest with the issue is inside the project
                 err_path = last_cause.manifest_path().as_path();
@@ -860,11 +812,7 @@ impl ManifestAwareError {
         }
 
         let nearest_project_manifest = err_path.to_path_buf();
-        Self {
-            cause,
-            nearest_project_manifest,
-            manifest_error_range: err_range,
-        }
+        Self { cause, nearest_project_manifest, manifest_error_range: err_range }
     }
 
     pub fn manifest_path(&self) -> &PathBuf {

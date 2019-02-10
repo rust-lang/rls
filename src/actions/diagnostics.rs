@@ -19,10 +19,10 @@ use std::iter;
 use std::path::{Path, PathBuf};
 
 use crate::lsp_data::ls_util;
+use log::debug;
 use lsp_types::{
     DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Range,
 };
-use log::debug;
 use rls_span::compiler::DiagnosticSpan;
 use serde_derive::Deserialize;
 use serde_json;
@@ -93,20 +93,13 @@ pub fn parse_diagnostics(
     // diagnostics, since they can contain a single primary range. Those will
     // also share any additional notes, suggestions, and secondary spans emitted
     // by rustc, in a form of LSP diagnostic related information.
-    let (primaries, secondaries): (Vec<DiagnosticSpan>, Vec<DiagnosticSpan>) = message
-        .spans
-        .iter()
-        .cloned()
-        .partition(|span| span.is_primary);
+    let (primaries, secondaries): (Vec<DiagnosticSpan>, Vec<DiagnosticSpan>) =
+        message.spans.iter().cloned().partition(|span| span.is_primary);
 
     let mut diagnostics = HashMap::new();
 
     // If the client doesn't support related information, emit separate diagnostics for secondary spans
-    let diagnostic_spans = if related_information_support {
-        &primaries
-    } else {
-        &message.spans
-    };
+    let diagnostic_spans = if related_information_support { &primaries } else { &message.spans };
 
     for (path, diagnostic) in diagnostic_spans.iter().map(|span| {
         let children = || message.children.iter().flat_map(|msg| &msg.spans);
@@ -134,11 +127,7 @@ pub fn parse_diagnostics(
 
         // A diagnostic source is quite likely to be clippy if it contains
         // the further information link to the rust-clippy project.
-        let source = if diagnostic_message.contains("rust-clippy") {
-            "clippy"
-        } else {
-            "rustc"
-        };
+        let source = if diagnostic_message.contains("rust-clippy") { "clippy" } else { "rustc" };
 
         let rls_span = {
             let mut span = span;
@@ -166,10 +155,7 @@ pub fn parse_diagnostics(
 
         (file_path, (diagnostic, suggestions))
     }) {
-        diagnostics
-            .entry(path)
-            .or_insert_with(Vec::new)
-            .push(diagnostic);
+        diagnostics.entry(path).or_insert_with(Vec::new).push(diagnostic);
     }
 
     Some(ParsedDiagnostics { diagnostics })
@@ -178,13 +164,7 @@ pub fn parse_diagnostics(
 fn format_notes(children: &[AssociatedMessage], primary: &DiagnosticSpan) -> Option<String> {
     let mut notes = String::new();
 
-    for &AssociatedMessage {
-        ref message,
-        ref level,
-        ref spans,
-        ..
-    } in children
-    {
+    for &AssociatedMessage { ref message, ref level, ref spans, .. } in children {
         macro_rules! add_message_to_notes {
             ($msg:expr) => {{
                 let mut lines = message.lines();
@@ -221,7 +201,7 @@ fn severity(level: &str, is_primary_span: bool) -> DiagnosticSeverity {
     match (level, is_primary_span) {
         (_, false) => DiagnosticSeverity::Information,
         ("error", _) => DiagnosticSeverity::Error,
-        (_, _) => DiagnosticSeverity::Warning,
+        (..) => DiagnosticSeverity::Warning,
     }
 }
 
@@ -233,16 +213,15 @@ fn make_related_information<'a>(
         .filter_map(|span| {
             let rls_span = span.rls_span().zero_indexed();
 
-            span.label
-                .as_ref()
-                .map(|label| DiagnosticRelatedInformation {
-                    location: Location {
-                        uri: Url::from_file_path(cwd.join(&rls_span.file)).unwrap(),
-                        range: ls_util::rls_to_range(rls_span.range),
-                    },
-                    message: label.trim().to_owned(),
-                })
-        }).collect();
+            span.label.as_ref().map(|label| DiagnosticRelatedInformation {
+                location: Location {
+                    uri: Url::from_file_path(cwd.join(&rls_span.file)).unwrap(),
+                    range: ls_util::rls_to_range(rls_span.range),
+                },
+                message: label.trim().to_owned(),
+            })
+        })
+        .collect();
 
     related_information.sort_by_key(|info| info.location.range.start);
 
@@ -260,12 +239,9 @@ fn make_suggestions<'a>(
             span.suggested_replacement
                 .as_ref()
                 .map(|suggested| span_suggestion(span, suggested))
-                .or_else(|| {
-                    span.label
-                        .as_ref()
-                        .and_then(|label| label_suggestion(span, label))
-                })
-        }).collect();
+                .or_else(|| span.label.as_ref().and_then(|label| label_suggestion(span, label)))
+        })
+        .collect();
 
     // Suggestions are displayed at primary span, so if the change is somewhere
     // else, be sure to specify that
@@ -283,17 +259,9 @@ fn make_suggestions<'a>(
 fn span_suggestion(span: &DiagnosticSpan, suggested: &str) -> Suggestion {
     let rls_span = span.rls_span().zero_indexed();
     let range = ls_util::rls_to_range(rls_span.range);
-    let action = if range.start == range.end {
-        "Add"
-    } else {
-        "Change to"
-    };
+    let action = if range.start == range.end { "Add" } else { "Change to" };
     let label = format!("{} `{}`", action, suggested);
-    Suggestion {
-        new_text: suggested.to_string(),
-        range,
-        label,
-    }
+    Suggestion { new_text: suggested.to_string(), range, label }
 }
 
 fn label_suggestion(span: &DiagnosticSpan, label: &str) -> Option<Suggestion> {
@@ -322,13 +290,7 @@ impl<T: PartialOrd<T>> IsWithin for std::ops::RangeInclusive<T> {
 
 impl IsWithin for DiagnosticSpan {
     fn is_within(&self, other: &Self) -> bool {
-        let DiagnosticSpan {
-            line_start,
-            line_end,
-            column_start,
-            column_end,
-            ..
-        } = *self;
+        let DiagnosticSpan { line_start, line_end, column_start, column_end, .. } = *self;
         (line_start..=line_end).is_within(&(other.line_start..=other.line_end))
             && (column_start..=column_end).is_within(&(other.column_start..=other.column_end))
     }
@@ -396,7 +358,8 @@ mod diagnostic_message_test {
                             .map(|d| d.message.clone())
                             .collect(),
                     )
-                }).collect())
+                })
+                .collect())
         }
 
         fn to_primary_messages(&self) -> Vec<String> {
@@ -404,10 +367,7 @@ mod diagnostic_message_test {
         }
 
         fn to_secondary_messages(&self) -> Vec<String> {
-            self.to_messages()
-                .iter()
-                .flat_map(|(_, s)| s.clone())
-                .collect()
+            self.to_messages().iter().flat_map(|(_, s)| s.clone()).collect()
         }
     }
 
@@ -420,10 +380,8 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_use_after_move() {
-        let diag = parse_compiler_message(
-            &read_fixture("compiler_message/use-after-move.json"),
-            true,
-        );
+        let diag =
+            parse_compiler_message(&read_fixture("compiler_message/use-after-move.json"), true);
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
 
@@ -437,10 +395,7 @@ mod diagnostic_message_test {
             note: move occurs because `s` has type `std::string::String`, which does not implement the `Copy` trait"
         );
 
-        assert_eq!(
-            messages[0].1,
-            vec!["value moved here", "value used here after move"]
-        );
+        assert_eq!(messages[0].1, vec!["value moved here", "value used here after move"]);
     }
 
     /// ```
@@ -453,17 +408,15 @@ mod diagnostic_message_test {
         let messages = parse_compiler_message(
             &read_fixture("compiler_message/type-annotations-needed.json"),
             true,
-        ).to_messages();
+        )
+        .to_messages();
         assert_eq!(
             messages[0].0,
             "type annotations needed\n\n\
              cannot infer type for `T`",
         );
 
-        assert_eq!(
-            messages[0].1,
-            vec!["consider giving `v` a type", "cannot infer type for `T`"]
-        );
+        assert_eq!(messages[0].1, vec!["consider giving `v` a type", "cannot infer type for `T`"]);
 
         // Check if we don't emit related information if it's not supported and
         // if secondary spans are emitted as separate diagnostics
@@ -493,10 +446,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_mismatched_types() {
-        let messages = parse_compiler_message(
-            &read_fixture("compiler_message/mismatched-types.json"),
-            true,
-        ).to_messages();
+        let messages =
+            parse_compiler_message(&read_fixture("compiler_message/mismatched-types.json"), true)
+                .to_messages();
         assert_eq!(
             messages[0].0,
             "mismatched types\n\n\
@@ -505,10 +457,7 @@ mod diagnostic_message_test {
 
         assert_eq!(
             messages[0].1,
-            vec![
-                "expected `usize` because of return type",
-                "expected usize, found i32",
-            ]
+            vec!["expected `usize` because of return type", "expected usize, found i32",]
         );
     }
 
@@ -520,10 +469,8 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_not_mutable() {
-        let messages = parse_compiler_message(
-            &read_fixture("compiler_message/not-mut.json"),
-            true,
-        ).to_messages();
+        let messages = parse_compiler_message(&read_fixture("compiler_message/not-mut.json"), true)
+            .to_messages();
         assert_eq!(
             messages[0].0,
             "cannot borrow immutable local variable `string` as mutable\n\n\
@@ -533,10 +480,7 @@ mod diagnostic_message_test {
         // note: consider message becomes a suggestion
         assert_eq!(
             messages[0].1,
-            vec![
-                "consider changing this to `mut string`",
-                "cannot borrow mutably",
-            ]
+            vec!["consider changing this to `mut string`", "cannot borrow mutably",]
         );
     }
 
@@ -549,10 +493,9 @@ mod diagnostic_message_test {
     /// ```
     #[test]
     fn message_consider_borrowing() {
-        let messages = parse_compiler_message(
-            &read_fixture("compiler_message/consider-borrowing.json"),
-            true,
-        ).to_messages();
+        let messages =
+            parse_compiler_message(&read_fixture("compiler_message/consider-borrowing.json"), true)
+                .to_messages();
         assert_eq!(
             messages[0].0,
             r#"mismatched types
@@ -564,10 +507,7 @@ note: expected type `&str`
 help: consider borrowing here: `&string`"#,
         );
 
-        assert_eq!(
-            messages[0].1,
-            vec!["expected &str, found struct `std::string::String`"]
-        );
+        assert_eq!(messages[0].1, vec!["expected &str, found struct `std::string::String`"]);
     }
 
     /// ```
@@ -580,10 +520,9 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_move_out_of_borrow() {
-        let messages = parse_compiler_message(
-            &read_fixture("compiler_message/move-out-of-borrow.json"),
-            true,
-        ).to_messages();
+        let messages =
+            parse_compiler_message(&read_fixture("compiler_message/move-out-of-borrow.json"), true)
+                .to_messages();
         assert_eq!(
             messages[0].0,
             "cannot move out of borrowed content\n\ncannot move out of borrowed content"
@@ -603,10 +542,9 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_unused_use() {
-        let messages = parse_compiler_message(
-            &read_fixture("compiler_message/unused-use.json"),
-            true,
-        ).to_messages();
+        let messages =
+            parse_compiler_message(&read_fixture("compiler_message/unused-use.json"), true)
+                .to_messages();
 
         // Single compiler message with 3 primary spans should emit 3 separate
         // diagnostics.
@@ -623,10 +561,9 @@ help: consider borrowing here: `&string`"#,
 
     #[test]
     fn message_cannot_find_type() {
-        let messages = parse_compiler_message(
-            &read_fixture("compiler_message/cannot-find-type.json"),
-            true,
-        ).to_messages();
+        let messages =
+            parse_compiler_message(&read_fixture("compiler_message/cannot-find-type.json"), true)
+                .to_messages();
         assert_eq!(
             messages[0].0,
             "cannot find type `HashSet` in this scope\n\n\
@@ -641,10 +578,8 @@ help: consider borrowing here: `&string`"#,
     /// ```
     #[test]
     fn message_clippy_identity_op() {
-        let diag = parse_compiler_message(
-            &read_fixture("compiler_message/clippy-identity-op.json"),
-            true,
-        );
+        let diag =
+            parse_compiler_message(&read_fixture("compiler_message/clippy-identity-op.json"), true);
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
 
@@ -688,20 +623,13 @@ help: consider borrowing here: `&string`"#,
         assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
 
         let file = &diag.diagnostics.keys().nth(0).unwrap();
-        assert!(
-            file.to_str().unwrap().ends_with("src/main.rs"),
-            "Unexpected file {:?}",
-            file
-        );
+        assert!(file.to_str().unwrap().ends_with("src/main.rs"), "Unexpected file {:?}", file);
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
         assert_eq!(diagnostic.0.source, Some("rustc".into()));
         assert_eq!(
             diagnostic.0.range,
-            Range {
-                start: Position::new(2, 4),
-                end: Position::new(2, 27),
-            }
+            Range { start: Position::new(2, 4), end: Position::new(2, 27) }
         );
 
         let messages = diag.to_messages();
@@ -731,20 +659,13 @@ help: consider borrowing here: `&string`"#,
         assert_eq!(diag.diagnostics.len(), 1, "{:#?}", diag.diagnostics);
 
         let file = &diag.diagnostics.keys().nth(0).unwrap();
-        assert!(
-            file.to_str().unwrap().ends_with("src/main.rs"),
-            "Unexpected file {:?}",
-            file
-        );
+        assert!(file.to_str().unwrap().ends_with("src/main.rs"), "Unexpected file {:?}", file);
 
         let diagnostic = &diag.diagnostics.values().nth(0).unwrap()[0];
         assert_eq!(diagnostic.0.source, Some("rustc".into()));
         assert_eq!(
             diagnostic.0.range,
-            Range {
-                start: Position::new(4, 4),
-                end: Position::new(4, 33),
-            }
+            Range { start: Position::new(4, 4), end: Position::new(4, 33) }
         );
 
         let messages = diag.to_messages();
@@ -763,10 +684,8 @@ mod diagnostic_suggestion_test {
 
     #[test]
     fn suggest_use_when_cannot_find_type() {
-        let diag = parse_compiler_message(
-            &read_fixture("compiler_message/cannot-find-type.json"),
-            true,
-        );
+        let diag =
+            parse_compiler_message(&read_fixture("compiler_message/cannot-find-type.json"), true);
 
         let diagnostics = diag.diagnostics.values().nth(0).unwrap();
 
@@ -778,26 +697,17 @@ mod diagnostic_suggestion_test {
             .find(|s| s.new_text == "use std::collections::HashSet;\n")
             .expect("`use std::collections::HashSet` not found");
 
-        assert_eq!(
-            use_hash_set.label,
-            "Line 15: Add `use std::collections::HashSet;\n`"
-        );
+        assert_eq!(use_hash_set.label, "Line 15: Add `use std::collections::HashSet;\n`");
 
         assert_eq!(
             use_hash_set.range,
-            Range {
-                start: Position::new(14, 0),
-                end: Position::new(14, 0),
-            }
+            Range { start: Position::new(14, 0), end: Position::new(14, 0) }
         );
     }
 
     #[test]
     fn suggest_mut_when_not_mut() {
-        let diag = parse_compiler_message(
-            &read_fixture("compiler_message/not-mut.json"),
-            true,
-        );
+        let diag = parse_compiler_message(&read_fixture("compiler_message/not-mut.json"), true);
 
         let diagnostics = diag.diagnostics.values().nth(0).unwrap();
 
@@ -813,10 +723,7 @@ mod diagnostic_suggestion_test {
 
         assert_eq!(
             change_to_mut.range,
-            Range {
-                start: Position::new(132, 12),
-                end: Position::new(132, 18),
-            }
+            Range { start: Position::new(132, 12), end: Position::new(132, 18) }
         );
     }
 
@@ -844,10 +751,7 @@ mod diagnostic_suggestion_test {
 
         assert_eq!(
             change_to_mut.range,
-            Range {
-                start: Position::new(354, 34),
-                end: Position::new(354, 46),
-            }
+            Range { start: Position::new(354, 34), end: Position::new(354, 46) }
         );
     }
 
@@ -867,17 +771,11 @@ mod diagnostic_suggestion_test {
             .find(|s| s.new_text == "use std::fmt::Write;\n\n")
             .expect("`use std::fmt::Write;` not found");
 
-        assert_eq!(
-            change_to_mut.label,
-            "Line 1: Add `use std::fmt::Write;\n\n`"
-        );
+        assert_eq!(change_to_mut.label, "Line 1: Add `use std::fmt::Write;\n\n`");
 
         assert_eq!(
             change_to_mut.range,
-            Range {
-                start: Position::new(0, 0),
-                end: Position::new(0, 0),
-            }
+            Range { start: Position::new(0, 0), end: Position::new(0, 0) }
         );
     }
 }
