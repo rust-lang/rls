@@ -94,10 +94,7 @@ pub fn extract_docs(
     row_start: Row<ZeroIndexed>,
 ) -> Result<Vec<String>, vfs::Error> {
     let up = row_start.0 > 0;
-    debug!(
-        "extract_docs: row_start = {:?}, up = {:?}, file = {:?}",
-        row_start, up, file
-    );
+    debug!("extract_docs: row_start = {:?}, up = {:?}, file = {:?}", row_start, up, file);
 
     let mut docs: Vec<String> = Vec::new();
     let mut row = if up {
@@ -167,30 +164,14 @@ pub fn extract_docs(
             );
             break;
         } else if line.starts_with("///") && !up {
-            trace!(
-                "extract_docs: break on non-module docs, next_row: {:?}, up: {}",
-                next_row,
-                up
-            );
+            trace!("extract_docs: break on non-module docs, next_row: {:?}, up: {}", next_row, up);
             break;
         } else if line.starts_with("//!") && up {
-            trace!(
-                "extract_docs: break on module docs, next_row: {:?}, up: {}",
-                next_row,
-                up
-            );
+            trace!("extract_docs: break on module docs, next_row: {:?}, up: {}", next_row, up);
             break;
         } else if line.starts_with("///") || line.starts_with("//!") {
-            let pos = if line
-                .chars()
-                .nth(3)
-                .map(|c| c.is_whitespace())
-                .unwrap_or(false)
-            {
-                4
-            } else {
-                3
-            };
+            let pos =
+                if line.chars().nth(3).map(|c| c.is_whitespace()).unwrap_or(false) { 4 } else { 3 };
             let doc_line = line[pos..].into();
             if up {
                 docs.insert(0, doc_line);
@@ -221,11 +202,7 @@ pub fn extract_docs(
             );
             continue;
         } else {
-            trace!(
-                "extract_docs: end of docs, next_row: {:?}, up: {}",
-                next_row,
-                up
-            );
+            trace!("extract_docs: end of docs, next_row: {:?}, up: {}", next_row, up);
             break;
         }
     }
@@ -239,11 +216,9 @@ pub fn extract_docs(
 fn extract_and_process_docs(vfs: &Vfs, file: &Path, row_start: Row<ZeroIndexed>) -> Option<String> {
     extract_docs(vfs, &file, row_start)
         .map_err(|e| {
-            error!(
-                "failed to extract docs: row: {:?}, file: {:?} ({:?})",
-                row_start, file, e
-            );
-        }).ok()
+            error!("failed to extract docs: row: {:?}, file: {:?} ({:?})", row_start, file, e);
+        })
+        .ok()
         .map(|docs| docs.join("\n"))
         .map(|docs| process_docs(&docs))
         .and_then(empty_to_none)
@@ -573,13 +548,10 @@ fn skip_path_components<P: AsRef<Path>>(
     skip_components: usize,
 ) -> Option<PathBuf> {
     path.strip_prefix(prefix).ok().map(|stripped| {
-        stripped
-            .components()
-            .skip(skip_components)
-            .fold(PathBuf::new(), |mut comps, comp| {
-                comps.push(comp);
-                comps
-            })
+        stripped.components().skip(skip_components).fold(PathBuf::new(), |mut comps, comp| {
+            comps.push(comp);
+            comps
+        })
     })
 }
 
@@ -655,12 +627,10 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
         use std::env;
 
         let home = home::home_dir().unwrap_or_default();
-        let rustup_home = env::var("RUSTUP_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| home.join(".rustup"));
-        let cargo_home = env::var("CARGO_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| home.join(".cargo"));
+        let rustup_home =
+            env::var("RUSTUP_HOME").map(PathBuf::from).unwrap_or_else(|_| home.join(".rustup"));
+        let cargo_home =
+            env::var("CARGO_HOME").map(PathBuf::from).unwrap_or_else(|_| home.join(".cargo"));
 
         let contextstr = m.contextstr.replacen("\\\\?\\", "", 1);
         let contextstr_path = PathBuf::from(&contextstr);
@@ -672,7 +642,9 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
             // Skips /registry/src/github.com-1ecc6299db9ec823/
             .or_else(|| skip_path_components(&contextstr_path, cargo_home, 3))
             // Make the path relative to the root of the project, if possible
-            .or_else(|| contextstr_path.strip_prefix(&ctx.current_project).ok().map(|x| x.to_owned()))
+            .or_else(|| {
+                contextstr_path.strip_prefix(&ctx.current_project).ok().map(|x| x.to_owned())
+            })
             .and_then(|path| path.to_str().map(|s| s.to_string()))
             .unwrap_or_else(|| contextstr.to_string())
     } else {
@@ -731,14 +703,11 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
         return None;
     }
 
-    let name = vfs
-        .load_line(file_path.as_path(), span.range.row_start)
-        .ok()
-        .and_then(|line| {
-            let col_start = span.range.col_start.0 as usize;
-            let col_end = span.range.col_end.0 as usize;
-            line.get(col_start..col_end).map(|line| line.to_string())
-        });
+    let name = vfs.load_line(file_path.as_path(), span.range.row_start).ok().and_then(|line| {
+        let col_start = span.range.col_start.0 as usize;
+        let col_end = span.range.col_end.0 as usize;
+        line.get(col_start..col_end).map(|line| line.to_string())
+    });
 
     debug!("racer_def: name: {:?}", name);
 
@@ -748,20 +717,13 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
         let row = span.range.row_end.one_indexed();
         let coord = requests::racer_coord(row, span.range.col_end);
         let location = racer::Location::Coords(coord);
-        trace!(
-            "racer_def: file_path: {:?}, location: {:?}",
-            file_path,
-            location
-        );
+        trace!("racer_def: file_path: {:?}, location: {:?}", file_path, location);
         let racer_match = racer::find_definition(file_path, location, &session);
         trace!("racer_def: match: {:?}", racer_match);
         racer_match
             // Avoid creating tooltip text that is exactly the item being hovered over
-            .filter(|m| {
-                name.as_ref()
-                    .map(|name| name != &m.contextstr)
-                    .unwrap_or(true)
-            }).and_then(|m| racer_match_to_def(ctx, &m))
+            .filter(|m| name.as_ref().map(|name| name != &m.contextstr).unwrap_or(true))
+            .and_then(|m| racer_match_to_def(ctx, &m))
     });
 
     let results = results.map_err(|_| {
@@ -818,7 +780,8 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
                     } else {
                         part.to_string()
                     }
-                }).collect::<Vec<String>>();
+                })
+                .collect::<Vec<String>>();
             decl = &decl[0..pos];
             if hidden_count != tuple_parts.len() {
                 format!("{}({})", decl, tuple_parts.join(", "))
@@ -868,7 +831,8 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
                     };
                     let line = line.trim_start_matches(should_trim);
                     format!("{}\n", line)
-                }).collect()
+                })
+                .collect()
         }
         Err(e) => {
             error!("format_method: error: {:?}, input: {:?}", e, method);
@@ -891,9 +855,7 @@ pub fn tooltip(
     let hover_file_path = parse_file_path!(&params.text_document.uri, "hover")?;
     let hover_span = ctx.convert_pos_to_span(hover_file_path, params.position);
     let hover_span_doc = analysis.docs(&hover_span).unwrap_or_else(|_| String::new());
-    let hover_span_typ = analysis
-        .show_type(&hover_span)
-        .unwrap_or_else(|_| String::new());
+    let hover_span_typ = analysis.show_type(&hover_span).unwrap_or_else(|_| String::new());
     let hover_span_def = analysis.id(&hover_span).and_then(|id| analysis.get_def(id));
 
     trace!("tooltip: span: {:?}", hover_span);
@@ -906,10 +868,7 @@ pub fn tooltip(
     // Fallback to racer if the def was not available and
     // racer is enabled.
     let hover_span_def = hover_span_def.or_else(|e| {
-        debug!(
-            "tooltip: racer_fallback_enabled: {}",
-            racer_fallback_enabled
-        );
+        debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
         if racer_fallback_enabled {
             debug!("tooltip: span_def is empty, attempting with racer");
             racer_def(&ctx, &hover_span).ok_or_else(|| {
@@ -972,7 +931,7 @@ pub fn tooltip(
         Vec::default()
     };
     debug!("tooltip: contents.len: {}", contents.len());
-    Ok(Tooltip{ contents, range: hover_span.range })
+    Ok(Tooltip { contents, range: hover_span.range })
 }
 
 #[cfg(test)]
@@ -1000,7 +959,8 @@ pub mod test {
                     .scan(0, |_, ch| if ch.is_whitespace() { Some(1) } else { None })
                     .fuse()
                     .sum()
-            }).unwrap_or(0);
+            })
+            .unwrap_or(0);
 
         text.lines()
             .map(|line| line.chars().skip(indent).collect::<String>())
@@ -1022,10 +982,7 @@ pub mod test {
 
         ",
         );
-        assert_eq!(
-            "Hello, world ! ! !\nThe next line\n    Indented line\nLast line",
-            &lines
-        );
+        assert_eq!("Hello, world ! ! !\nThe next line\n    Indented line\nLast line", &lines);
 
         let lines = noindent(
             "
@@ -1037,10 +994,7 @@ pub mod test {
 
         ",
         );
-        assert_eq!(
-            "Hello, world ! ! !\nThe next line\n    Indented line\nLast line",
-            &lines
-        );
+        assert_eq!("Hello, world ! ! !\nThe next line\n    Indented line\nLast line", &lines);
     }
 
     #[test]
@@ -1277,10 +1231,7 @@ pub mod test {
         ",
         );
         let result = format_method(fmt.clone(), config, input);
-        assert_eq!(
-            expected, result,
-            "method with type parameters; corrected spacing"
-        );
+        assert_eq!(expected, result, "method with type parameters; corrected spacing");
 
         let input = "fn really_really_really_really_long_name<T>(foo_thing: String, bar_thing: Thing, baz_thing: Vec<T>, foo_other: u32, bar_other: i32) -> Thing";
         let expected = noindent(
@@ -1344,37 +1295,28 @@ pub mod test {
 
         let expected = "pub fn foo() -> Foo<u32>";
         let row_start = Row::new_zero_indexed(10);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("function declaration")
-            .join("\n");
+        let actual = extract_decl(&vfs, &file, row_start).expect("function declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct Foo<T>";
         let row_start = Row::new_zero_indexed(15);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("struct declaration")
-            .join("\n");
+        let actual = extract_decl(&vfs, &file, row_start).expect("struct declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub enum Bar";
         let row_start = Row::new_zero_indexed(20);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("enum declaration")
-            .join("\n");
+        let actual = extract_decl(&vfs, &file, row_start).expect("enum declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct NewType(pub u32, f32)";
         let row_start = Row::new_zero_indexed(25);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("tuple declaration")
-            .join("\n");
+        let actual = extract_decl(&vfs, &file, row_start).expect("tuple declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn new() -> NewType";
         let row_start = Row::new_zero_indexed(28);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("struct function declaration")
-            .join("\n");
+        let actual =
+            extract_decl(&vfs, &file, row_start).expect("struct function declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn bar<T: Copy + Add>(&self, the_really_long_name_string: String, the_really_long_name_foo: Foo<T>) -> Vec<(String, Foo<T>)>";
@@ -1386,23 +1328,19 @@ pub mod test {
 
         let expected = "pub trait Baz<T> where T: Copy";
         let row_start = Row::new_zero_indexed(37);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("enum declaration")
-            .join("\n");
+        let actual = extract_decl(&vfs, &file, row_start).expect("enum declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
         let row_start = Row::new_zero_indexed(38);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("trait method declaration")
-            .join("\n");
+        let actual =
+            extract_decl(&vfs, &file, row_start).expect("trait method declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
         let row_start = Row::new_zero_indexed(42);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("trait method implementation")
-            .join("\n");
+        let actual =
+            extract_decl(&vfs, &file, row_start).expect("trait method implementation").join("\n");
         assert_eq!(expected, actual);
 
         let expected = noindent(
@@ -1413,9 +1351,8 @@ pub mod test {
         ",
         );
         let row_start = Row::new_zero_indexed(47);
-        let actual = extract_decl(&vfs, &file, row_start)
-            .expect("trait declaration multiline")
-            .join("\n");
+        let actual =
+            extract_decl(&vfs, &file, row_start).expect("trait declaration multiline").join("\n");
         assert_eq!(expected, actual);
 
         let expected = noindent(

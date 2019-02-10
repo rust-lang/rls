@@ -5,9 +5,9 @@
 
 use walkdir::WalkDir;
 
-use std::path::{Path, PathBuf};
 use std::fs;
-use std::io::{Write};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use super::paths::{self, TestPathExt};
 
@@ -19,10 +19,7 @@ struct FileBuilder {
 
 impl FileBuilder {
     pub fn new(path: PathBuf, body: &str) -> FileBuilder {
-        FileBuilder {
-            path,
-            body: body.to_string(),
-        }
+        FileBuilder { path, body: body.to_string() }
     }
 
     fn mk(&self) {
@@ -53,16 +50,14 @@ pub struct ProjectBuilder {
 
 impl ProjectBuilder {
     pub fn new(root: PathBuf) -> ProjectBuilder {
-        ProjectBuilder {
-            root: Project { root },
-            files: vec![],
-        }
+        ProjectBuilder { root: Project { root }, files: vec![] }
     }
 
     pub fn try_from_fixture(fixture_dir: impl AsRef<Path>) -> std::io::Result<Self> {
         let fixture_dir = fixture_dir.as_ref();
 
-        let dirname = fixture_dir.file_name()
+        let dirname = fixture_dir
+            .file_name()
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No filename"))?;
 
         // Generate a new, unique directory for working dir under target/
@@ -92,8 +87,7 @@ impl ProjectBuilder {
     }
 
     fn _file(&mut self, path: &Path, body: &str) {
-        self.files
-            .push(FileBuilder::new(self.root.root.join(path), body));
+        self.files.push(FileBuilder::new(self.root.root.join(path), body));
     }
 
     pub fn build(self) -> Project {
@@ -125,5 +119,3 @@ impl Project {
 pub fn project(name: &str) -> ProjectBuilder {
     ProjectBuilder::new(paths::root().join(name))
 }
-
-

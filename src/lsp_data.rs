@@ -10,8 +10,8 @@ use rls_span as span;
 use serde_derive::{Deserialize, Serialize};
 use url::Url;
 
-use crate::config;
 use crate::actions::hover;
+use crate::config;
 
 pub use lsp_types::notification::Notification as LSPNotification;
 pub use lsp_types::request::Request as LSPRequest;
@@ -47,8 +47,7 @@ where
 /// Parse the given URI into a `PathBuf`.
 pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
     if uri.scheme() == "file" {
-        uri.to_file_path()
-            .map_err(|_err| UrlFileParseError::InvalidFilePath)
+        uri.to_file_path().map_err(|_err| UrlFileParseError::InvalidFilePath)
     } else {
         Err(UrlFileParseError::InvalidScheme)
     }
@@ -56,19 +55,11 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
 
 /// Create an edit for the given location and text.
 pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
-    let changes = vec![(
-        location.uri,
-        vec![TextEdit {
-            range: location.range,
-            new_text,
-        }],
-    )].into_iter()
-    .collect();
+    let changes = vec![(location.uri, vec![TextEdit { range: location.range, new_text }])]
+        .into_iter()
+        .collect();
 
-    WorkspaceEdit {
-        changes: Some(changes),
-        document_changes: None,
-    }
+    WorkspaceEdit { changes: Some(changes), document_changes: None }
 }
 
 /// Utilities for working with the language server protocol.
@@ -101,10 +92,7 @@ pub mod ls_util {
     /// Convert an RLS span into a language server protocol location.
     pub fn rls_to_location(span: &Span) -> Location {
         // An RLS span has the same info as an LSP Location
-        Location {
-            uri: Url::from_file_path(&span.file).unwrap(),
-            range: rls_to_range(span.range),
-        }
+        Location { uri: Url::from_file_path(&span.file).unwrap(), range: rls_to_range(span.range) }
     }
 
     /// Convert an RLS location into a language server protocol location.
@@ -117,18 +105,12 @@ pub mod ls_util {
 
     /// Convert an RLS range into a language server protocol range.
     pub fn rls_to_range(r: span::Range<span::ZeroIndexed>) -> Range {
-        Range {
-            start: rls_to_position(r.start()),
-            end: rls_to_position(r.end()),
-        }
+        Range { start: rls_to_position(r.start()), end: rls_to_position(r.end()) }
     }
 
     /// Convert an RLS position into a language server protocol range.
     pub fn rls_to_position(p: span::Position<span::ZeroIndexed>) -> Position {
-        Position {
-            line: p.row.0.into(),
-            character: p.col.0.into(),
-        }
+        Position { line: p.row.0.into(), character: p.col.0.into() }
     }
 
     /// Creates a `Range` spanning the whole file as currently known by `Vfs`
@@ -138,10 +120,7 @@ pub mod ls_util {
         let content = content.as_ref();
 
         if content.is_empty() {
-            Range {
-                start: Position::new(0, 0),
-                end: Position::new(0, 0),
-            }
+            Range { start: Position::new(0, 0), end: Position::new(0, 0) }
         } else {
             let mut line_count = content.lines().count() as u64 - 1;
             let col = if content.ends_with('\n') {
@@ -158,10 +137,7 @@ pub mod ls_util {
                     .sum()
             };
             // range is zero-based and the end position is exclusive
-            Range {
-                start: Position::new(0, 0),
-                end: Position::new(line_count, col),
-            }
+            Range { start: Position::new(0, 0), end: Position::new(line_count, col) }
         }
     }
 }
@@ -197,9 +173,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         | racer::MatchType::Function
         | racer::MatchType::Method(_)
         | racer::MatchType::FnArg(_) => CompletionItemKind::Function,
-        racer::MatchType::Type | racer::MatchType::Trait => {
-            CompletionItemKind::Interface
-        }
+        racer::MatchType::Type | racer::MatchType::Trait => CompletionItemKind::Interface,
         racer::MatchType::Let(_)
         | racer::MatchType::IfLet(_)
         | racer::MatchType::WhileLet(_)
@@ -212,7 +186,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
         racer::MatchType::UseAlias(m) => match m.mtype {
             racer::MatchType::UseAlias(_) => unreachable!("Nested use aliases"),
             typ => completion_kind_from_match_type(typ),
-        }
+        },
         racer::MatchType::AssocType => CompletionItemKind::TypeParameter,
     }
 }
@@ -257,9 +231,11 @@ impl ChangeConfigSettings {
     /// expected to be a Value::Object containing only one key "rust", all first
     /// level keys of rust's value are converted to snake_case, duplicated and
     /// unknown keys are reported
-    pub fn try_deserialize(val: &serde_json::value::Value,
-        dups:&mut std::collections::HashMap<String, Vec<String>>, unknowns: &mut Vec<String>)
-            -> Result<ChangeConfigSettings, ()> {
+    pub fn try_deserialize(
+        val: &serde_json::value::Value,
+        dups: &mut std::collections::HashMap<String, Vec<String>>,
+        unknowns: &mut Vec<String>,
+    ) -> Result<ChangeConfigSettings, ()> {
         let mut ret = Err(());
         if let serde_json::Value::Object(map) = val {
             for (k, v) in map.iter() {
@@ -269,7 +245,7 @@ impl ChangeConfigSettings {
                 }
                 if let serde_json::Value::Object(_) = v {
                     if let Ok(rust) = config::Config::try_deserialize(v, dups, unknowns) {
-                        ret = Ok(ChangeConfigSettings{rust: rust});
+                        ret = Ok(ChangeConfigSettings { rust });
                     }
                 } else {
                     return Err(());
@@ -296,19 +272,20 @@ pub struct InitializationOptions {
 
 impl InitializationOptions {
     /// try to deserialize a Initialization from a json value. If exists,
-    /// val.settings is expected to be a Value::Object containing only one key, 
+    /// val.settings is expected to be a Value::Object containing only one key,
     /// "rust", all first level keys of rust's value are converted to
     /// snake_case, duplicated and unknown keys are reported
-    pub fn try_deserialize(val: &serde_json::value::Value,
-        dups:&mut std::collections::HashMap<String, Vec<String>>, unknowns: &mut Vec<String>)
-            -> Result<InitializationOptions, ()> {
+    pub fn try_deserialize(
+        val: &serde_json::value::Value,
+        dups: &mut std::collections::HashMap<String, Vec<String>>,
+        unknowns: &mut Vec<String>,
+    ) -> Result<InitializationOptions, ()> {
         let mut val = val.to_owned();
         let mut set = None;
         if let Some(set1) = val.get_mut("settings") {
             set = Some(set1.take());
         }
-        let mut ret:InitializationOptions = 
-        match serde_json::from_value(val) {
+        let mut ret: InitializationOptions = match serde_json::from_value(val) {
             Ok(ret) => ret,
             _ => return Err(()),
         };
@@ -323,11 +300,7 @@ impl InitializationOptions {
 
 impl Default for InitializationOptions {
     fn default() -> Self {
-        InitializationOptions {
-            omit_init_build: false,
-            cmd_run: false,
-            settings: None,
-        }
+        InitializationOptions { omit_init_build: false, cmd_run: false, settings: None }
     }
 }
 
@@ -366,10 +339,7 @@ impl ClientCapabilities {
             .unwrap_or(&false)
             .to_owned();
 
-        ClientCapabilities {
-            code_completion_has_snippet_support,
-            related_information_support,
-        }
+        ClientCapabilities { code_completion_has_snippet_support, related_information_support }
     }
 }
 
@@ -450,4 +420,3 @@ pub struct ProgressParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub done: Option<bool>,
 }
-

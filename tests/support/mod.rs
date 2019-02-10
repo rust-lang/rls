@@ -12,9 +12,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub mod client;
-pub mod project_builder;
-pub mod paths;
 pub mod harness;
+pub mod paths;
+pub mod project_builder;
 
 /// Returns a path to directory containing test fixtures.
 pub fn fixtures_dir() -> &'static Path {
@@ -25,11 +25,7 @@ pub fn fixtures_dir() -> &'static Path {
 ///
 /// Env var `RLS_TEST_WAIT_FOR_AGES` allows super long waiting for CI
 pub fn rls_timeout() -> Duration {
-    Duration::from_secs(if std::env::var("RLS_TEST_WAIT_FOR_AGES").is_ok() {
-        300
-    } else {
-        15
-    })
+    Duration::from_secs(if std::env::var("RLS_TEST_WAIT_FOR_AGES").is_ok() { 300 } else { 15 })
 }
 
 /// Parse valid LSP stdout into a list of json messages
@@ -94,11 +90,7 @@ impl RlsHandle {
             }
         });
 
-        RlsHandle {
-            child,
-            stdin,
-            stdout,
-        }
+        RlsHandle { child, stdin, stdout }
     }
 
     pub fn send_string(&mut self, s: &str) -> io::Result<usize> {
@@ -202,21 +194,15 @@ impl RlsHandle {
     ///
     /// Returns the json message.
     pub fn wait_until_json_id(&self, id: u64, timeout: Duration) -> serde_json::Value {
-        self.wait_until(
-            |stdout| stdout.to_json_messages().any(|json| json["id"] == id),
-            timeout,
-        )
-        .to_json_messages()
-        .rfind(|json| json["id"] == id)
-        .unwrap()
+        self.wait_until(|stdout| stdout.to_json_messages().any(|json| json["id"] == id), timeout)
+            .to_json_messages()
+            .rfind(|json| json["id"] == id)
+            .unwrap()
     }
 
     pub fn stdout(&self) -> RlsStdout {
         let stdout = self.stdout.lock().unwrap();
-        RlsStdout {
-            out: stdout.0.clone(),
-            last_write: stdout.1,
-        }
+        RlsStdout { out: stdout.0.clone(), last_write: stdout.1 }
     }
 
     /// Sends shutdown messages, assets successful exit of process and returns stdout
@@ -227,10 +213,7 @@ impl RlsHandle {
         let start = Instant::now();
 
         while self.within_timeout(start, timeout) {
-            if let Some(ecode) = self
-                .child
-                .try_wait()
-                .expect("failed to wait on child rls process")
+            if let Some(ecode) = self.child.try_wait().expect("failed to wait on child rls process")
             {
                 assert!(ecode.success(), "rls exit code {}", ecode);
                 // wait for stdout thread to finish to avoid races
@@ -259,10 +242,7 @@ impl RlsHandle {
 impl Drop for RlsHandle {
     fn drop(&mut self) {
         if thread::panicking() {
-            eprintln!(
-                "---rls-stdout---\n{}\n---------------",
-                self.stdout.lock().unwrap().0
-            );
+            eprintln!("---rls-stdout---\n{}\n---------------", self.stdout.lock().unwrap().0);
         }
 
         let _ = self.child.kill();

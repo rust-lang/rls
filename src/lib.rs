@@ -8,10 +8,7 @@
 #![feature(rustc_private, integer_atomics, drain_filter, hash_raw_entry)]
 #![allow(unknown_lints)]
 #![warn(clippy::all, rust_2018_idioms)]
-#![allow(
-    clippy::cyclomatic_complexity,
-    clippy::too_many_arguments
-)]
+#![allow(clippy::cyclomatic_complexity, clippy::too_many_arguments)]
 
 pub use rls_analysis::{AnalysisHost, Target};
 pub use rls_vfs::Vfs;

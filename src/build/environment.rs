@@ -119,10 +119,7 @@ impl<'a> EnvironmentLockFacade {
 
 impl<'a> EnvironmentLock {
     fn new() -> EnvironmentLock {
-        EnvironmentLock {
-            outer: Mutex::new(()),
-            inner: Mutex::new(()),
-        }
+        EnvironmentLock { outer: Mutex::new(()), inner: Mutex::new(()) }
     }
 
     /// Retrieves a pointer to the single, static instance of an `EnvironmentLock`.

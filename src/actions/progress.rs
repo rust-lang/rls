@@ -14,8 +14,8 @@ use crate::lsp_data::{
     MessageType, Progress, ProgressParams, PublishDiagnosticsParams, ShowMessageParams,
 };
 use crate::server::{Notification, Output};
-use lsp_types::notification::{PublishDiagnostics, ShowMessage};
 use lazy_static::lazy_static;
+use lsp_types::notification::{PublishDiagnostics, ShowMessage};
 
 /// Trait for communication of build progress back to the client.
 pub trait ProgressNotifier: Send {
@@ -49,10 +49,7 @@ fn new_progress_params(title: String) -> ProgressParams {
     }
 
     ProgressParams {
-        id: format!(
-            "progress_{}",
-            PROGRESS_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
-        ),
+        id: format!("progress_{}", PROGRESS_ID_COUNTER.fetch_add(1, Ordering::SeqCst)),
         title: Some(title),
         message: None,
         percentage: None,
@@ -71,10 +68,7 @@ pub struct BuildProgressNotifier<O: Output> {
 
 impl<O: Output> BuildProgressNotifier<O> {
     pub fn new(out: O) -> BuildProgressNotifier<O> {
-        BuildProgressNotifier {
-            out,
-            progress_params: new_progress_params("Building".into()),
-        }
+        BuildProgressNotifier { out, progress_params: new_progress_params("Building".into()) }
     }
 }
 
@@ -124,15 +118,13 @@ impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
         self.out.notify(Notification::<Progress>::new(params));
     }
     fn notify_publish_diagnostics(&self, params: PublishDiagnosticsParams) {
-        self.out
-            .notify(Notification::<PublishDiagnostics>::new(params));
+        self.out.notify(Notification::<PublishDiagnostics>::new(params));
     }
     fn notify_error_diagnostics(&self, message: String) {
-        self.out
-            .notify(Notification::<ShowMessage>::new(ShowMessageParams {
-                typ: MessageType::Error,
-                message,
-            }));
+        self.out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+            typ: MessageType::Error,
+            message,
+        }));
     }
     fn notify_end_diagnostics(&self) {
         let mut params = self.progress_params.clone();

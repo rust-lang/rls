@@ -204,16 +204,16 @@ impl Config {
     /// try to deserialize a Config from a json value, val is expected to be a
     /// Value::Object, all first level keys of val are converted to snake_case,
     /// duplicated and unknown keys are reported
-    pub fn try_deserialize(val: &serde_json::value::Value,
-        dups:&mut std::collections::HashMap<String, Vec<String>>,
-        unknowns: &mut Vec<(String)>)
-            -> Result<Config, ()> {
-
+    pub fn try_deserialize(
+        val: &serde_json::value::Value,
+        dups: &mut std::collections::HashMap<String, Vec<String>>,
+        unknowns: &mut Vec<(String)>,
+    ) -> Result<Config, ()> {
         #[derive(Clone)]
         struct JsonValue(serde_json::value::Value);
 
         impl<'de> serde::de::IntoDeserializer<'de, serde_json::Error> for JsonValue {
-            type Deserializer =  serde_json::value::Value;
+            type Deserializer = serde_json::value::Value;
             fn into_deserializer(self) -> Self::Deserializer {
                 self.0
             }
@@ -223,7 +223,10 @@ impl Config {
             let seq = serde::de::value::MapDeserializer::new(map.iter().filter_map(|(k, v)| {
                 use heck::SnakeCase;
                 let snake_case = k.to_snake_case();
-                let (_, ref mut vec) = dups.raw_entry_mut().from_key(&snake_case).or_insert(snake_case.clone(), vec![]);
+                let (_, ref mut vec) = dups
+                    .raw_entry_mut()
+                    .from_key(&snake_case)
+                    .or_insert(snake_case.clone(), vec![]);
                 vec.push(k.to_string());
                 if vec.len() == 1 {
                     Some((snake_case, JsonValue(v.to_owned().clone())))
@@ -231,15 +234,14 @@ impl Config {
                     None
                 }
             }));
-            match serde_ignored::deserialize(seq, |path|unknowns.push(path.to_string())) {
+            match serde_ignored::deserialize(seq, |path| unknowns.push(path.to_string())) {
                 Ok(conf) => {
                     dups.retain(|_, v| v.len() > 1);
-                    return Ok(conf)
-
-                },
+                    return Ok(conf);
+                }
                 _ => {
                     dups.retain(|_, v| v.len() > 1);
-                },
+                }
             }
         }
         Err(())
@@ -259,9 +261,8 @@ impl Config {
     /// Ensures that unstable options are only allowed if `unstable_features` is
     /// true and that is not allowed on stable release channels.
     pub fn normalise(&mut self) {
-        let allow_unstable = option_env!("CFG_RELEASE_CHANNEL")
-            .map(|c| c == "nightly")
-            .unwrap_or(true);
+        let allow_unstable =
+            option_env!("CFG_RELEASE_CHANNEL").map(|c| c == "nightly").unwrap_or(true);
 
         if !allow_unstable {
             if self.unstable_features {
@@ -428,14 +429,8 @@ impl Default for FmtConfig {
 
 #[test]
 fn clippy_preference_from_str() {
-    assert_eq!(
-        ClippyPreference::from_str("Optin"),
-        Ok(ClippyPreference::OptIn)
-    );
+    assert_eq!(ClippyPreference::from_str("Optin"), Ok(ClippyPreference::OptIn));
     assert_eq!(ClippyPreference::from_str("OFF"), Ok(ClippyPreference::Off));
-    assert_eq!(
-        ClippyPreference::from_str("opt-in"),
-        Ok(ClippyPreference::OptIn)
-    );
+    assert_eq!(ClippyPreference::from_str("opt-in"), Ok(ClippyPreference::OptIn));
     assert_eq!(ClippyPreference::from_str("on"), Ok(ClippyPreference::On));
 }

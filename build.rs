@@ -8,8 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::path::Path;
 use std::env;
+use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");

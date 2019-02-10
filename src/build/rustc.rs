@@ -42,12 +42,12 @@ use self::rustc_metadata::cstore::CStore;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::syntax::ast;
-use self::syntax::source_map::{FileLoader, RealFileLoader};
 use self::syntax::edition::Edition as RustcEdition;
+use self::syntax::source_map::{FileLoader, RealFileLoader};
 
 use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::{BufWriter, BuildResult};
 use crate::build::plan::{Crate, Edition};
+use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
 
 use std::collections::{HashMap, HashSet};
@@ -55,8 +55,8 @@ use std::env;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 
 // Runs a single instance of rustc. Runs in-process.
 pub(crate) fn rustc(
@@ -89,8 +89,7 @@ pub(crate) fn rustc(
         config.clippy_preference
     };
     // Required for Clippy not to crash when running outside Cargo?
-    local_envs.entry("CARGO_MANIFEST_DIR".into())
-        .or_insert_with(|| Some(build_dir.into()));
+    local_envs.entry("CARGO_MANIFEST_DIR".into()).or_insert_with(|| Some(build_dir.into()));
 
     let (guard, _) = env_lock.lock();
     let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
@@ -107,17 +106,15 @@ pub(crate) fn rustc(
             clippy_args.push("clippy::all".to_owned());
         }
 
-        args.iter()
-            .map(|s| s.to_owned())
-            .chain(clippy_args)
-            .collect()
+        args.iter().map(|s| s.to_owned()).chain(clippy_args).collect()
     } else {
         args.to_owned()
     };
 
     let analysis = Arc::default();
     let input_files = Arc::default();
-    let controller = Box::new(RlsRustcCalls::new(Arc::clone(&analysis), Arc::clone(&input_files), clippy_pref));
+    let controller =
+        Box::new(RlsRustcCalls::new(Arc::clone(&analysis), Arc::clone(&input_files), clippy_pref));
 
     // rustc explicitly panics in run_compiler() on compile failure, regardless
     // if it encounters an ICE (internal compiler error) or not.
@@ -142,16 +139,12 @@ pub(crate) fn rustc(
     let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();
 
     let analysis = analysis.lock().unwrap().clone();
-    let analysis = analysis
-        .map(|analysis| vec![analysis])
-        .unwrap_or_else(Vec::new);
+    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or_else(Vec::new);
     log::debug!("rustc: analysis read successfully?: {}", !analysis.is_empty());
 
     let input_files = Arc::try_unwrap(input_files).unwrap().into_inner().unwrap();
 
-    let cwd = cwd
-        .unwrap_or_else(|| restore_env.get_old_cwd())
-        .to_path_buf();
+    let cwd = cwd.unwrap_or_else(|| restore_env.get_old_cwd()).to_path_buf();
 
     BuildResult::Success(cwd, stderr_json_msgs, analysis, input_files, result.is_ok())
 }
@@ -193,7 +186,8 @@ fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_
             .expect(
                 "at this compilation stage \
                  the crate must be parsed",
-            ).span,
+            )
+            .span,
     );
     registry.args_hidden = Some(Vec::new());
 
@@ -201,12 +195,7 @@ fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_
     clippy_lints::register_plugins(&mut registry, &conf);
 
     let Registry {
-        early_lint_passes,
-        late_lint_passes,
-        lint_groups,
-        llvm_passes,
-        attributes,
-        ..
+        early_lint_passes, late_lint_passes, lint_groups, llvm_passes, attributes, ..
     } = registry;
     let sess = &state.session;
     let mut ls = sess.lint_store.borrow_mut();
@@ -236,8 +225,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         descriptions: &rustc_errors::registry::Registry,
         output: ErrorOutputType,
     ) -> Compilation {
-        self.default_calls
-            .early_callback(matches, sopts, cfg, descriptions, output)
+        self.default_calls.early_callback(matches, sopts, cfg, descriptions, output)
     }
 
     fn no_input(
@@ -249,8 +237,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         ofile: &Option<PathBuf>,
         descriptions: &rustc_errors::registry::Registry,
     ) -> Option<(Input, Option<PathBuf>)> {
-        self.default_calls
-            .no_input(matches, sopts, cfg, odir, ofile, descriptions)
+        self.default_calls.no_input(matches, sopts, cfg, odir, ofile, descriptions)
     }
 
     fn late_callback(
@@ -263,8 +250,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         odir: &Option<PathBuf>,
         ofile: &Option<PathBuf>,
     ) -> Compilation {
-        self.default_calls
-            .late_callback(codegen_backend, matches, sess, cstore, input, odir, ofile)
+        self.default_calls.late_callback(codegen_backend, matches, sess, cstore, input, odir, ofile)
     }
 
     #[allow(clippy::boxed_local)] // https://github.com/rust-lang/rust-clippy/issues/1123
@@ -291,15 +277,19 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
             let cwd = &state.session.working_dir.0;
 
             let src_path = match state.input {
-                    Input::File(ref name) => Some(name.to_path_buf()),
-                    Input::Str { .. } => None,
-            }.and_then(|path| src_path(Some(cwd), path));
-
+                Input::File(ref name) => Some(name.to_path_buf()),
+                Input::Str { .. } => None,
+            }
+            .and_then(|path| src_path(Some(cwd), path));
 
             let krate = Crate {
                 name: state.crate_name.expect("missing crate name").to_owned(),
                 src_path,
-                disambiguator: state.session.local_crate_disambiguator().to_fingerprint().as_value(),
+                disambiguator: state
+                    .session
+                    .local_crate_disambiguator()
+                    .to_fingerprint()
+                    .as_value(),
                 edition: match state.session.edition() {
                     RustcEdition::Edition2015 => Edition::Edition2015,
                     RustcEdition::Edition2018 => Edition::Edition2018,
@@ -309,10 +299,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
 
             let mut input_files = input_files.lock().unwrap();
             for file in &files {
-                input_files
-                    .entry(file.to_path_buf())
-                    .or_default()
-                    .insert(krate.clone());
+                input_files.entry(file.to_path_buf()).or_default().insert(krate.clone());
             }
         });
 
@@ -375,10 +362,7 @@ struct ReplacedFileLoader {
 
 impl ReplacedFileLoader {
     fn new(replacements: HashMap<PathBuf, String>) -> ReplacedFileLoader {
-        ReplacedFileLoader {
-            replacements,
-            real_file_loader: RealFileLoader,
-        }
+        ReplacedFileLoader { replacements, real_file_loader: RealFileLoader }
     }
 }
 
@@ -426,6 +410,6 @@ pub fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
     Some(match (cwd, path.is_absolute()) {
         (_, true) => path.to_owned(),
         (Some(cwd), _) => cwd.join(path),
-        (None, _) => std::env::current_dir().ok()?.join(path)
+        (None, _) => std::env::current_dir().ok()?.join(path),
     })
 }

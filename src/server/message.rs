@@ -12,8 +12,8 @@
 
 use crate::actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
-use lsp_types::notification::ShowMessage;
 use log::debug;
+use lsp_types::notification::ShowMessage;
 use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
@@ -21,7 +21,7 @@ use serde_derive::Serialize;
 use serde_json;
 
 use crate::actions::ActionContext;
-use crate::lsp_data::{LSPNotification, LSPRequest, ShowMessageParams, MessageType, WorkspaceEdit};
+use crate::lsp_data::{LSPNotification, LSPRequest, MessageType, ShowMessageParams, WorkspaceEdit};
 use crate::server::io::Output;
 
 use std::fmt;
@@ -100,10 +100,7 @@ impl<R: DefaultResponse> Response for ResponseWithMessage<R> {
 
 impl DefaultResponse for WorkspaceEdit {
     fn default() -> WorkspaceEdit {
-        WorkspaceEdit {
-            changes: None,
-            document_changes: None,
-        }
+        WorkspaceEdit { changes: None, document_changes: None }
     }
 }
 
@@ -170,12 +167,7 @@ pub struct Request<A: LSPRequest> {
 impl<A: LSPRequest> Request<A> {
     /// Creates a server `Request` structure with given `params`.
     pub fn new(id: RequestId, params: A::Params) -> Request<A> {
-        Request {
-            id,
-            received: Instant::now(),
-            params,
-            _action: PhantomData,
-        }
+        Request { id, received: Instant::now(), params, _action: PhantomData }
     }
 }
 
@@ -191,10 +183,7 @@ pub struct Notification<A: LSPNotification> {
 impl<A: LSPNotification> Notification<A> {
     /// Creates a `Notification` structure with given `params`.
     pub fn new(params: A::Params) -> Notification<A> {
-        Notification {
-            params,
-            _action: PhantomData,
-        }
+        Notification { params, _action: PhantomData }
     }
 }
 
@@ -214,11 +203,7 @@ where
             _ => unreachable!("Bad parameter type found for {:?} request", method),
         };
 
-        RawMessage {
-            method,
-            id: Id::from(&request.id),
-            params,
-        }
+        RawMessage { method, id: Id::from(&request.id), params }
     }
 }
 
@@ -238,11 +223,7 @@ where
             _ => unreachable!("Bad parameter type found for {:?} request", method),
         };
 
-        RawMessage {
-            method,
-            id: Id::Null,
-            params,
-        }
+        RawMessage { method, id: Id::Null, params }
     }
 }
 
@@ -318,23 +299,21 @@ impl RawMessage {
                 } else {
                     Err(e)
                 }
-            }).map_err(|e| {
+            })
+            .map_err(|e| {
                 debug!("error when parsing as request: {}", e);
                 jsonrpc::Error::invalid_params(format!("{}", e))
             })?;
 
         match parsed_id {
-            Some(id) => Ok(Request {
-                id,
-                params,
-                received: Instant::now(),
-                _action: PhantomData,
-            }),
+            Some(id) => Ok(Request { id, params, received: Instant::now(), _action: PhantomData }),
             None => Err(jsonrpc::Error::invalid_request()),
         }
     }
 
-    pub(crate) fn parse_as_notification<'de, T>(&'de self) -> Result<Notification<T>, jsonrpc::Error>
+    pub(crate) fn parse_as_notification<'de, T>(
+        &'de self,
+    ) -> Result<Notification<T>, jsonrpc::Error>
     where
         T: LSPNotification,
         <T as LSPNotification>::Params: serde::Deserialize<'de>,
@@ -344,10 +323,7 @@ impl RawMessage {
             jsonrpc::Error::invalid_params(format!("{}", e))
         })?;
 
-        Ok(Notification {
-            params,
-            _action: PhantomData,
-        })
+        Ok(Notification { params, _action: PhantomData })
     }
 
     pub(crate) fn try_parse(msg: &str) -> Result<Option<RawMessage>, jsonrpc::Error> {
@@ -356,9 +332,9 @@ impl RawMessage {
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
 
         // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
-        let id = ls_command.get("id").map_or(Id::Null, |id| {
-            serde_json::from_value(id.to_owned()).unwrap()
-        });
+        let id = ls_command
+            .get("id")
+            .map_or(Id::Null, |id| serde_json::from_value(id.to_owned()).unwrap());
 
         let method = match ls_command.get("method") {
             Some(method) => method,
@@ -367,10 +343,7 @@ impl RawMessage {
             None => return Ok(None),
         };
 
-        let method = method
-            .as_str()
-            .ok_or_else(jsonrpc::Error::invalid_request)?
-            .to_owned();
+        let method = method.as_str().ok_or_else(jsonrpc::Error::invalid_request)?.to_owned();
 
         // Representing internally a missing parameter as Null instead of None,
         // (Null being unused value of param by the JSON-RPC 2.0 spec)
@@ -443,7 +416,8 @@ mod test {
             "jsonrpc": "2.0",
             "id": "abc",
             "method": "someRpcCall",
-        }).to_string();
+        })
+        .to_string();
 
         let expected_msg = RawMessage {
             method: "someRpcCall".to_owned(),
@@ -451,10 +425,7 @@ mod test {
             // Internally missing parameters are represented as null
             params: serde_json::Value::Null,
         };
-        assert_eq!(
-            expected_msg,
-            RawMessage::try_parse(&raw_json).unwrap().unwrap()
-        );
+        assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
     }
 
     #[test]
@@ -463,7 +434,8 @@ mod test {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "someRpcCall",
-        }).to_string();
+        })
+        .to_string();
 
         let expected_msg = RawMessage {
             method: "someRpcCall".to_owned(),
@@ -471,10 +443,7 @@ mod test {
             // Internally missing parameters are represented as null
             params: serde_json::Value::Null,
         };
-        assert_eq!(
-            expected_msg,
-            RawMessage::try_parse(&raw_json).unwrap().unwrap()
-        );
+        assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
     }
 
     #[test]
@@ -544,8 +513,6 @@ mod test {
     fn deserialize_message_empty_params() {
         let msg = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
         let parsed = RawMessage::try_parse(msg).unwrap().unwrap();
-        parsed
-            .parse_as_notification::<notifications::Initialized>()
-            .unwrap();
+        parsed.parse_as_notification::<notifications::Initialized>().unwrap();
     }
 }

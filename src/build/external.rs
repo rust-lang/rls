@@ -20,8 +20,8 @@
 //! From these we construct an internal build plan that is used to rebuild
 //! the project incrementally ourselves.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::hash::{Hash, Hasher};
 use std::io::BufRead;
@@ -29,9 +29,9 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::build::BuildResult;
-use crate::build::plan::{BuildKey, BuildGraph, JobQueue, WorkStatus};
+use crate::build::plan::{BuildGraph, BuildKey, JobQueue, WorkStatus};
 use crate::build::rustc::src_path;
+use crate::build::BuildResult;
 
 use cargo::util::{process, ProcessBuilder};
 use log::trace;
@@ -47,10 +47,7 @@ fn cmd_line_to_command<S: AsRef<str>>(cmd_line: &S, cwd: &Path) -> Result<Comman
     };
 
     let mut cmd = Command::new(cmd);
-    cmd.args(args)
-        .current_dir(cwd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.args(args).current_dir(cwd).stdout(Stdio::piped()).stderr(Stdio::piped());
     Ok(cmd)
 }
 
@@ -83,7 +80,9 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(
 
     let reader = std::io::BufReader::new(child.stdout.unwrap());
 
-    let files = reader.lines().filter_map(|res| res.ok())
+    let files = reader
+        .lines()
+        .filter_map(|res| res.ok())
         .map(PathBuf::from)
         // Relative paths are relative to build command, not RLS itself (cwd may be different)
         .map(|path| if !path.is_absolute() { build_dir.join(path) } else { path });
@@ -111,15 +110,11 @@ where
     let mut analyses = Vec::new();
 
     for path in files {
-        trace!(
-            "external::read_analysis_files: Attempt to read `{}`",
-            path.as_ref().display()
-        );
+        trace!("external::read_analysis_files: Attempt to read `{}`", path.as_ref().display());
 
         let mut file = File::open(path).map_err(|e| e.to_string())?;
         let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .map_err(|e| e.to_string())?;
+        file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
 
         let data = rustc_serialize::json::decode(&contents).map_err(|e| e.to_string())?;
         analyses.push(data);
@@ -135,12 +130,16 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
         .map(|(idx, a)| (a.prelude.as_ref().unwrap().crate_id.disambiguator, idx))
         .collect();
 
-    let invocations: Vec<RawInvocation> = analysis.iter()
+    let invocations: Vec<RawInvocation> = analysis
+        .iter()
         .map(|a| {
             let CompilationOptions { ref directory, ref program, ref arguments, ref output } =
                 a.compilation.as_ref().ok_or(())?;
 
-            let deps: Vec<usize> = a.prelude.as_ref().unwrap()
+            let deps: Vec<usize> = a
+                .prelude
+                .as_ref()
+                .unwrap()
                 .external_crates
                 .iter()
                 .filter_map(|c| indices.get(&c.id.disambiguator))
@@ -160,8 +159,7 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
                 args: arguments.clone(),
                 env: Default::default(),
                 links: Default::default(),
-                cwd: Some(cwd)
-
+                cwd: Some(cwd),
             })
         })
         .collect::<Result<Vec<RawInvocation>, ()>>()?;
@@ -260,10 +258,7 @@ impl ExternalPlan {
             }
         }
 
-        ExternalPlan {
-            units: units.into_iter().map(|u| (u.key(), u)).collect(),
-            ..plan
-        }
+        ExternalPlan { units: units.into_iter().map(|u| (u.key(), u)).collect(), ..plan }
     }
 
     #[rustfmt::skip]
@@ -283,10 +278,8 @@ impl ExternalPlan {
             return Err(());
         }
 
-        let units = raw.invocations
-            .into_iter()
-            .map(|raw| Invocation::from_raw(build_dir, raw))
-            .collect();
+        let units =
+            raw.invocations.into_iter().map(|raw| Invocation::from_raw(build_dir, raw)).collect();
 
         Ok(ExternalPlan::with_units(units))
     }
@@ -308,15 +301,12 @@ impl BuildGraph for ExternalPlan {
     }
 
     fn deps(&self, key: u64) -> Vec<&Self::Unit> {
-        self.deps
-            .get(&key)
-            .map(|d| d.iter().map(|d| &self.units[d]).collect())
-            .unwrap_or_default()
+        self.deps.get(&key).map(|d| d.iter().map(|d| &self.units[d]).collect()).unwrap_or_default()
     }
 
     fn add<T>(&mut self, unit: T, deps: Vec<T>)
     where
-        T: Into<Self::Unit>
+        T: Into<Self::Unit>,
     {
         let unit = unit.into();
 
@@ -340,15 +330,14 @@ impl BuildGraph for ExternalPlan {
             // package by finding longest (most specified) path prefix.
             let matching_prefix_components = |a: &Path, b: &Path| -> usize {
                 assert!(a.is_absolute() && b.is_absolute());
-                a.components()
-                    .zip(b.components())
-                    .take_while(|&(x, y)| x == y)
-                    .count()
+                a.components().zip(b.components()).take_while(|&(x, y)| x == y).count()
             };
             // Since a package can correspond to many units (e.g. compiled
             // as a regular binary or a test harness for unit tests), we
             // collect every unit having the longest path prefix.
-            let matching_units: Vec<(&_, usize)> = self.units.values()
+            let matching_units: Vec<(&_, usize)> = self
+                .units
+                .values()
                 // For `rustc dir/some.rs` we'll consider every changed files
                 // under dir/ as relevant
                 .map(|unit| (unit, unit.src_path.as_ref().and_then(|src| src.parent())))
@@ -474,20 +463,12 @@ mod tests {
     struct SrcPaths<'a>(Vec<&'a PathBuf>);
     impl<'a> SrcPaths<'a> {
         fn from(plan: &ExternalPlan) -> SrcPaths<'_> {
-            SrcPaths(
-                plan.units()
-                    .iter()
-                    .filter_map(|u| u.src_path.as_ref())
-                    .collect(),
-            )
+            SrcPaths(plan.units().iter().filter_map(|u| u.src_path.as_ref()).collect())
         }
     }
 
     fn paths(invocations: &[&Invocation]) -> Vec<PathBuf> {
-        invocations
-            .iter()
-            .filter_map(|d| d.src_path.clone())
-            .collect()
+        invocations.iter().filter_map(|d| d.src_path.clone()).collect()
     }
 
     fn to_paths(cwd: &Path, paths: &[&str]) -> Vec<PathBuf> {
@@ -577,9 +558,6 @@ mod tests {
         // nondeterminate order wrt hashing is a problem
         // Jobs that have to run first are *last* in the topological sorting here
         let topo_units = plan.topological_sort(units_to_rebuild);
-        assert_eq!(
-            paths(&topo_units),
-            to_paths(&["/my/repo/src/lib.rs", "/my/repo/build.rs"]),
-        )
+        assert_eq!(paths(&topo_units), to_paths(&["/my/repo/src/lib.rs", "/my/repo/build.rs"]),)
     }
 }

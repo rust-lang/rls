@@ -400,7 +400,8 @@ impl BuildQueue {
                         notifier.notify_progress(progress);
                     }
                     notifier.notify_end_progress();
-                }).expect("Failed to start progress-notifier thread");
+                })
+                .expect("Failed to start progress-notifier thread");
 
             // Run the build.
             let result = internals.run_build(
@@ -439,11 +440,7 @@ impl BuildQueue {
     /// version of this file.
     pub fn mark_file_dirty(&self, file: PathBuf, version: FileVersion) {
         trace!("Marking file as dirty: {:?} ({})", file, version);
-        self.internals
-            .dirty_files
-            .lock()
-            .unwrap()
-            .insert(file, version);
+        self.internals.dirty_files.lock().unwrap().insert(file, version);
     }
 }
 
@@ -476,11 +473,7 @@ impl Internals {
         // Check if the build directory changed and update it.
         {
             let mut compilation_cx = self.compilation_cx.lock().unwrap();
-            if compilation_cx
-                .build_dir
-                .as_ref()
-                .map_or(true, |dir| dir != new_build_dir)
-            {
+            if compilation_cx.build_dir.as_ref().map_or(true, |dir| dir != new_build_dir) {
                 // We'll need to re-run cargo in this case.
                 assert!(priority.is_cargo());
                 (*compilation_cx).build_dir = Some(new_build_dir.to_owned());
@@ -538,9 +531,7 @@ impl Internals {
             // Check if an external build command was provided and execute that, instead.
             if let Some(cmd) = self.config.lock().unwrap().build_command.clone() {
                 match (needs_rebuild, &cx.build_plan) {
-                    (false, BuildPlan::External(ref plan)) => {
-                        plan.prepare_work(&modified)
-                    },
+                    (false, BuildPlan::External(ref plan)) => plan.prepare_work(&modified),
                     // We need to rebuild; regenerate the build plan if possible.
                     _ => match external::build_with_external_cmd(cmd, build_dir) {
                         (result, Err(_)) => return result,
@@ -558,15 +549,13 @@ impl Internals {
             } else {
                 // Cargo plan is recreated and `needs_rebuild` reset if we run cargo::cargo().
                 match cx.build_plan {
-                    BuildPlan::External(_) => {
-                        WorkStatus::NeedsCargo(PackageArg::Default)
-                    },
+                    BuildPlan::External(_) => WorkStatus::NeedsCargo(PackageArg::Default),
                     BuildPlan::Cargo(ref plan) => {
                         match plan.prepare_work(&modified) {
                             // Don't reuse the plan if we need to rebuild
                             WorkStatus::Execute(_) if needs_rebuild => {
                                 WorkStatus::NeedsCargo(PackageArg::Default)
-                            },
+                            }
                             work => work,
                         }
                     }
@@ -594,12 +583,8 @@ impl Internals {
     /// Uses client configured value, or attempts to infer an appropriate
     /// duration.
     fn build_wait(&self) -> Duration {
-        self.config
-            .lock()
-            .unwrap()
-            .wait_to_build
-            .map(Duration::from_millis)
-            .unwrap_or_else(|| match *self.last_build_duration.read().unwrap() {
+        self.config.lock().unwrap().wait_to_build.map(Duration::from_millis).unwrap_or_else(|| {
+            match *self.last_build_duration.read().unwrap() {
                 Some(build_duration) if build_duration < Duration::from_secs(5) => {
                     if build_duration < Duration::from_millis(300) {
                         Duration::from_millis(0)
@@ -610,7 +595,8 @@ impl Internals {
                     }
                 }
                 _ => Duration::from_millis(1500),
-            })
+            }
+        })
     }
 }
 

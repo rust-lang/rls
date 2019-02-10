@@ -19,8 +19,8 @@ use futures::stream::Stream;
 use futures::unsync::oneshot;
 use futures::Future;
 use lsp_codec::{LspDecoder, LspEncoder};
-use lsp_types::PublishDiagnosticsParams;
 use lsp_types::notification::{Notification, PublishDiagnostics};
+use lsp_types::PublishDiagnosticsParams;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::codec::{FramedRead, FramedWrite};
@@ -68,13 +68,7 @@ impl Project {
         let mut rt = Runtime::new().unwrap();
         rt.spawn(reader.map_err(|_| ()));
 
-        RlsHandle {
-            writer,
-            child,
-            runtime: rt,
-            messages: msgs,
-            channels: chans,
-        }
+        RlsHandle { writer, child, runtime: rt, messages: msgs, channels: chans }
     }
 }
 
@@ -136,7 +130,10 @@ impl RlsHandle {
     }
 
     /// Block on returned, associated future with a timeout.
-    pub fn block_on<F: Future>(&mut self, f: F) -> Result<F::Item, tokio_timer::timeout::Error<F::Error>> {
+    pub fn block_on<F: Future>(
+        &mut self,
+        f: F,
+    ) -> Result<F::Item, tokio_timer::timeout::Error<F::Error>> {
         let future_with_timeout = f.timeout(rls_timeout());
 
         self.runtime.block_on(future_with_timeout)

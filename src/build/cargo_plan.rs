@@ -70,17 +70,11 @@ pub(crate) struct CargoPlan {
 
 impl CargoPlan {
     pub(crate) fn with_manifest(manifest_path: &Path) -> CargoPlan {
-        CargoPlan {
-            package_map: Some(PackageMap::new(manifest_path)),
-            ..Default::default()
-        }
+        CargoPlan { package_map: Some(PackageMap::new(manifest_path)), ..Default::default() }
     }
 
     pub(crate) fn with_packages(manifest_path: &Path, pkgs: HashSet<String>) -> CargoPlan {
-        CargoPlan {
-            built_packages: pkgs,
-            ..Self::with_manifest(manifest_path)
-        }
+        CargoPlan { built_packages: pkgs, ..Self::with_manifest(manifest_path) }
     }
 
     /// Returns whether a build plan has cached compiler invocations and dep
@@ -128,10 +122,7 @@ impl CargoPlan {
 
         // Create reverse file -> unit mapping (to be used for dirty unit calculation)
         for file in &input_files {
-            self.file_key_mapping
-                .entry(file.to_path_buf())
-                .or_default()
-                .insert(unit_key.clone());
+            self.file_key_mapping.entry(file.to_path_buf()).or_default().insert(unit_key.clone());
         }
 
         self.input_files.insert(unit_key, input_files);
@@ -145,8 +136,7 @@ impl CargoPlan {
         unit: &Unit<'_>,
         cx: &Context<'_, '_>,
         filter: &Filter,
-    )
-    where
+    ) where
         Filter: Fn(&Unit<'_>) -> bool,
     {
         if !filter(unit) {
@@ -167,7 +157,8 @@ impl CargoPlan {
 
         // Fetch and insert relevant unit dependencies to the forward dep graph.
         let units = cx.dep_targets(unit);
-        let dep_keys: HashSet<UnitKey> = units.iter()
+        let dep_keys: HashSet<UnitKey> = units
+            .iter()
             // We might not want certain deps to be added transitively (e.g.
             // when creating only a sub-dep-graph, limiting the scope).
             .filter(|unit| filter(unit))
@@ -181,9 +172,7 @@ impl CargoPlan {
 
         // We also need to track reverse dependencies here, as it's needed
         // to quickly construct a work sub-graph from a set of dirty units.
-        self.rev_dep_graph
-            .entry(key.clone())
-            .or_insert_with(HashSet::new);
+        self.rev_dep_graph.entry(key.clone()).or_insert_with(HashSet::new);
         for unit in dep_keys {
             let revs = self.rev_dep_graph.entry(unit).or_insert_with(HashSet::new);
             revs.insert(key.clone());
@@ -228,7 +217,8 @@ impl CargoPlan {
                         .parent()
                         .expect("no parent for src_path"),
                 )
-            }).collect();
+            })
+            .collect();
 
         for modified in files.iter().map(|x| x.as_ref()) {
             if let Some(unit) = build_scripts.get(modified) {
@@ -238,7 +228,8 @@ impl CargoPlan {
                 // package by finding longest (most specified) path prefix.
                 let matching_prefix_components = |a: &Path, b: &Path| -> usize {
                     assert!(a.is_absolute() && b.is_absolute());
-                    a.components().zip(b.components())
+                    a.components()
+                        .zip(b.components())
                         .skip(1) // Skip RootDir
                         .take_while(|&(x, y)| x == y)
                         .count()
@@ -306,11 +297,14 @@ impl CargoPlan {
         let dirties = self.transitive_dirty_units(dirties);
         trace!("transitive_dirty_units: {:?}", dirties);
 
-        self.rev_dep_graph.iter()
+        self.rev_dep_graph
+            .iter()
             // Remove nodes that are not dirty
             .filter(|&(unit, _)| dirties.contains(unit))
             // Retain only dirty dependencies of the ones that are dirty
-            .map(|(k, deps)| (k.clone(), deps.iter().cloned().filter(|d| dirties.contains(d)).collect()))
+            .map(|(k, deps)| {
+                (k.clone(), deps.iter().cloned().filter(|d| dirties.contains(d)).collect())
+            })
             .collect()
     }
 
@@ -349,30 +343,16 @@ impl CargoPlan {
         }
     }
 
-    pub(crate) fn prepare_work<T: AsRef<Path> + fmt::Debug>(
-        &self,
-        modified: &[T],
-    ) -> WorkStatus {
+    pub(crate) fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
         if !self.is_ready() || self.package_map.is_none() {
             return WorkStatus::NeedsCargo(PackageArg::Default);
         }
 
-        let dirty_packages = self
-            .package_map
-            .as_ref()
-            .unwrap()
-            .compute_dirty_packages(modified);
+        let dirty_packages = self.package_map.as_ref().unwrap().compute_dirty_packages(modified);
 
-        let needs_more_packages = dirty_packages
-            .difference(&self.built_packages)
-            .next()
-            .is_some();
+        let needs_more_packages = dirty_packages.difference(&self.built_packages).next().is_some();
 
-        let needed_packages = self
-            .built_packages
-            .union(&dirty_packages)
-            .cloned()
-            .collect();
+        let needed_packages = self.built_packages.union(&dirty_packages).cloned().collect();
 
         // We modified a file from a packages, that are not included in the
         // cached build plan - run Cargo to recreate the build plan including them
@@ -381,16 +361,9 @@ impl CargoPlan {
         }
 
         let dirties = self.fetch_dirty_units(modified);
-        trace!(
-            "fetch_dirty_units: for files {:?}, these units are dirty: {:?}",
-            modified,
-            dirties,
-        );
+        trace!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties,);
 
-        if dirties
-            .iter()
-            .any(|&(_, ref target, _)| *target.kind() == TargetKind::CustomBuild)
-        {
+        if dirties.iter().any(|&(_, ref target, _)| *target.kind() == TargetKind::CustomBuild) {
             WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages))
         } else {
             let graph = self.dirty_rev_dep_graph(&dirties);
@@ -401,15 +374,9 @@ impl CargoPlan {
             }
 
             let queue = self.topological_sort(&graph);
-            trace!(
-                "Topologically sorted dirty graph: {:?} {}",
-                queue,
-                self.is_ready()
-            );
-            let jobs: Option<Vec<_>> = queue
-                .iter()
-                .map(|x| self.compiler_jobs.get(x).cloned())
-                .collect();
+            trace!("Topologically sorted dirty graph: {:?} {}", queue, self.is_ready());
+            let jobs: Option<Vec<_>> =
+                queue.iter().map(|x| self.compiler_jobs.get(x).cloned()).collect();
 
             // It is possible that we want a job which is not in our cache (compiler_jobs),
             // for example we might be building a workspace with an error in a crate and later
@@ -470,10 +437,7 @@ impl PackageMap {
         &self,
         modified_files: &[T],
     ) -> HashSet<String> {
-        modified_files
-            .iter()
-            .filter_map(|p| self.map(p.as_ref()))
-            .collect()
+        modified_files.iter().filter_map(|p| self.map(p.as_ref())).collect()
     }
 
     // Map a file to the package which it belongs to.
@@ -508,11 +472,7 @@ impl PackageMap {
 }
 
 fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
-    (
-        unit.pkg.package_id(),
-        unit.target.clone(),
-        unit.mode,
-    )
+    (unit.pkg.package_id(), unit.target.clone(), unit.mode)
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]

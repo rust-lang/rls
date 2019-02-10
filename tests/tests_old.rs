@@ -1,9 +1,9 @@
 #![allow(clippy::cyclomatic_complexity)]
 
+use jsonrpc_core;
 use rls::actions::{notifications, requests};
 use rls::config::{Config, Inferrable};
 use rls::server::{self as ls_server, Notification, Request, RequestId, ShutdownRequest};
-use jsonrpc_core;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
 use serde_json::Value;
@@ -77,10 +77,7 @@ fn request<T: ls_server::RequestAction>(id: usize, params: T::Params) -> Request
 }
 
 fn notification<A: ls_server::BlockingNotificationAction>(params: A::Params) -> Notification<A> {
-    Notification {
-        params,
-        _action: PhantomData,
-    }
+    Notification { params, _action: PhantomData }
 }
 
 #[test]
@@ -132,11 +129,10 @@ fn test_goto_def() {
             11,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env
-                    .cache
-                    .mk_ls_position(src(&source_file_path, 13, "world")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 13, "world")),
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -182,11 +178,10 @@ fn test_hover() {
             11,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env
-                    .cache
-                    .mk_ls_position(src(&source_file_path, 13, "world")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 13, "world")),
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -226,13 +221,8 @@ fn test_hover_after_src_line_change() {
     let url = Url::from_file_path(env.cache.abs_path(&source_file_path))
         .expect("couldn't convert file path to URL");
 
-    let world_src_pos = env
-        .cache
-        .mk_ls_position(src(&source_file_path, 12, "world"));
-    let world_src_pos_after = Position {
-        line: world_src_pos.line + 1,
-        ..world_src_pos
-    };
+    let world_src_pos = env.cache.mk_ls_position(src(&source_file_path, 12, "world"));
+    let world_src_pos_after = Position { line: world_src_pos.line + 1, ..world_src_pos };
 
     let messages = vec![
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
@@ -242,34 +232,28 @@ fn test_hover_after_src_line_change() {
                 text_document: TextDocumentIdentifier::new(url.clone()),
                 position: world_src_pos,
             },
-        ).to_string(),
+        )
+        .to_string(),
         notification::<notifications::DidChangeTextDocument>(DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier {
-                uri: url.clone(),
-                version: Some(2),
-            },
+            text_document: VersionedTextDocumentIdentifier { uri: url.clone(), version: Some(2) },
             content_changes: vec![TextDocumentContentChangeEvent {
                 range: Some(Range {
-                    start: Position {
-                        line: 10,
-                        character: 15,
-                    },
-                    end: Position {
-                        line: 10,
-                        character: 15,
-                    },
+                    start: Position { line: 10, character: 15 },
+                    end: Position { line: 10, character: 15 },
                 }),
                 range_length: Some(0),
                 text: "\n    ".into(),
             }],
-        }).to_string(),
+        })
+        .to_string(),
         request::<requests::Hover>(
             13,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
                 position: world_src_pos_after,
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -327,10 +311,9 @@ fn test_workspace_symbol() {
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::WorkspaceSymbol>(
             42,
-            WorkspaceSymbolParams {
-                query: "nemo".to_owned(),
-            },
-        ).to_string(),
+            WorkspaceSymbolParams { query: "nemo".to_owned() },
+        )
+        .to_string(),
     ];
 
     env.with_config(|c| c.cfg_test = true);
@@ -356,19 +339,23 @@ fn test_workspace_symbol() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
+        ExpectedMessage::new(Some(42))
+            .expect_contains(r#""id":42"#)
             // in main.rs
             .expect_contains(r#"main.rs"#)
             .expect_contains(r#""name":"nemo""#)
             .expect_contains(r#""kind":12"#)
-            .expect_contains(r#""range":{"start":{"line":1,"character":11},"end":{"line":1,"character":15}}"#)
+            .expect_contains(
+                r#""range":{"start":{"line":1,"character":11},"end":{"line":1,"character":15}}"#,
+            )
             .expect_contains(r#""containerName":"x""#)
-
             // in foo.rs
             .expect_contains(r#"foo.rs"#)
             .expect_contains(r#""name":"nemo""#)
             .expect_contains(r#""kind":2"#)
-            .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
+            .expect_contains(
+                r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#,
+            )
             .expect_contains(r#""containerName":"foo""#),
     );
 }
@@ -383,10 +370,9 @@ fn test_workspace_symbol_duplicates() {
         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
         request::<requests::WorkspaceSymbol>(
             42,
-            WorkspaceSymbolParams {
-                query: "Frobnicator".to_owned(),
-            },
-        ).to_string(),
+            WorkspaceSymbolParams { query: "Frobnicator".to_owned() },
+        )
+        .to_string(),
     ];
 
     env.with_config(|c| c.cfg_test = true);
@@ -448,11 +434,10 @@ fn test_find_all_refs() {
             ReferenceParams {
                 text_document: TextDocumentIdentifier::new(url),
                 position: env.cache.mk_ls_position(src(&source_file_path, 1, "Bar")),
-                context: ReferenceContext {
-                    include_declaration: true,
-                },
+                context: ReferenceContext { include_declaration: true },
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     env.with_config(|c| c.cfg_test = true);
@@ -480,9 +465,11 @@ fn test_find_all_refs() {
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":0,"character":7},"end":{"line":0,"character":10}}"#,
-            ).expect_contains(
+            )
+            .expect_contains(
                 r#"{"start":{"line":6,"character":14},"end":{"line":6,"character":17}}"#,
-            ).expect_contains(
+            )
+            .expect_contains(
                 r#"{"start":{"line":14,"character":15},"end":{"line":14,"character":18}}"#,
             ),
     );
@@ -506,11 +493,10 @@ fn test_find_all_refs_no_cfg_test() {
             ReferenceParams {
                 text_document: TextDocumentIdentifier::new(url),
                 position: env.cache.mk_ls_position(src(&source_file_path, 1, "Bar")),
-                context: ReferenceContext {
-                    include_declaration: true,
-                },
+                context: ReferenceContext { include_declaration: true },
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -537,7 +523,8 @@ fn test_find_all_refs_no_cfg_test() {
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":0,"character":7},"end":{"line":0,"character":10}}"#,
-            ).expect_contains(
+            )
+            .expect_contains(
                 r#"{"start":{"line":13,"character":15},"end":{"line":13,"character":18}}"#,
             ),
     );
@@ -591,11 +578,10 @@ fn test_highlight() {
             42,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env
-                    .cache
-                    .mk_ls_position(src(&source_file_path, 13, "world")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 13, "world")),
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -622,7 +608,8 @@ fn test_highlight() {
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#,
-            ).expect_contains(
+            )
+            .expect_contains(
                 r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#,
             ),
     );
@@ -644,12 +631,11 @@ fn test_rename() {
             42,
             RenameParams {
                 text_document: text_doc,
-                position: env
-                    .cache
-                    .mk_ls_position(src(&source_file_path, 13, "world")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 13, "world")),
                 new_name: "foo".to_owned(),
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -677,9 +663,11 @@ fn test_rename() {
         ExpectedMessage::new(Some(42))
             .expect_contains(
                 r#"{"start":{"line":11,"character":8},"end":{"line":11,"character":13}}"#,
-            ).expect_contains(
+            )
+            .expect_contains(
                 r#"{"start":{"line":12,"character":27},"end":{"line":12,"character":32}}"#,
-            ).expect_contains(r#"{"changes""#),
+            )
+            .expect_contains(r#"{"changes""#),
     );
 }
 
@@ -705,7 +693,8 @@ fn test_reformat() {
                     properties: ::std::collections::HashMap::new(),
                 },
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -751,14 +740,8 @@ fn test_reformat_with_range() {
             DocumentRangeFormattingParams {
                 text_document: text_doc,
                 range: Range {
-                    start: Position {
-                        line: 12,
-                        character: 0,
-                    },
-                    end: Position {
-                        line: 13,
-                        character: 0,
-                    },
+                    start: Position { line: 12, character: 0 },
+                    end: Position { line: 13, character: 0 },
                 },
                 options: FormattingOptions {
                     tab_size: 4,
@@ -766,7 +749,8 @@ fn test_reformat_with_range() {
                     properties: ::std::collections::HashMap::new(),
                 },
             },
-        ).to_string(),
+        )
+        .to_string(),
     ];
 
     let (mut server, results, ..) = env.mock_server(messages);
@@ -790,9 +774,14 @@ fn test_reformat_with_range() {
     );
     let newline = if cfg!(windows) { r#"\r\n"# } else { r#"\n"# };
     let formatted = r#"newText":"// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"#;
-    expect_message(&mut server, results,
-        ExpectedMessage::new(Some(42)).expect_contains(r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#)
-            .expect_contains(&formatted.replace(r#"\n"#, newline))
+    expect_message(
+        &mut server,
+        results,
+        ExpectedMessage::new(Some(42))
+            .expect_contains(
+                r#"{"start":{"line":0,"character":0},"end":{"line":15,"character":5}}"#,
+            )
+            .expect_contains(&formatted.replace(r#"\n"#, newline)),
     );
 }
 
@@ -913,9 +902,7 @@ fn test_bin_lib_project() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#),
+        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
     );
 }
 
@@ -999,9 +986,7 @@ fn test_infer_lib() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#),
+        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
     );
 }
 
@@ -1035,9 +1020,7 @@ fn test_infer_bin() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#),
+        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
     );
 }
 
@@ -1072,9 +1055,7 @@ fn test_infer_custom_bin() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#),
+        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
     );
 }
 
@@ -1111,29 +1092,29 @@ pub trait ConvertStringCase {
 
 struct CamelCaseConverter;
 impl ConvertStringCase for CamelCaseConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      use heck::CamelCase;
-      s.to_camel_case().to_string()
+    fn convert_string_case<'a>(s: &'a str) -> String {
+        use heck::CamelCase;
+        s.to_camel_case().to_string()
     }
 }
 
 struct KebabCaseConverter;
 impl ConvertStringCase for KebabCaseConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      use heck::KebabCase;
-      s.to_kebab_case().to_string()
+    fn convert_string_case<'a>(s: &'a str) -> String {
+        use heck::KebabCase;
+        s.to_kebab_case().to_string()
     }
 }
 
 struct SnakeCaseConverter;
 impl ConvertStringCase for SnakeCaseConverter {
-    fn convert_string_case<'a>(s:&'a str) -> String {
-      use heck::SnakeCase;
-      s.to_snake_case().to_string()
+    fn convert_string_case<'a>(s: &'a str) -> String {
+        use heck::SnakeCase;
+        s.to_snake_case().to_string()
     }
 }
 
-fn test_init_impl<T:ConvertStringCase>() {
+fn test_init_impl<T: ConvertStringCase>() {
     use serde_json::json;
 
     let mut env = Environment::generate_from_fixture("common");
@@ -1212,10 +1193,7 @@ fn test_parse_error_on_malformed_input() {
     );
 
     let result = ls_server::LsService::handle_message(&mut server);
-    assert_eq!(
-        result,
-        ls_server::ServerStateChange::Break { exit_code: 101 }
-    );
+    assert_eq!(result, ls_server::ServerStateChange::Break { exit_code: 101 });
 
     let error = results.lock().unwrap().pop().expect("no error response");
 
@@ -1248,16 +1226,16 @@ fn test_find_impls() {
                 text_document: TextDocumentIdentifier::new(url.clone()),
                 position: env.cache.mk_ls_position(src(&source_file_path, 13, "Bar")),
             },
-        ).to_string(),
+        )
+        .to_string(),
         request::<requests::Implementation>(
             2,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env
-                    .cache
-                    .mk_ls_position(src(&source_file_path, 16, "Super")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 16, "Super")),
             },
-        ).to_string(),
+        )
+        .to_string(),
         // FIXME Does not work on Travis
         // request::<requests::Implementation>(
         //     3,
@@ -1293,7 +1271,8 @@ fn test_find_impls() {
         ExpectedMessage::new(Some(1))
             .expect_contains(
                 r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#,
-            ).expect_contains(
+            )
+            .expect_contains(
                 r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#,
             ),
     );
@@ -1307,7 +1286,8 @@ fn test_find_impls() {
         ExpectedMessage::new(Some(2))
             .expect_contains(
                 r#""range":{"start":{"line":18,"character":15},"end":{"line":18,"character":18}}"#,
-            ).expect_contains(
+            )
+            .expect_contains(
                 r#""range":{"start":{"line":22,"character":15},"end":{"line":22,"character":18}}"#,
             ),
     );
@@ -1354,9 +1334,7 @@ fn test_features() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#),
+        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
     );
 }
 
@@ -1420,9 +1398,7 @@ fn test_no_default_features() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#),
+        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
     );
 }
 
@@ -1485,9 +1461,7 @@ fn test_all_targets() {
     expect_message(
         &mut server,
         results,
-        ExpectedMessage::new(None)
-            .expect_contains("progress")
-            .expect_contains(r#""done":true"#),
+        ExpectedMessage::new(None).expect_contains("progress").expect_contains(r#""done":true"#),
     );
 }
 
@@ -1505,25 +1479,17 @@ fn ignore_uninitialized_notification() {
 
     let messages = vec![
         notification::<notifications::DidChangeTextDocument>(DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier {
-                uri: url,
-                version: Some(2),
-            },
+            text_document: VersionedTextDocumentIdentifier { uri: url, version: Some(2) },
             content_changes: vec![TextDocumentContentChangeEvent {
                 range: Some(Range {
-                    start: Position {
-                        line: 19,
-                        character: 15,
-                    },
-                    end: Position {
-                        line: 19,
-                        character: 15,
-                    },
+                    start: Position { line: 19, character: 15 },
+                    end: Position { line: 19, character: 15 },
                 }),
                 range_length: Some(0),
                 text: "\n    ".into(),
             }],
-        }).to_string(),
+        })
+        .to_string(),
         initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
@@ -1565,11 +1531,10 @@ fn fail_uninitialized_request() {
             0,
             TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier::new(url),
-                position: env
-                    .cache
-                    .mk_ls_position(src(&source_file_path, 13, "world")),
+                position: env.cache.mk_ls_position(src(&source_file_path, 13, "world")),
             },
-        ).to_string(),
+        )
+        .to_string(),
         initialize(1, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 

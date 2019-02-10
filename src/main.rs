@@ -8,14 +8,8 @@
 // See rustc/rustc.rs in rust repo for explanation of stack adjustments.
 #![feature(link_args)]
 #[allow(unused_attributes)]
-#[cfg_attr(
-    all(windows, target_env = "msvc"),
-    link_args = "/STACK:16777216"
-)]
-#[cfg_attr(
-    all(windows, not(target_env = "msvc")),
-    link_args = "-Wl,--stack,16777216"
-)]
+#[cfg_attr(all(windows, target_env = "msvc"), link_args = "/STACK:16777216")]
+#[cfg_attr(all(windows, not(target_env = "msvc")), link_args = "-Wl,--stack,16777216")]
 extern "C" {}
 
 use log::warn;
@@ -44,8 +38,11 @@ fn main_inner() -> i32 {
     // See https://github.com/rust-lang/rls/issues/703
     // and https://github.com/mozilla/sccache/issues/303
     if env::var_os(RUSTC_WRAPPER_ENV_VAR).is_some() {
-        warn!("The {} environment variable is incompatible with RLS, \
-               removing it from the process environment", RUSTC_WRAPPER_ENV_VAR);
+        warn!(
+            "The {} environment variable is incompatible with RLS, \
+             removing it from the process environment",
+            RUSTC_WRAPPER_ENV_VAR
+        );
         env::remove_var(RUSTC_WRAPPER_ENV_VAR);
     }
 
@@ -69,11 +66,7 @@ fn main_inner() -> i32 {
                 0
             }
             unknown => {
-                println!(
-                    "Unknown argument '{}'. Supported arguments:\n{}",
-                    unknown,
-                    help()
-                );
+                println!("Unknown argument '{}'. Supported arguments:\n{}", unknown, help());
                 101
             }
         };
