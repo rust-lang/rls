@@ -4,7 +4,7 @@ version = "0.18.2"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Data structures used by the RLS and Rust compiler"
 license = "Apache-2.0/MIT"
-repository = "https://github.com/rust-dev-tools/rls-data"
+repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]

@@ -4,7 +4,7 @@ version = "0.16.12"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Library for processing rustc's save-analysis data for the RLS"
 license = "Apache-2.0/MIT"
-repository = "https://github.com/rust-dev-tools/rls-analysis"
+repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 exclude = [
     "test_data/*",
