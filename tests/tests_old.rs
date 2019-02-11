@@ -1092,7 +1092,7 @@ pub trait ConvertStringCase {
 
 struct CamelCaseConverter;
 impl ConvertStringCase for CamelCaseConverter {
-    fn convert_string_case<'a>(s: &'a str) -> String {
+    fn convert_string_case(s: &str) -> String {
         use heck::CamelCase;
         s.to_camel_case().to_string()
     }
@@ -1100,7 +1100,7 @@ impl ConvertStringCase for CamelCaseConverter {
 
 struct KebabCaseConverter;
 impl ConvertStringCase for KebabCaseConverter {
-    fn convert_string_case<'a>(s: &'a str) -> String {
+    fn convert_string_case(s: &str) -> String {
         use heck::KebabCase;
         s.to_kebab_case().to_string()
     }
@@ -1108,7 +1108,7 @@ impl ConvertStringCase for KebabCaseConverter {
 
 struct SnakeCaseConverter;
 impl ConvertStringCase for SnakeCaseConverter {
-    fn convert_string_case<'a>(s: &'a str) -> String {
+    fn convert_string_case(s: &str) -> String {
         use heck::SnakeCase;
         s.to_snake_case().to_string()
     }
