@@ -33,15 +33,12 @@ extern crate rustc_resolve;
 extern crate rustc_save_analysis;
 #[allow(unused_extern_crates)]
 extern crate syntax;
-use self::rustc::session::config::{self, ErrorOutputType, Input};
+use self::rustc::session::config::Input;
 use self::rustc::session::Session;
-use self::rustc_codegen_utils::codegen_backend::CodegenBackend;
 use self::rustc_driver::driver::CompileController;
-use self::rustc_driver::{run, run_compiler, Compilation, CompilerCalls, RustcDefaultCalls};
-use self::rustc_metadata::cstore::CStore;
+use self::rustc_driver::{run, run_compiler, CompilerCalls, RustcDefaultCalls};
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
-use self::syntax::ast;
 use self::syntax::edition::Edition as RustcEdition;
 use self::syntax::source_map::{FileLoader, RealFileLoader};
 
@@ -153,7 +150,6 @@ pub(crate) fn rustc(
 // controller, but use our own callback for save-analysis.
 #[derive(Clone)]
 struct RlsRustcCalls {
-    default_calls: Box<RustcDefaultCalls>,
     analysis: Arc<Mutex<Option<Analysis>>>,
     input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
@@ -165,12 +161,7 @@ impl RlsRustcCalls {
         input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
         clippy_preference: ClippyPreference,
     ) -> RlsRustcCalls {
-        RlsRustcCalls {
-            default_calls: Box::new(RustcDefaultCalls),
-            analysis,
-            input_files,
-            clippy_preference,
-        }
+        RlsRustcCalls { analysis, input_files, clippy_preference }
     }
 }
 
@@ -217,42 +208,6 @@ fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_
 }
 
 impl<'a> CompilerCalls<'a> for RlsRustcCalls {
-    fn early_callback(
-        &mut self,
-        matches: &getopts::Matches,
-        sopts: &config::Options,
-        cfg: &ast::CrateConfig,
-        descriptions: &rustc_errors::registry::Registry,
-        output: ErrorOutputType,
-    ) -> Compilation {
-        self.default_calls.early_callback(matches, sopts, cfg, descriptions, output)
-    }
-
-    fn no_input(
-        &mut self,
-        matches: &getopts::Matches,
-        sopts: &config::Options,
-        cfg: &ast::CrateConfig,
-        odir: &Option<PathBuf>,
-        ofile: &Option<PathBuf>,
-        descriptions: &rustc_errors::registry::Registry,
-    ) -> Option<(Input, Option<PathBuf>)> {
-        self.default_calls.no_input(matches, sopts, cfg, odir, ofile, descriptions)
-    }
-
-    fn late_callback(
-        &mut self,
-        codegen_backend: &dyn CodegenBackend,
-        matches: &getopts::Matches,
-        sess: &Session,
-        cstore: &CStore,
-        input: &Input,
-        odir: &Option<PathBuf>,
-        ofile: &Option<PathBuf>,
-    ) -> Compilation {
-        self.default_calls.late_callback(codegen_backend, matches, sess, cstore, input, odir, ofile)
-    }
-
     #[allow(clippy::boxed_local)] // https://github.com/rust-lang/rust-clippy/issues/1123
     fn build_controller(
         self: Box<Self>,
@@ -263,7 +218,7 @@ impl<'a> CompilerCalls<'a> for RlsRustcCalls {
         let input_files = self.input_files.clone();
         #[cfg(feature = "clippy")]
         let clippy_preference = self.clippy_preference;
-        let mut result = self.default_calls.build_controller(sess, matches);
+        let mut result = Box::new(RustcDefaultCalls).build_controller(sess, matches);
         result.keep_ast = true;
 
         #[cfg(feature = "clippy")]
