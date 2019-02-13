@@ -41,7 +41,7 @@ rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.7"
 rustc_tools_util = "0.1.1"
-rustfmt-nightly = "1.0.1"
+rustfmt-nightly = "1.0.2"
 rustc-serialize = "0.3"
 serde = "1.0"
 serde_json = "1.0"
