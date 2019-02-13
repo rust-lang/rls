@@ -18,9 +18,9 @@ extern crate serde_derive;
 extern crate rustc_serialize;
 
 #[cfg(feature = "serialize-rustc")]
-use rustc_serialize::{Encodable, Decodable};
+use rustc_serialize::{Decodable, Encodable};
 #[cfg(feature = "serialize-serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use std::marker::PhantomData;
 use std::path::PathBuf;
@@ -172,7 +172,7 @@ pub struct Position<I: Indexed> {
 
 impl<I: Indexed> Position<I> {
     pub fn new(row: Row<I>, col: Column<I>) -> Position<I> {
-        Position { row: row, col: col }
+        Position { row, col }
     }
 }
 
@@ -186,19 +186,13 @@ impl<I: Indexed> Copy for Position<I> {}
 
 impl Position<OneIndexed> {
     pub fn zero_indexed(self) -> Position<ZeroIndexed> {
-        Position {
-            row: self.row.zero_indexed(),
-            col: self.col.zero_indexed(),
-        }
+        Position { row: self.row.zero_indexed(), col: self.col.zero_indexed() }
     }
 }
 
 impl Position<ZeroIndexed> {
     pub fn one_indexed(self) -> Position<OneIndexed> {
-        Position {
-            row: self.row.one_indexed(),
-            col: self.col.one_indexed(),
-        }
+        Position { row: self.row.one_indexed(), col: self.col.one_indexed() }
     }
 }
 
@@ -219,35 +213,19 @@ impl<I: Indexed> Range<I> {
         col_start: Column<I>,
         col_end: Column<I>,
     ) -> Range<I> {
-        Range {
-            row_start: row_start,
-            row_end: row_end,
-            col_start: col_start,
-            col_end: col_end,
-        }
+        Range { row_start, row_end, col_start, col_end }
     }
 
     pub fn from_positions(start: Position<I>, end: Position<I>) -> Range<I> {
-        Range {
-            row_start: start.row,
-            row_end: end.row,
-            col_start: start.col,
-            col_end: end.col,
-        }
+        Range { row_start: start.row, row_end: end.row, col_start: start.col, col_end: end.col }
     }
 
     pub fn start(self) -> Position<I> {
-        Position {
-            row: self.row_start,
-            col: self.col_start,
-        }
+        Position { row: self.row_start, col: self.col_start }
     }
 
     pub fn end(self) -> Position<I> {
-        Position {
-            row: self.row_end,
-            col: self.col_end,
-        }
+        Position { row: self.row_end, col: self.col_end }
     }
 }
 
@@ -291,44 +269,29 @@ pub struct Location<I: Indexed> {
 
 impl<I: Indexed> Location<I> {
     pub fn new<F: Into<PathBuf>>(row: Row<I>, col: Column<I>, file: F) -> Location<I> {
-        Location {
-            position: Position { row: row, col: col },
-            file: file.into(),
-        }
+        Location { position: Position { row, col }, file: file.into() }
     }
 
     pub fn from_position<F: Into<PathBuf>>(position: Position<I>, file: F) -> Location<I> {
-        Location {
-            position: position,
-            file: file.into(),
-        }
+        Location { position, file: file.into() }
     }
 }
 
 impl<I: Indexed> Clone for Location<I> {
     fn clone(&self) -> Location<I> {
-        Location {
-            position: self.position,
-            file: self.file.clone(),
-        }
+        Location { position: self.position, file: self.file.clone() }
     }
 }
 
 impl Location<OneIndexed> {
     pub fn zero_indexed(&self) -> Location<ZeroIndexed> {
-        Location {
-            position: self.position.zero_indexed(),
-            file: self.file.clone(),
-        }
+        Location { position: self.position.zero_indexed(), file: self.file.clone() }
     }
 }
 
 impl Location<ZeroIndexed> {
     pub fn one_indexed(&self) -> Location<OneIndexed> {
-        Location {
-            position: self.position.one_indexed(),
-            file: self.file.clone(),
-        }
+        Location { position: self.position.one_indexed(), file: self.file.clone() }
     }
 }
 
@@ -348,22 +311,11 @@ impl<I: Indexed> Span<I> {
         col_end: Column<I>,
         file: F,
     ) -> Span<I> {
-        Span {
-            range: Range {
-                row_start: row_start,
-                row_end: row_end,
-                col_start: col_start,
-                col_end: col_end,
-            },
-            file: file.into(),
-        }
+        Span { range: Range { row_start, row_end, col_start, col_end }, file: file.into() }
     }
 
     pub fn from_range<F: Into<PathBuf>>(range: Range<I>, file: F) -> Span<I> {
-        Span {
-            range: range,
-            file: file.into(),
-        }
+        Span { range, file: file.into() }
     }
 
     pub fn from_positions<F: Into<PathBuf>>(
@@ -371,37 +323,25 @@ impl<I: Indexed> Span<I> {
         end: Position<I>,
         file: F,
     ) -> Span<I> {
-        Span {
-            range: Range::from_positions(start, end),
-            file: file.into(),
-        }
+        Span { range: Range::from_positions(start, end), file: file.into() }
     }
 }
 
 impl<I: Indexed> Clone for Span<I> {
     fn clone(&self) -> Span<I> {
-        Span {
-            range: self.range,
-            file: self.file.clone(),
-        }
+        Span { range: self.range, file: self.file.clone() }
     }
 }
 
 impl Span<OneIndexed> {
     pub fn zero_indexed(&self) -> Span<ZeroIndexed> {
-        Span {
-            range: self.range.zero_indexed(),
-            file: self.file.clone(),
-        }
+        Span { range: self.range.zero_indexed(), file: self.file.clone() }
     }
 }
 
 impl Span<ZeroIndexed> {
     pub fn one_indexed(&self) -> Span<OneIndexed> {
-        Span {
-            range: self.range.one_indexed(),
-            file: self.file.clone(),
-        }
+        Span { range: self.range.one_indexed(), file: self.file.clone() }
     }
 }
 
@@ -419,7 +359,6 @@ impl Indexed for ZeroIndexed {}
 #[derive(Hash, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct OneIndexed;
 impl Indexed for OneIndexed {}
-
 
 #[cfg(test)]
 mod test {}

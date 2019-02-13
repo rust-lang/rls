@@ -9,10 +9,9 @@
 /// These are the structures emitted by the compiler as part of JSON errors.
 /// The original source can be found at
 /// https://github.com/rust-lang/rust/blob/master/src/libsyntax/json.rs
-
 use std::path::PathBuf;
 
-use {Span, Row, Column, OneIndexed};
+use {Column, OneIndexed, Row, Span};
 
 #[cfg_attr(feature = "serialize-serde", derive(Deserialize))]
 #[derive(Debug, Clone)]

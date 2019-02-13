@@ -6,9 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use {AnalysisHost, AnalysisLoader};
 use loader::SearchDirectory;
 use raw::DefKind;
+use {AnalysisHost, AnalysisLoader};
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -46,10 +46,8 @@ fn doc_urls_resolve_correctly() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/rust-analysis").to_owned(),
     ));
-    host.reload(
-        Path::new("test_data/rust-analysis"),
-        Path::new("test_data/rust-analysis"),
-    ).unwrap();
+    host.reload(Path::new("test_data/rust-analysis"), Path::new("test_data/rust-analysis"))
+        .unwrap();
 
     fn assert_url_for_type<S: Into<Option<&'static str>>>(
         host: &AnalysisHost<TestAnalysisLoader>,
@@ -59,11 +57,10 @@ fn doc_urls_resolve_correctly() {
     ) {
         let qualname = qualname.into();
         let ids = host.search_for_id(type_).unwrap();
-        let defs: Vec<_> = ids.into_iter()
+        let defs: Vec<_> = ids
+            .into_iter()
             .map(|id| host.get_def(id).unwrap())
-            .filter(|def| {
-                qualname.is_none() || def.qualname == qualname.unwrap()
-            })
+            .filter(|def| qualname.is_none() || def.qualname == qualname.unwrap())
             .collect();
         trace!("{}: {:#?}", type_, defs);
         assert_eq!(defs.len(), 1);
@@ -143,12 +140,7 @@ fn doc_urls_resolve_correctly() {
         "std::io::prelude",
         "https://doc.rust-lang.org/nightly/std/io/prelude/",
     );
-    assert_url_for_type(
-        &host,
-        "fs",
-        "std::fs",
-        "https://doc.rust-lang.org/nightly/std/fs/",
-    );
+    assert_url_for_type(&host, "fs", "std::fs", "https://doc.rust-lang.org/nightly/std/fs/");
 }
 
 #[test]
@@ -157,10 +149,7 @@ fn smoke() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/rls-analysis").to_owned(),
     ));
-    host.reload(
-        Path::new("test_data/rls-analysis"),
-        Path::new("test_data/rls-analysis"),
-    ).unwrap();
+    host.reload(Path::new("test_data/rls-analysis"), Path::new("test_data/rls-analysis")).unwrap();
 }
 
 #[test]
@@ -169,10 +158,7 @@ fn test_hello() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/hello/save-analysis").to_owned(),
     ));
-    host.reload(
-        Path::new("test_data/hello"),
-        Path::new("test_data/hello"),
-    ).unwrap();
+    host.reload(Path::new("test_data/hello"), Path::new("test_data/hello")).unwrap();
 
     let ids = host.search_for_id("print_hello").unwrap();
     assert_eq!(ids.len(), 1);
@@ -260,16 +246,11 @@ fn test_hello() {
     assert_eq!(pri_f.name, print_hello_f.name);
     assert_eq!(pri_f.kind, print_hello_f.kind);
 
-    let all_matches = host.matching_defs("")
-        .unwrap()
-        .iter()
-        .map(|d| d.name.to_owned())
-        .collect::<HashSet<_>>();
+    let all_matches =
+        host.matching_defs("").unwrap().iter().map(|d| d.name.to_owned()).collect::<HashSet<_>>();
 
-    let expected_matches = ["main", "name", "print_hello"]
-        .iter()
-        .map(|&m| String::from(m))
-        .collect::<HashSet<_>>();
+    let expected_matches =
+        ["main", "name", "print_hello"].iter().map(|&m| String::from(m)).collect::<HashSet<_>>();
     assert_eq!(all_matches, expected_matches);
 }
 
@@ -306,8 +287,7 @@ fn test_types() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/types/save-analysis").to_owned(),
     ));
-    host.reload(Path::new("test_data/types"), Path::new("test_data/types"))
-        .unwrap();
+    host.reload(Path::new("test_data/types"), Path::new("test_data/types")).unwrap();
 
     assert_type(&host, "Foo", DefKind::Struct, &[1, 6, 7, 10, 10]);
     assert_type(&host, "f", DefKind::Field, &[2, 6]);
@@ -326,11 +306,20 @@ fn test_types() {
 
     let t_matches = host.matching_defs("t").unwrap();
     let t_names = t_matches.iter().map(|m| m.name.to_owned()).collect::<HashSet<_>>();
-    let expected_t_names = ["TEST_CONST", "TEST_STATIC", "TestTrait", "TestType", "TestUnion",
-        "TupleVariant", "test_binding", "test_method", "test_module"]
-        .iter()
-        .map(|&n| String::from(n))
-        .collect::<HashSet<_>>();
+    let expected_t_names = [
+        "TEST_CONST",
+        "TEST_STATIC",
+        "TestTrait",
+        "TestType",
+        "TestUnion",
+        "TupleVariant",
+        "test_binding",
+        "test_method",
+        "test_module",
+    ]
+    .iter()
+    .map(|&n| String::from(n))
+    .collect::<HashSet<_>>();
 
     assert_eq!(t_names, expected_t_names);
 
@@ -345,8 +334,7 @@ fn test_child_count() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/types/save-analysis").to_owned(),
     ));
-    host.reload(Path::new("test_data/types"), Path::new("test_data/types"))
-        .unwrap();
+    host.reload(Path::new("test_data/types"), Path::new("test_data/types")).unwrap();
 
     let ids = host.search_for_id("Foo").unwrap();
     let id = ids[0];
@@ -358,8 +346,7 @@ fn test_self() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/exprs/save-analysis").to_owned(),
     ));
-    host.reload(Path::new("test_data/exprs"), Path::new("test_data/exprs"))
-        .unwrap();
+    host.reload(Path::new("test_data/exprs"), Path::new("test_data/exprs")).unwrap();
 
     let spans = host.search("self").unwrap();
     assert_eq!(spans.len(), 2);
@@ -372,8 +359,7 @@ fn test_extern_fn() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/exprs/save-analysis").to_owned(),
     ));
-    host.reload(Path::new("test_data/exprs"), Path::new("test_data/exprs"))
-        .unwrap();
+    host.reload(Path::new("test_data/exprs"), Path::new("test_data/exprs")).unwrap();
 
     let spans = host.search("foo").unwrap();
     assert_eq!(spans.len(), 2);
@@ -386,8 +372,7 @@ fn test_all_ref_unique() {
     let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
         Path::new("test_data/rename/save-analysis").to_owned(),
     ));
-    host.reload(Path::new("test_data/rename"), Path::new("test_data/rename"))
-        .unwrap();
+    host.reload(Path::new("test_data/rename"), Path::new("test_data/rename")).unwrap();
 
     let spans = host.search("bar").unwrap();
     assert_eq!(spans.len(), 4);

@@ -49,11 +49,8 @@ impl AnalysisLoader for TestAnalysisLoader {
 lazy_static! {
     static ref STDLIB_FILE_PATH: PathBuf = PathBuf::from("/checkout/src/libstd/lib.rs");
     static ref STDLIB_DATA_PATH: PathBuf = PathBuf::from("test_data/rust-analysis");
-
     static ref HOST: RwLock<AnalysisHost<TestAnalysisLoader>> = {
-        let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(
-            STDLIB_DATA_PATH.clone(),
-        ));
+        let host = AnalysisHost::new_with_loader(TestAnalysisLoader::new(STDLIB_DATA_PATH.clone()));
         host.reload(&STDLIB_DATA_PATH, &STDLIB_DATA_PATH).unwrap();
         RwLock::new(host)
     };
@@ -73,7 +70,6 @@ fn search(b: &mut Bencher) {
     let host = HOST.read().unwrap();
     b.iter(|| {
         let _ = host.search("some_inexistent_symbol");
-        
     })
 }
 

@@ -19,15 +19,14 @@ pub struct SymbolQuery {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Mode { Prefix, Subsequence }
+enum Mode {
+    Prefix,
+    Subsequence,
+}
 
 impl SymbolQuery {
     fn new(query_string: String, mode: Mode) -> SymbolQuery {
-        SymbolQuery {
-            query_string, mode,
-            limit: usize::max_value(),
-            greater_than: String::new()
-        }
+        SymbolQuery { query_string, mode, limit: usize::max_value(), greater_than: String::new() }
     }
 
     pub fn subsequence(query_string: &str) -> SymbolQuery {
@@ -48,14 +47,12 @@ impl SymbolQuery {
 
     pub(crate) fn build_stream<'a, I>(&'a self, fsts: I) -> fst::map::Union<'a>
     where
-        I: Iterator<Item=&'a fst::Map>,
+        I: Iterator<Item = &'a fst::Map>,
     {
         let mut stream = fst::map::OpBuilder::new();
         let automaton = QueryAutomaton { query: &self.query_string, mode: self.mode };
         for fst in fsts {
-            stream = stream.add(
-                fst.search(automaton).gt(&self.greater_than)
-            );
+            stream = stream.add(fst.search(automaton).gt(&self.greater_than));
         }
         stream.union()
     }
@@ -136,29 +133,13 @@ mod tests {
     use std::iter;
 
     const STARS: &[&str] = &[
-        "agena",
-        "agreetor",
-        "algerib",
-        "anektor",
-        "antares",
-        "arcturus",
-        "canopus",
-        "capella",
-        "duendin",
-        "golubin",
-        "lalandry",
-        "spica",
-        "vega",
+        "agena", "agreetor", "algerib", "anektor", "antares", "arcturus", "canopus", "capella",
+        "duendin", "golubin", "lalandry", "spica", "vega",
     ];
 
-    fn check(
-        q: SymbolQuery,
-        expected: &[&str]
-    ) {
-        let map = fst::Map::from_iter(STARS.iter()
-            .enumerate()
-            .map(|(i, &s)| (s, i as u64)))
-            .unwrap();
+    fn check(q: SymbolQuery, expected: &[&str]) {
+        let map =
+            fst::Map::from_iter(STARS.iter().enumerate().map(|(i, &s)| (s, i as u64))).unwrap();
         let stream = q.build_stream(iter::once(&map));
         let actual = q.search_stream(stream, |acc, iv| acc.push(STARS[iv.value as usize]));
         assert_eq!(expected, actual.as_slice());
@@ -166,22 +147,18 @@ mod tests {
 
     #[test]
     fn test_automaton() {
-        check(SymbolQuery::prefix("an"), &[
-            "anektor", "antares",
-        ]);
+        check(SymbolQuery::prefix("an"), &["anektor", "antares"]);
 
-        check(SymbolQuery::subsequence("an"), &[
-            "agena", "anektor", "antares", "canopus", "lalandry"
-        ]);
+        check(
+            SymbolQuery::subsequence("an"),
+            &["agena", "anektor", "antares", "canopus", "lalandry"],
+        );
 
-        check(SymbolQuery::subsequence("an").limit(2), &[
-            "agena", "anektor",
-        ]);
-        check(SymbolQuery::subsequence("an").limit(2).greater_than("anektor"), &[
-            "antares", "canopus",
-        ]);
-        check(SymbolQuery::subsequence("an").limit(2).greater_than("canopus"), &[
-            "lalandry",
-        ]);
+        check(SymbolQuery::subsequence("an").limit(2), &["agena", "anektor"]);
+        check(
+            SymbolQuery::subsequence("an").limit(2).greater_than("anektor"),
+            &["antares", "canopus"],
+        );
+        check(SymbolQuery::subsequence("an").limit(2).greater_than("canopus"), &["lalandry"]);
     }
 }

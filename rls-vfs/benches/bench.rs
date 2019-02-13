@@ -28,20 +28,15 @@ fn add_file(vfs: &Vfs, path: &Path) {
     let mut buf = String::new();
     let mut file = fs::File::open(path).unwrap();
     file.read_to_string(&mut buf).unwrap();
-    let change = Change::AddFile {
-        file: path.to_owned(),
-        text: buf,
-    };
+    let change = Change::AddFile { file: path.to_owned(), text: buf };
     vfs.on_changes(&[change]).unwrap();
 }
 
 fn make_change_(path: &Path, start_line: usize, interval: usize) -> Change {
     const LEN: usize = 10;
     let txt = unsafe { std::str::from_utf8_unchecked(&[b' '; 100]) };
-    let start = Position::new(
-        Row::new_zero_indexed(start_line as u32),
-        Column::new_zero_indexed(0),
-    );
+    let start =
+        Position::new(Row::new_zero_indexed(start_line as u32), Column::new_zero_indexed(0));
     let end = Position::new(
         Row::new_zero_indexed((start_line + interval) as u32),
         Column::new_zero_indexed(0),

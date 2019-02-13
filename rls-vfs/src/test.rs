@@ -4,7 +4,7 @@ use span::{self, Column, Position, Row};
 
 use super::{
     make_line_indices, Change, Error, File, FileContents, FileKind, FileLoader, TextFile,
-    VfsInternal, VfsSpan
+    VfsInternal, VfsSpan,
 };
 
 type Span = span::Span<span::ZeroIndexed>;
@@ -14,19 +14,12 @@ struct MockFileLoader;
 impl FileLoader for MockFileLoader {
     fn read<U>(file_name: &Path) -> Result<File<U>, Error> {
         let text = format!("{}\nHello\nWorld\nHello, World!\n", file_name.display());
-        let text_file = TextFile {
-            line_indices: make_line_indices(&text),
-            text: text,
-            changed: false,
-        };
-        Ok(File {
-            kind: FileKind::Text(text_file),
-            user_data: None,
-        })
+        let text_file = TextFile { line_indices: make_line_indices(&text), text, changed: false };
+        Ok(File { kind: FileKind::Text(text_file), user_data: None })
     }
 
     fn write(file_name: &Path, file: &FileKind) -> Result<(), Error> {
-        if let FileKind::Text(ref text_file) = *file  {
+        if let FileKind::Text(ref text_file) = *file {
             if file_name.display().to_string() == "foo" {
                 // TODO: is this test useful still?
                 assert_eq!(text_file.changed, false);
@@ -168,10 +161,7 @@ fn test_changes_with_len() {
 #[test]
 fn test_change_add_file() {
     let vfs = VfsInternal::<MockFileLoader, ()>::new();
-    let new_file = Change::AddFile {
-        file: PathBuf::from("foo"),
-        text: "Hello, World!".to_owned(),
-    };
+    let new_file = Change::AddFile { file: PathBuf::from("foo"), text: "Hello, World!".to_owned() };
     vfs.on_changes(&[new_file]).unwrap();
 
     let files = vfs.get_cached_files();
@@ -187,22 +177,20 @@ fn test_user_data(with_len: bool) {
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(u, Err(Error::NoUserDataForFile));
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     // Set and read data.
     vfs.set_user_data(&Path::new("foo"), Some(42)).unwrap();
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(*u.unwrap().1, 42);
         Ok(())
-    }).unwrap();
-    assert_eq!(
-        vfs.set_user_data(&Path::new("bar"), Some(42)),
-        Err(Error::FileNotCached)
-    );
+    })
+    .unwrap();
+    assert_eq!(vfs.set_user_data(&Path::new("bar"), Some(42)), Err(Error::FileNotCached));
 
     // ensure_user_data should not be called if the userdata already exists.
-    vfs.ensure_user_data(&Path::new("foo"), |_| panic!())
-        .unwrap();
+    vfs.ensure_user_data(&Path::new("foo"), |_| panic!()).unwrap();
 
     // Test ensure_user_data is called.
     vfs.load_file(&Path::new("bar")).unwrap();
@@ -210,18 +198,21 @@ fn test_user_data(with_len: bool) {
     vfs.with_user_data(&Path::new("bar"), |u| {
         assert_eq!(*u.unwrap().1, 1);
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     // compute and read data.
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(u.as_ref().unwrap().0, Some("foo\nHello\nWorld\nHello, World!\n"));
         *u.unwrap().1 = 43;
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(*u.unwrap().1, 43);
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
     assert_eq!(
         vfs.with_user_data(&Path::new("foo"), |u| {
             assert_eq!(*u.unwrap().1, 43);
@@ -232,27 +223,28 @@ fn test_user_data(with_len: bool) {
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(*u.unwrap().1, 43);
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     // Clear and read data.
     vfs.set_user_data(&Path::new("foo"), None).unwrap();
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(u, Err(Error::NoUserDataForFile));
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     // Compute (clear) and read data.
     vfs.set_user_data(&Path::new("foo"), Some(42)).unwrap();
     assert_eq!(
-        vfs.with_user_data(&Path::new("foo"), |_| {
-            Err(Error::NoUserDataForFile): Result<(), Error>
-        }),
+        vfs.with_user_data(&Path::new("foo"), |_| Err(Error::NoUserDataForFile): Result<(), Error>),
         Err(Error::NoUserDataForFile)
     );
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(u, Err(Error::NoUserDataForFile));
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     // Flushing a file should clear user data.
     vfs.set_user_data(&Path::new("foo"), Some(42)).unwrap();
@@ -261,7 +253,8 @@ fn test_user_data(with_len: bool) {
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(u, Err(Error::NoUserDataForFile));
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     // Recording a change should clear user data.
     vfs.set_user_data(&Path::new("foo"), Some(42)).unwrap();
@@ -269,7 +262,8 @@ fn test_user_data(with_len: bool) {
     vfs.with_user_data(&Path::new("foo"), |u| {
         assert_eq!(u, Err(Error::NoUserDataForFile));
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 }
 
 #[test]
@@ -317,10 +311,7 @@ fn test_clear() {
 fn test_wide_utf8() {
     let vfs = VfsInternal::<MockFileLoader, ()>::new();
     let changes = [
-        Change::AddFile {
-            file: PathBuf::from("foo"),
-            text: String::from("😢"),
-        },
+        Change::AddFile { file: PathBuf::from("foo"), text: String::from("😢") },
         Change::ReplaceText {
             span: VfsSpan::from_usv(
                 Span::from_positions(
@@ -336,20 +327,14 @@ fn test_wide_utf8() {
 
     vfs.on_changes(&changes).unwrap();
 
-    assert_eq!(
-        vfs.load_file(&Path::new("foo")).unwrap(),
-        FileContents::Text("".to_owned()),
-    );
+    assert_eq!(vfs.load_file(&Path::new("foo")).unwrap(), FileContents::Text("".to_owned()),);
 }
 
 #[test]
 fn test_wide_utf16() {
     let vfs = VfsInternal::<MockFileLoader, ()>::new();
     let changes = [
-        Change::AddFile {
-            file: PathBuf::from("foo"),
-            text: String::from("😢"),
-        },
+        Change::AddFile { file: PathBuf::from("foo"), text: String::from("😢") },
         Change::ReplaceText {
             span: VfsSpan::from_utf16(
                 Span::from_positions(
@@ -365,8 +350,5 @@ fn test_wide_utf16() {
 
     vfs.on_changes(&changes).unwrap();
 
-    assert_eq!(
-        vfs.load_file(&Path::new("foo")).unwrap(),
-        FileContents::Text("".to_owned()),
-    );
+    assert_eq!(vfs.load_file(&Path::new("foo")).unwrap(), FileContents::Text("".to_owned()),);
 }

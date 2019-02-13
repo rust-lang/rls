@@ -164,7 +164,7 @@ impl fmt::Display for Error {
             Error::BadLocation
             | Error::FileNotCached
             | Error::NoUserDataForFile
-            | Error::Io(_, _)
+            | Error::Io(..)
             | Error::BadFileKind => f.write_str(::std::error::Error::description(self)),
         }
     }
@@ -398,7 +398,8 @@ impl<T: FileLoader, U> VfsInternal<T, U> {
             .filter_map(|(p, f)| match f.kind {
                 FileKind::Text(ref f) => Some((p.clone(), f.text.clone())),
                 FileKind::Binary(_) => None,
-            }).collect()
+            })
+            .collect()
     }
 
     fn get_changes(&self) -> HashMap<PathBuf, String> {
@@ -408,7 +409,8 @@ impl<T: FileLoader, U> VfsInternal<T, U> {
             .filter_map(|(p, f)| match f.kind {
                 FileKind::Text(ref f) if f.changed => Some((p.clone(), f.text.clone())),
                 _ => None,
-            }).collect()
+            })
+            .collect()
     }
 
     fn has_changes(&self) -> bool {
@@ -426,15 +428,11 @@ impl<T: FileLoader, U> VfsInternal<T, U> {
         line_start: span::Row<span::ZeroIndexed>,
         line_end: span::Row<span::ZeroIndexed>,
     ) -> Result<String, Error> {
-        self.ensure_file(path, |f| {
-            f.load_lines(line_start, line_end).map(|s| s.to_owned())
-        })
+        self.ensure_file(path, |f| f.load_lines(line_start, line_end).map(|s| s.to_owned()))
     }
 
     fn load_span(&self, span: span::Span<span::ZeroIndexed>) -> Result<String, Error> {
-        self.ensure_file(&span.file, |f| {
-            f.load_range(span.range).map(|s| s.to_owned())
-        })
+        self.ensure_file(&span.file, |f| f.load_range(span.range).map(|s| s.to_owned()))
     }
 
     fn for_each_line<F>(&self, path: &Path, f: F) -> Result<(), Error>
@@ -706,10 +704,7 @@ impl TextFile {
         for c in changes {
             trace!("TextFile::make_change: {:?}", c);
             let new_text = match **c {
-                Change::ReplaceText {
-                    span: ref vfs_span,
-                    ref text,
-                } => {
+                Change::ReplaceText { span: ref vfs_span, ref text } => {
                     let (span, len) = (vfs_span.span(), vfs_span.len());
 
                     let range = {
@@ -720,10 +715,11 @@ impl TextFile {
                         let byte_end = if let Some(len) = len {
                             // if `len` exists, the replaced portion of text
                             // is `len` chars starting from row_start/col_start.
-                            byte_start + vfs_span.byte_in_str(
-                                &self.text[byte_start as usize..],
-                                span::Column::new_zero_indexed(len as u32),
-                            )? as u32
+                            byte_start
+                                + vfs_span.byte_in_str(
+                                    &self.text[byte_start as usize..],
+                                    span::Column::new_zero_indexed(len as u32),
+                                )? as u32
                         } else {
                             // if no `len`, fall back to using row_end/col_end
                             // for determining the tail end of replaced text.
@@ -821,19 +817,13 @@ impl TextFile {
 fn byte_in_str(s: &str, c: span::Column<span::ZeroIndexed>) -> Result<usize, Error> {
     // We simulate a null-terminated string here because spans are exclusive at
     // the top, and so that index might be outside the length of the string.
-    for (i, (b, _)) in s
-        .char_indices()
-        .chain(Some((s.len(), '\0')).into_iter())
-        .enumerate()
-    {
+    for (i, (b, _)) in s.char_indices().chain(Some((s.len(), '\0')).into_iter()).enumerate() {
         if c.0 as usize == i {
             return Ok(b);
         }
     }
 
-    return Err(Error::InternalError(
-        "Out of bounds access in `byte_in_str`",
-    ));
+    return Err(Error::InternalError("Out of bounds access in `byte_in_str`"));
 }
 
 /// Return a UTF-8 byte offset in `s` for a given UTF-16 code unit offset.
@@ -852,9 +842,7 @@ fn byte_in_str_utf16(s: &str, c: span::Column<span::ZeroIndexed>) -> Result<usiz
         utf16_offset += chr.len_utf16();
     }
 
-    return Err(Error::InternalError(
-        "UTF-16 code unit offset is not at `str` char boundary",
-    ));
+    return Err(Error::InternalError("UTF-16 code unit offset is not at `str` char boundary"));
 }
 
 trait FileLoader {
@@ -872,7 +860,7 @@ impl FileLoader for RealFileLoader {
                 return Err(Error::Io(
                     Some(file_name.to_owned()),
                     Some(format!("Could not open file: {}", file_name.display())),
-                ))
+                ));
             }
         };
         let mut buf = vec![];
@@ -892,10 +880,7 @@ impl FileLoader for RealFileLoader {
                 }),
                 user_data: None,
             }),
-            Err(e) => Ok(File {
-                kind: FileKind::Binary(e.into_bytes()),
-                user_data: None,
-            }),
+            Err(e) => Ok(File { kind: FileKind::Binary(e.into_bytes()), user_data: None }),
         }
     }
 
@@ -929,7 +914,8 @@ mod tests {
 
         assert_eq!(
             '😢'.len_utf8(),
-            byte_in_str_utf16("😢a", Column::new_zero_indexed('😢'.len_utf16() as u32)).unwrap()
+            byte_in_str_utf16("😢a", Column::new_zero_indexed('😢'.len_utf16() as u32))
+                .unwrap()
         );
 
         // 😢 is represented by 2 u16s - we can't index in the middle of a character
