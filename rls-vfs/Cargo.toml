@@ -1,0 +1,12 @@
+[package]
+name = "rls-vfs"
+version = "0.7.1"
+authors = ["Nick Cameron <ncameron@mozilla.com>"]
+description = "Virtual File System for the RLS"
+license = "Apache-2.0/MIT"
+repository = "https://github.com/rust-lang/rls"
+categories = ["development-tools"]
+
+[dependencies]
+rls-span = "0.4"
+log = "0.4.5"

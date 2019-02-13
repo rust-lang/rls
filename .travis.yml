@@ -1,29 +1,33 @@
 language: rust
 dist: trusty
 sudo: false
-branches:
-  except:
-  - staging.tmp
-  - trying.tmp
 cache:
   cargo: false
 os:
-- linux
-- osx
-- windows
+  - linux
+  - osx
+  - windows
 rust:
-- nightly
-install: |
-    # Required for Racer autoconfiguration
-    rustup component add rust-src
-    rustup component add rust-analysis
+  - nightly
+install:
+  # Required for Racer autoconfiguration
+  - rustup component add rust-src
+  - rustup component add rust-analysis
 script:
-- cargo build -v
-- cargo test -v
-- cargo test test_tooltip_std -- --ignored
+  - cargo build -v
+  - cargo test -v
+  - cargo test test_tooltip_std -- --ignored
+  # Since the rls-* subcrates use crates.io-based dependencies of themselves it
+  # makes sense to test them in isolation rather than just RLS itself
+  - (cd rls-analysis && cargo test -v)
+  - (cd rls-blacklist && cargo test -v)
+  - (cd rls-data && cargo test -v)
+  - (cd rls-rustc && cargo test -v)
+  - (cd rls-span && cargo test -v)
+  - (cd rls-vfs && cargo test -v)
 
 env:
   global:
-  - RUST_BACKTRACE=1
-  - RLS_TEST_WAIT_FOR_AGES=1
-  - CARGO_INCREMENTAL=0
+    - RUST_BACKTRACE=1
+    - RLS_TEST_WAIT_FOR_AGES=1
+    - CARGO_INCREMENTAL=0

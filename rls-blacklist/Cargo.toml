@@ -1,0 +1,10 @@
+[package]
+name = "rls-blacklist"
+version = "0.1.3"
+authors = ["Nick Cameron <ncameron@mozilla.com>"]
+description = "Blacklist of crates for the RLS to skip"
+license = "Apache-2.0/MIT"
+repository = "https://github.com/rust-lang/rls"
+categories = ["development-tools"]
+
+[dependencies]

@@ -1,0 +1,18 @@
+[package]
+name = "rls-span"
+version = "0.4.1"
+authors = ["Nick Cameron <ncameron@mozilla.com>"]
+description = "Types for identifying code spans/ranges"
+license = "Apache-2.0/MIT"
+repository = "https://github.com/rust-lang/rls"
+categories = ["development-tools"]
+
+[features]
+default = []
+serialize-serde = ["serde", "serde_derive"]
+serialize-rustc = ["rustc-serialize"]
+
+[dependencies]
+rustc-serialize = { version = "0.3", optional = true }
+serde = { version = "1.0", optional = true }
+serde_derive = { version = "1.0", optional = true }
