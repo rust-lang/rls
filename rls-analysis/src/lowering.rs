@@ -11,15 +11,15 @@
 
 use analysis::{Def, Glob, PerCrateAnalysis, Ref};
 use data;
-use raw::{self, RelationKind, CrateId, DefKind};
-use {AResult, AnalysisHost, Id, Span, NULL};
 use loader::AnalysisLoader;
+use raw::{self, CrateId, DefKind, RelationKind};
 use util;
+use {AResult, AnalysisHost, Id, Span, NULL};
 
 use span;
 
-use std::collections::{HashSet, HashMap};
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::iter::Extend;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -128,8 +128,7 @@ impl<'a> CrateReader<'a> {
         path_rewrite: Option<PathBuf>,
         invalidated_crates: &'a [CrateId],
     ) -> CrateReader<'a> {
-        fn fetch_crate_index(map: &mut HashMap<CrateId, u32>,
-                             id: CrateId) -> u32 {
+        fn fetch_crate_index(map: &mut HashMap<CrateId, u32>, id: CrateId) -> u32 {
             let next = map.len() as u32;
             *map.entry(id).or_insert(next)
         }
@@ -156,7 +155,11 @@ impl<'a> CrateReader<'a> {
         CrateReader {
             crate_map,
             base_dir: base_dir.to_owned(),
-            crate_homonyms: master_crate_map.keys().filter(|cid| cid.name == crate_id.name).cloned().collect(),
+            crate_homonyms: master_crate_map
+                .keys()
+                .filter(|cid| cid.name == crate_id.name)
+                .cloned()
+                .collect(),
             crate_name: crate_id.name,
             path_rewrite,
             invalidated_crates,
@@ -189,7 +192,8 @@ impl<'a> CrateReader<'a> {
 
         {
             let analysis = &mut project_analysis.analysis.lock().unwrap();
-            analysis.as_mut()
+            analysis
+                .as_mut()
                 .unwrap()
                 .crate_names
                 .entry(krate.id.name.clone())
@@ -236,7 +240,9 @@ impl<'a> CrateReader<'a> {
         analysis: &mut PerCrateAnalysis,
         project_analysis: &AnalysisHost<L>,
     ) {
-        if def_id != NULL && (project_analysis.has_def(def_id) || analysis.defs.contains_key(&def_id)) {
+        if def_id != NULL
+            && (project_analysis.has_def(def_id) || analysis.defs.contains_key(&def_id))
+        {
             trace!("record_ref {:?} {}", span, def_id);
             match analysis.def_id_for_span.entry(span.clone()) {
                 Entry::Occupied(mut oe) => {
@@ -247,11 +253,7 @@ impl<'a> CrateReader<'a> {
                     ve.insert(Ref::Id(def_id));
                 }
             }
-            analysis
-                .ref_spans
-                .entry(def_id)
-                .or_insert_with(|| vec![])
-                .push(span);
+            analysis.ref_spans.entry(def_id).or_insert_with(|| vec![]).push(span);
         }
     }
 
@@ -261,18 +263,29 @@ impl<'a> CrateReader<'a> {
     // want to ensure that we only record defs once, even if the defintion is in multiple crates.
     // So we compare the crate-local id and span and skip any subsequent defs which match already
     // present defs.
-    fn has_congruent_def<L: AnalysisLoader>(&self, local_id: u32, span: &Span, project_analysis: &AnalysisHost<L>) -> bool {
-        self.has_congruent_item(project_analysis, |per_crate| per_crate.has_congruent_def(local_id, span))
+    fn has_congruent_def<L: AnalysisLoader>(
+        &self,
+        local_id: u32,
+        span: &Span,
+        project_analysis: &AnalysisHost<L>,
+    ) -> bool {
+        self.has_congruent_item(project_analysis, |per_crate| {
+            per_crate.has_congruent_def(local_id, span)
+        })
     }
 
-    fn has_congruent_glob<L: AnalysisLoader>(&self, span: &Span, project_analysis: &AnalysisHost<L>) -> bool {
+    fn has_congruent_glob<L: AnalysisLoader>(
+        &self,
+        span: &Span,
+        project_analysis: &AnalysisHost<L>,
+    ) -> bool {
         self.has_congruent_item(project_analysis, |per_crate| per_crate.globs.contains_key(span))
     }
 
     fn has_congruent_item<L, P>(&self, project_analysis: &AnalysisHost<L>, pred: P) -> bool
-        where
-            L: AnalysisLoader,
-            P: Fn(&PerCrateAnalysis) -> bool,
+    where
+        L: AnalysisLoader,
+        P: Fn(&PerCrateAnalysis) -> bool,
     {
         if self.crate_homonyms.is_empty() {
             return false;
@@ -285,14 +298,10 @@ impl<'a> CrateReader<'a> {
         // of the lowering. This often happens when we reload definitions for
         // the same crate. Naturally most of the definitions will stay the same
         // for incremental changes but will be overwritten - don't ignore them!
-        let homonyms_to_consider = self
-            .crate_homonyms
-            .iter()
-            .filter(|c| !self.invalidated_crates.contains(c));
+        let homonyms_to_consider =
+            self.crate_homonyms.iter().filter(|c| !self.invalidated_crates.contains(c));
 
-        homonyms_to_consider
-            .filter_map(|ch| project_analysis.per_crate.get(ch))
-            .any(pred)
+        homonyms_to_consider.filter_map(|ch| project_analysis.per_crate.get(ch)).any(pred)
     }
 
     fn read_defs<L: AnalysisLoader>(
@@ -316,11 +325,7 @@ impl<'a> CrateReader<'a> {
             let id = self.id_from_compiler_id(&d.id);
             if id != NULL && !analysis.defs.contains_key(&id) {
                 let file_name = span.file.clone();
-                analysis
-                    .defs_per_file
-                    .entry(file_name)
-                    .or_insert_with(|| vec![])
-                    .push(id);
+                analysis.defs_per_file.entry(file_name).or_insert_with(|| vec![]).push(id);
                 let decl_id = match d.decl_id {
                     Some(ref decl_id) => {
                         let def_id = self.id_from_compiler_id(decl_id);
@@ -342,11 +347,7 @@ impl<'a> CrateReader<'a> {
                     }
                 }
 
-                analysis
-                    .def_names
-                    .entry(d.name.clone())
-                    .or_insert_with(|| vec![])
-                    .push(id);
+                analysis.def_names.entry(d.name.clone()).or_insert_with(|| vec![]).push(id);
 
                 // NOTE not every Def will have a name, e.g. test_data/hello/src/main is analyzed with an implicit module
                 // that's fine, but no need to index in def_trie
@@ -356,10 +357,7 @@ impl<'a> CrateReader<'a> {
 
                 let parent = d.parent.map(|id| self.id_from_compiler_id(&id));
                 if let Some(parent) = parent {
-                    let children = analysis
-                        .children
-                        .entry(parent)
-                        .or_insert_with(HashSet::new);
+                    let children = analysis.children.entry(parent).or_insert_with(HashSet::new);
                     children.insert(id);
                 }
                 if !d.children.is_empty() {
@@ -370,12 +368,12 @@ impl<'a> CrateReader<'a> {
 
                 let def = Def {
                     kind: d.kind,
-                    span: span,
+                    span,
                     name: d.name,
                     value: d.value,
                     qualname: format!("{}{}", self.crate_name, d.qualname),
                     distro_crate,
-                    parent: parent,
+                    parent,
                     docs: d.docs,
                     // sig: d.sig.map(|ref s| self.lower_sig(s, &self.base_dir)),
                 };
@@ -404,10 +402,7 @@ impl<'a> CrateReader<'a> {
         // save-analysis often omits parent info.
         for (parent, children) in &analysis.children {
             for c in children {
-                analysis
-                    .defs
-                    .get_mut(c)
-                    .map(|def| def.parent = Some(*parent));
+                analysis.defs.get_mut(c).map(|def| def.parent = Some(*parent));
             }
         }
     }
@@ -445,21 +440,13 @@ impl<'a> CrateReader<'a> {
             if self_id != NULL {
                 if let Some(self_id) = abs_ref_id(self_id, analysis, project_analysis) {
                     trace!("record impl for self type {:?} {}", span, self_id);
-                    analysis
-                        .impls
-                        .entry(self_id)
-                        .or_insert_with(|| vec![])
-                        .push(span.clone());
+                    analysis.impls.entry(self_id).or_insert_with(|| vec![]).push(span.clone());
                 }
             }
             if trait_id != NULL {
                 if let Some(trait_id) = abs_ref_id(trait_id, analysis, project_analysis) {
                     trace!("record impl for trait {:?} {}", span, trait_id);
-                    analysis
-                        .impls
-                        .entry(trait_id)
-                        .or_insert_with(|| vec![])
-                        .push(span);
+                    analysis.impls.entry(trait_id).or_insert_with(|| vec![]).push(span);
                 }
             }
         }
@@ -525,8 +512,6 @@ fn build_index(mut defs: Vec<(String, Id)>) -> (fst::Map, Vec<Vec<Id>>) {
 }
 
 fn bad_span(span: &raw::SpanData, is_mod: bool) -> bool {
-    span.file_name.to_str().map(|s| s.ends_with('>')).unwrap_or(true) ||
-        (!is_mod &&
-         span.byte_start == 0 &&
-         span.byte_end == 0)
+    span.file_name.to_str().map(|s| s.ends_with('>')).unwrap_or(true)
+        || (!is_mod && span.byte_start == 0 && span.byte_end == 0)
 }

@@ -1,9 +1,9 @@
-extern crate rls_analysis;
 extern crate env_logger;
+extern crate rls_analysis;
 
 use rls_analysis::{AnalysisHost, AnalysisLoader, SearchDirectory};
-use std::path::{Path, PathBuf};
 use std::env;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
 pub struct Loader {
@@ -31,10 +31,7 @@ impl AnalysisLoader for Loader {
         None
     }
     fn search_directories(&self) -> Vec<SearchDirectory> {
-        vec![SearchDirectory {
-            path: self.deps_dir.clone(),
-            prefix_rewrite: None,
-        }]
+        vec![SearchDirectory { path: self.deps_dir.clone(), prefix_rewrite: None }]
     }
 }
 

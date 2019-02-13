@@ -6,14 +6,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use fst;
 use std::collections::{HashMap, HashSet};
+use std::iter;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use std::iter;
-use fst;
 
-use {Id, Span, SymbolQuery};
 use raw::{CrateId, DefKind};
+use {Id, Span, SymbolQuery};
 
 /// This is the main database that contains all the collected symbol information,
 /// such as definitions, their mapping between spans, hierarchy and so on,
@@ -133,11 +133,9 @@ pub struct Glob {
     pub value: String,
 }
 
-
 impl PerCrateAnalysis {
     pub fn new(timestamp: SystemTime, path: Option<PathBuf>) -> PerCrateAnalysis {
-        let empty_fst =
-            fst::Map::from_iter(iter::empty::<(String, u64)>()).unwrap();
+        let empty_fst = fst::Map::from_iter(iter::empty::<(String, u64)>()).unwrap();
         PerCrateAnalysis {
             def_id_for_span: HashMap::new(),
             defs: HashMap::new(),
@@ -244,14 +242,13 @@ impl Analysis {
     // crate.
     pub fn local_def_id_for_span(&self, span: &Span) -> Option<Id> {
         self.for_each_crate(|c| {
-            c.def_id_for_span
-                .get(span)
-                .map(|r| r.some_id())
-                .and_then(|id| if c.defs.contains_key(&id) {
+            c.def_id_for_span.get(span).map(|r| r.some_id()).and_then(|id| {
+                if c.defs.contains_key(&id) {
                     Some(id)
                 } else {
                     None
-                })
+                }
+            })
         })
     }
 
@@ -316,19 +313,15 @@ impl Analysis {
 
     pub fn query_defs(&self, query: SymbolQuery) -> Vec<Def> {
         let mut crates = Vec::with_capacity(self.per_crate.len());
-        let stream = query.build_stream(
-            self.per_crate.values().map(|c| {
-                crates.push(c);
-                &c.def_fst
-            })
-        );
+        let stream = query.build_stream(self.per_crate.values().map(|c| {
+            crates.push(c);
+            &c.def_fst
+        }));
 
         query.search_stream(stream, |acc, e| {
             let c = &crates[e.index];
             let ids = &c.def_fst_values[e.value as usize];
-            acc.extend(
-                ids.iter().flat_map(|id| c.defs.get(id)).cloned()
-            );
+            acc.extend(ids.iter().flat_map(|id| c.defs.get(id)).cloned());
         })
     }
 

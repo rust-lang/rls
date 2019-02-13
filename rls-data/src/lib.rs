@@ -10,9 +10,9 @@
 #![cfg_attr(rustbuild, feature(staged_api, rustc_private))]
 #![cfg_attr(rustbuild, unstable(feature = "rustc_private", issue = "27812"))]
 
+extern crate rls_span as span;
 #[cfg(feature = "serialize-rustc")]
 extern crate rustc_serialize;
-extern crate rls_span as span;
 
 #[cfg(feature = "serialize-serde")]
 extern crate serde;
@@ -25,7 +25,6 @@ pub mod config;
 use std::path::PathBuf;
 
 use config::Config;
-
 
 #[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
@@ -313,9 +312,7 @@ pub struct Relation {
 #[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelationKind {
-    Impl {
-        id: u32,
-    },
+    Impl { id: u32 },
     SuperTrait,
 }
 
