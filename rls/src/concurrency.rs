@@ -87,7 +87,7 @@ impl Drop for ConcurrentJob {
 // so we use uninhabited enum as a message type
 enum Never {}
 
-/// Nonblocking
+/// Non-blocking.
 fn is_closed(chan: &Receiver<Never>) -> bool {
     select! {
         recv(chan) -> msg => match msg {

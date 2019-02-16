@@ -4,6 +4,9 @@ use std::error::Error;
 use std::fmt;
 use std::path::PathBuf;
 
+pub use lsp_types::notification::Notification as LSPNotification;
+pub use lsp_types::request::Request as LSPRequest;
+pub use lsp_types::*;
 use racer;
 use rls_analysis::DefKind;
 use rls_span as span;
@@ -13,11 +16,7 @@ use url::Url;
 use crate::actions::hover;
 use crate::config;
 
-pub use lsp_types::notification::Notification as LSPNotification;
-pub use lsp_types::request::Request as LSPRequest;
-pub use lsp_types::*;
-
-/// Errors that can occur when parsing a file URI.
+/// An error that can occur when parsing a file URI.
 #[derive(Debug)]
 pub enum UrlFileParseError {
     /// The URI scheme is not `file`.
@@ -44,7 +43,7 @@ where
     }
 }
 
-/// Parse the given URI into a `PathBuf`.
+/// Parses the given URI into a `PathBuf`.
 pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
     if uri.scheme() == "file" {
         uri.to_file_path().map_err(|_err| UrlFileParseError::InvalidFilePath)
@@ -53,7 +52,7 @@ pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
     }
 }
 
-/// Create an edit for the given location and text.
+/// Creates an edit for the given location and text.
 pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdit {
     let changes = vec![(location.uri, vec![TextEdit { range: location.range, new_text }])]
         .into_iter()
@@ -67,14 +66,14 @@ pub mod ls_util {
     use super::*;
     use crate::Span;
 
-    /// Convert a language server protocol range into an RLS range.
-    /// NOTE: This does not translate LSP UTF-16 code units offsets into Unicode
+    /// Converts a language server protocol range into an RLS range.
+    /// NOTE: this does not translate LSP UTF-16 code units offsets into Unicode
     /// Scalar Value offsets as expected by RLS/Rust.
     pub fn range_to_rls(r: Range) -> span::Range<span::ZeroIndexed> {
         span::Range::from_positions(position_to_rls(r.start), position_to_rls(r.end))
     }
 
-    /// Convert a language server protocol position into an RLS position.
+    /// Converts a language server protocol position into an RLS position.
     pub fn position_to_rls(p: Position) -> span::Position<span::ZeroIndexed> {
         span::Position::new(
             span::Row::new_zero_indexed(p.line as u32),
@@ -82,20 +81,20 @@ pub mod ls_util {
         )
     }
 
-    /// Convert a language server protocol location into an RLS span.
+    /// Converts a language server protocol location into an RLS span.
     pub fn location_to_rls(
         l: &Location,
     ) -> Result<span::Span<span::ZeroIndexed>, UrlFileParseError> {
         parse_file_path(&l.uri).map(|path| Span::from_range(range_to_rls(l.range), path))
     }
 
-    /// Convert an RLS span into a language server protocol location.
+    /// Converts an RLS span into a language server protocol location.
     pub fn rls_to_location(span: &Span) -> Location {
-        // An RLS span has the same info as an LSP Location
+        // An RLS span has the same info as an LSP `Location`.
         Location { uri: Url::from_file_path(&span.file).unwrap(), range: rls_to_range(span.range) }
     }
 
-    /// Convert an RLS location into a language server protocol location.
+    /// Converts an RLS location into a language server protocol location.
     pub fn rls_location_to_location(l: &span::Location<span::ZeroIndexed>) -> Location {
         Location {
             uri: Url::from_file_path(&l.file).unwrap(),
@@ -103,12 +102,12 @@ pub mod ls_util {
         }
     }
 
-    /// Convert an RLS range into a language server protocol range.
+    /// Converts an RLS range into a language server protocol range.
     pub fn rls_to_range(r: span::Range<span::ZeroIndexed>) -> Range {
         Range { start: rls_to_position(r.start()), end: rls_to_position(r.end()) }
     }
 
-    /// Convert an RLS position into a language server protocol range.
+    /// Converts an RLS position into a language server protocol range.
     pub fn rls_to_position(p: span::Position<span::ZeroIndexed>) -> Position {
         Position { line: p.row.0.into(), character: p.col.0.into() }
     }
@@ -132,17 +131,17 @@ pub mod ls_util {
                     .last()
                     .expect("String is not empty.")
                     .chars()
-                    // LSP uses UTF-16 code units offset
+                    // LSP uses UTF-16 code units offset.
                     .map(|chr| chr.len_utf16() as u64)
                     .sum()
             };
-            // range is zero-based and the end position is exclusive
+            // Range is zero-based and end position is exclusive.
             Range { start: Position::new(0, 0), end: Position::new(line_count, col) }
         }
     }
 }
 
-/// Convert an RLS def-kind to a language server protocol symbol-kind.
+/// Converts an RLS def-kind to a language server protocol symbol-kind.
 pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     match k {
         DefKind::Enum | DefKind::Union => SymbolKind::Enum,
@@ -160,7 +159,7 @@ pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     }
 }
 
-/// What kind of completion is this racer match type?
+/// Indicates the kind of completion for this racer match type.
 pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKind {
     match m {
         racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::Module,
@@ -191,7 +190,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
     }
 }
 
-/// Convert a racer match into an RLS completion.
+/// Converts a racer match into an RLS completion.
 pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
     let mut item = CompletionItem::new_simple(m.matchstr.clone(), m.contextstr.clone());
     item.kind = Some(completion_kind_from_match_type(m.mtype.clone()));
@@ -208,9 +207,9 @@ pub fn completion_item_from_racer_match(m: &racer::Match) -> CompletionItem {
 
 /* ------  Extension methods for JSON-RPC protocol types ------ */
 
-/// Provide additional methods for the remote `Range` type
+/// Provides additional methods for the remote `Range` type.
 pub trait RangeExt {
-    /// Do both Ranges overlap?
+    /// `true` if both `Range`s overlap.
     fn overlaps(&self, other: &Self) -> bool;
 }
 
@@ -220,7 +219,7 @@ impl RangeExt for Range {
     }
 }
 
-/// `DidChangeConfigurationParams.settings` payload reading the { rust: {...} } bit.
+/// `DidChangeConfigurationParams.settings` payload reading the `{ rust: {...} }` bit.
 #[derive(Debug, Deserialize)]
 pub struct ChangeConfigSettings {
     pub rust: config::Config,
@@ -263,7 +262,7 @@ impl ChangeConfigSettings {
 #[derive(Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct InitializationOptions {
-    /// Should the build not be triggered immediately after receiving `initialize`
+    /// `true` if build should not be triggered immediately after receiving `initialize`.
     pub omit_init_build: bool,
     pub cmd_run: bool,
     /// `DidChangeConfigurationParams.settings` payload for upfront configuration.
@@ -315,9 +314,9 @@ pub struct ClientCapabilities {
 
 impl ClientCapabilities {
     pub fn new(params: &lsp_types::InitializeParams) -> ClientCapabilities {
-        // lsp_types::ClientCapabilities is a rather awkward object to use internally
-        // (for instance it doesn't Clone). Instead we pick out the bits of it that we
-        // are going to handle into ClientCapabilities. The upside of
+        // `lsp_types::ClientCapabilities` is a rather awkward object to use internally
+        // (for instance, it doesn't `Clone`). Instead we pick out the bits of it that we
+        // are going to handle into `ClientCapabilities`. The upside of
         // using this very simple struct is that it can be kept thread safe
         // without mutex locking it on every request.
         let code_completion_has_snippet_support = params
@@ -356,7 +355,7 @@ impl LSPNotification for DiagnosticsBegin {
 }
 
 /// Custom LSP notification sent to client indicating that data processing started
-/// by a `rustDocument`/diagnosticsBegin` has ended.
+/// by a `rustDocument/diagnosticsBegin` has ended.
 /// For each `diagnosticsBegin` message, there is a single `diagnosticsEnd` message.
 /// This means that for multiple active `diagnosticsBegin` messages, there will
 /// be sent multiple `diagnosticsEnd` notifications.
@@ -388,10 +387,8 @@ impl notification::Notification for Progress {
     const METHOD: &'static str = NOTIFICATION__Progress;
 }
 
-/**
- * The progress notification is sent from the server to the client to ask the client
- * to indicate progress.
- */
+// The progress notification is sent from the server to the client to ask the client
+// to indicate progress.
 #[allow(non_upper_case_globals)]
 pub const NOTIFICATION__Progress: &str = "window/progress";
 

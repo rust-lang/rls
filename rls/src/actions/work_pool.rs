@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 use std::{fmt, panic};
 
 /// Description of work on the request work pool. Equality implies two pieces of work are the same
-/// kind of thing. The `str` should be human readable for logging, ie the language server protocol
-/// request message name or similar.
+/// kind of thing. The `str` should be human readable for logging (e.g., the language server
+/// protocol request message name or similar).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WorkDescription(pub &'static str);
 

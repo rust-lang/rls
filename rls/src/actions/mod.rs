@@ -365,12 +365,12 @@ impl InitActionContext {
         self.build_queue.block_on_build();
     }
 
-    /// Returns true if there are no builds pending or in progress.
+    /// Returns `true` if there are no builds pending or in progress.
     fn build_ready(&self) -> bool {
         self.build_queue.build_ready()
     }
 
-    /// Returns true if there are no builds or post-build (analysis) tasks pending
+    /// Returns `true` if there are no builds or post-build (analysis) tasks pending
     /// or in progress.
     fn analysis_ready(&self) -> bool {
         self.active_build_count.load(Ordering::SeqCst) == 0

@@ -1,9 +1,14 @@
 //! Requests that the RLS can respond to.
 
-use crate::actions::InitActionContext;
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::atomic::Ordering;
+
 use itertools::Itertools;
+use jsonrpc_core::types::ErrorCode;
 use log::{debug, trace, warn};
 use racer;
+use rls_analysis::SymbolQuery;
 use rls_data as data;
 use rls_span as span;
 use rls_vfs::FileContents;
@@ -12,16 +17,12 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use url::Url;
 
+use crate::actions::InitActionContext;
 use crate::actions::hover;
 use crate::actions::run::collect_run_actions;
 use crate::build::Edition;
 use crate::lsp_data;
 use crate::lsp_data::*;
-use crate::server;
-use crate::server::{Ack, Output, Request, RequestAction, ResponseError, ResponseWithMessage};
-use jsonrpc_core::types::ErrorCode;
-use rls_analysis::SymbolQuery;
-
 use crate::lsp_data::request::ApplyWorkspaceEdit;
 pub use crate::lsp_data::request::{
     CodeActionRequest as CodeAction, CodeLensRequest, Completion,
@@ -30,20 +31,18 @@ pub use crate::lsp_data::request::{
     HoverRequest as Hover, RangeFormatting, References, Rename,
     ResolveCompletionItem as ResolveCompletion, WorkspaceSymbol,
 };
+use crate::server;
+use crate::server::{Ack, Output, Request, RequestAction, ResponseError, ResponseWithMessage};
 
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::atomic::Ordering;
-
-/// Represent the result of a deglob action for a single wildcard import.
+/// The result of a deglob action for a single wildcard import.
 ///
 /// The `location` is the position of the wildcard.
 /// `new_text` is the text which should replace the wildcard.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeglobResult {
-    /// Location of the "*" character in a wildcard import
+    /// The `Location` of the "*" character in a wildcard import.
     pub location: Location,
-    /// Replacement text
+    /// The replacement text.
     pub new_text: String,
 }
 
@@ -482,15 +481,15 @@ fn apply_deglobs(
     Ok(ApplyWorkspaceEditParams { edit })
 }
 
-/// Create `CodeActions` for fixes suggested by the compiler
-/// the results are appended to `code_actions_result`
+/// Creates `CodeAction`s for fixes suggested by the compiler.
+/// The results are appended to `code_actions_result`.
 fn make_suggestion_fix_actions(
     params: &<CodeAction as lsp_data::request::Request>::Params,
     file_path: &Path,
     ctx: &InitActionContext,
     code_actions_result: &mut <CodeAction as RequestAction>::Response,
 ) {
-    // search for compiler suggestions
+    // Search for compiler suggestions.
     if let Some(results) = ctx.previous_build_results.lock().unwrap().get(file_path) {
         let suggestions = results
             .iter()
@@ -510,40 +509,39 @@ fn make_suggestion_fix_actions(
     }
 }
 
-/// Create `CodeActions` for performing deglobbing when a wildcard import is found
-/// the results are appended to `code_actions_result`
+/// Creates `CodeAction`s for performing deglobbing when a wildcard import is found.
+/// The results are appended to `code_actions_result`.
 fn make_deglob_actions(
     params: &<CodeAction as lsp_data::request::Request>::Params,
     file_path: &Path,
     ctx: &InitActionContext,
     code_actions_result: &mut <CodeAction as RequestAction>::Response,
 ) {
-    // search for a glob in the line
+    // Search for a glob in the line.
     if let Ok(line) = ctx.vfs.load_line(file_path, ls_util::range_to_rls(params.range).row_start) {
         let span = Location::new(params.text_document.uri.clone(), params.range);
 
-        // for all indices which are a `*`
-        // check if we can deglob them
-        // this handles badly formatted text containing multiple "use"s in one line
+        // For all indices that are a `*`, check if we can deglob them.
+        // This handles badly-formatted text containing multiple `use`s in one line.
         let deglob_results: Vec<_> = line
             .char_indices()
             .filter(|&(_, chr)| chr == '*')
             .filter_map(|(index, _)| {
-                // map the indices to `Span`s
+                // Map the indices to `Span`s.
                 let mut span = ls_util::location_to_rls(&span).unwrap();
                 span.range.col_start = span::Column::new_zero_indexed(index as u32);
                 span.range.col_end = span::Column::new_zero_indexed(index as u32 + 1);
 
-                // load the deglob type information
+                // Load the deglob type information.
                 ctx.analysis.show_type(&span).ok().map(|ty| (ty, span))
             })
             .map(|(mut deglob_str, span)| {
-                // Handle multiple imports from one *
+                // Handle multiple imports from one `*`.
                 if deglob_str.contains(',') || deglob_str.is_empty() {
                     deglob_str = format!("{{{}}}", sort_deglob_str(&deglob_str));
                 }
 
-                // Build result
+                // Build result.
                 let deglob_result = DeglobResult {
                     location: ls_util::rls_to_location(&span),
                     new_text: deglob_str,
@@ -572,7 +570,7 @@ fn sort_deglob_str(s: &str) -> String {
     substrings.sort_by(|a, b| {
         use std::cmp::Ordering;
 
-        // Algorithm taken from rustfmt (rustfmt/src/imports.rs)
+        // Algorithm taken from rustfmt (`rustfmt/src/imports.rs`).
 
         let is_upper_snake_case =
             |s: &str| s.chars().all(|c| c.is_uppercase() || c == '_' || c.is_numeric());
@@ -730,7 +728,7 @@ fn reformat(
         .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg))?;
 
     // Note that we don't need to update the VFS, the client echos back the
-    // change to us when it applies the returned TextEdit.
+    // change to us when it applies the returned `TextEdit`.
 
     if !ctx.quiescent.load(Ordering::SeqCst) {
         return Err(ResponseError::Message(
@@ -752,9 +750,9 @@ impl RequestAction for ResolveCompletion {
     }
 
     fn handle(_: InitActionContext, params: Self::Params) -> Result<Self::Response, ResponseError> {
-        // currently, we safely ignore this as a pass-through since we fully handle
-        // textDocument/completion.  In the future, we may want to use this method as a
-        // way to more lazily fill out completion information
+        // Currently, we safely ignore this as a pass-through since we fully handle
+        // `textDocument/completion`. In the future, we may want to use this method as a
+        // way to more lazily fill out completion information.
         Ok(params)
     }
 }

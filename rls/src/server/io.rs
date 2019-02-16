@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use jsonrpc_core::{self as jsonrpc, response, version, Id};
 
-/// A trait for anything that can read language server input messages.
+/// Anything that can read language server input messages.
 pub trait MessageReader {
     /// Read the next input message.
     fn read_message(&self) -> Option<String>;
@@ -40,7 +40,7 @@ impl MessageReader for StdioMsgReader {
 // The input is expected to provide a message as described by "Base Protocol" of Language Server
 // Protocol.
 fn read_message<R: BufRead>(input: &mut R) -> Result<String, io::Error> {
-    // Read in the "Content-Length: xx" part
+    // Read in the "Content-Length: xx" part.
     let mut size: Option<usize> = None;
     loop {
         let mut buffer = String::new();
@@ -61,7 +61,7 @@ fn read_message<R: BufRead>(input: &mut R) -> Result<String, io::Error> {
 
         let res: Vec<&str> = buffer.split(' ').collect();
 
-        // Make sure header is valid
+        // Make sure header is valid.
         if res.len() != 2 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -106,29 +106,28 @@ fn read_message<R: BufRead>(input: &mut R) -> Result<String, io::Error> {
     String::from_utf8(content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
-/// Anything that can send notifications and responses to a language server
-/// client.
+/// Anything that can send notifications and responses to a language server client.
 pub trait Output: Sync + Send + Clone + 'static {
-    /// Send a response string along the output.
+    /// Sends a response string along the output.
     fn response(&self, output: String);
 
-    /// Get a new unique ID.
+    /// Gets a new unique ID.
     fn provide_id(&self) -> RequestId;
 
-    /// Notify the client of a failure.
+    /// Notifies the client of a failure.
     fn failure(&self, id: jsonrpc::Id, error: jsonrpc::Error) {
         let response = response::Failure { jsonrpc: Some(version::Version::V2), id, error };
 
         self.response(serde_json::to_string(&response).unwrap());
     }
 
-    /// Notify the client of a failure with the given diagnostic message.
+    /// Notifies the client of a failure with the given diagnostic message.
     fn failure_message<M: Into<String>>(&self, id: RequestId, code: jsonrpc::ErrorCode, msg: M) {
         let error = jsonrpc::Error { code, message: msg.into(), data: None };
         self.failure(Id::from(&id), error);
     }
 
-    /// Send a successful response or notification along the output.
+    /// Sends a successful response or notification along the output.
     fn success<D: ::serde::Serialize + fmt::Debug>(&self, id: RequestId, data: &D) {
         let data = match serde_json::to_string(data) {
             Ok(data) => data,
@@ -149,7 +148,7 @@ pub trait Output: Sync + Send + Clone + 'static {
         self.response(output);
     }
 
-    /// Send a notification along the output.
+    /// Sends a notification along the output.
     fn notify<A>(&self, notification: Notification<A>)
     where
         A: LSPNotification,
@@ -176,7 +175,7 @@ pub(super) struct StdioOutput {
 }
 
 impl StdioOutput {
-    /// Construct a new `stdout` output.
+    /// Constructs a new `stdout` output.
     pub(crate) fn new() -> StdioOutput {
         StdioOutput { next_id: Arc::new(AtomicU64::new(1)) }
     }
