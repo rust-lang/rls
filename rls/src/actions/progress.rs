@@ -7,20 +7,20 @@ use crate::server::{Notification, Output};
 use lazy_static::lazy_static;
 use lsp_types::notification::{PublishDiagnostics, ShowMessage};
 
-/// Trait for communication of build progress back to the client.
+/// Communication of build progress back to the client.
 pub trait ProgressNotifier: Send {
     fn notify_begin_progress(&self);
     fn notify_progress(&self, update: ProgressUpdate);
     fn notify_end_progress(&self);
 }
 
-/// Kinds of progress updates
+/// Kinds of progress updates.
 pub enum ProgressUpdate {
     Message(String),
     Percentage(f64),
 }
 
-/// Trait for communication of diagnostics (i.e. build results) back to the rest of
+/// Trait for communication of diagnostics (i.e., build results) back to the rest of
 /// the RLS (and on to the client).
 // This trait only really exists to work around the object safety rules (Output
 // is not object-safe).
@@ -31,9 +31,9 @@ pub trait DiagnosticsNotifier: Send {
     fn notify_end_diagnostics(&self);
 }
 
-/// Generate a new progress params with a unique ID and the given title.
+/// Generates a new progress params with a unique ID and the given title.
 fn new_progress_params(title: String) -> ProgressParams {
-    // counter to generate unique ID for each chain-of-progress notifications.
+    // Counter to generate unique IDs for each chain-of-progress notification.
     lazy_static! {
         static ref PROGRESS_ID_COUNTER: AtomicUsize = { AtomicUsize::new(0) };
     }
@@ -51,7 +51,7 @@ fn new_progress_params(title: String) -> ProgressParams {
 /// the same instance is used for the entirety of one single build.
 pub struct BuildProgressNotifier<O: Output> {
     out: O,
-    // these params are used as a template and are cloned for each
+    // These params are used as a template and are cloned for each
     // message that is actually notified.
     progress_params: ProgressParams,
 }
@@ -85,7 +85,7 @@ impl<O: Output> ProgressNotifier for BuildProgressNotifier<O> {
 /// Notifier of diagnostics after the build has completed.
 pub struct BuildDiagnosticsNotifier<O: Output> {
     out: O,
-    // these params are used as a template and are cloned for each
+    // These params are used as a template, and are cloned for each
     // message that is actually notified.
     progress_params: ProgressParams,
 }

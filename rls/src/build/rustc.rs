@@ -1,9 +1,5 @@
-use log::trace;
-use rls_data::Analysis;
-use rls_vfs::Vfs;
-
 // FIXME: switch to something more ergonomic here, once available.
-// (currently there is no way to opt into sysroot crates w/o `extern crate`)
+// (Currently, there is no way to opt into sysroot crates without `extern crate`.)
 #[allow(unused_extern_crates)]
 extern crate getopts;
 #[allow(unused_extern_crates)]
@@ -24,19 +20,6 @@ extern crate rustc_resolve;
 extern crate rustc_save_analysis;
 #[allow(unused_extern_crates)]
 extern crate syntax;
-use self::rustc::session::config::Input;
-use self::rustc::session::Session;
-use self::rustc_driver::driver::CompileController;
-use self::rustc_driver::{run, run_compiler, CompilerCalls, RustcDefaultCalls};
-use self::rustc_save_analysis as save;
-use self::rustc_save_analysis::CallbackHandler;
-use self::syntax::edition::Edition as RustcEdition;
-use self::syntax::source_map::{FileLoader, RealFileLoader};
-
-use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::plan::{Crate, Edition};
-use crate::build::{BufWriter, BuildResult};
-use crate::config::{ClippyPreference, Config};
 
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -46,7 +29,24 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
-// Runs a single instance of rustc. Runs in-process.
+use log::trace;
+use rls_data::Analysis;
+use rls_vfs::Vfs;
+
+use crate::build::environment::{Environment, EnvironmentLockFacade};
+use crate::build::{BufWriter, BuildResult};
+use crate::build::plan::{Crate, Edition};
+use crate::config::{ClippyPreference, Config};
+use self::rustc_driver::driver::CompileController;
+use self::rustc_driver::{run, run_compiler, CompilerCalls, RustcDefaultCalls};
+use self::rustc_save_analysis as save;
+use self::rustc_save_analysis::CallbackHandler;
+use self::rustc::session::Session;
+use self::rustc::session::config::{self, ErrorOutputType, Input};
+use self::syntax::source_map::{FileLoader, RealFileLoader};
+use self::syntax::edition::Edition as RustcEdition;
+
+// Runs a single instance of Rustc (in-process).
 pub(crate) fn rustc(
     vfs: &Vfs,
     args: &[String],
@@ -104,8 +104,8 @@ pub(crate) fn rustc(
     let controller =
         Box::new(RlsRustcCalls::new(Arc::clone(&analysis), Arc::clone(&input_files), clippy_pref));
 
-    // rustc explicitly panics in run_compiler() on compile failure, regardless
-    // if it encounters an ICE (internal compiler error) or not.
+    // rustc explicitly panics in `run_compiler()` on compile failure, regardless
+    // of whether it encounters an ICE (internal compiler error) or not.
     // TODO: Change librustc_driver behaviour to distinguish between ICEs and
     // regular compilation failure with errors?
     let result = ::std::panic::catch_unwind(|| {
@@ -120,8 +120,8 @@ pub(crate) fn rustc(
         })
     });
 
-    // FIXME(#25) given that we are running the compiler directly, there is no need
-    // to serialize the error messages - we should pass them in memory.
+    // FIXME(#25): given that we are running the compiler directly, there is no need
+    // to serialize the error messages -- we should pass them in memory.
     let err_buf = Arc::try_unwrap(err_buf).unwrap().into_inner().unwrap();
     let err_buf = String::from_utf8(err_buf).unwrap();
     let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();

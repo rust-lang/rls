@@ -42,9 +42,9 @@ fn cmd_line_to_command<S: AsRef<str>>(cmd_line: &S, cwd: &Path) -> Result<Comman
 }
 
 /// Performs a build using an external command and interprets the results.
-/// The command should output on stdout a list of save-analysis .json files
+/// The command should output on stdout a list of save-analysis JSON files
 /// to be reloaded by the RLS.
-/// Note: This is *very* experimental and preliminary - this can viewed as
+/// Note: this is *very* experimental and preliminary -- it can viewed as
 /// an experimentation until a more complete solution emerges.
 pub(super) fn build_with_external_cmd<S: AsRef<str>>(
     cmd_line: S,
@@ -74,7 +74,7 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(
         .lines()
         .filter_map(|res| res.ok())
         .map(PathBuf::from)
-        // Relative paths are relative to build command, not RLS itself (cwd may be different)
+        // Relative paths are relative to build command, not RLS itself (CWD may be different).
         .map(|path| if !path.is_absolute() { build_dir.join(path) } else { path });
 
     let analyses = match read_analysis_files(files) {
@@ -158,7 +158,7 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
 }
 
 #[derive(Debug, Deserialize)]
-/// Build plan as emitted by `cargo build --build-plan -Zunstable-options`
+/// Build plan as emitted by `cargo build --build-plan -Zunstable-options`.
 pub(crate) struct RawPlan {
     pub(crate) invocations: Vec<RawInvocation>,
 }
@@ -178,11 +178,12 @@ pub(crate) struct RawInvocation {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Invocation {
-    deps: Vec<usize>, // FIXME: Use arena and store refs instead for ergonomics
+    // FIXME: use arena and store refs instead for ergonomics.
+    deps: Vec<usize>,
     outputs: Vec<PathBuf>,
     links: BTreeMap<PathBuf, PathBuf>,
     command: ProcessBuilder,
-    // Parsed data
+    // Parsed data.
     src_path: Option<PathBuf>,
 }
 
@@ -204,7 +205,7 @@ impl BuildKey for Invocation {
 
         self.command.get_program().hash(&mut hash);
         let /*mut*/ args = self.command.get_args().to_owned();
-        // args.sort(); // TODO: Parse 2-part args (e.g. ["--extern", "a=b"])
+        // args.sort(); // TODO: parse 2-part args (e.g., `["--extern", "a=b"]`)
         args.hash(&mut hash);
         let mut envs: Vec<_> = self.command.get_envs().iter().collect();
         envs.sort();
@@ -258,7 +259,7 @@ impl ExternalPlan {
     }
 
     pub(crate) fn try_from_raw(build_dir: &Path, raw: RawPlan) -> Result<ExternalPlan, ()> {
-        // Sanity check, each dependency (index) has to be inside the build plan
+        // Sanity check: each dependency (index) has to be inside the build plan.
         if raw
             .invocations
             .iter()
@@ -310,8 +311,8 @@ impl BuildGraph for ExternalPlan {
         self.units.entry(unit.key()).or_insert(unit);
     }
 
-    // FIXME: Change associating files with units by their path but rather
-    // include file inputs in the build plan or call rustc with --emit=dep-info
+    // FIXME: change associating files with units by their path but rather
+    // include file inputs in the build plan or call rustc with `--emit=dep-info`.
     fn dirties<T: AsRef<Path>>(&self, modified: &[T]) -> Vec<&Self::Unit> {
         let mut results = HashSet::<u64>::new();
 
@@ -322,17 +323,17 @@ impl BuildGraph for ExternalPlan {
                 assert!(a.is_absolute() && b.is_absolute());
                 a.components().zip(b.components()).take_while(|&(x, y)| x == y).count()
             };
-            // Since a package can correspond to many units (e.g. compiled
+            // Since a package can correspond to many units (e.g., compiled
             // as a regular binary or a test harness for unit tests), we
             // collect every unit having the longest path prefix.
             let matching_units: Vec<(&_, usize)> = self
                 .units
                 .values()
                 // For `rustc dir/some.rs` we'll consider every changed files
-                // under dir/ as relevant
+                // under dir/ as relevant.
                 .map(|unit| (unit, unit.src_path.as_ref().and_then(|src| src.parent())))
                 .filter_map(|(unit, src)| src.map(|src| (unit, src)))
-                // Discard units that are in a different directory subtree
+                // Discard units that are in a different directory subtree.
                 .filter_map(|(unit, src)| {
                     let matching = matching_prefix_components(modified, &src);
                     if matching >= src.components().count() {
@@ -344,7 +345,7 @@ impl BuildGraph for ExternalPlan {
                 .collect();
 
             // Changing files in the same directory might affect multiple units
-            // (e.g. multiple crate binaries, their unit test harness), so
+            // (e.g., multiple crate binaries, their unit test harness), so
             // treat all of them as dirty.
             if let Some(max_prefix) = matching_units.iter().map(|(_, p)| p).max() {
                 let dirty_keys = matching_units
@@ -544,9 +545,9 @@ mod tests {
             to_paths(&["/my/repo/build.rs", "/my/repo/src/lib.rs"]).sorted(),
         );
 
-        // TODO: Test on non-trivial input, use Iterator::position if
-        // nondeterminate order wrt hashing is a problem
-        // Jobs that have to run first are *last* in the topological sorting here
+        // TODO: test on non-trivial input; `use Iterator::position` if
+        // non-determinate order w.r.t. hashing is a problem.
+        // Jobs that have to run first are *last* in the topological sorting here.
         let topo_units = plan.topological_sort(units_to_rebuild);
         assert_eq!(paths(&topo_units), to_paths(&["/my/repo/src/lib.rs", "/my/repo/build.rs"]),)
     }

@@ -1,8 +1,8 @@
 //! Conversion of raw rustc-emitted JSON messages into LSP diagnostics.
 //!
 //! Data definitions for diagnostics can be found in the Rust compiler for:
-//! 1. Internal diagnostics at src/librustc_errors/diagnostic.rs.
-//! 2. Emitted JSON format at src/libsyntax/json.rs.
+//! 1. Internal diagnostics at `src/librustc_errors/diagnostic.rs`.
+//! 2. Emitted JSON format at `src/libsyntax/json.rs`.
 
 use std::collections::HashMap;
 use std::iter;
@@ -88,7 +88,8 @@ pub fn parse_diagnostics(
 
     let mut diagnostics = HashMap::new();
 
-    // If the client doesn't support related information, emit separate diagnostics for secondary spans
+    // If the client doesn't support related information, emit separate diagnostics for
+    // secondary spans.
     let diagnostic_spans = if related_information_support { &primaries } else { &message.spans };
 
     for (path, diagnostic) in diagnostic_spans.iter().map(|span| {
@@ -121,8 +122,8 @@ pub fn parse_diagnostics(
 
         let rls_span = {
             let mut span = span;
-            // if span points to a macro, search through the expansions
-            // for a more useful source location
+            // If span points to a macro, search through the expansions
+            // for a more useful source location.
             while span.file_name.ends_with(" macros>") && span.expansion.is_some() {
                 span = &span.expansion.as_ref().unwrap().span;
             }
@@ -234,8 +235,8 @@ fn make_suggestions<'a>(
         .collect();
 
     // Suggestions are displayed at primary span, so if the change is somewhere
-    // else, be sure to specify that
-    // TODO: In theory this can even point to different files - does that happen in practice?
+    // else, be sure to specify that.
+    // TODO: In theory this can even point to different files -- does that happen in practice?
     for suggestion in &mut suggestions {
         if !suggestion.range.is_within(&primary_range) {
             let line = suggestion.range.start.line + 1; // as 1-based
@@ -265,7 +266,7 @@ fn label_suggestion(span: &DiagnosticSpan, label: &str) -> Option<Suggestion> {
 
 trait IsWithin {
     /// Returns whether `other` is considered within `self`
-    /// note: a thing should be 'within' itself
+    /// NOTE: a thing should be 'within' itself.
     fn is_within(&self, other: &Self) -> bool;
 }
 
@@ -294,9 +295,9 @@ impl IsWithin for Range {
     }
 }
 
-/// Tests for formatted messages from the compilers json output
-/// run cargo with `--message-format=json` to generate the json for new tests and add .json
-/// message files to '$FIXTURES_DIR/compiler_message/'
+/// Tests for formatted messages from the compiler's JSON output.
+/// Runs cargo with `--message-format=json` to generate the JSON for new tests and add JSON
+/// message files to the `$FIXTURES_DIR/compiler_message/` directory.
 #[cfg(test)]
 mod diagnostic_message_test {
     use super::*;
@@ -322,7 +323,7 @@ mod diagnostic_message_test {
 
     pub(super) trait FileDiagnosticTestExt {
         fn single_file_results(&self) -> &Vec<(Diagnostic, Vec<Suggestion>)>;
-        /// Returns (primary message, secondary messages)
+        /// Returns `(primary message, secondary messages)`.
         fn to_messages(&self) -> Vec<(String, Vec<String>)>;
         fn to_primary_messages(&self) -> Vec<String>;
         fn to_secondary_messages(&self) -> Vec<String>;
@@ -409,7 +410,7 @@ mod diagnostic_message_test {
         assert_eq!(messages[0].1, vec!["consider giving `v` a type", "cannot infer type for `T`"]);
 
         // Check if we don't emit related information if it's not supported and
-        // if secondary spans are emitted as separate diagnostics
+        // if secondary spans are emitted as separate diagnostics.
         let messages = parse_compiler_message(
             &read_fixture("compiler_message/type-annotations-needed.json"),
             false,
@@ -467,7 +468,7 @@ mod diagnostic_message_test {
              cannot borrow mutably",
         );
 
-        // note: consider message becomes a suggestion
+        // NOTE: 'consider' message becomes a suggestion.
         assert_eq!(
             messages[0].1,
             vec!["consider changing this to `mut string`", "cannot borrow mutably",]
@@ -665,7 +666,7 @@ help: consider borrowing here: `&string`"#,
     }
 }
 
-/// Tests for creating suggestions from the compilers json output
+/// Tests for creating suggestions from the compilers JSON output.
 #[cfg(test)]
 mod diagnostic_suggestion_test {
     use self::diagnostic_message_test::*;

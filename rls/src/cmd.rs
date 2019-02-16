@@ -37,7 +37,7 @@ macro_rules! print_verb {
     }
 }
 
-/// Run the RLS in command line mode.
+/// Runs the RLS in command line mode.
 pub fn run() {
     let sender = init();
 

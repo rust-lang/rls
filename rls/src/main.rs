@@ -20,8 +20,7 @@ use std::sync::Arc;
 
 const RUSTC_WRAPPER_ENV_VAR: &str = "RUSTC_WRAPPER";
 
-/// The main entry point to the RLS. Parses CLI arguments and then runs the
-/// server.
+/// The main entry point to the RLS. Parses CLI arguments and then runs the server.
 pub fn main() {
     let exit_code = main_inner();
     std::process::exit(exit_code);

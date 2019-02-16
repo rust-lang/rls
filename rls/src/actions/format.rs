@@ -1,4 +1,4 @@
-//! Code formatting using Rustfmt - by default using statically-linked one or
+//! Code formatting using Rustfmt -- by default using statically-linked one or
 //! possibly running Rustfmt binary specified by the user.
 
 use std::env::temp_dir;
@@ -12,12 +12,12 @@ use rand::{distributions, thread_rng, Rng};
 use rustfmt_nightly::{Config, Input, Session};
 use serde_json;
 
-/// Specified which `rustfmt` to use.
+/// Specifies which `rustfmt` to use.
 #[derive(Clone)]
 pub enum Rustfmt {
-    /// (Path to external `rustfmt`, cwd where it should be spawned at)
+    /// `(path to external `rustfmt`, current working directory to spawn at)`
     External(PathBuf, PathBuf),
-    /// Statically linked `rustfmt`
+    /// Statically linked `rustfmt`.
     Internal,
 }
 
@@ -80,7 +80,8 @@ fn format_internal(input: String, config: Config) -> Result<String, String> {
 
         match session.format(Input::Text(input)) {
             Ok(report) => {
-                // Session::format returns Ok even if there are any errors, i.e., parsing errors.
+                // `Session::format` returns `Ok` even if there are any errors, i.e., parsing
+                // errors.
                 if session.has_operational_errors() || session.has_parsing_errors() {
                     debug!("reformat: format_input failed: has errors, report = {}", report);
 

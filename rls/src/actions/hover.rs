@@ -1,11 +1,7 @@
-use crate::actions::format::Rustfmt;
-use crate::actions::requests;
-use crate::actions::InitActionContext;
-use crate::config::FmtConfig;
-use crate::lsp_data::*;
-use crate::server::ResponseError;
+use std::path::{Path, PathBuf};
 
 use home;
+use log::*;
 use racer;
 use rls_analysis::{Def, DefKind};
 use rls_span::{Column, Range, Row, Span, ZeroIndexed};
@@ -13,8 +9,12 @@ use rls_vfs::{self as vfs, Vfs};
 use rustfmt_nightly::NewlineStyle;
 use serde_derive::{Deserialize, Serialize};
 
-use log::*;
-use std::path::{Path, PathBuf};
+use crate::actions::format::Rustfmt;
+use crate::actions::requests;
+use crate::actions::InitActionContext;
+use crate::config::FmtConfig;
+use crate::lsp_data::*;
+use crate::server::ResponseError;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Tooltip {
@@ -53,7 +53,7 @@ pub fn process_docs(docs: &str) -> String {
             line.to_string()
         };
 
-        // Racer sometimes pulls out comment block headers from the standard library
+        // Racer sometimes pulls out comment block headers from the standard library.
         let ignore_slashes = line.starts_with("////");
 
         let maybe_attribute = trimmed.starts_with("#[") || trimmed.starts_with("#![");
@@ -114,7 +114,7 @@ pub fn extract_docs(
         let attr_start = line.starts_with("#[") || line.starts_with("#![");
 
         if attr_start && line.ends_with(']') && !hit_top {
-            // Ignore single line attributes
+            // Ignore single-line attributes.
             trace!(
                 "extract_docs: ignoring single-line attribute, next_row: {:?}, up: {}",
                 next_row,
@@ -124,7 +124,7 @@ pub fn extract_docs(
         }
 
         // Continue with the next line when transitioning out of a
-        // multi-line attribute
+        // multi-line attribute.
         if attr_start || (line.ends_with(']') && !line.starts_with("//")) {
             in_meta = !in_meta;
             if !in_meta && !hit_top {
@@ -138,7 +138,7 @@ pub fn extract_docs(
         }
 
         if !hit_top && in_meta {
-            // Ignore milti-line attributes
+            // Ignore milti-line attributes.
             trace!(
                 "extract_docs: ignoring multi-line attribute, next_row: {:?}, up: {}, in_meta: {}",
                 next_row,
@@ -171,7 +171,7 @@ pub fn extract_docs(
         }
 
         if hit_top {
-            // The top of the file was reached
+            // The top of the file was reached.
             debug!(
                 "extract_docs: bailing out: prev_row == next_row; next_row = {:?}, up = {}",
                 next_row, up
@@ -214,8 +214,7 @@ fn extract_and_process_docs(vfs: &Vfs, file: &Path, row_start: Row<ZeroIndexed>)
         .and_then(empty_to_none)
 }
 
-/// Extracts a function, method, struct, enum, or trait declaration
-/// from source.
+/// Extracts a function, method, struct, enum, or trait declaration from source.
 pub fn extract_decl(
     vfs: &Vfs,
     file: &Path,
@@ -318,10 +317,10 @@ fn tooltip_struct_enum_union_trait(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
-    // We hover often so use the in-process one to speed things up
+    // We hover often, so use the in-process one to speed things up.
     let fmt = Rustfmt::Internal;
 
-    // fallback in case source extration fails
+    // Fallback in case source extration fails.
     let the_type = || match def.kind {
         DefKind::Struct => format!("struct {}", def.name),
         DefKind::Enum => format!("enum {}", def.name),
@@ -373,7 +372,7 @@ fn tooltip_function_method(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
-    // We hover often so use the in-process one to speed things up
+    // We hover often, so use the in-process one to speed things up.
     let fmt = Rustfmt::Internal;
 
     let the_type = || {
@@ -461,7 +460,7 @@ fn empty_to_none(s: String) -> Option<String> {
     }
 }
 
-/// Extract and process source documentation for the give `def`.
+/// Extracts and processes source documentation for the give `def`.
 fn def_docs(def: &Def, vfs: &Vfs) -> Option<String> {
     let save_analysis_docs = || empty_to_none(def.docs.trim().into());
     extract_and_process_docs(&vfs, def.span.file.as_ref(), def.span.range.row_start)
@@ -545,7 +544,7 @@ fn skip_path_components<P: AsRef<Path>>(
     })
 }
 
-/// Collapse parent directory references inside of paths.
+/// Collapses parent directory references inside of paths.
 ///
 /// # Example
 ///
@@ -626,12 +625,12 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
         let contextstr_path = PathBuf::from(&contextstr);
         let contextstr_path = collapse_parents(contextstr_path);
 
-        // Tidy up the module path
-        // Skips toolchains/$TOOLCHAIN/lib/rustlib/src/rust/src
+        // Tidy up the module path.
+        // Skips `toolchains/$TOOLCHAIN/lib/rustlib/src/rust/src`.
         skip_path_components(&contextstr_path, rustup_home, 7)
-            // Skips /registry/src/github.com-1ecc6299db9ec823/
+            // Skips `/registry/src/github.com-1ecc6299db9ec823/`.
             .or_else(|| skip_path_components(&contextstr_path, cargo_home, 3))
-            // Make the path relative to the root of the project, if possible
+            // Make the path relative to the root of the project, if possible.
             .or_else(|| {
                 contextstr_path.strip_prefix(&ctx.current_project).ok().map(|x| x.to_owned())
             })
@@ -682,7 +681,7 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
     })
 }
 
-/// Use racer to synthesize a `Def` for the given `span`. If no appropriate
+/// Uses racer to synthesize a `Def` for the given `span`. If no appropriate
 /// match is found with coordinates, `None` is returned.
 fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
     let vfs = ctx.vfs.clone();
@@ -711,7 +710,7 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
         let racer_match = racer::find_definition(file_path, location, &session);
         trace!("racer_def: match: {:?}", racer_match);
         racer_match
-            // Avoid creating tooltip text that is exactly the item being hovered over
+            // Avoid creating tooltip text that is exactly the item being hovered over.
             .filter(|m| name.as_ref().map(|name| name != &m.contextstr).unwrap_or(true))
             .and_then(|m| racer_match_to_def(ctx, &m))
     });
@@ -731,7 +730,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     config.set().newline_style(NewlineStyle::Unix);
     let trimmed = the_type.trim();
 
-    // Normalize the ending for rustfmt
+    // Normalize the ending for rustfmt.
     let object = if trimmed.ends_with(')') {
         format!("{};", trimmed)
     } else if trimmed.ends_with('}') || trimmed.ends_with(';') {
@@ -755,7 +754,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     };
 
     // If it's a tuple, remove the trailing ';' and hide non-pub components
-    // for pub types
+    // for pub types.
     let result = if formatted.trim().ends_with(';') {
         let mut decl = formatted.trim().trim_end_matches(';');
         if let (Some(pos), true) = (decl.rfind('('), decl.ends_with(')')) {
@@ -779,11 +778,11 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
                 decl.to_string()
             }
         } else {
-            // not a tuple
+            // Not a tuple.
             decl.into()
         }
     } else {
-        // not a tuple or unit struct
+        // Not a tuple or unit struct.
         formatted
     };
 
@@ -855,8 +854,7 @@ pub fn tooltip(
 
     let racer_fallback_enabled = ctx.config.lock().unwrap().racer_completion;
 
-    // Fallback to racer if the def was not available and
-    // racer is enabled.
+    // Fallback to racer if the def was not available and racer is enabled.
     let hover_span_def = hover_span_def.or_else(|e| {
         debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
         if racer_fallback_enabled {
