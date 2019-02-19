@@ -2,6 +2,7 @@
 
 use std::cell::Cell;
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -38,7 +39,7 @@ fn global_root() -> PathBuf {
     // `target`. If, however, `cargo test --target $target` is used then the
     // output is `target/$target/debug/foo`, so our path is pointing at
     // `target/$target`. Here we conditionally pop the `$target` name.
-    if path.file_name().and_then(|s| s.to_str()) != Some("target") {
+    if path.file_name().and_then(OsStr::to_str) != Some("target") {
         path.pop();
     }
 
