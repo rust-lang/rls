@@ -1282,51 +1282,51 @@ pub mod test {
         let file = fixtures_dir().join("hover/src/test_extract_decl.rs");
 
         let expected = "pub fn foo() -> Foo<u32>";
-        let row_start = Row::new_zero_indexed(10);
+        let row_start = Row::new_zero_indexed(0);
         let actual = extract_decl(&vfs, &file, row_start).expect("function declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct Foo<T>";
-        let row_start = Row::new_zero_indexed(15);
+        let row_start = Row::new_zero_indexed(5);
         let actual = extract_decl(&vfs, &file, row_start).expect("struct declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub enum Bar";
-        let row_start = Row::new_zero_indexed(20);
+        let row_start = Row::new_zero_indexed(10);
         let actual = extract_decl(&vfs, &file, row_start).expect("enum declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct NewType(pub u32, f32)";
-        let row_start = Row::new_zero_indexed(25);
+        let row_start = Row::new_zero_indexed(15);
         let actual = extract_decl(&vfs, &file, row_start).expect("tuple declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn new() -> NewType";
-        let row_start = Row::new_zero_indexed(28);
+        let row_start = Row::new_zero_indexed(18);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("struct function declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn bar<T: Copy + Add>(&self, the_really_long_name_string: String, the_really_long_name_foo: Foo<T>) -> Vec<(String, Foo<T>)>";
-        let row_start = Row::new_zero_indexed(32);
+        let row_start = Row::new_zero_indexed(22);
         let actual = extract_decl(&vfs, &file, row_start)
             .expect("long struct method declaration with generics")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub trait Baz<T> where T: Copy";
-        let row_start = Row::new_zero_indexed(37);
+        let row_start = Row::new_zero_indexed(27);
         let actual = extract_decl(&vfs, &file, row_start).expect("enum declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
-        let row_start = Row::new_zero_indexed(38);
+        let row_start = Row::new_zero_indexed(28);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("trait method declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
-        let row_start = Row::new_zero_indexed(42);
+        let row_start = Row::new_zero_indexed(32);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("trait method implementation").join("\n");
         assert_eq!(expected, actual);
@@ -1338,7 +1338,7 @@ pub mod test {
             U: Clone
         ",
         );
-        let row_start = Row::new_zero_indexed(47);
+        let row_start = Row::new_zero_indexed(37);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("trait declaration multiline").join("\n");
         assert_eq!(expected, actual);
@@ -1351,7 +1351,7 @@ pub mod test {
             )
         ",
         );
-        let row_start = Row::new_zero_indexed(53);
+        let row_start = Row::new_zero_indexed(43);
         let actual = extract_decl(&vfs, &file, row_start)
             .expect("function declaration multiline")
             .join("\n");
@@ -1442,7 +1442,7 @@ pub mod test {
             )
         ",
         );
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(1);
         let actual = extract_decl(&vfs, &file, row_start)
             .expect("the empty body should not be extracted")
             .join("\n");
@@ -1501,7 +1501,7 @@ pub mod test {
     fn test_extract_docs_comment_block() {
         let vfs = Vfs::new();
         let file = fixtures_dir().join("hover/src/test_extract_docs_comment_block.rs");
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(11);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1525,7 +1525,7 @@ pub mod test {
     fn test_extract_docs_empty_line_before_decl() {
         let vfs = Vfs::new();
         let file = fixtures_dir().join("hover/src/test_extract_docs_empty_line_before_decl.rs");
-        let row_start = Row::new_zero_indexed(18);
+        let row_start = Row::new_zero_indexed(8);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1569,7 +1569,7 @@ pub mod test {
 
         assert_eq!(expected, actual);
 
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(11);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1590,7 +1590,7 @@ pub mod test {
         let vfs = Vfs::new();
         let file = fixtures_dir().join("hover/src/test_extract_docs_attributes.rs");
 
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(11);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1609,7 +1609,7 @@ pub mod test {
 
         assert_eq!(expected, actual);
 
-        let row_start = Row::new_zero_indexed(32);
+        let row_start = Row::new_zero_indexed(22);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");

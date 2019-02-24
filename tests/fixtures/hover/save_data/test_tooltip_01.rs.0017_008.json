@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 17,
+    "col": 8
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "test_tooltip_01::Foo"
+      },
+      "The third field"
+    ]
+  }
+}

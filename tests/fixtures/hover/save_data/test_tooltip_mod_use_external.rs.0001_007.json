@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_mod_use_external.rs",
+    "line": 1,
+    "col": 7
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "fnv-1.0.6/lib.rs"
+      },
+      "An implementation of the [Fowler–Noll–Vo hash function][chongo].\n\n## About\n\nThe FNV hash function is a custom `Hasher` implementation that is more\nefficient for smaller hash keys.\n\n[The Rust FAQ states that][faq] while the default `Hasher` implementation,\nSipHash, is good in many cases, it is notably slower than other algorithms\nwith short keys, such as when you have a map of integers to other values.\nIn cases like these, [FNV is demonstrably faster][graphs].\n\nIts disadvantages are that it performs badly on larger inputs, and\nprovides no protection against collision attacks, where a malicious user\ncan craft specific keys designed to slow a hasher down. Thus, it is\nimportant to profile your program to ensure that you are using small hash\nkeys, and be certain that your program could not be exposed to malicious\ninputs (including being a networked server).\n\nThe Rust compiler itself uses FNV, as it is not worried about\ndenial-of-service attacks, and can assume that its inputs are going to be\nsmall—a perfect use case for FNV.\n\n\n## Using FNV in a `HashMap`\n\nThe `FnvHashMap` type alias is the easiest way to use the standard library’s\n`HashMap` with FNV.\n\n```rust\nuse fnv::FnvHashMap;\n\nlet mut map = FnvHashMap::default();\nmap.insert(1, \"one\");\nmap.insert(2, \"two\");\n\nmap = FnvHashMap::with_capacity_and_hasher(10, Default::default());\nmap.insert(1, \"one\");\nmap.insert(2, \"two\");\n```\n\nNote, the standard library’s `HashMap::new` and `HashMap::with_capacity`\nare only implemented for the `RandomState` hasher, so using `Default` to\nget the hasher is the next best option.\n\n## Using FNV in a `HashSet`\n\nSimilarly, `FnvHashSet` is a type alias for the standard library’s `HashSet`\nwith FNV.\n\n```rust\nuse fnv::FnvHashSet;\n\nlet mut set = FnvHashSet::default();\nset.insert(1);\nset.insert(2);\n\nset = FnvHashSet::with_capacity_and_hasher(10, Default::default());\nset.insert(1);\nset.insert(2);\n```\n\n[chongo]: http://www.isthe.com/chongo/tech/comp/fnv/index.html\n[faq]: https://www.rust-lang.org/en-US/faq.html#why-are-rusts-hashmaps-slow\n[graphs]: http://cglab.ca/~abeinges/blah/hash-rs/"
+    ]
+  }
+}

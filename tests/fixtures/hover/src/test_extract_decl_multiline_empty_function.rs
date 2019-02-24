@@ -1,4 +1,4 @@
-/// Do nothing with matices.
+/// Do nothing with matrices.
 fn matrix_something(
     _a_matrix: [[f32; 4]; 4],
     _b_matrix: [[f32; 4]; 4],

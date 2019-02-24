@@ -979,8 +979,8 @@ fn client_lens_run() {
         }),
         data: None,
         range: Range {
-            start: Position { line: 14, character: 3 },
-            end: Position { line: 14, character: 11 },
+            start: Position { line: 4, character: 3 },
+            end: Position { line: 4, character: 11 },
         },
     };
 
@@ -1134,11 +1134,11 @@ fn client_deglob() {
                 text_document: TextDocumentIdentifier {
                     uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
                 },
-                range: Range { start: Position::new(12, 0), end: Position::new(12, 0) },
+                range: Range { start: Position::new(2, 0), end: Position::new(2, 0) },
                 context: CodeActionContext { diagnostics: vec![], only: None },
             },
         )
-        .expect("No code actions returned for line 12");
+        .expect("No code actions returned for line 2");
 
     // Right now we only support deglobbing via commands. Please update this
     // test if we move to making text edits via CodeAction (which we should for
@@ -1160,7 +1160,7 @@ fn client_deglob() {
     assert_eq!(
         serde_json::from_value::<Location>(arguments[0]["location"].clone()).unwrap(),
         Location {
-            range: Range { start: Position::new(12, 13), end: Position::new(12, 14) },
+            range: Range { start: Position::new(2, 13), end: Position::new(2, 14) },
             uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
         }
     );
@@ -1182,7 +1182,7 @@ fn client_deglob() {
     assert_eq!(
         edits,
         vec![TextEdit {
-            range: Range { start: Position::new(12, 13), end: Position::new(12, 14) },
+            range: Range { start: Position::new(2, 13), end: Position::new(2, 14) },
             new_text: "{Stdin, Stdout}".to_string(),
         }]
     );
@@ -1195,7 +1195,7 @@ fn client_deglob() {
                 text_document: TextDocumentIdentifier {
                     uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
                 },
-                range: Range { start: Position::new(15, 0), end: Position::new(15, 0) },
+                range: Range { start: Position::new(5, 0), end: Position::new(5, 0) },
                 context: CodeActionContext { diagnostics: vec![], only: None },
             },
         )
@@ -1223,8 +1223,8 @@ fn client_deglob() {
             serde_json::from_value::<Location>(arguments[i]["location"].clone()).unwrap(),
             Location {
                 range: Range {
-                    start: Position::new(15, expected[i].0),
-                    end: Position::new(15, expected[i].1),
+                    start: Position::new(5, expected[i].0),
+                    end: Position::new(5, expected[i].1),
                 },
                 uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
             }
@@ -1250,7 +1250,7 @@ fn client_deglob() {
         expected
             .iter()
             .map(|e| TextEdit {
-                range: Range { start: Position::new(15, e.0), end: Position::new(15, e.1) },
+                range: Range { start: Position::new(5, e.0), end: Position::new(5, e.1) },
                 new_text: e.2.to_string()
             })
             .collect::<Vec<_>>()
@@ -1756,9 +1756,9 @@ fn client_reformat() {
     assert_eq!(result.unwrap()[0], TextEdit {
         range: Range {
             start: Position { line: 0, character: 0 },
-            end: Position { line: 12, character: 0 },
+            end: Position { line: 2, character: 0 },
         },
-        new_text: "// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}\n".to_string(),
+        new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}\n".to_string(),
     });
 }
 
@@ -1781,8 +1781,8 @@ fn client_reformat_with_range() {
                 uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
             },
             range: Range {
-                start: Position { line: 12, character: 0 },
-                end: Position { line: 13, character: 0 },
+                start: Position { line: 2, character: 0 },
+                end: Position { line: 3, character: 0 },
             },
             options: FormattingOptions {
                 tab_size: 4,
@@ -1793,7 +1793,7 @@ fn client_reformat_with_range() {
     );
 
     let newline = if cfg!(windows) { "\r\n" } else { "\n" };
-    let formatted = "// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"
+    let formatted = "pub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"
         .replace("\n", newline);
 
     assert_eq!(result.unwrap()[0].new_text, formatted);
@@ -1957,10 +1957,10 @@ fn client_find_impls() {
         1,
         TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(uri.clone()),
-            position: Position { line: 12, character: 7 }, // "Bar"
+            position: Position { line: 3, character: 7 }, // "Bar"
         },
     );
-    let expected = [(18, 15, 18, 18), (19, 12, 19, 15)];
+    let expected = [(9, 15, 9, 18), (10, 12, 10, 15)];
     let expected = expected.iter().map(|(a, b, c, d)| Location {
         uri: uri.clone(),
         range: Range {
@@ -1977,10 +1977,10 @@ fn client_find_impls() {
         1,
         TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(uri.clone()),
-            position: Position { line: 15, character: 6 }, // "Super"
+            position: Position { line: 6, character: 6 }, // "Super"
         },
     );
-    let expected = [(18, 15, 18, 18), (22, 15, 22, 18)];
+    let expected = [(9, 15, 9, 18), (13, 15, 13, 18)];
     let expected = expected.iter().map(|(a, b, c, d)| Location {
         uri: uri.clone(),
         range: Range {

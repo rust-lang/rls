@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 75,
+    "col": 50
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "pub enum Foo"
+      },
+      "Foo enum"
+    ]
+  }
+}

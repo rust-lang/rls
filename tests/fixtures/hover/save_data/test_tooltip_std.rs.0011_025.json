@@ -1,0 +1,17 @@
+{
+  "test": {
+    "file": "test_tooltip_std.rs",
+    "line": 11,
+    "col": 25
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "fn clone(&self) -> Self"
+      },
+      "https://doc.rust-lang.org/nightly/core/clone/Clone.t.html#clone.v",
+      "Returns a copy of the value.\n\n# Examples\n\n```rust\nlet hello = \"Hello\"; // &str implements Clone\n\nassert_eq!(\"Hello\", hello.clone());\n```"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "test": {
+    "file": "test_tooltip_std.rs",
+    "line": 13,
+    "col": 18
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "&[i32]"
+      },
+      {
+        "language": "rust",
+        "value": "let slice = &vec1[0..];"
+      }
+    ]
+  }
+}

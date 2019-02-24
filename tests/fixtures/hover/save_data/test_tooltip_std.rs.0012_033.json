@@ -1,0 +1,17 @@
+{
+  "test": {
+    "file": "test_tooltip_std.rs",
+    "line": 12,
+    "col": 33
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "fn default() -> Self"
+      },
+      "https://doc.rust-lang.org/nightly/core/default/Default.t.html#default.v",
+      "Returns the \"default value\" for a type.\n\nDefault values are often some kind of initial value, identity value, or anything else that\nmay make sense as a default.\n\n# Examples\n\nUsing built-in default values:\n\n```rust\nlet i: i8 = Default::default();\nlet (x, y): (Option<String>, f64) = Default::default();\nlet (a, b, (c, d)): (i32, u32, (bool, bool)) = Default::default();\n```\n\nMaking your own:\n\n```rust\nenum Kind {\n    A,\n    B,\n    C,\n}\n\nimpl Default for Kind {\n    fn default() -> Self { Kind::A }\n}\n```"
+    ]
+  }
+}

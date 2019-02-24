@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 76,
+    "col": 10
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "fn bar(&mut self, thing: T) -> Bar<T>\nwhere\n    T: Copy,"
+      },
+      "Bar method"
+    ]
+  }
+}
