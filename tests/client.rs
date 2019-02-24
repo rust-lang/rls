@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use futures::future::Future;
 use lsp_types::{notification::*, request::*, *};
@@ -12,12 +13,12 @@ use crate::support::{basic_bin_manifest, fixtures_dir};
 mod support;
 
 fn initialize_params(root_path: &Path) -> InitializeParams {
-    lsp_types::InitializeParams {
+    InitializeParams {
         process_id: None,
         root_uri: None,
         root_path: Some(root_path.display().to_string()),
         initialization_options: None,
-        capabilities: lsp_types::ClientCapabilities {
+        capabilities: ClientCapabilities {
             workspace: None,
             text_document: None,
             experimental: None,
@@ -27,31 +28,55 @@ fn initialize_params(root_path: &Path) -> InitializeParams {
     }
 }
 
+fn initialize_params_with_opts(root_path: &Path, opts: serde_json::Value) -> InitializeParams {
+    InitializeParams { initialization_options: Some(opts), ..initialize_params(root_path) }
+}
+
 #[test]
 fn client_test_infer_bin() {
-    let p = project("simple_workspace")
-        .file("Cargo.toml", &basic_bin_manifest("foo"))
-        .file(
-            "src/main.rs",
-            r#"
-                struct UnusedBin;
-                fn main() {
-                    println!("Hello world!");
-                }
-            "#,
-        )
-        .build();
-
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("infer_bin")).unwrap().build();
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
     rls.request::<Initialize>(0, initialize_params(root_path));
 
     let diag = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("src/main.rs"));
     assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedBin`"));
 
-    rls.wait_for_indexing();
-    assert!(rls.messages().iter().filter(|msg| msg["method"] != "window/progress").count() > 1);
+    rls.shutdown();
+}
+
+#[test]
+fn client_test_infer_lib() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("infer_lib")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("src/lib.rs"));
+    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedLib`"));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_test_infer_custom_bin() {
+    let p =
+        ProjectBuilder::try_from_fixture(fixtures_dir().join("infer_custom_bin")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("src/custom_bin.rs"));
+    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedCustomBin`"));
 
     rls.shutdown();
 }
@@ -1018,24 +1043,8 @@ fn client_find_definitions() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(
-        0,
-        lsp_types::InitializeParams {
-            process_id: None,
-            root_uri: None,
-            root_path: Some(root_path.display().to_string()),
-            initialization_options: Some(json!({
-                "settings": {
-                    "rust": {
-                        "racer_completion": false
-                    }
-                }
-            })),
-            capabilities: Default::default(),
-            trace: None,
-            workspace_folders: None,
-        },
-    );
+    let opts = json!({"settings": {"rust": {"racer_completion": false } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
 
     rls.wait_for_indexing();
 
@@ -1310,7 +1319,7 @@ fn client_init_duplicated_and_unknown_settings() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    let init_options = json!({
+    let opts = json!({
         "settings": {
             "rust": {
                 "features": ["some_feature"],
@@ -1326,22 +1335,7 @@ fn client_init_duplicated_and_unknown_settings() {
         }
     });
 
-    rls.request::<Initialize>(
-        0,
-        lsp_types::InitializeParams {
-            process_id: None,
-            root_uri: None,
-            root_path: Some(root_path.display().to_string()),
-            initialization_options: Some(init_options),
-            capabilities: lsp_types::ClientCapabilities {
-                workspace: None,
-                text_document: None,
-                experimental: None,
-            },
-            trace: None,
-            workspace_folders: None,
-        },
-    );
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
 
     assert!(rls.messages().iter().any(is_notification_for_unknown_config));
     assert!(rls.messages().iter().any(is_notification_for_duplicated_config));
@@ -1365,22 +1359,7 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(
-        0,
-        lsp_types::InitializeParams {
-            process_id: None,
-            root_uri: None,
-            root_path: Some(root_path.display().to_string()),
-            initialization_options: None,
-            capabilities: lsp_types::ClientCapabilities {
-                workspace: None,
-                text_document: None,
-                experimental: None,
-            },
-            trace: None,
-            workspace_folders: None,
-        },
-    );
+    rls.request::<Initialize>(0, initialize_params(root_path));
 
     assert!(!rls.messages().iter().any(is_notification_for_unknown_config));
     assert!(!rls.messages().iter().any(is_notification_for_duplicated_config));
@@ -1407,4 +1386,888 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
     }
 
     rls.shutdown();
+}
+
+#[test]
+fn client_shutdown() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_goto_def() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let result = rls.request::<GotoDefinition>(
+        11,
+        TextDocumentPositionParams {
+            position: Position { line: 12, character: 27 },
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            },
+        },
+    );
+
+    let ranges: Vec<_> = result
+        .into_iter()
+        .flat_map(|x| match x {
+            GotoDefinitionResponse::Scalar(loc) => vec![loc].into_iter(),
+            GotoDefinitionResponse::Array(locs) => locs.into_iter(),
+            _ => unreachable!(),
+        })
+        .map(|x| x.range)
+        .collect();
+
+    assert!(ranges.iter().any(|r| r.start == Position { line: 11, character: 8 }));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_hover() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let result = rls
+        .request::<HoverRequest>(
+            11,
+            TextDocumentPositionParams {
+                position: Position { line: 12, character: 27 },
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+            },
+        )
+        .unwrap();
+
+    let contents = ["&str", "let world = \"world\";"];
+    let mut contents: Vec<_> = contents.iter().map(ToString::to_string).collect();
+    let contents =
+        contents.drain(..).map(|value| LanguageString { language: "rust".to_string(), value });
+    let contents = contents.map(MarkedString::LanguageString).collect();
+
+    assert_eq!(result.contents, HoverContents::Array(contents));
+
+    rls.shutdown();
+}
+
+/// Test hover continues to work after the source has moved line
+#[ignore] // FIXME(#1265): Spurious failure - sometimes we lose the semantic information from Rust - why?
+#[test]
+fn client_hover_after_src_line_change() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": {"racer_completion": false } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    rls.wait_for_indexing();
+
+    let world_src_pos = Position { line: 12, character: 27 };
+    let world_src_pos_after = Position { line: 13, character: 27 };
+
+    let result = rls
+        .request::<HoverRequest>(
+            11,
+            TextDocumentPositionParams {
+                position: world_src_pos,
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+            },
+        )
+        .unwrap();
+
+    let contents = ["&str", "let world = \"world\";"];
+    let contents: Vec<_> = contents
+        .iter()
+        .map(|value| LanguageString { language: "rust".to_string(), value: value.to_string() })
+        .map(MarkedString::LanguageString)
+        .collect();
+
+    assert_eq!(result.contents, HoverContents::Array(contents.clone()));
+
+    rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: Position { line: 10, character: 15 },
+                end: Position { line: 10, character: 15 },
+            }),
+            range_length: Some(0),
+            text: "\n    ".to_string(),
+        }],
+        text_document: VersionedTextDocumentIdentifier {
+            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            version: Some(2),
+        },
+    });
+
+    rls.wait_for_indexing();
+
+    let result = rls
+        .request::<HoverRequest>(
+            11,
+            TextDocumentPositionParams {
+                position: world_src_pos_after,
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+            },
+        )
+        .unwrap();
+
+    assert_eq!(result.contents, HoverContents::Array(contents));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_workspace_symbol() {
+    let p =
+        ProjectBuilder::try_from_fixture(fixtures_dir().join("workspace_symbol")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": { "cfg_test": true } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    rls.wait_for_indexing();
+
+    let symbols = rls
+        .request::<WorkspaceSymbol>(42, WorkspaceSymbolParams { query: "nemo".to_owned() })
+        .unwrap();
+
+    let mut nemos = vec![
+        ("src/main.rs", "nemo", SymbolKind::Function, 1, 11, 1, 15, Some("x")),
+        ("src/foo.rs", "nemo", SymbolKind::Module, 0, 4, 0, 8, Some("foo")),
+    ];
+
+    for (file, name, kind, start_l, start_c, end_l, end_c, container_name) in nemos.drain(..) {
+        let sym = SymbolInformation {
+            name: name.to_string(),
+            kind,
+            container_name: container_name.map(ToString::to_string),
+            location: Location {
+                uri: Url::from_file_path(p.root().join(file)).unwrap(),
+                range: Range {
+                    start: Position { line: start_l, character: start_c },
+                    end: Position { line: end_l, character: end_c },
+                },
+            },
+            deprecated: None,
+        };
+        dbg!(&sym);
+        assert!(symbols.iter().any(|s| *s == sym));
+    }
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_workspace_symbol_duplicates() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("workspace_symbol_duplicates"))
+        .unwrap()
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": { "cfg_test": true } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    rls.wait_for_indexing();
+
+    let symbols = rls
+        .request::<WorkspaceSymbol>(42, WorkspaceSymbolParams { query: "Frobnicator".to_owned() })
+        .unwrap();
+
+    let symbol = SymbolInformation {
+        name: "Frobnicator".to_string(),
+        kind: SymbolKind::Struct,
+        container_name: Some("a".to_string()),
+        location: Location {
+            uri: Url::from_file_path(p.root().join("src/shared.rs")).unwrap(),
+            range: Range {
+                start: Position { line: 1, character: 7 },
+                end: Position { line: 1, character: 18 },
+            },
+        },
+        deprecated: None,
+    };
+
+    assert_eq!(symbols, vec![symbol]);
+
+    rls.shutdown();
+}
+
+#[ignore] // FIXME(#1265): This is spurious (we don't pick up reference under #[cfg(test)])-ed code - why?
+#[test]
+fn client_find_all_refs_test() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": {"all_targets": true } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    rls.wait_for_indexing();
+
+    let result = rls
+        .request::<References>(
+            42,
+            ReferenceParams {
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+                position: Position { line: 0, character: 7 },
+                context: ReferenceContext { include_declaration: true },
+            },
+        )
+        .unwrap();
+
+    let ranges = [((0, 7), (0, 10)), ((6, 14), (6, 17)), ((14, 15), (14, 18))];
+    for ((sl, sc), (el, ec)) in &ranges {
+        let range = Range {
+            start: Position { line: *sl, character: *sc },
+            end: Position { line: *el, character: *ec },
+        };
+
+        dbg!(range);
+        assert!(result.iter().any(|x| x.range == range));
+    }
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_find_all_refs_no_cfg_test() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("find_all_refs_no_cfg_test"))
+        .unwrap()
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": { "all_targets": false } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    rls.wait_for_indexing();
+
+    let result = rls
+        .request::<References>(
+            42,
+            ReferenceParams {
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+                position: Position { line: 0, character: 7 },
+                context: ReferenceContext { include_declaration: true },
+            },
+        )
+        .unwrap();
+
+    let ranges = [((0, 7), (0, 10)), ((13, 15), (13, 18))];
+    for ((sl, sc), (el, ec)) in &ranges {
+        let range = Range {
+            start: Position { line: *sl, character: *sc },
+            end: Position { line: *el, character: *ec },
+        };
+
+        dbg!(range);
+        assert!(result.iter().any(|x| x.range == range));
+    }
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_borrow_error() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("borrow_error")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag = rls.wait_for_diagnostics();
+
+    let msg = "cannot borrow `x` as mutable more than once at a time";
+    assert!(diag.diagnostics.iter().any(|diag| diag.message.contains(msg)));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_highlight() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let result = rls
+        .request::<DocumentHighlightRequest>(
+            42,
+            TextDocumentPositionParams {
+                position: Position { line: 12, character: 27 },
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+            },
+        )
+        .unwrap();
+
+    let ranges = [((11, 8), (11, 13)), ((12, 27), (12, 32))];
+    for ((sl, sc), (el, ec)) in &ranges {
+        let range = Range {
+            start: Position { line: *sl, character: *sc },
+            end: Position { line: *el, character: *ec },
+        };
+
+        dbg!(range);
+        assert!(result.iter().any(|x| x.range == range));
+    }
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_rename() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let result = rls
+        .request::<Rename>(
+            42,
+            RenameParams {
+                position: Position { line: 12, character: 27 },
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+                new_name: "foo".to_owned(),
+            },
+        )
+        .unwrap();
+
+    dbg!(&result);
+
+    let uri = Url::from_file_path(p.root().join("src/main.rs")).unwrap();
+    let ranges = [((11, 8), (11, 13)), ((12, 27), (12, 32))];
+    let ranges = ranges
+        .iter()
+        .map(|((sl, sc), (el, ec))| Range {
+            start: Position { line: *sl, character: *sc },
+            end: Position { line: *el, character: *ec },
+        })
+        .map(|range| TextEdit { range, new_text: "foo".to_string() });
+
+    let changes = std::iter::once((uri, ranges.collect())).collect();
+
+    assert_eq!(result.changes, Some(changes));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_reformat() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("reformat")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let result = rls.request::<Formatting>(
+        42,
+        DocumentFormattingParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            },
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                properties: Default::default(),
+            },
+        },
+    );
+
+    assert_eq!(result.unwrap()[0], TextEdit {
+        range: Range {
+            start: Position { line: 0, character: 0 },
+            end: Position { line: 12, character: 0 },
+        },
+        new_text: "// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}\n".to_string(),
+    });
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_reformat_with_range() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("reformat_with_range"))
+        .unwrap()
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let result = rls.request::<RangeFormatting>(
+        42,
+        DocumentRangeFormattingParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            },
+            range: Range {
+                start: Position { line: 12, character: 0 },
+                end: Position { line: 13, character: 0 },
+            },
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                properties: Default::default(),
+            },
+        },
+    );
+
+    let newline = if cfg!(windows) { "\r\n" } else { "\n" };
+    let formatted = "// Copyright 2017 The Rust Project Developers. See the COPYRIGHT\n// file at the top-level directory of this distribution and at\n// http://rust-lang.org/COPYRIGHT.\n//\n// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or\n// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license\n// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your\n// option. This file may not be copied, modified, or distributed\n// except according to those terms.\n\npub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"
+        .replace("\n", newline);
+
+    assert_eq!(result.unwrap()[0].new_text, formatted);
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_multiple_binaries() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("multiple_bins")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": { "build_bin": "bin2" } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    rls.wait_for_indexing();
+
+    {
+        let msgs = rls.messages();
+        let diags = msgs
+            .iter()
+            .filter(|x| x["method"] == PublishDiagnostics::METHOD)
+            .flat_map(|msg| msg["params"]["diagnostics"].as_array().unwrap())
+            .map(|diag| diag["message"].as_str().unwrap())
+            .collect::<Vec<&str>>();
+
+        for i in 1..3 {
+            let msg = &format!("unused variable: `bin_name{}`", i);
+            assert!(diags.iter().any(|message| message.starts_with(msg)));
+        }
+    }
+
+    rls.shutdown();
+}
+
+#[ignore] // Requires `rust-src` component, which isn't available in Rust CI.
+#[test]
+fn client_completion() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let text_document =
+        TextDocumentIdentifier { uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap() };
+
+    let completions = |x: CompletionResponse| match x {
+        CompletionResponse::Array(items) => items,
+        CompletionResponse::List(CompletionList { items, .. }) => items,
+    };
+
+    macro_rules! item_eq {
+        ($item:expr, $expected:expr) => {{
+            let (label, kind, detail) = $expected;
+            ($item.label == *label && $item.kind == *kind && $item.detail == *detail)
+        }};
+    }
+
+    let expected = [
+        // FIXME(https://github.com/rust-lang/rls/issues/1205) - empty "     " string
+        ("world", &Some(CompletionItemKind::Variable), &Some("let world = \"     \";".to_string())),
+        ("x", &Some(CompletionItemKind::Field), &Some("x: u64".to_string())),
+    ];
+
+    let result = rls.request::<Completion>(
+        11,
+        CompletionParams {
+            text_document: text_document.clone(),
+            position: Position { line: 12, character: 30 },
+            context: None,
+        },
+    );
+    let items = completions(result.unwrap());
+    assert!(items.iter().any(|item| item_eq!(item, expected[0])));
+    let result = rls.request::<Completion>(
+        11,
+        CompletionParams {
+            text_document: text_document.clone(),
+            position: Position { line: 15, character: 30 },
+            context: None,
+        },
+    );
+    let items = completions(result.unwrap());
+    assert!(items.iter().any(|item| item_eq!(item, expected[1])));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_bin_lib_project() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("bin_lib")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": { "cfg_test": true, "build_bin": "bin_lib" } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    let diag: PublishDiagnosticsParams = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("bin_lib/tests/tests.rs"));
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
+    assert!(diag.diagnostics[0].message.contains("unused variable: `unused_var`"));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_infer_lib() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("infer_lib")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    let diag = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("src/lib.rs"));
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
+    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedLib`"));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_omit_init_build() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    const ID: u64 = 1337;
+    let response = rls.future_msg(|msg| msg["id"] == json!(ID));
+
+    let opts = json!({ "omitInitBuild": true });
+    rls.request::<Initialize>(ID, initialize_params_with_opts(root_path, opts));
+
+    // We need to assert that no other messages are received after a short
+    // period of time (e.g. no build progress messages).
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    rls.block_on(response).unwrap();
+
+    assert_eq!(rls.messages().iter().count(), 1);
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_find_impls() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("find_impls")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    let uri = Url::from_file_path(p.root().join("src/main.rs")).unwrap();
+
+    let locations = |result: Option<GotoDefinitionResponse>| match result.unwrap() {
+        GotoDefinitionResponse::Scalar(loc) => vec![loc],
+        GotoDefinitionResponse::Array(locations) => locations,
+        GotoDefinitionResponse::Link(mut links) => {
+            links.drain(..).map(|l| Location { uri: l.target_uri, range: l.target_range }).collect()
+        }
+    };
+
+    let result = rls.request::<GotoImplementation>(
+        1,
+        TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(uri.clone()),
+            position: Position { line: 12, character: 7 }, // "Bar"
+        },
+    );
+    let expected = [(18, 15, 18, 18), (19, 12, 19, 15)];
+    let expected = expected.iter().map(|(a, b, c, d)| Location {
+        uri: uri.clone(),
+        range: Range {
+            start: Position { line: *a, character: *b },
+            end: Position { line: *c, character: *d },
+        },
+    });
+    let locs = locations(result);
+    for exp in expected {
+        assert!(locs.iter().any(|x| *x == exp));
+    }
+
+    let result = rls.request::<GotoImplementation>(
+        1,
+        TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(uri.clone()),
+            position: Position { line: 15, character: 6 }, // "Super"
+        },
+    );
+    let expected = [(18, 15, 18, 18), (22, 15, 22, 18)];
+    let expected = expected.iter().map(|(a, b, c, d)| Location {
+        uri: uri.clone(),
+        range: Range {
+            start: Position { line: *a, character: *b },
+            end: Position { line: *c, character: *d },
+        },
+    });
+    let locs = locations(result);
+    for exp in expected {
+        assert!(locs.iter().any(|x| *x == exp));
+    }
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_features() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("features")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": {"features": ["bar", "baz"] } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    let diag = rls.wait_for_diagnostics();
+
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    let msg = "cannot find struct, variant or union type `Foo` in this scope";
+    assert!(diag.diagnostics[0].message.contains(msg));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_all_features() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("features")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": {"all_features": true } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    rls.wait_for_indexing();
+
+    assert_eq!(
+        rls.messages().iter().filter(|x| x["method"] == PublishDiagnostics::METHOD).count(),
+        0
+    );
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_no_default_features() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("features")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust":
+        { "no_default_features": true, "features": ["foo", "bar"] } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    let diag = rls.wait_for_diagnostics();
+
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    let msg = "cannot find struct, variant or union type `Baz` in this scope";
+    assert!(diag.diagnostics[0].message.contains(msg));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_all_targets() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("bin_lib")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({"settings": {"rust": { "cfg_test": true, "all_targets": true } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    let diag: PublishDiagnosticsParams = rls.wait_for_diagnostics();
+
+    assert!(diag.uri.as_str().ends_with("bin_lib/tests/tests.rs"));
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
+    assert!(diag.diagnostics[0].message.contains("unused variable: `unused_var`"));
+
+    rls.shutdown();
+}
+
+/// Handle receiving a notification before the `initialize` request by ignoring and
+/// continuing to run
+#[test]
+fn client_ignore_uninitialized_notification() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    rls.notify::<DidChangeConfiguration>(DidChangeConfigurationParams { settings: json!({}) });
+    rls.request::<Initialize>(0, initialize_params(root_path));
+
+    rls.wait_for_indexing();
+
+    rls.shutdown();
+}
+
+/// Handle receiving requests before the `initialize` request by returning an error response
+/// and continuing to run
+#[test]
+fn client_fail_uninitialized_request() {
+    let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("common")).unwrap().build();
+    let mut rls = p.spawn_rls_async();
+
+    const ID: u64 = 1337;
+
+    rls.request::<GotoDefinition>(
+        ID,
+        TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            },
+            position: Position { line: 0, character: 0 },
+        },
+    );
+
+    let delay = tokio_timer::Delay::new(Instant::now() + Duration::from_secs(1));
+    rls.block_on(delay).unwrap();
+
+    let err = jsonrpc_core::Failure::deserialize(rls.messages().last().unwrap()).unwrap();
+    assert_eq!(err.id, jsonrpc_core::Id::Num(ID));
+    assert_eq!(err.error.code, jsonrpc_core::ErrorCode::ServerError(-32002));
+    assert_eq!(err.error.message, "not yet received `initialize` request");
+
+    rls.shutdown();
+}
+
+// Test that RLS can accept configuration with config keys in 4 different cases:
+// - mixedCase
+// - CamelCase
+// - snake_case
+// - kebab-case
+fn client_init_impl(convert_case: fn(&str) -> String) {
+    let p = project("config_cases")
+        .file("Cargo.toml", &basic_bin_manifest("foo"))
+        .file(
+            "src/main.rs",
+            r#"
+                struct NonCfg;
+                #[cfg(test)]
+                struct CfgTest { inner: PathBuf }
+            "#,
+        )
+        .build();
+
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+
+    let opts = json!({ "settings": { "rust": { convert_case("all_targets"): true } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
+
+    let diag = rls.wait_for_diagnostics();
+
+    assert_eq!(diag.diagnostics.len(), 1);
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    let msg = "cannot find type `PathBuf` in this scope";
+    assert!(diag.diagnostics[0].message.contains(msg));
+
+    rls.shutdown();
+}
+
+#[test]
+fn client_init_with_configuration_mixed_case() {
+    client_init_impl(heck::MixedCase::to_mixed_case);
+}
+
+#[test]
+fn client_init_with_configuration_camel_case() {
+    client_init_impl(heck::CamelCase::to_camel_case);
+}
+
+#[test]
+fn client_init_with_configuration_snake_case() {
+    client_init_impl(heck::SnakeCase::to_snake_case);
+}
+
+#[test]
+fn client_init_with_configuration_kebab_case() {
+    client_init_impl(heck::KebabCase::to_kebab_case);
+}
+
+#[test]
+fn client_parse_error_on_malformed_input() {
+    use crate::support::rls_exe;
+    use std::io::{Read, Write};
+    use std::process::{Command, Stdio};
+
+    let mut cmd = Command::new(rls_exe())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+
+    cmd.stdin.take().unwrap().write_all(b"Malformed input").unwrap();
+    let mut output = vec![];
+    cmd.stdout.take().unwrap().read_to_end(&mut output).unwrap();
+    let output = String::from_utf8(output).unwrap();
+
+    assert_eq!(output, "Content-Length: 75\r\n\r\n{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32700,\"message\":\"Parse error\"},\"id\":null}");
+
+    // Right now parse errors shutdown the RLS, which we might want to revisit
+    // to provide better fault tolerance.
+    cmd.wait().unwrap();
 }

@@ -155,8 +155,9 @@ impl RlsHandle {
             "params": params,
         }));
 
-        let msg = self.wait_for_message(move |val| val["id"] == id && val.get("result").is_some());
+        let msg = self.wait_for_message(move |val| val["id"] == id);
 
+        // TODO: Bubble up errors
         R::Result::deserialize(&msg["result"])
             .unwrap_or_else(|_| panic!("Can't deserialize results: {:?}", msg))
     }
@@ -187,7 +188,7 @@ impl RlsHandle {
 
     /// Enqueues a channel that is notified and consumed when a given predicate
     /// `f` is true for a received message.
-    fn future_msg(
+    pub fn future_msg(
         &mut self,
         f: impl Fn(&Value) -> bool + 'static,
     ) -> impl Future<Item = Value, Error = oneshot::Canceled> {
@@ -219,6 +220,7 @@ impl RlsHandle {
     }
 
     /// Blocks until the processing (building + indexing) is done by the RLS.
+    #[allow(clippy::bool_comparison)]
     pub fn wait_for_indexing(&mut self) {
         self.wait_for_message(|msg| {
             msg["params"]["title"] == "Indexing" && msg["params"]["done"] == true
