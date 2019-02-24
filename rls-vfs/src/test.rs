@@ -216,7 +216,7 @@ fn test_user_data(with_len: bool) {
     assert_eq!(
         vfs.with_user_data(&Path::new("foo"), |u| {
             assert_eq!(*u.unwrap().1, 43);
-            Err(Error::BadLocation): Result<(), Error>
+            Result::Err::<(), Error>(Error::BadLocation)
         }),
         Err(Error::BadLocation)
     );
@@ -237,7 +237,9 @@ fn test_user_data(with_len: bool) {
     // Compute (clear) and read data.
     vfs.set_user_data(&Path::new("foo"), Some(42)).unwrap();
     assert_eq!(
-        vfs.with_user_data(&Path::new("foo"), |_| Err(Error::NoUserDataForFile): Result<(), Error>),
+        vfs.with_user_data(&Path::new("foo"), |_| Result::Err::<(), Error>(
+            Error::NoUserDataForFile
+        )),
         Err(Error::NoUserDataForFile)
     );
     vfs.with_user_data(&Path::new("foo"), |u| {
