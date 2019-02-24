@@ -42,7 +42,7 @@ use self::rustc_driver::{run, run_compiler, CompilerCalls, RustcDefaultCalls};
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::rustc::session::Session;
-use self::rustc::session::config::{self, ErrorOutputType, Input};
+use self::rustc::session::config::Input;
 use self::syntax::source_map::{FileLoader, RealFileLoader};
 use self::syntax::edition::Edition as RustcEdition;
 
