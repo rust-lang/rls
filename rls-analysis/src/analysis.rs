@@ -19,7 +19,7 @@ use {Id, Span, SymbolQuery};
 /// such as definitions, their mapping between spans, hierarchy and so on,
 /// organized in a per-crate fashion.
 #[derive(Debug)]
-crate struct Analysis {
+pub(crate) struct Analysis {
     /// Contains lowered data with global inter-crate `Id`s per each crate.
     pub per_crate: HashMap<CrateId, PerCrateAnalysis>,
 
@@ -30,10 +30,10 @@ crate struct Analysis {
     //
     // In the future we should handle imports, in particular aliasing ones, more
     // explicitly and then this can be removed.
-    crate aliased_imports: HashSet<Id>,
+    pub(crate) aliased_imports: HashSet<Id>,
 
     // Maps a crate names to the crate ids for all crates with that name.
-    crate crate_names: HashMap<String, Vec<CrateId>>,
+    pub(crate) crate_names: HashMap<String, Vec<CrateId>>,
 
     pub doc_url_base: String,
     pub src_url_base: String,
@@ -156,7 +156,7 @@ impl PerCrateAnalysis {
 
     // Returns true if there is a def in this crate with the same crate-local id
     // and span as `def`.
-    crate fn has_congruent_def(&self, local_id: u32, span: &Span) -> bool {
+    pub(crate) fn has_congruent_def(&self, local_id: u32, span: &Span) -> bool {
         let id = Id::from_crate_and_local(self.global_crate_num, local_id);
         match self.defs.get(&id) {
             Some(existing) => span == &existing.span,

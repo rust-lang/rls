@@ -6,9 +6,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![feature(type_ascription)]
-#![feature(crate_visibility_modifier)]
-
 #[macro_use]
 extern crate derive_new;
 #[macro_use]
@@ -400,7 +397,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
                         .unwrap_or_else(Vec::new)
                         .into_iter()
                     })
-                    .collect(): Vec<Span>
+                    .collect::<Vec<Span>>()
             }))
         });
 

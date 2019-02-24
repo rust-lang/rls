@@ -223,11 +223,9 @@ impl Config {
             let seq = serde::de::value::MapDeserializer::new(map.iter().filter_map(|(k, v)| {
                 use heck::SnakeCase;
                 let snake_case = k.to_snake_case();
-                let (_, ref mut vec) = dups
-                    .raw_entry_mut()
-                    .from_key(&snake_case)
-                    .or_insert(snake_case.clone(), vec![]);
+                let vec = dups.entry(snake_case.clone()).or_default();
                 vec.push(k.to_string());
+
                 if vec.len() == 1 {
                     Some((snake_case, JsonValue(v.to_owned().clone())))
                 } else {
