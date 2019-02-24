@@ -1,5 +1,4 @@
 #![feature(rustc_private)]
-#![feature(box_syntax)]
 
 extern crate env_logger;
 extern crate getopts;

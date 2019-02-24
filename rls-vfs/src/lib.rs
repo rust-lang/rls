@@ -1,5 +1,3 @@
-#![feature(type_ascription)]
-
 extern crate rls_span as span;
 #[macro_use]
 extern crate log;
