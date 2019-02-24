@@ -1,12 +1,13 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::env;
+use std::ffi::OsString;
+use std::fmt::{self, Write};
+use std::fs::{read_dir, remove_file};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
 use cargo::core::resolver::ResolveError;
@@ -19,6 +20,9 @@ use cargo::util::{
     ConfigValue, ProcessBuilder,
 };
 use failure::{self, format_err, Fail};
+use log::{debug, trace, warn};
+use rls_data::Analysis;
+use rls_vfs::Vfs;
 use serde_json;
 
 use crate::actions::progress::ProgressUpdate;
@@ -28,20 +32,6 @@ use crate::build::plan::{BuildPlan, Crate};
 use crate::build::{BufWriter, BuildResult, CompilationContext, Internals, PackageArg};
 use crate::config::Config;
 use crate::lsp_data::{Position, Range};
-use log::{debug, trace, warn};
-use rls_data::Analysis;
-use rls_vfs::Vfs;
-
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::env;
-use std::ffi::OsString;
-use std::fmt::{self, Write};
-use std::fs::{read_dir, remove_file};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
-use std::thread;
 
 // Runs an in-process instance of Cargo.
 pub(super) fn cargo(
@@ -114,8 +104,8 @@ fn run_cargo(
     progress_sender: Sender<ProgressUpdate>,
 ) -> Result<PathBuf, failure::Error> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
-    // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
-    // during exec() callback when calling linked compiler in parallel, for which we need to
+    // Additionally we need to pass inner lock to `RlsExecutor`, since it needs to hand it down
+    // during `exec()` callback when calling linked compiler in parallel, for which we need to
     // guarantee consistent environment variables.
     let (lock_guard, inner_lock) = env_lock.lock();
     let restore_env = Environment::push_with_lock(&HashMap::new(), None, lock_guard);
@@ -181,8 +171,8 @@ fn run_cargo_ws(
         PackageArg::Packages(pkgs) => (false, pkgs.into_iter().collect()),
     };
 
-    // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
-    // it on every relevant configuration change
+    // TODO: it might be feasible to keep this `CargoOptions` structure cached and regenerate
+    // it on every relevant configuration change.
     let (opts, rustflags, clear_env_rust_log, cfg_test) = {
         // We mustn't lock configuration for the whole build process
         let rls_config = rls_config.lock().unwrap();
@@ -193,7 +183,9 @@ fn run_cargo_ws(
 
         for package in &packages {
             if ws.members().find(|x| *x.name() == *package).is_none() {
-                warn!("cargo - couldn't find member package `{}` specified in `analyze_package` configuration", package);
+                warn!("couldn't find member package `{}` specified in `analyze_package` \
+                       configuration",
+                      package);
             }
         }
 
@@ -204,9 +196,9 @@ fn run_cargo_ws(
 
     let pkg_names =
         spec.to_package_id_specs(&ws)?.iter().map(|pkg_spec| pkg_spec.name().to_owned()).collect();
-    trace!("Specified packages to be built by Cargo: {:#?}", pkg_names);
+    trace!("specified packages to be built by Cargo: {:#?}", pkg_names);
 
-    // Since Cargo build routine will try to regenerate the unit dep graph,
+    // Since the Cargo build routine will try to regenerate the unit dep graph,
     // we need to clear the existing dep graph.
     compilation_cx.lock().unwrap().build_plan =
         BuildPlan::Cargo(CargoPlan::with_packages(manifest_path, pkg_names));
@@ -217,9 +209,10 @@ fn run_cargo_ws(
             opts.lib,
             opts.bin,
             opts.bins,
-            // TODO: Support more crate target types
+            // TODO: support more crate target types.
             Vec::new(),
-            cfg_test, // Check all integration tests under tests/
+            // Check all integration tests under `tests/`.
+            cfg_test,
             Vec::new(),
             false,
             Vec::new(),
@@ -239,7 +232,7 @@ fn run_cargo_ws(
     };
 
     // Create a custom environment for running cargo, the environment is reset
-    // afterwards automatically
+    // afterwards automatically.
     restore_env.push_var("RUSTFLAGS", &Some(rustflags.into()));
 
     if clear_env_rust_log {
@@ -265,22 +258,22 @@ fn run_cargo_ws(
     match compile_with_exec(&ws, &compile_opts, &exec) {
         Ok(_) => {
             trace!(
-                "Created build plan after Cargo compilation routine: {:?}",
+                "created build plan after Cargo compilation routine: {:?}",
                 compilation_cx.lock().unwrap().build_plan
             );
         }
         Err(e) => {
             if !reached_primary.load(Ordering::SeqCst) {
-                debug!("Error running compile_with_exec: {:?}", e);
+                debug!("error running `compile_with_exec`: {:?}", e);
                 return Err(e);
             } else {
-                warn!("Ignoring error running compile_with_exec: {:?}", e);
+                warn!("ignoring error running `compile_with_exec`: {:?}", e);
             }
         }
     }
 
     if !reached_primary.load(Ordering::SeqCst) {
-        return Err(format_err!("Error compiling dependent crate"));
+        return Err(format_err!("error compiling dependent crate"));
     }
 
     Ok(compilation_cx
@@ -301,10 +294,10 @@ struct RlsExecutor {
     vfs: Arc<Vfs>,
     analysis: Arc<Mutex<Vec<Analysis>>>,
     /// Packages which are directly a member of the workspace, for which
-    /// analysis and diagnostics will be provided
+    /// analysis and diagnostics will be provided.
     member_packages: Mutex<HashSet<PackageId>>,
     input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
-    /// JSON compiler messages emitted for each primary compiled crate
+    /// JSON compiler messages emitted for each primary compiled crate.
     compiler_messages: Arc<Mutex<Vec<String>>>,
     progress_sender: Mutex<Sender<ProgressUpdate>>,
     /// Set to true if attempt to compile a primary crate. If we don't track
@@ -344,7 +337,7 @@ impl RlsExecutor {
         }
     }
 
-    /// Returns whether a given package is a primary one (every member of the
+    /// Returns `true if a given package is a primary one (every member of the
     /// workspace is considered as such). Used to determine whether the RLS
     /// should cache invocations for these packages and rebuild them on changes.
     fn is_primary_package(&self, id: PackageId) -> bool {
@@ -362,7 +355,7 @@ impl Executor for RlsExecutor {
         let plan = compilation_cx
             .build_plan
             .as_cargo_mut()
-            .expect("Build plan should be properly initialized before running Cargo");
+            .expect("build plan should be properly initialized before running Cargo");
 
         let only_primary = |unit: &Unit<'_>| self.is_primary_package(unit.pkg.package_id());
 
@@ -374,11 +367,11 @@ impl Executor for RlsExecutor {
         // workspace, even if it's not dirty at a time, to cache compiler
         // invocations in the build plan.
         // We only do a cargo build if we want to force rebuild the last
-        // crate (e.g., because some args changed). Therefore we should
+        // crate (e.g., because some args changed). Therefore, we should
         // always force rebuild the primary crate.
         let id = unit.pkg.package_id();
-        // FIXME build scripts - this will force rebuild build scripts as
-        // well as the primary crate. But this is not too bad - it means
+        // FIXME: build scripts -- this will force rebuild build scripts as
+        // well as the primary crate. But this is not too bad -- it means
         // we will rarely rebuild more than we have to.
         self.is_primary_package(id)
     }
@@ -413,7 +406,7 @@ impl Executor for RlsExecutor {
                 } else {
                     crate_name.clone()
                 }))
-                .expect("Failed to send progress update");
+                .expect("failed to send progress update");
         }
 
         let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
@@ -428,26 +421,26 @@ impl Executor for RlsExecutor {
                     && name.ends_with(".json")
                 {
                     if let Err(e) = remove_file(entry.path()) {
-                        debug!("Error deleting file, {}: {}", name, e);
+                        debug!("error deleting file, {}: {}", name, e);
                     }
                 }
             }
         }
 
         // Prepare our own call to `rustc` as follows:
-        // 1. Use $RUSTC wrapper if specified, otherwise use RLS executable
+        // 1. Use `$RUSTC` wrapper if specified, otherwise use RLS executable
         //    as an rustc shim (needed to distribute via the stable channel)
         // 2. For non-primary packages or build scripts, execute the call
         // 3. Otherwise, we'll want to use the compilation to drive the analysis:
-        //    i.  Modify arguments to account for the RLS settings (e.g.
-        //        compiling under cfg(test) mode or passing a custom sysroot)
+        //    i.  Modify arguments to account for the RLS settings (e.g.,
+        //        compiling under `cfg(test)` mode or passing a custom sysroot),
         //    ii. Execute the call and store the final args/envs to be used for
-        //        later in-process execution of the compiler
+        //        later in-process execution of the compiler.
         let mut cmd = cargo_cmd.clone();
 
         // RLS executable can be spawned in a different directory than the one
         // that Cargo was spawned in, so be sure to use absolute RLS path (which
-        // env::current_exe() returns) for the shim.
+        // `env::current_exe()` returns) for the shim.
         let rustc_shim = env::var("RUSTC")
             .ok()
             .or_else(|| env::current_exe().ok().and_then(|x| x.to_str().map(String::from)))
@@ -461,7 +454,7 @@ impl Executor for RlsExecutor {
         let envs = cargo_cmd.get_envs().clone();
 
         let sysroot = super::rustc::current_sysroot()
-            .expect("need to specify SYSROOT env var or use rustup or multirust");
+            .expect("need to specify `SYSROOT` env var or use rustup or multirust");
 
         {
             let config = self.config.lock().unwrap();
@@ -513,18 +506,18 @@ impl Executor for RlsExecutor {
 
         self.reached_primary.store(true, Ordering::SeqCst);
 
-        // Cache executed command for the build plan
+        // Cache executed command for the build plan.
         {
             let mut cx = self.compilation_cx.lock().unwrap();
             let plan = cx.build_plan.as_cargo_mut().unwrap();
             plan.cache_compiler_job(id, target, mode, &cmd);
         }
 
-        // Prepare modified cargo-generated args/envs for future rustc calls
+        // Prepare modified cargo-generated args/envs for future rustc calls.
         let rustc = cargo_cmd.get_program().to_owned().into_string().unwrap();
         args.insert(0, rustc);
 
-        // Store the modified cargo-generated args/envs for future rustc calls
+        // Store the modified cargo-generated args/envs for future rustc calls.
         {
             let mut compilation_cx = self.compilation_cx.lock().unwrap();
             compilation_cx.needs_rebuild = false;
@@ -550,7 +543,7 @@ impl Executor for RlsExecutor {
             self.compiler_messages.lock().unwrap().append(&mut messages);
             self.analysis.lock().unwrap().append(&mut analysis);
 
-            // Cache calculated input files for a given rustc invocation
+            // Cache calculated input files for a given rustc invocation.
             {
                 let mut cx = self.compilation_cx.lock().unwrap();
                 let plan = cx.build_plan.as_cargo_mut().unwrap();
@@ -629,7 +622,7 @@ fn prepare_cargo_rustflags(config: &Config) -> String {
     dedup_flags(&flags)
 }
 
-/// Construct a cargo configuration for the given build and target directories
+/// Constructs a cargo configuration for the given build and target directories
 /// and shell.
 pub fn make_cargo_config(
     build_dir: &Path,
@@ -694,14 +687,13 @@ fn parse_arg(args: &[OsString], arg: &str) -> Option<String> {
     None
 }
 
-/// `flag_str` is a string of command line args for Rust. This function removes any
-/// duplicate flags.
+/// Removes any duplicate flags from `flag_str` (a string of command line args for Rust).
 fn dedup_flags(flag_str: &str) -> String {
-    // The basic strategy here is that we split flag_str into a set of keys and
-    // values and dedup any duplicate keys, using the last value in flag_str.
+    // The basic strategy here is that we split `flag_str` into a set of keys and
+    // values and dedup any duplicate keys, using the last value in `flag_str`.
     // This is a bit complicated because of the variety of ways args can be specified.
 
-    // Retain flags order to prevent complete project rebuild due to RUSTFLAGS fingerprint change
+    // Retain flags order to prevent complete project rebuild due to `RUSTFLAGS` fingerprint change.
     let mut flags = BTreeMap::new();
     let mut bits = flag_str.split_whitespace().peekable();
 
@@ -718,8 +710,7 @@ fn dedup_flags(flag_str: &str) -> String {
 
         if bit.starts_with('-') {
             if bit.contains('=') {
-                // Split only on the first equals sign (there may be
-                // more than one)
+                // Split only on the first equals sign (there may be more than one).
                 let bits: Vec<_> = bit.splitn(2, '=').collect();
                 assert!(bits.len() == 2);
                 flags.insert(bits[0].to_owned() + "=", bits[1].to_owned());
@@ -758,7 +749,7 @@ fn dedup_flags(flag_str: &str) -> String {
 #[derive(Debug)]
 pub struct ManifestAwareError {
     cause: failure::Error,
-    /// Path to a manifest file within the project that seems the closest to the error's origin
+    /// The path to a manifest file within the project that seems the closest to the error's origin.
     nearest_project_manifest: PathBuf,
     manifest_error_range: Range,
 }
@@ -767,17 +758,17 @@ impl ManifestAwareError {
     fn new(cause: failure::Error, root_manifest: &Path, ws: Option<&Workspace<'_>>) -> Self {
         let project_dir = root_manifest.parent().unwrap();
         let mut err_path = root_manifest;
-        // cover whole manifest if we haven't any better idea.
+        // Cover whole manifest if we haven't any better idea.
         let mut err_range = Range { start: Position::new(0, 0), end: Position::new(9999, 0) };
 
         if let Some(manifest_err) = cause.downcast_ref::<ManifestError>() {
-            // Scan through any manifest errors to pin the error more precisely
+            // Scan through any manifest errors to pin the error more precisely.
             let is_project_manifest =
                 |path: &PathBuf| path.is_file() && path.starts_with(project_dir);
 
             let last_cause = manifest_err.manifest_causes().last().unwrap_or(manifest_err);
             if is_project_manifest(last_cause.manifest_path()) {
-                // manifest with the issue is inside the project
+                // Manifest with the issue is inside the project.
                 err_path = last_cause.manifest_path().as_path();
                 if let Some((line, col)) = (last_cause as &dyn Fail)
                     .iter_chain()
@@ -785,7 +776,7 @@ impl ManifestAwareError {
                     .next()
                     .and_then(|e| e.line_col())
                 {
-                    // Use toml deserialize error position
+                    // Use TOML deserializiation error position.
                     err_range.start = Position::new(line as _, col as _);
                     err_range.end = Position::new(line as _, col as u64 + 1);
                 }
@@ -795,12 +786,12 @@ impl ManifestAwareError {
                     .filter(|e| is_project_manifest(e.manifest_path()))
                     .last();
                 if let Some(nearest) = nearest_cause {
-                    // not the root cause, but the nearest manifest to it in the project
+                    // Not the root cause, but the nearest manifest to it in the project.
                     err_path = nearest.manifest_path().as_path();
                 }
             }
         } else if let (Some(ws), Some(resolve_err)) = (ws, cause.downcast_ref::<ResolveError>()) {
-            // if the resolve error leads to a workspace member we should use that manifest
+            // If the resolve error leads to a workspace member, we should use that manifest.
             if let Some(member) = resolve_err
                 .package_path()
                 .iter()
@@ -849,7 +840,7 @@ mod test {
         assert!(result.matches("foo").count() == 2);
         assert!(result.matches("bar").count() == 1);
 
-        // These should dedup.
+        // These should get deduplicated.
         assert!(dedup_flags("-Zfoo -Zfoo") == " -Zfoo");
         assert!(dedup_flags("-Zfoo -Zfoo -Zfoo") == " -Zfoo");
         let result = dedup_flags("-Zfoo -Zfoo -Zbar");

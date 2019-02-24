@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_mod.rs",
+    "line": 12,
+    "col": 14
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "pub struct First"
+      },
+      "Begin first item docs\n\nThe first item docs should not pick up the module docs."
+    ]
+  }
+}

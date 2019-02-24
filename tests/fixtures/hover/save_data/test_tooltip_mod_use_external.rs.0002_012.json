@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_mod_use_external.rs",
+    "line": 2,
+    "col": 12
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "pub struct FnvHasher"
+      },
+      "An implementation of the Fowler–Noll–Vo hash function.\n\nSee the [crate documentation](index.html) for more details."
+    ]
+  }
+}

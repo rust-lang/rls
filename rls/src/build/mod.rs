@@ -1,26 +1,4 @@
-// Copyright 2016-2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Running builds as-needed for the server to answer questions.
-
-use self::environment::EnvironmentLock;
-use self::plan::{BuildGraph, BuildPlan, WorkStatus};
-
-use crate::actions::post_build::PostBuildHandler;
-use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
-use crate::config::Config;
-use crate::lsp_data::Range;
-use failure;
-use log::{debug, info, trace};
-use rls_data::Analysis;
-use rls_vfs::Vfs;
 
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Write};
@@ -32,6 +10,17 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use failure;
+use log::{debug, info, trace};
+use rls_data::Analysis;
+use rls_vfs::Vfs;
+
+use crate::actions::post_build::PostBuildHandler;
+use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
+use crate::config::Config;
+use crate::lsp_data::Range;
+use self::environment::EnvironmentLock;
+use self::plan::{BuildGraph, BuildPlan, WorkStatus};
 pub use self::plan::{Crate, Edition};
 
 mod cargo;
@@ -70,7 +59,7 @@ mod rustc;
 #[derive(Clone)]
 pub struct BuildQueue {
     internals: Arc<Internals>,
-    // The build queue - we only have one low and one high priority build waiting.
+    // The build queue -- we only have one low and one high priority build waiting.
     // (low, high) priority builds.
     // This lock should only be held transiently.
     queued: Arc<Mutex<(Build, Build)>>,
@@ -124,7 +113,8 @@ pub enum BuildResult {
 /// Priority for a build request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildPriority {
-    /// Run this build as soon as possible (e.g., on save or explicit build request) (not currently used).
+    /// Run this build as soon as possible (e.g., on save or explicit build request).
+    /// (Not currently used.)
     Immediate,
     /// Immediate, plus re-run Cargo.
     Cargo,
@@ -147,7 +137,7 @@ struct CompilationContext {
     cwd: Option<PathBuf>,
     /// The build directory is supplied by the client and passed to Cargo.
     build_dir: Option<PathBuf>,
-    /// Whether needs to perform a Cargo rebuild
+    /// `true` if we need to perform a Cargo rebuild.
     needs_rebuild: bool,
     /// Build plan, which should know all the inter-package/target dependencies
     /// along with args/envs.
@@ -203,7 +193,7 @@ impl Build {
         }
     }
 
-    // True if the build is waiting and where it should be impossible for one to
+    // Returns `true` if the build is waiting and where it should be impossible for one to
     // be in progress.
     fn is_pending_fresh(&self) -> bool {
         match *self {
@@ -222,7 +212,7 @@ impl Build {
 }
 
 impl BuildQueue {
-    /// Construct a new build queue.
+    /// Constructs a new build queue.
     pub fn new(vfs: Arc<Vfs>, config: Arc<Mutex<Config>>) -> BuildQueue {
         BuildQueue {
             internals: Arc::new(Internals::new(vfs, config)),
@@ -253,7 +243,7 @@ impl BuildQueue {
     /// ## Implementation
     ///
     /// This layer of the build queue is single-threaded and we aim to return
-    /// quickly.  A single build thread is spawned to do any building (we never
+    /// quickly. A single build thread is spawned to do any building (we never
     /// do parallel builds so that we don't hog the CPU, we might want to change
     /// that in the future).
     ///
@@ -296,7 +286,7 @@ impl BuildQueue {
         }
     }
 
-    /// Block until any currently queued builds are complete.
+    /// Blocks until any currently queued builds are complete.
     ///
     /// Since an incoming build can squash a pending or executing one, we wait
     /// for all builds to complete, i.e., if any build is running when called,
@@ -317,7 +307,7 @@ impl BuildQueue {
         }
     }
 
-    /// Essentially this is !'would_block' (see `block_on_build`). If this is
+    /// Essentially this is the opposite of 'would block' (see `block_on_build`). If this is
     /// true, then it is safe to rely on data from the build.
     pub fn build_ready(&self) -> bool {
         !self.internals.building.load(Ordering::SeqCst)
@@ -384,17 +374,17 @@ impl BuildQueue {
                 }
             }
 
-            // channel to get progress updates out for the async build
+            // Channel to get progress updates out for the async build.
             let (progress_sender, progress_receiver) = channel::<ProgressUpdate>();
 
-            // notifier of window/progress
+            // Notifier of window/progress.
             let notifier = build.notifier;
 
-            // use this thread to propagate the progress messages until the sender is dropped.
+            // Use this thread to propagate the progress messages until the sender is dropped.
             let progress_thread = thread::Builder::new()
                 .name("progress-notifier".into())
                 .spawn(move || {
-                    // window/progress notification that we are about to build
+                    // Window/progress notification that we are about to build.
                     notifier.notify_begin_progress();
                     while let Ok(progress) = progress_receiver.recv() {
                         notifier.notify_progress(progress);
@@ -507,7 +497,7 @@ impl Internals {
         // changing project), we must do a cargo build of the whole project.
         // Otherwise we just use rustc directly.
         //
-        // The 'full cargo build' is a `cargo check` customised and run
+        // The 'full Cargo build' is a `cargo check` customised and run
         // in-process. Cargo will shell out to call rustc (this means the
         // the compiler available at runtime must match the compiler linked to
         // the RLS). All but the last crate are built as normal, we intercept
@@ -520,7 +510,7 @@ impl Internals {
         // disk).
 
         // If the build plan has already been cached, use it, unless Cargo
-        // has to be specifically rerun (e.g. when build scripts changed)
+        // has to be specifically rerun (e.g., when build scripts changed).
         let work = {
             let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
 
@@ -540,19 +530,19 @@ impl Internals {
                             cx.build_plan = BuildPlan::External(plan);
                             // Since we don't support diagnostics in external
                             // builds it might be worth rerunning the commands
-                            // ourselves again to get both analysis *and* diagnostics
+                            // ourselves again to get both analysis *and* diagnostics.
                             return result;
                         }
                     },
                 }
-            // Fall back to Cargo
+            // Fall back to Cargo.
             } else {
-                // Cargo plan is recreated and `needs_rebuild` reset if we run cargo::cargo().
+                // Cargo plan is recreated and `needs_rebuild` reset if we run `cargo::cargo()`.
                 match cx.build_plan {
                     BuildPlan::External(_) => WorkStatus::NeedsCargo(PackageArg::Default),
                     BuildPlan::Cargo(ref plan) => {
                         match plan.prepare_work(&modified) {
-                            // Don't reuse the plan if we need to rebuild
+                            // Don't reuse the plan if we need to rebuild.
                             WorkStatus::Execute(_) if needs_rebuild => {
                                 WorkStatus::NeedsCargo(PackageArg::Default)
                             }
@@ -562,7 +552,7 @@ impl Internals {
                 }
             }
         };
-        trace!("Specified work: {:#?}", work);
+        trace!("specified work: {:#?}", work);
 
         let result = match work {
             WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
@@ -580,8 +570,7 @@ impl Internals {
 
     /// Returns a pre-build wait time facilitating build debouncing.
     ///
-    /// Uses client configured value, or attempts to infer an appropriate
-    /// duration.
+    /// Uses client configured value, or attempts to infer an appropriate duration.
     fn build_wait(&self) -> Duration {
         self.config.lock().unwrap().wait_to_build.map(Duration::from_millis).unwrap_or_else(|| {
             match *self.last_build_duration.read().unwrap() {
@@ -616,22 +605,22 @@ impl Write for BufWriter {
 fn auto_tune_build_wait_no_config() {
     let i = Internals::new(Arc::new(Vfs::new()), Arc::default());
 
-    // Pessimistic if no information
+    // Pessimistic if no information.
     assert_eq!(i.build_wait(), Duration::from_millis(1500));
 
-    // very fast builds like hello world
+    // Very fast builds like hello world.
     *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(70));
     assert_eq!(i.build_wait(), Duration::from_millis(0));
 
-    // pretty fast builds should have a minimally impacting debounce for typing
+    // Somewhat fast builds should have a minimally impacting debounce for typing.
     *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(850));
     assert_eq!(i.build_wait(), Duration::from_millis(200));
 
-    // medium builds should have a medium debounce time
+    // Medium builds should have a medium debounce time.
     *i.last_build_duration.write().unwrap() = Some(Duration::from_secs(4));
     assert_eq!(i.build_wait(), Duration::from_millis(500));
 
-    // slow builds ... lets wait just a bit longer, maybe they'll type something else?
+    // Slow builds. Lets wait just a bit longer, maybe they'll type something else?
     *i.last_build_duration.write().unwrap() = Some(Duration::from_secs(12));
     assert_eq!(i.build_wait(), Duration::from_millis(1500));
 }
@@ -641,7 +630,7 @@ fn dont_auto_tune_build_wait_configured() {
     let i = Internals::new(Arc::new(Vfs::new()), Arc::default());
     i.config.lock().unwrap().wait_to_build = Some(350);
 
-    // Always use configured build wait if available
+    // Always use configured build wait if available.
     assert_eq!(i.build_wait(), Duration::from_millis(350));
 
     *i.last_build_duration.write().unwrap() = Some(Duration::from_millis(70));

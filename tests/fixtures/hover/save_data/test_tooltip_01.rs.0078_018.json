@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 78,
+    "col": 18
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "pub struct Tuple(pub u32, _)"
+      },
+      "Tuple struct"
+    ]
+  }
+}

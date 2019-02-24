@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_mod_use.rs",
+    "line": 3,
+    "col": 28
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "src/test_tooltip_mod.rs"
+      },
+      "Submodule first line\n\nMauris vel lobortis lacus, in condimentum dolor.\n\nSubmodule last line"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 76,
+    "col": 7
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "test_tooltip_01::Bar<f64>"
+      },
+      {
+        "language": "rust",
+        "value": "let mut bar = Bar::new(Tuple(3, 1.0), 2.0, Foo::Bar);"
+      }
+    ]
+  }
+}

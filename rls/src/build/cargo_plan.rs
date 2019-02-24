@@ -1,13 +1,3 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! This contains a build plan that is created during the Cargo build routine
 //! and stored afterwards, which can be later queried, given a list of dirty
 //! files, to retrieve a queue of compiler calls to be invoked (including
@@ -41,8 +31,8 @@ use crate::build::rustc::src_path;
 use crate::build::PackageArg;
 
 /// Main key type by which `Unit`s will be distinguished in the build plan.
-/// In Target we're mostly interested in TargetKind (Lib, Bin, ...) and name
-/// (e.g. we can have 2 binary targets with different names).
+/// In `Target` we're mostly interested in `TargetKind` (Lib, Bin, ...) and name
+/// (e.g., we can have 2 binary targets with different names).
 pub(crate) type UnitKey = (PackageId, Target, CompileMode);
 
 /// Holds the information how exactly the build will be performed for a given
@@ -77,13 +67,13 @@ impl CargoPlan {
         CargoPlan { built_packages: pkgs, ..Self::with_manifest(manifest_path) }
     }
 
-    /// Returns whether a build plan has cached compiler invocations and dep
-    /// graph so it's at all able to return a job queue via `prepare_work`.
+    /// Returns `true` if a build plan has cached compiler invocations and dep
+    /// graph, so it's possibly able to return a job queue via `prepare_work`.
     pub(crate) fn is_ready(&self) -> bool {
         !self.compiler_jobs.is_empty()
     }
 
-    /// Cache a given compiler invocation in `ProcessBuilder` for a given
+    /// Caches a given compiler invocation in `ProcessBuilder` for a given
     /// `PackageId` and `TargetKind` in `Target`, to be used when processing
     /// cached build plan.
     pub(crate) fn cache_compiler_job(
@@ -120,7 +110,7 @@ impl CargoPlan {
         let unit_key = (id, target.clone(), mode);
         trace!("Caching these files: {:#?} for {:?} key", &input_files, &unit_key);
 
-        // Create reverse file -> unit mapping (to be used for dirty unit calculation)
+        // Create reverse file -> unit mapping (to be used for dirty unit calculation).
         for file in &input_files {
             self.file_key_mapping.entry(file.to_path_buf()).or_default().insert(unit_key.clone());
         }
@@ -128,7 +118,7 @@ impl CargoPlan {
         self.input_files.insert(unit_key, input_files);
     }
 
-    /// Emplace a given `Unit`, along with its `Unit` dependencies (recursively)
+    /// Places a given `Unit`, along with its `Unit` dependencies (recursively)
     /// into the dependency graph as long as the passed `Unit` isn't filtered
     /// out by the `filter` closure.
     pub(crate) fn emplace_dep_with_filter<Filter>(
@@ -184,10 +174,10 @@ impl CargoPlan {
         }
     }
 
-    /// TODO: Improve detecting dirty crate targets for a set of dirty file paths.
+    /// TODO: improve detecting dirty crate targets for a set of dirty file paths.
     /// This uses a lousy heuristic of checking path prefix for a given crate
     /// target to determine whether a given unit (crate target) is dirty. This
-    /// can easily backfire, e.g. when build script is under src/. Any change
+    /// can easily backfire, e.g., when build script is under `src/`. Any change
     /// to a file under src/ would imply the build script is always dirty, so we
     /// never do work and always offload to Cargo in such case.
     /// Because of that, build scripts are checked separately and only other
@@ -234,7 +224,7 @@ impl CargoPlan {
                         .take_while(|&(x, y)| x == y)
                         .count()
                 };
-                // Since a package can correspond to many units (e.g. compiled
+                // Since a package can correspond to many units (e.g., compiled
                 // as a regular binary or a test harness for unit tests), we
                 // collect every unit having the longest path prefix.
                 let max_matching_prefix = other_targets
@@ -267,7 +257,7 @@ impl CargoPlan {
     fn transitive_dirty_units(&self, dirties: &HashSet<UnitKey>) -> HashSet<UnitKey> {
         let mut transitive = dirties.clone();
         // Walk through a rev dep graph using a stack of nodes to collect
-        // transitively every dirty node
+        // transitively every dirty node.
         let mut to_process: Vec<_> = dirties.iter().cloned().collect();
         while let Some(top) = to_process.pop() {
             if transitive.get(&top).is_some() {
@@ -275,7 +265,7 @@ impl CargoPlan {
             }
             transitive.insert(top.clone());
 
-            // Process every dirty rev dep of the processed node
+            // Process every dirty rev dep of the processed node.
             let dirty_rev_deps = self
                 .rev_dep_graph
                 .get(&top)
@@ -299,9 +289,9 @@ impl CargoPlan {
 
         self.rev_dep_graph
             .iter()
-            // Remove nodes that are not dirty
+            // Remove nodes that are not dirty.
             .filter(|&(unit, _)| dirties.contains(unit))
-            // Retain only dirty dependencies of the ones that are dirty
+            // Retain only dirty dependencies of the ones that are dirty.
             .map(|(k, deps)| {
                 (k.clone(), deps.iter().cloned().filter(|d| dirties.contains(d)).collect())
             })
@@ -355,7 +345,7 @@ impl CargoPlan {
         let needed_packages = self.built_packages.union(&dirty_packages).cloned().collect();
 
         // We modified a file from a packages, that are not included in the
-        // cached build plan - run Cargo to recreate the build plan including them
+        // cached build plan -- run Cargo to recreate the build plan including them.
         if needs_more_packages {
             return WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages));
         }
@@ -380,7 +370,7 @@ impl CargoPlan {
 
             // It is possible that we want a job which is not in our cache (compiler_jobs),
             // for example we might be building a workspace with an error in a crate and later
-            // crates within the crate that depend on the error-ing one have never been built.
+            // crates within the crate that depend on the erroring one have never been built.
             // In that case we need to build from scratch so that everything is in our cache, or
             // we cope with the error. In the error case, jobs will be None.
             match jobs {
@@ -417,7 +407,7 @@ impl PackageMap {
         }
     }
 
-    // Find each package in the workspace and record the root directory and package name.
+    // Finds each package in the workspace and record the root directory and package name.
     fn discover_package_paths(manifest_path: &Path) -> HashMap<PathBuf, String> {
         trace!("read metadata {:?}", manifest_path);
         cargo_metadata::MetadataCommand::new()
@@ -440,7 +430,7 @@ impl PackageMap {
         modified_files.iter().filter_map(|p| self.map(p.as_ref())).collect()
     }
 
-    // Map a file to the package which it belongs to.
+    // Maps a file to the package which it belongs to.
     // We do this by walking up the directory tree from `path` until we get to
     // one of the recorded package root directories.
     fn map(&self, path: &Path) -> Option<String> {
@@ -526,9 +516,9 @@ impl BuildGraph for CargoPlan {
 
     fn add<T: Into<Self::Unit>>(&mut self, unit: T, deps: Vec<T>) {
         let unit = unit.into();
-        // Units can depend on others with different Targets or Profiles
-        // (e.g. different `run_custom_build`) despite having the same UnitKey.
-        // We coalesce them here while creating the UnitKey dep graph.
+        // Units can depend on others with different `Target`s or `Profile`s
+        // (e.g., different `run_custom_build`) despite having the same `UnitKey`.
+        // We coalesce them here while creating the `UnitKey` dep graph.
         // TODO: Are we sure? Can we figure that out?
         let deps = deps.into_iter().map(|d| d.into()).filter(|dep| unit.key() != dep.key());
 
@@ -539,7 +529,7 @@ impl BuildGraph for CargoPlan {
             self.units.entry(dep.key()).or_insert(dep);
         }
 
-        // We expect these entries to be present for each unit in the graph
+        // We expect these entries to be present for each unit in the graph.
         self.dep_graph.entry(unit.key()).or_insert_with(HashSet::new);
         self.rev_dep_graph.entry(unit.key()).or_insert_with(HashSet::new);
 

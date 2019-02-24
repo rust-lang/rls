@@ -1,0 +1,15 @@
+{
+  "test": {
+    "file": "test_tooltip_mod_use_external.rs",
+    "line": 4,
+    "col": 12
+  },
+  "data": {
+    "Ok": [{
+        "language": "rust",
+        "value": "libstd/sync/mod.rs"
+      },
+      "Useful synchronization primitives.\n\n## The need for synchronization\n\nConceptually, a Rust program is a series of operations which will\nbe executed on a computer. The timeline of events happening in the\nprogram is consistent with the order of the operations in the code."
+    ]
+  }
+}

@@ -1,13 +1,3 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Configuration for the workspace that RLS is operating within and options for
 //! tweaking the RLS's behavior itself.
 
@@ -127,21 +117,23 @@ pub struct Config {
     pub unstable_features: bool,
     pub wait_to_build: Option<u64>,
     pub show_warnings: bool,
-    /// Clear the RUST_LOG env variable before calling rustc/cargo? Default: true
+    /// `true` to clear the `RUST_LOG` env variable before calling rustc/cargo.
+    /// Default: `true`.
     pub clear_env_rust_log: bool,
-    /// Build the project only when a file got saved and not on file change. Default: false
+    /// `true` to build the project only when a file got saved and not on file change.
+    /// Default: `false`.
     pub build_on_save: bool,
     pub use_crate_blacklist: bool,
-    /// Cargo target dir. If set overrides the default one.
+    /// The Cargo target directory. If set, overrides the default one.
     pub target_dir: Inferrable<Option<PathBuf>>,
     pub features: Vec<String>,
     pub all_features: bool,
     pub no_default_features: bool,
     pub jobs: Option<u32>,
     pub all_targets: bool,
-    /// Enable use of racer for `textDocument/completion` requests.
+    /// Enables use of Racer for `textDocument/completion` requests.
     ///
-    /// Enabled also enables racer fallbacks for hover & go-to-definition functionality
+    /// Enabled also enables racer fallbacks for hover and go-to-definition functionality
     /// if rustc analysis should fail.
     pub racer_completion: bool,
     #[serde(deserialize_with = "deserialize_clippy_preference")]
@@ -155,15 +147,15 @@ pub struct Config {
     pub full_docs: Inferrable<bool>,
     /// Show additional context in hover tooltips when available. This is often the type
     /// local variable declaration. When set to false, the content is only available when
-    /// holding the `ctrl` key in some editors.
+    /// holding the `Ctrl` key in some editors.
     pub show_hover_context: bool,
     /// Use provided rustfmt binary instead of the statically linked one.
-    /// (requires unstable features)
+    /// (requires unstable features).
     pub rustfmt_path: Option<String>,
     /// EXPERIMENTAL (needs unstable features)
     /// If set, executes a given program responsible for rebuilding save-analysis
     /// to be loaded by the RLS. The program given should output a list of
-    /// resulting .json files on stdout.
+    /// resulting JSON files on stdout.
     pub build_command: Option<String>,
 }
 
@@ -279,7 +271,7 @@ impl Config {
         }
     }
 
-    /// Is this config incomplete, and needs additional values to be inferred?
+    /// Checks if this config is incomplete, and needs additional values to be inferred.
     pub fn needs_inference(&self) -> bool {
         self.build_bin.is_none() || self.build_lib.is_none() || self.target_dir.is_none()
     }
@@ -288,7 +280,7 @@ impl Config {
     /// Specifically, this:
     /// - detects correct `target/` build directory used by Cargo, if not specified.
     pub fn infer_defaults(&mut self, project_dir: &Path) -> CargoResult<()> {
-        // Note that this may not be equal build_dir when inside a workspace member
+        // Note that this may not be equal `build_dir` when inside a workspace member.
         let manifest_path = important_paths::find_root_manifest_for_wd(project_dir)?;
         trace!("root manifest_path: {:?}", &manifest_path);
 
@@ -301,7 +293,7 @@ impl Config {
 
         // Constructing a `Workspace` also probes the filesystem and detects where to place the
         // build artifacts. We need to rely on Cargo's behaviour directly not to possibly place our
-        // own artifacts somewhere else (e.g. when analyzing only a single crate in a workspace)
+        // own artifacts somewhere else (e.g., when analyzing only a single crate in a workspace).
         match self.target_dir {
             // We require an absolute path, so adjust a relative one if it's passed.
             Inferrable::Specified(Some(ref mut path)) if path.is_relative() => {
@@ -326,11 +318,11 @@ impl Config {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ClippyPreference {
-    /// Disable clippy
+    /// Disable clippy.
     Off,
-    /// Enable clippy, but "allow" clippy lints (ie require "warn" override)
+    /// Enable clippy, but `allow` clippy lints (i.e., require `warn` override).
     OptIn,
-    /// Enable clippy
+    /// Enable clippy.
     On,
 }
 
@@ -348,7 +340,7 @@ impl FromStr for ClippyPreference {
     }
 }
 
-/// Permissive custom deserialization for `ClippyPreference` using `FromStr`
+/// Permissive custom deserialization for `ClippyPreference` using `FromStr`.
 fn deserialize_clippy_preference<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     T: Deserialize<'de> + FromStr<Err = ()>,
@@ -372,16 +364,16 @@ where
     deserializer.deserialize_any(ClippyPrefDeserializer(PhantomData))
 }
 
-/// A rustfmt config (typically specified via rustfmt.toml)
+/// A Rustfmt config (typically specified via `rustfmt.toml`).
 /// The `FmtConfig` is not an exact translation of the config
-/// rustfmt generates from the user's toml file, since when
-/// using rustfmt with rls certain configuration options are
-/// always used. See `FmtConfig::set_rls_options`
+/// Rustfmt generates from the user's TOML file, since when
+/// using Rustfmt with RLS, certain configuration options are
+/// always used. See `FmtConfig::set_rls_options`.
 pub struct FmtConfig(RustfmtConfig);
 
 impl FmtConfig {
     /// Look for `.rustmt.toml` or `rustfmt.toml` in `path`, falling back
-    /// to the default config if neither exist
+    /// to the default config if neither exists.
     pub fn from(path: &Path) -> FmtConfig {
         struct NullOptions;
 
@@ -402,13 +394,13 @@ impl FmtConfig {
         FmtConfig::default()
     }
 
-    /// Return an immutable borrow of the config, will always
-    /// have any relevant rls specific options set
+    /// Returns an immutable borrow of the config; will always
+    /// have any relevant RLS specific options set.
     pub fn get_rustfmt_config(&self) -> &RustfmtConfig {
         &self.0
     }
 
-    // options that are always used when formatting with rls
+    // Options that are always used when formatting with RLS.
     fn set_rls_options(&mut self) {
         self.0.set().skip_children(true);
         self.0.set().emit_mode(EmitMode::Stdout);

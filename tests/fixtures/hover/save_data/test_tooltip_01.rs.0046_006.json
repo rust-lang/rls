@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 46,
+    "col": 6
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "fn bar<T>(thing: T) -> Bar<T>"
+      },
+      "Bar function\n\n# Examples\n\n```rust\nuse does_not_exist::other;\n\nlet foo = bar(1.0);\nother(foo);\n```"
+    ]
+  }
+}

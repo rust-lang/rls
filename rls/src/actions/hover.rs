@@ -1,21 +1,7 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
-use crate::actions::format::Rustfmt;
-use crate::actions::requests;
-use crate::actions::InitActionContext;
-use crate::config::FmtConfig;
-use crate::lsp_data::*;
-use crate::server::ResponseError;
+use std::path::{Path, PathBuf};
 
 use home;
+use log::*;
 use racer;
 use rls_analysis::{Def, DefKind};
 use rls_span::{Column, Range, Row, Span, ZeroIndexed};
@@ -23,8 +9,12 @@ use rls_vfs::{self as vfs, Vfs};
 use rustfmt_nightly::NewlineStyle;
 use serde_derive::{Deserialize, Serialize};
 
-use log::*;
-use std::path::{Path, PathBuf};
+use crate::actions::format::Rustfmt;
+use crate::actions::requests;
+use crate::actions::InitActionContext;
+use crate::config::FmtConfig;
+use crate::lsp_data::*;
+use crate::server::ResponseError;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Tooltip {
@@ -63,7 +53,7 @@ pub fn process_docs(docs: &str) -> String {
             line.to_string()
         };
 
-        // Racer sometimes pulls out comment block headers from the standard library
+        // Racer sometimes pulls out comment block headers from the standard library.
         let ignore_slashes = line.starts_with("////");
 
         let maybe_attribute = trimmed.starts_with("#[") || trimmed.starts_with("#![");
@@ -124,7 +114,7 @@ pub fn extract_docs(
         let attr_start = line.starts_with("#[") || line.starts_with("#![");
 
         if attr_start && line.ends_with(']') && !hit_top {
-            // Ignore single line attributes
+            // Ignore single-line attributes.
             trace!(
                 "extract_docs: ignoring single-line attribute, next_row: {:?}, up: {}",
                 next_row,
@@ -134,7 +124,7 @@ pub fn extract_docs(
         }
 
         // Continue with the next line when transitioning out of a
-        // multi-line attribute
+        // multi-line attribute.
         if attr_start || (line.ends_with(']') && !line.starts_with("//")) {
             in_meta = !in_meta;
             if !in_meta && !hit_top {
@@ -148,7 +138,7 @@ pub fn extract_docs(
         }
 
         if !hit_top && in_meta {
-            // Ignore milti-line attributes
+            // Ignore milti-line attributes.
             trace!(
                 "extract_docs: ignoring multi-line attribute, next_row: {:?}, up: {}, in_meta: {}",
                 next_row,
@@ -181,7 +171,7 @@ pub fn extract_docs(
         }
 
         if hit_top {
-            // The top of the file was reached
+            // The top of the file was reached.
             debug!(
                 "extract_docs: bailing out: prev_row == next_row; next_row = {:?}, up = {}",
                 next_row, up
@@ -224,8 +214,7 @@ fn extract_and_process_docs(vfs: &Vfs, file: &Path, row_start: Row<ZeroIndexed>)
         .and_then(empty_to_none)
 }
 
-/// Extracts a function, method, struct, enum, or trait declaration
-/// from source.
+/// Extracts a function, method, struct, enum, or trait declaration from source.
 pub fn extract_decl(
     vfs: &Vfs,
     file: &Path,
@@ -328,10 +317,10 @@ fn tooltip_struct_enum_union_trait(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
-    // We hover often so use the in-process one to speed things up
+    // We hover often, so use the in-process one to speed things up.
     let fmt = Rustfmt::Internal;
 
-    // fallback in case source extration fails
+    // Fallback in case source extration fails.
     let the_type = || match def.kind {
         DefKind::Struct => format!("struct {}", def.name),
         DefKind::Enum => format!("enum {}", def.name),
@@ -383,7 +372,7 @@ fn tooltip_function_method(
 
     let vfs = ctx.vfs.clone();
     let fmt_config = ctx.fmt_config();
-    // We hover often so use the in-process one to speed things up
+    // We hover often, so use the in-process one to speed things up.
     let fmt = Rustfmt::Internal;
 
     let the_type = || {
@@ -471,7 +460,7 @@ fn empty_to_none(s: String) -> Option<String> {
     }
 }
 
-/// Extract and process source documentation for the give `def`.
+/// Extracts and processes source documentation for the give `def`.
 fn def_docs(def: &Def, vfs: &Vfs) -> Option<String> {
     let save_analysis_docs = || empty_to_none(def.docs.trim().into());
     extract_and_process_docs(&vfs, def.span.file.as_ref(), def.span.range.row_start)
@@ -555,7 +544,7 @@ fn skip_path_components<P: AsRef<Path>>(
     })
 }
 
-/// Collapse parent directory references inside of paths.
+/// Collapses parent directory references inside of paths.
 ///
 /// # Example
 ///
@@ -636,12 +625,12 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
         let contextstr_path = PathBuf::from(&contextstr);
         let contextstr_path = collapse_parents(contextstr_path);
 
-        // Tidy up the module path
-        // Skips toolchains/$TOOLCHAIN/lib/rustlib/src/rust/src
+        // Tidy up the module path.
+        // Skips `toolchains/$TOOLCHAIN/lib/rustlib/src/rust/src`.
         skip_path_components(&contextstr_path, rustup_home, 7)
-            // Skips /registry/src/github.com-1ecc6299db9ec823/
+            // Skips `/registry/src/github.com-1ecc6299db9ec823/`.
             .or_else(|| skip_path_components(&contextstr_path, cargo_home, 3))
-            // Make the path relative to the root of the project, if possible
+            // Make the path relative to the root of the project, if possible.
             .or_else(|| {
                 contextstr_path.strip_prefix(&ctx.current_project).ok().map(|x| x.to_owned())
             })
@@ -692,7 +681,7 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
     })
 }
 
-/// Use racer to synthesize a `Def` for the given `span`. If no appropriate
+/// Uses racer to synthesize a `Def` for the given `span`. If no appropriate
 /// match is found with coordinates, `None` is returned.
 fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
     let vfs = ctx.vfs.clone();
@@ -721,7 +710,7 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
         let racer_match = racer::find_definition(file_path, location, &session);
         trace!("racer_def: match: {:?}", racer_match);
         racer_match
-            // Avoid creating tooltip text that is exactly the item being hovered over
+            // Avoid creating tooltip text that is exactly the item being hovered over.
             .filter(|m| name.as_ref().map(|name| name != &m.contextstr).unwrap_or(true))
             .and_then(|m| racer_match_to_def(ctx, &m))
     });
@@ -741,7 +730,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     config.set().newline_style(NewlineStyle::Unix);
     let trimmed = the_type.trim();
 
-    // Normalize the ending for rustfmt
+    // Normalize the ending for rustfmt.
     let object = if trimmed.ends_with(')') {
         format!("{};", trimmed)
     } else if trimmed.ends_with('}') || trimmed.ends_with(';') {
@@ -765,7 +754,7 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     };
 
     // If it's a tuple, remove the trailing ';' and hide non-pub components
-    // for pub types
+    // for pub types.
     let result = if formatted.trim().ends_with(';') {
         let mut decl = formatted.trim().trim_end_matches(';');
         if let (Some(pos), true) = (decl.rfind('('), decl.ends_with(')')) {
@@ -789,11 +778,11 @@ fn format_object(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
                 decl.to_string()
             }
         } else {
-            // not a tuple
+            // Not a tuple.
             decl.into()
         }
     } else {
-        // not a tuple or unit struct
+        // Not a tuple or unit struct.
         formatted
     };
 
@@ -865,8 +854,7 @@ pub fn tooltip(
 
     let racer_fallback_enabled = ctx.config.lock().unwrap().racer_completion;
 
-    // Fallback to racer if the def was not available and
-    // racer is enabled.
+    // Fallback to racer if the def was not available and racer is enabled.
     let hover_span_def = hover_span_def.or_else(|e| {
         debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
         if racer_fallback_enabled {
@@ -1294,51 +1282,51 @@ pub mod test {
         let file = fixtures_dir().join("hover/src/test_extract_decl.rs");
 
         let expected = "pub fn foo() -> Foo<u32>";
-        let row_start = Row::new_zero_indexed(10);
+        let row_start = Row::new_zero_indexed(0);
         let actual = extract_decl(&vfs, &file, row_start).expect("function declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct Foo<T>";
-        let row_start = Row::new_zero_indexed(15);
+        let row_start = Row::new_zero_indexed(5);
         let actual = extract_decl(&vfs, &file, row_start).expect("struct declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub enum Bar";
-        let row_start = Row::new_zero_indexed(20);
+        let row_start = Row::new_zero_indexed(10);
         let actual = extract_decl(&vfs, &file, row_start).expect("enum declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub struct NewType(pub u32, f32)";
-        let row_start = Row::new_zero_indexed(25);
+        let row_start = Row::new_zero_indexed(15);
         let actual = extract_decl(&vfs, &file, row_start).expect("tuple declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn new() -> NewType";
-        let row_start = Row::new_zero_indexed(28);
+        let row_start = Row::new_zero_indexed(18);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("struct function declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub fn bar<T: Copy + Add>(&self, the_really_long_name_string: String, the_really_long_name_foo: Foo<T>) -> Vec<(String, Foo<T>)>";
-        let row_start = Row::new_zero_indexed(32);
+        let row_start = Row::new_zero_indexed(22);
         let actual = extract_decl(&vfs, &file, row_start)
             .expect("long struct method declaration with generics")
             .join("\n");
         assert_eq!(expected, actual);
 
         let expected = "pub trait Baz<T> where T: Copy";
-        let row_start = Row::new_zero_indexed(37);
+        let row_start = Row::new_zero_indexed(27);
         let actual = extract_decl(&vfs, &file, row_start).expect("enum declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
-        let row_start = Row::new_zero_indexed(38);
+        let row_start = Row::new_zero_indexed(28);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("trait method declaration").join("\n");
         assert_eq!(expected, actual);
 
         let expected = "fn make_copy(&self) -> Self";
-        let row_start = Row::new_zero_indexed(42);
+        let row_start = Row::new_zero_indexed(32);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("trait method implementation").join("\n");
         assert_eq!(expected, actual);
@@ -1350,7 +1338,7 @@ pub mod test {
             U: Clone
         ",
         );
-        let row_start = Row::new_zero_indexed(47);
+        let row_start = Row::new_zero_indexed(37);
         let actual =
             extract_decl(&vfs, &file, row_start).expect("trait declaration multiline").join("\n");
         assert_eq!(expected, actual);
@@ -1363,7 +1351,7 @@ pub mod test {
             )
         ",
         );
-        let row_start = Row::new_zero_indexed(53);
+        let row_start = Row::new_zero_indexed(43);
         let actual = extract_decl(&vfs, &file, row_start)
             .expect("function declaration multiline")
             .join("\n");
@@ -1454,7 +1442,7 @@ pub mod test {
             )
         ",
         );
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(1);
         let actual = extract_decl(&vfs, &file, row_start)
             .expect("the empty body should not be extracted")
             .join("\n");
@@ -1513,7 +1501,7 @@ pub mod test {
     fn test_extract_docs_comment_block() {
         let vfs = Vfs::new();
         let file = fixtures_dir().join("hover/src/test_extract_docs_comment_block.rs");
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(11);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1537,7 +1525,7 @@ pub mod test {
     fn test_extract_docs_empty_line_before_decl() {
         let vfs = Vfs::new();
         let file = fixtures_dir().join("hover/src/test_extract_docs_empty_line_before_decl.rs");
-        let row_start = Row::new_zero_indexed(18);
+        let row_start = Row::new_zero_indexed(8);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1581,7 +1569,7 @@ pub mod test {
 
         assert_eq!(expected, actual);
 
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(11);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1602,7 +1590,7 @@ pub mod test {
         let vfs = Vfs::new();
         let file = fixtures_dir().join("hover/src/test_extract_docs_attributes.rs");
 
-        let row_start = Row::new_zero_indexed(21);
+        let row_start = Row::new_zero_indexed(11);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");
@@ -1621,7 +1609,7 @@ pub mod test {
 
         assert_eq!(expected, actual);
 
-        let row_start = Row::new_zero_indexed(32);
+        let row_start = Row::new_zero_indexed(22);
         let actual = extract_docs(&vfs, &file, row_start)
             .expect(&format!("failed to extract docs: {:?}", file))
             .join("\n");

@@ -1,14 +1,10 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
-use super::requests::*;
+use jsonrpc_core::types::ErrorCode;
+use log::debug;
+
 use crate::actions::work_pool;
 use crate::actions::work_pool::WorkDescription;
 use crate::actions::InitActionContext;
@@ -18,11 +14,8 @@ use crate::server;
 use crate::server::io::Output;
 use crate::server::message::ResponseError;
 use crate::server::{Request, Response};
-use jsonrpc_core::types::ErrorCode;
-use log::debug;
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
+
+use super::requests::*;
 
 /// Timeout time for request responses. By default a LSP client request not
 /// responded to after this duration will return a fallback response.
@@ -36,7 +29,8 @@ pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(3_600_000);
 /// Macro enum `DispatchRequest` packing in various similar `Request` types
 macro_rules! define_dispatch_request_enum {
     ($($request_type:ident),*$(,)*) => {
-        #[allow(clippy::large_enum_variant)] // seems ok for a short lived macro-enum
+        // Seems ok for a short-lived macro-enum.
+        #[allow(clippy::large_enum_variant)]
         pub(crate) enum DispatchRequest {
             $(
                 $request_type(Request<$request_type>),
@@ -60,10 +54,10 @@ macro_rules! define_dispatch_request_enum {
                         let timeout = $request_type::timeout();
 
                         let receiver = work_pool::receive_from_thread(move || {
-                            // checking timeout here can prevent starting expensive work that has
-                            // already timed out due to previous long running requests
+                            // Checking timeout here can prevent starting expensive work that has
+                            // already timed out due to previous long running requests.
                             // Note: done here on the threadpool as pool scheduling may incur
-                            // a further delay
+                            // a further delay.
                             if received.elapsed() >= timeout {
                                 $request_type::fallback_response()
                             }
@@ -117,7 +111,7 @@ pub(crate) struct Dispatcher {
 }
 
 impl Dispatcher {
-    /// Creates a new `Dispatcher` starting a new thread and channel
+    /// Creates a new `Dispatcher` starting a new thread and channel.
     pub(crate) fn new<O: Output>(out: O) -> Self {
         let (sender, receiver) = mpsc::channel::<(DispatchRequest, InitActionContext, JobToken)>();
 
@@ -134,7 +128,7 @@ impl Dispatcher {
         Self { sender }
     }
 
-    /// Sends a request to the dispatch-worker thread, does not block
+    /// Sends a request to the dispatch-worker thread; does not block.
     pub(crate) fn dispatch<R: Into<DispatchRequest>>(
         &mut self,
         request: R,
@@ -143,26 +137,26 @@ impl Dispatcher {
         let (job, token) = ConcurrentJob::new();
         ctx.add_job(job);
         if let Err(err) = self.sender.send((request.into(), ctx, token)) {
-            debug!("Failed to dispatch request: {:?}", err);
+            debug!("failed to dispatch request: {:?}", err);
         }
     }
 }
 
-/// Stdin-nonblocking request logic designed to be packed into a `DispatchRequest`
+/// Stdin-non-blocking request logic designed to be packed into a `DispatchRequest`
 /// and handled on the `WORK_POOL` via a `Dispatcher`.
 pub trait RequestAction: LSPRequest {
-    /// Serializable response type
+    /// Serializable response type.
     type Response: server::Response + Send;
 
-    /// Max duration this request should finish within, also see `fallback_response()`
+    /// Max duration this request should finish within; also see `fallback_response()`.
     fn timeout() -> Duration {
         DEFAULT_REQUEST_TIMEOUT
     }
 
-    /// Returns a response used in timeout scenarios
+    /// Returns a response used in timeout scenarios.
     fn fallback_response() -> Result<Self::Response, ResponseError>;
 
-    /// Request processing logic
+    /// Request processing logic.
     fn handle(
         ctx: InitActionContext,
         params: Self::Params,

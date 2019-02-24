@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 85,
+    "col": 25
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "type Foo: Other"
+      },
+      "Foo other type"
+    ]
+  }
+}

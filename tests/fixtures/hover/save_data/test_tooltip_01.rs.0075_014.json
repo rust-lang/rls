@@ -1,0 +1,15 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 75,
+    "col": 14
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "test_tooltip_01::Bar<f64>"
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "test": {
+    "file": "test_tooltip_01.rs",
+    "line": 99,
+    "col": 21
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "const FOO: &'static str = \"FOO\""
+      },
+      "The constant FOO"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "test": {
+    "file": "test_tooltip_std.rs",
+    "line": 9,
+    "col": 7
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "std::vec::Vec<i32>"
+      },
+      {
+        "language": "rust",
+        "value": "let mut vec1 = Vec::new();"
+      }
+    ]
+  }
+}

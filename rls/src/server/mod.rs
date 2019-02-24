@@ -1,13 +1,3 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Implementation of the server loop, and traits for extending server
 //! interactions (for example, to add support for handling new types of
 //! requests).
@@ -50,7 +40,7 @@ mod message;
 
 const NOT_INITIALIZED_CODE: ErrorCode = ErrorCode::ServerError(-32002);
 
-/// Run the Rust Language Server.
+/// Runs the Rust Language Server.
 pub fn run_server(analysis: Arc<AnalysisHost>, vfs: Arc<Vfs>) -> i32 {
     debug!("Language Server starting up. Version: {}", version());
     let service = LsService::new(
@@ -75,7 +65,7 @@ impl BlockingRequestAction for ShutdownRequest {
         _out: O,
     ) -> Result<Self::Response, ResponseError> {
         if let Ok(ctx) = ctx.inited() {
-            // Currently we don't perform an explicit cleanup, other than storing state
+            // Currently we don't perform an explicit clean-up, other than storing state.
             ctx.shut_down.store(true, Ordering::SeqCst);
             Ok(Ack)
         } else {
@@ -151,7 +141,7 @@ impl BlockingRequestAction for InitializeRequest {
 
         if ctx.inited().is_ok() {
             return Err(ResponseError::Message(
-                // No code in the spec, just use some number
+                // No code in the spec; just use some number.
                 ErrorCode::ServerError(123),
                 "Already received an initialize request".to_owned(),
             ));
@@ -162,8 +152,8 @@ impl BlockingRequestAction for InitializeRequest {
 
         let result = InitializeResult { capabilities: server_caps(ctx) };
 
-        // send response early before `ctx.init` to enforce
-        // initialize-response-before-all-other-messages constraint
+        // Send response early before `ctx.init` to enforce
+        // initialize-response-before-all-other-messages constraint.
         result.send(id, &out);
 
         let capabilities = lsp_data::ClientCapabilities::new(&params);
@@ -182,7 +172,7 @@ pub struct LsService<O: Output> {
 }
 
 impl<O: Output> LsService<O> {
-    /// Construct a new language server service.
+    /// Constructs a new language server service.
     pub fn new(
         analysis: Arc<AnalysisHost>,
         vfs: Arc<Vfs>,
@@ -200,7 +190,7 @@ impl<O: Output> LsService<O> {
         }
     }
 
-    /// Run this language service.
+    /// Runs this language service.
     pub fn run(mut self) -> i32 {
         loop {
             match self.handle_message() {
@@ -241,7 +231,8 @@ impl<O: Output> LsService<O> {
                     <$br_action as LSPRequest>::METHOD => {
                         let request: Request<$br_action> = msg.parse_as_request()?;
 
-                        // block until all nonblocking requests have been handled ensuring ordering
+                        // Block until all non-blocking requests have been handled ensuring
+                        // ordering.
                         self.wait_for_concurrent_jobs();
 
                         let req_id = request.id.clone();
@@ -329,7 +320,7 @@ impl<O: Output> LsService<O> {
         Ok(())
     }
 
-    /// Read a message from the language server reader input and handle it with
+    /// Reads a message from the language server reader input and handle it with
     /// the appropriate action. Returns a `ServerStateChange` that describes how
     /// the service should proceed now that the message has been handled.
     pub fn handle_message(&mut self) -> ServerStateChange {
@@ -357,7 +348,7 @@ impl<O: Output> LsService<O> {
         trace!("Parsed message `{:?}`", raw_message);
 
         // If we're in shutdown mode, ignore any messages other than 'exit'.
-        // This is not actually in the spec, I'm not sure we should do this,
+        // This is not actually in the spec; I'm not sure we should do this,
         // but it kinda makes sense.
         {
             let shutdown_mode = match self.ctx {
@@ -391,11 +382,10 @@ impl<O: Output> LsService<O> {
     }
 }
 
-/// How should the server proceed?
+// Indicates how the server should proceed.
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum ServerStateChange {
-    /// Continue serving responses to requests and sending notifications to the
-    /// client.
+    /// Continue serving responses to requests and sending notifications to the client.
     Continue,
     /// Stop the server.
     Break { exit_code: i32 },
@@ -511,7 +501,7 @@ mod test {
         assert_eq!(get_root_path(&params), root_path);
     }
 
-    /// Some clients send empty object params for void params requests (see #1038)
+    /// Some clients send empty object params for void params requests (see issue #1038).
     #[test]
     fn parse_shutdown_object_params() {
         let raw = RawMessage::try_parse(

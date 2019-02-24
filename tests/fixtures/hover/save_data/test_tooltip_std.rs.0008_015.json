@@ -1,0 +1,15 @@
+{
+  "test": {
+    "file": "test_tooltip_std.rs",
+    "line": 8,
+    "col": 15
+  },
+  "data": {
+    "Ok": [
+      {
+        "language": "rust",
+        "value": "std::vec::Vec<i32>"
+      }
+    ]
+  }
+}

@@ -1,16 +1,9 @@
-// Copyright 2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
+//! Traits and structs for message handling.
 
-//! Traits and structs for message handling
+use std::fmt;
+use std::marker::PhantomData;
+use std::time::Instant;
 
-use crate::actions::InitActionContext;
 use jsonrpc_core::{self as jsonrpc, Id};
 use log::debug;
 use lsp_types::notification::ShowMessage;
@@ -20,13 +13,9 @@ use serde::Deserialize;
 use serde_derive::Serialize;
 use serde_json;
 
-use crate::actions::ActionContext;
+use crate::actions::{ActionContext, InitActionContext};
 use crate::lsp_data::{LSPNotification, LSPRequest, MessageType, ShowMessageParams, WorkspaceEdit};
 use crate::server::io::Output;
-
-use std::fmt;
-use std::marker::PhantomData;
-use std::time::Instant;
 
 /// A response that just acknowledges receipt of its request.
 #[derive(Debug, Serialize)]
@@ -38,7 +27,7 @@ pub struct NoResponse;
 
 /// A response to some request.
 pub trait Response {
-    /// Send the response along the given output.
+    /// Sends the response along the given output.
     fn send<O: Output>(self, id: RequestId, out: &O);
 }
 
@@ -52,12 +41,12 @@ impl<R: ::serde::Serialize + fmt::Debug> Response for R {
     }
 }
 
-/// Wrapper for a response error
+/// Wrapper for a response error.
 #[derive(Debug)]
 pub enum ResponseError {
-    /// Error with no special response to the client
+    /// Error with no special response to the client.
     Empty,
-    /// Error with a response to the client
+    /// Error with a response to the client.
     Message(jsonrpc::ErrorCode, String),
 }
 
@@ -76,7 +65,7 @@ pub enum ResponseWithMessage<R: DefaultResponse> {
     Warn(String),
 }
 
-/// A response which has a default value.
+/// A response that has a default value.
 pub trait DefaultResponse: Response + ::serde::Serialize + fmt::Debug {
     fn default() -> Self;
 }
@@ -107,15 +96,15 @@ impl DefaultResponse for WorkspaceEdit {
 /// An action taken in response to some notification from the client.
 /// Blocks stdin whilst being handled.
 pub trait BlockingNotificationAction: LSPNotification {
-    /// Handle this notification.
+    /// Handles this notification.
     fn handle<O: Output>(_: Self::Params, _: &mut InitActionContext, _: O) -> Result<(), ()>;
 }
 
-/// A request that blocks stdin whilst being handled
+/// A request that blocks stdin whilst being handled.
 pub trait BlockingRequestAction: LSPRequest {
     type Response: Response + fmt::Debug;
 
-    /// Handle request and return its response. Output is also provided for additional messaging.
+    /// Handles request and returns its response. Output is also provided for additional messaging.
     fn handle<O: Output>(
         id: RequestId,
         params: Self::Params,
@@ -126,7 +115,7 @@ pub trait BlockingRequestAction: LSPRequest {
 
 /// A request ID as defined by language server protocol.
 ///
-/// It only describes valid request ids - a case for notification (where id is not specified) is
+/// It only describes valid request IDs -- a case for notification (where `id` is not specified) is
 /// not included here.
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub enum RequestId {
@@ -154,7 +143,7 @@ impl<'a> From<&'a RequestId> for Id {
 
 /// A request that gets JSON serialized in the language server protocol.
 pub struct Request<A: LSPRequest> {
-    /// The unique request id.
+    /// The unique request ID.
     pub id: RequestId,
     /// The time the request was received / processed by the main stdin reading thread.
     pub received: Instant,
@@ -198,7 +187,7 @@ where
         let params = match serde_json::to_value(&request.params).unwrap() {
             params @ serde_json::Value::Array(_) |
             params @ serde_json::Value::Object(_) |
-            // Internally we represent missing params by Null
+            // We represent missing params internally by Null.
             params @ serde_json::Value::Null => params,
             _ => unreachable!("Bad parameter type found for {:?} request", method),
         };
@@ -218,7 +207,7 @@ where
         let params = match serde_json::to_value(&notification.params).unwrap() {
             params @ serde_json::Value::Array(_) |
             params @ serde_json::Value::Object(_) |
-            // Internally we represent missing params by Null
+            // We represent missing params internally by Null.
             params @ serde_json::Value::Null => params,
             _ => unreachable!("Bad parameter type found for {:?} request", method),
         };
@@ -293,7 +282,7 @@ impl RawMessage {
 
         let params = R::Params::deserialize(&self.params)
             .or_else(|e| {
-                // Avoid tedious type errors trying to deserialize `()`
+                // Avoid tedious type errors trying to deserialize `()`.
                 if std::mem::size_of::<R::Params>() == 0 {
                     R::Params::deserialize(&serde_json::Value::Null).map_err(|_| e)
                 } else {
@@ -331,28 +320,29 @@ impl RawMessage {
         let ls_command: serde_json::Value =
             serde_json::from_str(msg).map_err(|_| jsonrpc::Error::parse_error())?;
 
-        // Per JSON-RPC/LSP spec, Requests must have id, whereas Notifications can't
+        // Per JSON-RPC/LSP spec, Requests must have ID, whereas Notifications cannot.
         let id = ls_command
             .get("id")
             .map_or(Id::Null, |id| serde_json::from_value(id.to_owned()).unwrap());
 
         let method = match ls_command.get("method") {
             Some(method) => method,
-            // No method means this is a response to one of our requests. FIXME: we should
-            // confirm these, but currently just ignore them.
+            // No method means this is a response to one of our requests.
+            // FIXME: we should confirm these, but currently just ignore them.
             None => return Ok(None),
         };
 
         let method = method.as_str().ok_or_else(jsonrpc::Error::invalid_request)?.to_owned();
 
-        // Representing internally a missing parameter as Null instead of None,
+        // Representing a missing parameter as Null internally instead of `None`,
         // (Null being unused value of param by the JSON-RPC 2.0 spec)
-        // to unify the type handling – now the parameter type implements Deserialize.
+        // in order to unify the type handling –- now the parameter type implements
+        // `Deserialize`.
         let params = match ls_command.get("params").map(|p| p.to_owned()) {
             Some(params @ serde_json::Value::Object(..))
             | Some(params @ serde_json::Value::Array(..)) => params,
             // Null as input value is not allowed by JSON-RPC 2.0,
-            // but including it for robustness
+            // but including it for robustness.
             Some(serde_json::Value::Null) | None => serde_json::Value::Null,
             _ => return Err(jsonrpc::Error::invalid_request()),
         };
@@ -361,8 +351,8 @@ impl RawMessage {
     }
 }
 
-// Added so we can prepend with extra constant "jsonrpc": "2.0" key.
-// Should be resolved once https://github.com/serde-rs/serde/issues/760 is fixed.
+// Added so we can prepend with extra constant `"jsonrpc": "2.0"` key.
+// Should be resolved once <https://github.com/serde-rs/serde/issues/760> is fixed.
 impl Serialize for RawMessage {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let serialize_id = match self.id {
@@ -409,7 +399,7 @@ mod test {
         assert_eq!(notification._action, expected._action);
     }
 
-    // http://www.jsonrpc.org/specification#request_object
+    // See <http://www.jsonrpc.org/specification#request_object>.
     #[test]
     fn raw_message_parses_valid_jsonrpc_request_with_string_id() {
         let raw_json = json!({
@@ -422,7 +412,7 @@ mod test {
         let expected_msg = RawMessage {
             method: "someRpcCall".to_owned(),
             id: Id::Str("abc".to_owned()),
-            // Internally missing parameters are represented as null
+            // Missing parameters are represented internally as Null.
             params: serde_json::Value::Null,
         };
         assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
@@ -440,7 +430,7 @@ mod test {
         let expected_msg = RawMessage {
             method: "someRpcCall".to_owned(),
             id: Id::Num(1),
-            // Internally missing parameters are represented as null
+            // Missing parameters are represented internally as Null.
             params: serde_json::Value::Null,
         };
         assert_eq!(expected_msg, RawMessage::try_parse(&raw_json).unwrap().unwrap());
