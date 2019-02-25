@@ -7,7 +7,7 @@
 
 #![feature(rustc_private, drain_filter)]
 #![warn(clippy::all, rust_2018_idioms)]
-#![allow(clippy::cyclomatic_complexity, clippy::too_many_arguments)]
+#![allow(clippy::cyclomatic_complexity, clippy::too_many_arguments, clippy::redundant_closure)]
 
 pub use rls_analysis::{AnalysisHost, Target};
 pub use rls_vfs::Vfs;

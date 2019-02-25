@@ -161,7 +161,7 @@ pub fn extract_docs(
             break;
         } else if line.starts_with("///") || line.starts_with("//!") {
             let pos =
-                if line.chars().nth(3).map(|c| c.is_whitespace()).unwrap_or(false) { 4 } else { 3 };
+                if line.chars().nth(3).map(char::is_whitespace).unwrap_or(false) { 4 } else { 3 };
             let doc_line = line[pos..].into();
             if up {
                 docs.insert(0, doc_line);
@@ -632,9 +632,9 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
             .or_else(|| skip_path_components(&contextstr_path, cargo_home, 3))
             // Make the path relative to the root of the project, if possible.
             .or_else(|| {
-                contextstr_path.strip_prefix(&ctx.current_project).ok().map(|x| x.to_owned())
+                contextstr_path.strip_prefix(&ctx.current_project).ok().map(ToOwned::to_owned)
             })
-            .and_then(|path| path.to_str().map(|s| s.to_string()))
+            .and_then(|path| path.to_str().map(ToOwned::to_owned))
             .unwrap_or_else(|| contextstr.to_string())
     } else {
         m.contextstr.trim_end_matches('{').trim().to_string()
@@ -695,7 +695,7 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
     let name = vfs.load_line(file_path.as_path(), span.range.row_start).ok().and_then(|line| {
         let col_start = span.range.col_start.0 as usize;
         let col_end = span.range.col_end.0 as usize;
-        line.get(col_start..col_end).map(|line| line.to_string())
+        line.get(col_start..col_end).map(ToOwned::to_owned)
     });
 
     debug!("racer_def: name: {:?}", name);

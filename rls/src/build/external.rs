@@ -72,7 +72,7 @@ pub(super) fn build_with_external_cmd<S: AsRef<str>>(
 
     let files = reader
         .lines()
-        .filter_map(|res| res.ok())
+        .filter_map(Result::ok)
         .map(PathBuf::from)
         // Relative paths are relative to build command, not RLS itself (CWD may be different).
         .map(|path| if !path.is_absolute() { build_dir.join(path) } else { path });
@@ -316,7 +316,7 @@ impl BuildGraph for ExternalPlan {
     fn dirties<T: AsRef<Path>>(&self, modified: &[T]) -> Vec<&Self::Unit> {
         let mut results = HashSet::<u64>::new();
 
-        for modified in modified.iter().map(|x| x.as_ref()) {
+        for modified in modified.iter().map(AsRef::as_ref) {
             // We associate a dirty file with a
             // package by finding longest (most specified) path prefix.
             let matching_prefix_components = |a: &Path, b: &Path| -> usize {
@@ -365,7 +365,7 @@ impl BuildGraph for ExternalPlan {
 
         let mut stack = self.dirties(files);
 
-        while let Some(key) = stack.pop().map(|u| u.key()) {
+        while let Some(key) = stack.pop().map(BuildKey::key) {
             if results.insert(key) {
                 if let Some(rdeps) = self.rev_deps.get(&key) {
                     for rdep in rdeps {
@@ -379,7 +379,7 @@ impl BuildGraph for ExternalPlan {
     }
 
     fn topological_sort(&self, units: Vec<&Self::Unit>) -> Vec<&Self::Unit> {
-        let dirties: HashSet<_> = units.into_iter().map(|u| u.key()).collect();
+        let dirties: HashSet<_> = units.into_iter().map(BuildKey::key).collect();
 
         let mut visited: HashSet<_> = HashSet::new();
         let mut output = vec![];

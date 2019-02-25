@@ -512,7 +512,7 @@ impl FileWatch {
         // Find any Cargo.tomls in the project
         for entry in WalkDir::new(project_str)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(Result::ok)
             .filter(|e| e.file_name() == "Cargo.toml")
         {
             watchers.push(watcher(entry.path().display().to_string()));

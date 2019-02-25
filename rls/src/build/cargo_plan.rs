@@ -210,7 +210,7 @@ impl CargoPlan {
             })
             .collect();
 
-        for modified in files.iter().map(|x| x.as_ref()) {
+        for modified in files.iter().map(AsRef::as_ref) {
             if let Some(unit) = build_scripts.get(modified) {
                 result.insert(unit.clone());
             } else {
@@ -553,7 +553,7 @@ impl BuildGraph for CargoPlan {
     }
 
     fn topological_sort(&self, units: Vec<&Self::Unit>) -> Vec<&Self::Unit> {
-        let keys = units.into_iter().map(|u| u.key()).collect();
+        let keys = units.into_iter().map(BuildKey::key).collect();
         let graph = self.dirty_rev_dep_graph(&keys);
 
         CargoPlan::topological_sort(self, &graph)

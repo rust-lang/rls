@@ -82,6 +82,7 @@ impl Project {
 
         let (sink, stream) = LspFramed::from_transport(transport).split();
 
+        #[allow(clippy::unit_arg)] // We're interested in the side-effects of `process_msg`.
         let reader = stream
             .timeout(rls_timeout())
             .map_err(|_| ())

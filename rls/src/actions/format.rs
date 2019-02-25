@@ -135,7 +135,7 @@ fn rustfmt_args(config: &Config, config_path: &Path) -> Vec<String> {
     args.push(lines);
 
     args.push("--config-path".into());
-    args.push(config_path.to_str().map(|x| x.to_string()).unwrap());
+    args.push(config_path.to_str().map(ToOwned::to_owned).unwrap());
 
     args
 }

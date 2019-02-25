@@ -566,7 +566,7 @@ fn make_deglob_actions(
 
 // Ideally we'd use Rustfmt for this, but reparsing is a bit of a pain.
 fn sort_deglob_str(s: &str) -> String {
-    let mut substrings = s.split(',').map(|s| s.trim()).collect::<Vec<_>>();
+    let mut substrings = s.split(',').map(str::trim).collect::<Vec<_>>();
     substrings.sort_by(|a, b| {
         use std::cmp::Ordering;
 

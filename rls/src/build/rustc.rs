@@ -94,7 +94,7 @@ pub(crate) fn rustc(
             clippy_args.push("clippy::all".to_owned());
         }
 
-        args.iter().map(|s| s.to_owned()).chain(clippy_args).collect()
+        args.iter().map(ToOwned::to_owned).chain(clippy_args).collect()
     } else {
         args.to_owned()
     };

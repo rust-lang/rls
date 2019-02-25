@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
+use cargo::core::Package;
 use cargo::core::resolver::ResolveError;
 use cargo::core::{
     enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace,
@@ -321,7 +322,7 @@ impl RlsExecutor {
         progress_sender: Sender<ProgressUpdate>,
         reached_primary: Arc<AtomicBool>,
     ) -> RlsExecutor {
-        let member_packages = ws.members().map(|x| x.package_id()).collect();
+        let member_packages = ws.members().map(Package::package_id).collect();
 
         RlsExecutor {
             compilation_cx,
@@ -521,7 +522,7 @@ impl Executor for RlsExecutor {
         {
             let mut compilation_cx = self.compilation_cx.lock().unwrap();
             compilation_cx.needs_rebuild = false;
-            compilation_cx.cwd = cargo_cmd.get_cwd().map(|p| p.to_path_buf());
+            compilation_cx.cwd = cargo_cmd.get_cwd().map(ToOwned::to_owned);
         }
 
         let build_dir = {
