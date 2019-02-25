@@ -182,7 +182,7 @@ impl racer::ProjectModelProvider for RacerProjectModel {
         }
         let dep = pkg.deps(&self.0).iter().find(|dep| dep.crate_name == libname)?.pkg;
 
-        dep.lib_root(&self.0).map(|p| p.to_owned())
+        dep.lib_root(&self.0).map(ToOwned::to_owned)
     }
 }
 

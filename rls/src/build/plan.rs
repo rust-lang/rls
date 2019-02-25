@@ -151,7 +151,7 @@ impl JobQueue {
 
             // Send a window/progress notification.
             {
-                let crate_name = proc_argument_value(&job, "--crate-name").and_then(|x| x.to_str());
+                let crate_name = proc_argument_value(&job, "--crate-name").and_then(OsStr::to_str);
                 let update = match crate_name {
                     Some(name) => {
                         let cfg_test = job.get_args().iter().any(|arg| arg == "--test");

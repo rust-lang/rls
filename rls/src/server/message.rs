@@ -338,7 +338,7 @@ impl RawMessage {
         // (Null being unused value of param by the JSON-RPC 2.0 spec)
         // in order to unify the type handling –- now the parameter type implements
         // `Deserialize`.
-        let params = match ls_command.get("params").map(|p| p.to_owned()) {
+        let params = match ls_command.get("params").map(ToOwned::to_owned) {
             Some(params @ serde_json::Value::Object(..))
             | Some(params @ serde_json::Value::Array(..)) => params,
             // Null as input value is not allowed by JSON-RPC 2.0,
