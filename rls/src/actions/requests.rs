@@ -725,7 +725,7 @@ fn reformat(
     let formatted_text = ctx
         .formatter()
         .format(input, config)
-        .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg))?;
+        .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg.to_string()))?;
 
     // Note that we don't need to update the VFS, the client echos back the
     // change to us when it applies the returned `TextEdit`.

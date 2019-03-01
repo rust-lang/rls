@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::string::FromUtf8Error;
 
 use log::debug;
 use rand::{distributions, thread_rng, Rng};
@@ -15,26 +16,54 @@ use serde_json;
 /// Specifies which `rustfmt` to use.
 #[derive(Clone)]
 pub enum Rustfmt {
-    /// `(path to external `rustfmt`, current working directory to spawn at)`
-    External(PathBuf, PathBuf),
+    /// Externally invoked `rustfmt` process.
+    External { path: PathBuf, cwd: PathBuf },
     /// Statically linked `rustfmt`.
     Internal,
+}
+
+/// Defines a formatting-related error.
+#[derive(Fail, Debug)]
+pub enum Error {
+    /// Generic variant of `Error::Rustfmt` error.
+    #[fail(display = "Formatting could not be completed.")]
+    Failed,
+    #[fail(display = "Could not format source code: {}", _0)]
+    Rustfmt(rustfmt_nightly::ErrorKind),
+    #[fail(display = "Encountered I/O error: {}", _0)]
+    Io(std::io::Error),
+    #[fail(display = "Config couldn't be converted to TOML for Rustfmt purposes: {}", _0)]
+    ConfigTomlOutput(String),
+    #[fail(display = "Formatted output is not valid UTF-8 source: {}", _0)]
+    OutputNotUtf8(FromUtf8Error),
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Error {
+        Error::Io(err)
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(err: FromUtf8Error) -> Error {
+        Error::OutputNotUtf8(err)
+    }
 }
 
 impl From<Option<(String, PathBuf)>> for Rustfmt {
     fn from(value: Option<(String, PathBuf)>) -> Rustfmt {
         match value {
-            Some((path, cwd)) => Rustfmt::External(PathBuf::from(path), cwd),
+            Some((path, cwd)) => Rustfmt::External { path: PathBuf::from(path), cwd },
             None => Rustfmt::Internal,
         }
     }
 }
 
 impl Rustfmt {
-    pub fn format(&self, input: String, cfg: Config) -> Result<String, String> {
+    pub fn format(&self, input: String, cfg: Config) -> Result<String, Error> {
         match self {
             Rustfmt::Internal => format_internal(input, cfg),
-            Rustfmt::External(path, cwd) => format_external(path, cwd, input, cfg),
+            Rustfmt::External { path, cwd } => format_external(path, cwd, input, cfg),
         }
     }
 }
@@ -44,7 +73,7 @@ fn format_external(
     cwd: &PathBuf,
     input: String,
     cfg: Config,
-) -> Result<String, String> {
+) -> Result<String, Error> {
     let (_file_handle, config_path) = gen_config_file(&cfg)?;
     let args = rustfmt_args(&cfg, &config_path);
 
@@ -54,25 +83,18 @@ fn format_external(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .map_err(|_| format!("Couldn't spawn `{}`", path.display()))?;
+        .map_err(Error::Io)?;
 
     {
-        let stdin =
-            rustfmt.stdin.as_mut().ok_or_else(|| "Failed to open rustfmt stdin".to_string())?;
-        stdin
-            .write_all(input.as_bytes())
-            .map_err(|_| "Failed to pass input to rustfmt".to_string())?;
+        let stdin = rustfmt.stdin.as_mut().unwrap(); // Safe because stdin is piped
+        stdin.write_all(input.as_bytes())?;
     }
 
-    rustfmt.wait_with_output().map_err(|err| format!("Error running rustfmt: {}", err)).and_then(
-        |out| {
-            String::from_utf8(out.stdout)
-                .map_err(|_| "Formatted code is not valid UTF-8".to_string())
-        },
-    )
+    let output = rustfmt.wait_with_output()?;
+    Ok(String::from_utf8(output.stdout)?)
 }
 
-fn format_internal(input: String, config: Config) -> Result<String, String> {
+fn format_internal(input: String, config: Config) -> Result<String, Error> {
     let mut buf = Vec::<u8>::new();
 
     {
@@ -85,37 +107,34 @@ fn format_internal(input: String, config: Config) -> Result<String, String> {
                 if session.has_operational_errors() || session.has_parsing_errors() {
                     debug!("reformat: format_input failed: has errors, report = {}", report);
 
-                    return Err("Reformat failed to complete successfully".into());
+                    return Err(Error::Failed);
                 }
             }
             Err(e) => {
                 debug!("Reformat failed: {:?}", e);
 
-                return Err("Reformat failed to complete successfully".into());
+                return Err(Error::Rustfmt(e));
             }
         }
     }
 
-    String::from_utf8(buf).map_err(|_| "Reformat output is not a valid UTF-8".into())
+    Ok(String::from_utf8(buf)?)
 }
 
-fn random_file() -> Result<(File, PathBuf), String> {
+fn random_file() -> Result<(File, PathBuf), Error> {
     const SUFFIX_LEN: usize = 10;
 
     let suffix: String =
         thread_rng().sample_iter(&distributions::Alphanumeric).take(SUFFIX_LEN).collect();
     let path = temp_dir().join(suffix);
 
-    Ok(File::create(&path)
-        .map(|file| (file, path))
-        .map_err(|_| "Config file could not be created".to_string())?)
+    Ok(File::create(&path).map(|file| (file, path))?)
 }
 
-fn gen_config_file(config: &Config) -> Result<(File, PathBuf), String> {
+fn gen_config_file(config: &Config) -> Result<(File, PathBuf), Error> {
     let (mut file, path) = random_file()?;
-    let toml = config.all_options().to_toml()?;
-    file.write(toml.as_bytes())
-        .map_err(|_| "Could not write config TOML file contents".to_string())?;
+    let toml = config.all_options().to_toml().map_err(Error::ConfigTomlOutput)?;
+    file.write_all(toml.as_bytes())?;
 
     Ok((file, path))
 }
