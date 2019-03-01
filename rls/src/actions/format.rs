@@ -9,8 +9,9 @@ use std::process::{Command, Stdio};
 use std::string::FromUtf8Error;
 
 use log::debug;
+use lsp_types::{Position, Range, TextEdit};
 use rand::{distributions, thread_rng, Rng};
-use rustfmt_nightly::{Config, Input, Session};
+use rustfmt_nightly::{Config, Input, ModifiedLines, NewlineStyle, Session};
 use serde_json;
 
 /// Specifies which `rustfmt` to use.
@@ -65,6 +66,41 @@ impl Rustfmt {
             Rustfmt::Internal => format_internal(input, cfg),
             Rustfmt::External { path, cwd } => format_external(path, cwd, input, cfg),
         }
+    }
+
+    pub fn calc_text_edits(&self, input: String, mut cfg: Config) -> Result<Vec<TextEdit>, Error> {
+        cfg.set().emit_mode(rustfmt_nightly::EmitMode::ModifiedLines);
+
+        let native = if cfg!(windows) { "\r\n" } else { "\n" };
+        let newline = match cfg.newline_style() {
+            NewlineStyle::Windows => "\r\n",
+            NewlineStyle::Unix | NewlineStyle::Auto => "\n",
+            NewlineStyle::Native => native,
+        };
+
+        let output = self.format(input, cfg)?;
+        let ModifiedLines { chunks } = output.parse().map_err(|_| Error::Failed)?;
+
+        Ok(chunks
+            .into_iter()
+            .map(|item| {
+                // Rustfmt's line indices are 1-based
+                let start_line = u64::from(item.line_number_orig) - 1;
+                let removed = u64::from(item.lines_removed);
+                // If there is only one line and we add them, we may underflow.
+                let removed = if removed == 0 { 0 } else { removed - 1 };
+                TextEdit {
+                    range: Range {
+                        start: Position::new(start_line, 0),
+                        // We don't extend the range past the last line because
+                        // sometimes it may not exist, skewing the diff and
+                        // making us add an invalid additional trailing newline.
+                        end: Position::new(start_line + removed, u64::max_value()),
+                    },
+                    new_text: item.lines.join(newline),
+                }
+            })
+            .collect())
     }
 }
 

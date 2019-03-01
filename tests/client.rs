@@ -1765,7 +1765,7 @@ fn client_reformat() {
             start: Position { line: 0, character: 0 },
             end: Position { line: 2, character: 0 },
         },
-        new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}\n".to_string(),
+        new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}".to_string(),
     });
 }
 

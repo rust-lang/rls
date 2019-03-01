@@ -620,7 +620,7 @@ impl RequestAction for CodeAction {
 }
 
 impl RequestAction for Formatting {
-    type Response = [TextEdit; 1];
+    type Response = Vec<TextEdit>;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
         Err(ResponseError::Message(
@@ -638,7 +638,7 @@ impl RequestAction for Formatting {
 }
 
 impl RequestAction for RangeFormatting {
-    type Response = [TextEdit; 1];
+    type Response = Vec<TextEdit>;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
         Err(ResponseError::Message(
@@ -660,7 +660,7 @@ fn reformat(
     selection: Option<Range>,
     opts: &FormattingOptions,
     ctx: &InitActionContext,
-) -> Result<[TextEdit; 1], ResponseError> {
+) -> Result<Vec<TextEdit>, ResponseError> {
     ctx.quiescent.store(true, Ordering::SeqCst);
     trace!("Reformat: {:?} {:?} {} {}", doc, selection, opts.tab_size, opts.insert_spaces);
     let path = parse_file_path!(&doc.uri, "reformat")?;
@@ -683,7 +683,6 @@ fn reformat(
         }
     };
 
-    let range_whole_file = ls_util::range_from_file_string(&input);
     let mut config = ctx.fmt_config().get_rustfmt_config().clone();
     if !config.was_set().hard_tabs() {
         config.set().hard_tabs(!opts.insert_spaces);
@@ -722,9 +721,9 @@ fn reformat(
         config.set().file_lines(file_lines);
     };
 
-    let formatted_text = ctx
+    let text_edits = ctx
         .formatter()
-        .format(input, config)
+        .calc_text_edits(input, config)
         .map_err(|msg| ResponseError::Message(ErrorCode::InternalError, msg.to_string()))?;
 
     // Note that we don't need to update the VFS, the client echos back the
@@ -737,9 +736,7 @@ fn reformat(
         ));
     }
 
-    // If Rustfmt returns range of text that changed,
-    // we will be able to pass only range of changed text to the client.
-    Ok([TextEdit { range: range_whole_file, new_text: formatted_text }])
+    Ok(text_edits)
 }
 
 impl RequestAction for ResolveCompletion {
