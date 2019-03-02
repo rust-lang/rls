@@ -86,9 +86,8 @@ impl Rustfmt {
             .map(|item| {
                 // Rustfmt's line indices are 1-based
                 let start_line = u64::from(item.line_number_orig) - 1;
-                let removed = u64::from(item.lines_removed);
-                // If there is only one line and we add them, we may underflow.
-                let removed = if removed == 0 { 0 } else { removed - 1 };
+                // Could underflow if we don't remove lines and there's only one
+                let removed = u64::from(item.lines_removed).saturating_sub(1);
                 TextEdit {
                     range: Range {
                         start: Position::new(start_line, 0),
