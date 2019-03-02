@@ -15,6 +15,8 @@ use std::thread::{self, Thread};
 #[cfg(test)]
 mod test;
 
+mod ipc;
+
 macro_rules! try_opt_loc {
     ($e:expr) => {
         match $e {

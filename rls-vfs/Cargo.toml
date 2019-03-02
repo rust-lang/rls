@@ -6,7 +6,17 @@ description = "Virtual File System for the RLS"
 license = "Apache-2.0/MIT"
 repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
+edition = "2018"
 
 [dependencies]
 rls-span = "0.4"
-log = "0.4.5"
+log = "0.4"
+mio = "0.6"
+bincode = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+winapi = "0.3"
