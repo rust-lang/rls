@@ -193,3 +193,43 @@ fn rustfmt_args(config: &Config, config_path: &Path) -> Vec<String> {
 
     args
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::FmtConfig;
+    use lsp_types::{Position, Range, TextEdit};
+
+    #[test]
+    fn calc_text_edits() {
+        let config = || FmtConfig::default().get_rustfmt_config().clone();
+        let format = |x: &str| Rustfmt::Internal.calc_text_edits(x.to_string(), config()).unwrap();
+        let line_range = |start, end| Range {
+            start: Position { line: start, character: 0 },
+            end: Position { line: end, character: u64::max_value() },
+        };
+        // Handle single-line text wrt. added/removed trailing newline
+        assert_eq!(
+            format("fn main() {} "),
+            vec![TextEdit { range: line_range(0, 0), new_text: "fn main() {}\n".to_owned() }]
+        );
+
+        assert_eq!(
+            format("fn main() {} \n"),
+            vec![TextEdit { range: line_range(0, 0), new_text: "fn main() {}".to_owned() }]
+        );
+
+        assert_eq!(
+            format("\nfn main() {} \n"),
+            vec![TextEdit { range: line_range(0, 1), new_text: "fn main() {}".to_owned() }]
+        );
+        // Check that we send two separate edits
+        assert_eq!(
+            format("  struct Upper ;\n\nstruct Lower ;"),
+            vec![
+                TextEdit { range: line_range(0, 0), new_text: "struct Upper;".to_owned() },
+                TextEdit { range: line_range(2, 2), new_text: "struct Lower;\n".to_owned() }
+            ]
+        );
+    }
+}
