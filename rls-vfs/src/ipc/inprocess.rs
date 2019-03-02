@@ -35,15 +35,15 @@ impl<U> VfsIpcServer<U> for InProcessVfsIpcServer<U> {
         unimplemented!();
     }
 
-    fn poll(&mut self) {
+    fn roll_the_loop(&mut self) -> std::io::Result<()> {
         unimplemented!();
     }
 
-    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> Token {
+    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> std::io::Result<Token> {
         unimplemented!();
     }
 
-    fn remove_server_end_point(&mut self, e_ept: Token) {
+    fn remove_server_end_point(&mut self, e_ept: Token) -> std::io::Result<()> {
         unimplemented!();
     }
 }

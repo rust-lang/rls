@@ -34,9 +34,9 @@ trait VfsIpcServer<U>: Sized {
 
     fn roll_the_loop(&mut self) -> std::io::Result<()>;
 
-    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> mio::Token;
+    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> std::io::Result<mio::Token>;
 
-    fn remove_server_end_point(&mut self, tok: mio::Token);
+    fn remove_server_end_point(&mut self, tok: mio::Token) -> std::io::Result<()>;
 }
 
 trait VfsIpcClientEndPoint<U> {

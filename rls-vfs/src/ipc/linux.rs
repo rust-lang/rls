@@ -1,8 +1,8 @@
 use super::*;
 use std::sync::Arc;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::boxed::Box;
-use std::pin::Pin;
 use std::path::{Path, PathBuf};
 use std::marker::PhantomData;
 use std::collections::HashMap;
@@ -44,21 +44,19 @@ impl<U> VfsIpcChannel<U> for LinuxVfsIpcChannel<U> {
     }
 }
 
-enum PipeReadState {
-    None,
-    Expecting(Vec<u8>),
+struct PipeReadState {
+    buf: Vec<u8>
 }
 
-enum PipeWriteState {
-    None,
-    Expecting(Vec<u8>)
+struct PipeWriteState {
+    buf: Vec<u8>
 }
 
 struct ConnectionInfo<U> {
     server_end_point: LinuxVfsIpcServerEndPoint<U>,
     opened_files: HashMap<PathBuf, Rc<MapInfo>>,
-    read_buf: PipeReadState,
-    write_buf: PipeWriteState,
+    read_state: PipeReadState,
+    write_state: PipeWriteState,
 }
 
 struct MapInfo {
@@ -93,7 +91,6 @@ impl MapInfo {
         }
 
         Self {
-            file_path,
             shm_name,
             length,
         }
@@ -107,42 +104,103 @@ impl MapInfo {
 }
 
 pub struct LinuxVfsIpcServer<U> {
-    connection_infos: HashMap<Token, ConnectionInfo<U>>,
+    // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
+    // ConnectionInfo
+    connection_infos: HashMap<Token, Rc<RefCell<ConnectionInfo<U>>>>,
     live_maps: HashMap<PathBuf, Rc<MapInfo>>,
     poll: Poll,
     vfs: Arc<Vfs>,
     _u: PhantomData<U>
 }
 
-#[derive(Debug, Display)]
 struct TokenNotFound;
 
+impl TokenNotFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "token not found")
+    }
+}
+
+impl std::fmt::Display for TokenNotFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        TokenNotFound::fmt(&self, f)
+    }
+}
+
+impl std::fmt::Debug for TokenNotFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        TokenNotFound::fmt(&self, f)
+    }
+}
+
 impl std::error::Error for TokenNotFound {
-    fn source(&self) -> Option<&dyn std::error::Error> {
+    fn source(&self) -> Option<&'static dyn std::error::Error> {
         None
     }
 }
 
-#[derive(Debug, Display)]
-struct PipeBroken;
+struct BrokenPipe;
 
-impl std::error::Error for PipeBroken {
-    fn source(&self) -> Option<&dyn std::error::Error> {
+impl BrokenPipe {
+    fn new() -> std::io::Error {
+        std::io::Error::new(std::io::ErrorKind::BrokenPipe, BrokenPipe)
+    }
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "pipe breaks while still reading/writing")
+    }
+}
+
+impl std::fmt::Display for BrokenPipe {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        BrokenPipe::fmt(&self, f)
+    }
+}
+
+impl std::fmt::Debug for BrokenPipe {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        BrokenPipe::fmt(&self, f)
+    }
+}
+
+impl std::error::Error for BrokenPipe {
+    fn source(&self) -> Option<&'static dyn std::error::Error> {
         None
     }
 }
 
-#[derive(Debug, Display)]
 struct PipeCloseMiddle;
 
+impl PipeCloseMiddle {
+    fn new() -> std::io::Error {
+        std::io::Error::new(std::io::ErrorKind::ConnectionAborted, Box::new(PipeCloseMiddle))
+    }
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "pipe closed while still reading/writing")
+    }
+}
+
+impl std::fmt::Display for PipeCloseMiddle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        PipeCloseMiddle::fmt(&self, f)
+    }
+}
+
+impl std::fmt::Debug for PipeCloseMiddle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        PipeCloseMiddle::fmt(&self, f)
+    }
+}
+
 impl std::error::Error for PipeCloseMiddle {
-    fn source(&self) -> Option<&dyn std::error::Error> {
+    fn source(&self) -> Option<&'static dyn std::error::Error> {
         None
     }
 }
 
-impl<U> VfsIpcServer<U> {
-    fn handle_request(&mut self, tok: Token, req: VfsRequestMsg) {
+impl<U> LinuxVfsIpcServer<U> {
+    fn handle_request(&mut self, tok: Token, ci: Rc<RefCell<ConnectionInfo<U>>>, req: VfsRequestMsg) {
         match self.connection_infos.get_mut(&tok) {
             Some(ref mut ci) => {
                 match req {
@@ -157,93 +215,136 @@ impl<U> VfsIpcServer<U> {
         }
     }
 
-    fn handle_read(&mut self, token: Token, ci: &mut ConnectionInfo) -> std::io::Result<()> {
-        // TODO: more efficient buf read, less copy
-        if PipeReadState::None == ci.read_buf {
-            ci.read_buf = PipeReadState::Expecting(Vec::new());
-        }
-        if let PipeReadState::Expecting(ref mut buf) = ci.read_buf {
-            let buf1 = [u8;4096];
-            bool mut should_finish = false;
-            loop {
-                let res = unsafe {
-                    libc::read(ci.server_endpoint.read_fd, &buf1[0] as *mut c_void, std::mem::size_of_val(&buf1))
-                };
-                if res > 0 {
-                    buf.extend_from_slice(&buf1[..res]);
-                } {
-                    match res {
-                        0 => {
-                            should_finish = true;
-                            break;
-                        },
-                        _ => {
-                            match std::io::error::Error::last_os_error() {
-                                libc::EWOULDBLOCK | libc::AGAIN => {
-                                    break;
-                                },
-                                _ => {
-                                    return Error(PipeBroken);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            let len = buf.len();
-            let start_pos = 0;
-            while start_pos + 4 <= len {
-                let msg_len = bincode::deserialize(&buf[start_pos..(start_pos + 4)]);
-                if msg_len + start_pos > len {
-                    break;
-                }
-                let msg:VfsRequestMsg = bincode::deserialize(&buf[(start_pos+4)..(start_pos+msg_len)]);
-                self.handle_request(&mut ci, msg);
-                start_pos += msg_len;:w
-            }
-            buf = buf.split_off(start_pos);
-            if should_finish {
-                if !buf.empty() {
-                    return Error(PipeCloseMiddle);
-                } else {
-                    self.finish_read(toke, &mut ci);
-                }
-            }
-        } else {
-            panic!("impossible condition");
-        }
+    fn finish_read(&mut self, tok: Token, ci: Rc<RefCell<ConnectionInfo<U>>>) -> std::io::Result<()> {
+        unimplemented!();
     }
 
-    fn handle_write(&mut self, token: Token, ci: &mut ConnectionInfo) -> std::io::Result<()> {
-        if let PipeWriteState::Expecting(&mut buf) == ci.write_buf {
-            let len = buf.len();
-            let start_pos:usize = 0;
-            while len > start_pos {
-                let res = unsafe {
-                    libc::write(ci.server_end_point.write_fd, &buf[0] as *const libc::c_void, (len - start_pos) as libc::size_t);
-                };
-                if res > 0 {
-                    start_pos += res;
-                } else if res == 0 {
-                    panic!("write zero byte on pipe, how could this happen?");
-                } else {
-                    match std::io::error::Error::last_os_error() {
-                        libc::EWOULDBLOCK | libc::AGAIN => {
+    fn handle_read(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo<U>>>) -> std::io::Result<()> {
+        // FIXME: this is ugly, but I don't want to spell a long name
+        macro_rules! buf_mut {
+            () => {
+                ci.borrow_mut().read_state.buf
+            }
+        };
+        macro_rules! buf {
+            () => {
+                ci.borrow().read_state.buf
+            }
+        }
+
+        let mut buf1:[u8;4096] = unsafe { std::mem::uninitialized() };
+        let mut met_eof = false;
+        loop {
+            let res = unsafe {
+                libc::read(ci.borrow().server_end_point.read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
+            };
+            if res > 0 {
+                buf_mut!().extend_from_slice(&buf1[..(res as usize)]);
+            } else {
+                match res {
+                    0 => {
+                        met_eof = true;
+                        break;
+                    },
+                    _ => {
+                        let err = std::io::Error::last_os_error();
+                        let err_code = err.raw_os_error().unwrap();
+                        // I'm not sure whether EWOULDBLOCK and EAGAIN are guaranteed to be the
+                        // same, so let's be safe
+                        if err_code == libc::EWOULDBLOCK {
                             break;
-                        },
-                        _ => {
-                            return Error(PipeBroken);
                         }
+                        if err_code == libc::EAGAIN {
+                            break;
+                        }
+                        return Err(err);
                     }
                 }
             }
-            buf.split_off(start_pos);
-            if buf.is_empty() {
-                EventedFd(&ci.server_end_point.write_fd).deregister(&self.poll);
-            }
-        } else {
-            panic!("spurious write envent");
         }
+
+        let len = buf!().len();
+        let mut start_pos = 0;
+        while start_pos + 4 <= len {
+            let msg_len = match bincode::deserialize::<u32>(&buf!()[start_pos..(start_pos + 4)]) {
+                Ok(msg_len) => msg_len as usize,
+                Err(err) => {
+                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
+                }
+            };
+            if msg_len + start_pos > len {
+                break;
+            }
+            let msg:VfsRequestMsg = match bincode::deserialize(&buf!()[(start_pos+4)..(start_pos+msg_len)]) {
+                Ok(msg) => msg,
+                Err(err) => {
+                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
+                }
+            };
+            self.handle_request(token, ci.clone(), msg);
+            start_pos += msg_len;
+        }
+
+        {
+            buf_mut!() = buf_mut!().split_off(start_pos);
+        }
+
+        if met_eof {
+            if buf!().is_empty() {
+                self.finish_read(token, ci.clone())?;
+            } else {
+                return Err(PipeCloseMiddle::new());
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_write(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo<U>>>) -> std::io::Result<()> {
+        // FIXME: this is ugly, but I don't want to spell a long name
+        macro_rules! buf {
+            () => {
+                ci.borrow().write_state.buf
+            }
+        };
+
+        macro_rules! buf_mut {
+            () => {
+                ci.borrow_mut().write_state.buf
+            }
+        };
+
+        let len = buf!().len();
+        let mut start_pos:usize = 0;
+        while len > start_pos {
+            let res = unsafe {
+                libc::write(ci.borrow().server_end_point.write_fd, &buf!()[0] as *const u8 as *const libc::c_void, (len - start_pos) as libc::size_t)
+            };
+            if res > 0 {
+                start_pos += res as usize;
+            } else if res == 0 {
+                panic!("write zero byte on pipe, how could this happen?");
+            } else {
+                let err_code = std::io::Error::last_os_error().raw_os_error().unwrap();
+                // I'm not sure whether EWOULDBLOCK and EAGAIN are guaranteed to be the
+                // same, so let's be safe
+                if err_code == libc::EWOULDBLOCK {
+                    break;
+                }
+                if err_code == libc::EAGAIN {
+                    break;
+                }
+                return Err(BrokenPipe::new());
+            }
+        }
+
+        {
+            buf_mut!().split_off(start_pos);
+        }
+        if buf!().is_empty() {
+            use mio::{event::Evented, unix::EventedFd};
+            EventedFd(&ci.borrow().server_end_point.write_fd).deregister(&self.poll)?;
+        }
+        Ok(())
     }
 }
 
@@ -268,47 +369,49 @@ impl<U> VfsIpcServer<U> for LinuxVfsIpcServer<U> {
         loop {
             self.poll.poll(&mut events, None)?;
             for event in &events {
-                let tok = event.token();
-                let ref mut ci = match self.connection_infos.get_mut(tok) {
-                    Some(ref mut ci) => ci,
-                    None() => return Err(std::io::Error::new(std::io::ErrorKind::NotFound, Box::new(TokenNotFound)));
+                let token = event.token();
+                let ci = match self.connection_infos.get_mut(&token) {
+                    Some(ci) => ci.clone(),
+                    None => return Err(std::io::Error::new(std::io::ErrorKind::NotFound, Box::new(TokenNotFound))),
+                };
+
+                let ready = event.readiness();
+                if ready.contains(mio::Ready::readable()) {
+                    self.handle_read(token, ci.clone())?;
                 }
-                let ready = readiness();
-                if ready & mio::Ready::readable() {
-                    self.handle_read(tok, &mut ci)?;
-                }
-                if ready & mio::Ready::writable() {
-                    self.handle_write(tok, &mut ci)?;
+                if ready.contains(mio::Ready::writable()) {
+                    self.handle_write(token, ci.clone())?;
                 }
             }
         }
     }
 
-    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> Token {
+    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> std::io::Result<Token> {
         use mio::{event::Evented, unix::EventedFd};
         // fd's are unique
         let tok_usize = s_ep.read_fd as usize;
         let tok = Token(tok_usize);
-        EventedFd(&s_ep.read_fd).register(&self.poll, tok, mio::Ready::readable(), mio::PollOpt::edge());
-        tok
+        EventedFd(&s_ep.read_fd).register(&self.poll, tok, mio::Ready::readable(), mio::PollOpt::edge())?;
+        Ok(tok)
     }
 
-    fn remove_server_end_point(&mut self, tok: Token) {
+    fn remove_server_end_point(&mut self, tok: Token) -> std::io::Result<()>{
         use mio::{event::Evented, unix::EventedFd};
         match self.connection_infos.remove(&tok) {
             Some(ci) => {
-                EventedFd(&ci.server_end_point.read_fd).deregister(&self.poll);
-                EventedFd(&ci.server_end_point.write_fd).deregister(&self.poll);
-                for mi in ci.opened_files {
-                    if Rc::<MapInfo>::strong_count(&mi) == 2 {
+                EventedFd(&ci.borrow().server_end_point.read_fd).deregister(&self.poll)?;
+                EventedFd(&ci.borrow().server_end_point.write_fd).deregister(&self.poll)?;
+                for (file_path, mi) in ci.borrow().opened_files.iter() {
+                    if Rc::<MapInfo>::strong_count(mi) == 2 {
                         mi.close();
-                        self.live_maps.remove(&mi.file_path);
+                        self.live_maps.remove(file_path);
                     }
                 }
             },
             None => {
             }
         }
+        Ok(())
     }
 }
 
