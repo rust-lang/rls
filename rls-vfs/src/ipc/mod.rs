@@ -12,10 +12,11 @@ pub use self::windows::*;
 
 use std::result::Result;
 use serde::{Serialize, Deserialize};
+use std::sync::Arc;
+use std::clone::Clone;
 //pub use self::inprocess::*;
 
 use super::Vfs;
-use std::sync::Arc;
 
 trait VfsIpcChannel: Sized {
     type ServerEndPoint: VfsIpcServerEndPoint;
@@ -27,7 +28,7 @@ trait VfsIpcChannel: Sized {
     fn into_client_end_point_postfork(self) -> Result<Self::ClientEndPoint, Self::Error>;
 }
 
-trait VfsIpcServer<U: Serialize> : Sized {
+trait VfsIpcServer<U: Serialize + Clone> : Sized {
     type Channel: VfsIpcChannel;
     type ServerEndPoint: VfsIpcServerEndPoint;
     type ClientEndPoint: VfsIpcClientEndPoint;
@@ -44,7 +45,7 @@ trait VfsIpcServer<U: Serialize> : Sized {
 
 trait VfsIpcClientEndPoint {
     type Error: std::error::Error;
-    fn request_file<U: Serialize>(path: &std::path::Path) -> Result<(String, U), Self::Error>;
+    fn request_file<U: Serialize + Clone>(path: &std::path::Path) -> Result<(String, U), Self::Error>;
 }
 
 trait VfsIpcServerEndPoint {
@@ -62,7 +63,7 @@ enum VfsRequestMsg {
 }
 
 #[derive(Serialize, Deserialize)]
-struct VfsReplyMsg<U: Serialize> {
+struct VfsReplyMsg<U: Serialize + Clone> {
     // NB: make sure path is null-terminated
     path: String,
     // Save the client from calling fstat

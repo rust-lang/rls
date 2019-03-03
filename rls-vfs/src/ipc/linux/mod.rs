@@ -6,6 +6,7 @@ pub use error::{LibcError, RlsVfsIpcError};
 
 use super::*;
 use std::sync::Arc;
+use std::clone::Clone;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::boxed::Box;
@@ -142,7 +143,7 @@ struct PipeWriteState {
 // information about a connection that is kept on the server side
 struct ConnectionInfo {
     server_end_point: LinuxVfsIpcServerEndPoint,
-    // NB: it is assumed clients's requests are unique (with respect to their canonical path), duplicate open for the same file should be
+    // NB: it is assumed clients's requests are unique (with respect to their canonical path), duplicated open for the same file should be
     // handled on the client side.
     opened_files: HashMap<PathBuf, Rc<MapInfo>>,
     read_state: PipeReadState,
@@ -162,7 +163,7 @@ struct MapInfo {
 
 impl MapInfo {
     // construct a mmap, currently you can not query vfs for the version of a file
-    pub fn open(cont: &str, shm_name:String) -> LibcResult<Self> {
+    pub fn open(cont: &[u8], shm_name:String) -> LibcResult<Self> {
         let length = cont.len() as libc::size_t;
         unsafe {
             let shm_oflag = libc::O_CREAT | libc::O_EXCL | libc::O_RDWR;
@@ -201,8 +202,8 @@ impl MapInfo {
         })
     }
 
-    // close a mmap, after closing, clients won't be able to "connect to" this mmap, buf existing
-    // mmaps are not invalidated.
+    // close a shared memory, after closing, clients won't be able to "connect to" this mmap, buf existing
+    // shms are not invalidated.
     pub fn close(&self) -> LibcResult<()> {
         if unsafe {
             libc::shm_unlink(self.shm_name.as_ptr() as *const libc::c_char)
@@ -214,7 +215,7 @@ impl MapInfo {
 }
 
 // a server that takes care of handling client's requests and managin mmap
-pub struct LinuxVfsIpcServer<U: Serialize> {
+pub struct LinuxVfsIpcServer<U: Serialize + Clone> {
     // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
     // ConnectionInfo
     connection_infos: HashMap<Token, Rc<RefCell<ConnectionInfo>>>,
@@ -225,7 +226,7 @@ pub struct LinuxVfsIpcServer<U: Serialize> {
     timestamp: usize
 }
 
-impl<U: Serialize> LinuxVfsIpcServer<U> {
+impl<U: Serialize + Clone> LinuxVfsIpcServer<U> {
     fn handle_request(&mut self, tok: Token, ci: Rc<RefCell<ConnectionInfo>>, req: VfsRequestMsg) -> Result<()> {
         match req {
             VfsRequestMsg::OpenFile(path) => {
@@ -238,41 +239,38 @@ impl<U: Serialize> LinuxVfsIpcServer<U> {
     }
 
     fn try_set_up_mmap(&mut self, path: &Path) -> Result<(Rc<MapInfo>, U)> {
-        /*
+        // TODO: currently, vfs doesn't restrict which files are allowed to be opened, this may
+        // need some change in the future.
+        let path = path.canonicalize()?;
+
+        // TODO: more efficient impl, less memory copy and lookup
         use std::collections::hash_map::RawEntryMut;
-        match self.live_maps.raw_entry_mut().from_key(&path) {
+        use super::super::FileContents;
+        let mi = match self.live_maps.raw_entry_mut().from_key(&path) {
             RawEntryMut::Occupied(occ) => {
                 occ.get().clone()
             },
             RawEntryMut::Vacant(vac) => {
-                match self.vfs.with_user_data(path, move |res| {
-                    match res {
-                        Ok((opt, user_data)) => {
-                            let cont = match opt {
-                                Some(cont) => cont,
-                                None => {
-                                    panic!("why does vfs returns a None file content?")
-                                }
-                            };
-                            let shm_name = self.generate_shm_name(&file_path/*, version*/);
-                            let mi = Rc::new(MapInfo::open(path, cont));
-                            vac.insert(path.to_path_buf(), mi.clone());
-                            Ok((mi, user_data.clone()))
-                        },
-                        err @ Err(_) => {
-                            err;
-                        },
+                let shm_name = self.generate_shm_name(&path);
+                match self.vfs.load_file(&path)? {
+                    FileContents::Text(s) => {
+                        Rc::new(MapInfo::open(s.as_bytes(), shm_name)?)
                     }
-                }) {
-                    ok @ Ok(_) => ok,
-                    Err(err) => {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Other, Box::new(err)));
-                    },
+                    FileContents::Binary(v) => {
+                        Rc::new(MapInfo::open(&v, shm_name)?)
+                    }
                 }
             },
-        }
-    */
-        unimplemented!()
+        };
+        let u = self.vfs.with_user_data(&path, |res| {
+            match res {
+                Err(err) => Err(err),
+                Ok((_, u)) => {
+                    Ok(u.clone())
+                },
+            }
+        })?;
+        Ok((mi, u))
     }
 
     fn handle_open_request(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo>>, path: PathBuf) -> Result<()> {
@@ -473,7 +471,7 @@ impl<U: Serialize> LinuxVfsIpcServer<U> {
         Ok(())
     }
 
-    fn generate_shm_name(&mut self, server_pid: i32, file_path: &Path,/* version: &str*/ timestamp: usize) -> String {
+    fn generate_shm_name(&mut self, file_path: &Path) -> String {
         let ret = std::format!("/rls-{}-{}-{}\u{0000}", self.server_pid, file_path.display(), self.timestamp);
         self.timestamp += 1;
         ret
@@ -488,7 +486,7 @@ impl<U: Serialize> LinuxVfsIpcServer<U> {
     }
 }
 
-impl<U: Serialize> VfsIpcServer<U> for LinuxVfsIpcServer<U> {
+impl<U: Serialize + Clone> VfsIpcServer<U> for LinuxVfsIpcServer<U> {
     type Channel = LinuxVfsIpcChannel;
     type ServerEndPoint = LinuxVfsIpcServerEndPoint;
     type ClientEndPoint = LinuxVfsIpcClientEndPoint;
@@ -573,7 +571,7 @@ impl LinuxVfsIpcClientEndPoint {
 
 impl VfsIpcClientEndPoint for LinuxVfsIpcClientEndPoint {
     type Error = RlsVfsIpcError;
-    fn request_file<U: Serialize>(path: &std::path::Path) -> Result<(String, U)> {
+    fn request_file<U: Serialize + Clone>(path: &std::path::Path) -> Result<(String, U)> {
         unimplemented!();
     }
 }
@@ -624,7 +622,7 @@ struct LinuxVfsIpcFileHandle {
 }
 
 impl LinuxVfsIpcFileHandle {
-    pub fn from_reply<U: Serialize>(reply: VfsReplyMsg<U>) -> (Self, U) {
+    pub fn from_reply<U: Serialize  + Clone>(reply: VfsReplyMsg<U>) -> (Self, U) {
         let addr;
         let length = reply.length as libc::size_t;
         unsafe {
