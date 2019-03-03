@@ -78,9 +78,15 @@ quick_error! {
         }
         DeserializeError(err: BinCodeError) {
         }
+        CloseNonOpenedFile {
+        }
         TokenNotFound {
         }
         PipeCloseMiddle {
+        }
+        RemoveUnknownClient {
+        }
+        GetFileFromClosedHandle {
         }
         Other {
         }

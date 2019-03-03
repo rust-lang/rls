@@ -2,7 +2,6 @@
 mod error;
 
 pub use error::{LibcError, RlsVfsIpcError};
-//use error::{would_block_or_error, handle_libc_error, fake_libc_error};
 
 use super::*;
 use std::sync::Arc;
@@ -352,13 +351,15 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
                 // same as EWOULDBLOCK
                 break;
             } else {
-                handle_libc_error!("write");
+                if would_block_or_error!("write") {
+                    break;
+                }
             }
         }
         ci.write_state.buf = ci.write_state.buf.split_off(start_pos);
         if start_pos < len {
             use mio::{event::Evented, unix::EventedFd};
-            EventedFd(&write_fd).register(&self.poll, token, mio::Ready::readable(), mio::PollOpt::edge()|mio::PollOpt::oneshot())?;
+            EventedFd(&write_fd).register(&self.poll, token, mio::Ready::writable(), mio::PollOpt::edge())?;
         }
         Ok(())
     }
@@ -369,7 +370,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
                 self.try_remove_last_map(mi, &path)?;
             }
             None => {
-                panic!()
+                return Err(RlsVfsIpcError::CloseNonOpenedFile);
             }
         }
         Ok(())
@@ -377,8 +378,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
 
     // a eof is met when reading a pipe, the connection's read side will not be used again(write
     // side may still be used to send replies)
-    fn finish_read(&mut self, _tok: Token, _ci: &mut ConnectionInfo) -> Result<()> {
-        // TODO
+    fn finish_read(&mut self, _tok: Token, ci: &mut ConnectionInfo) -> Result<()> {
         Ok(())
     }
 
@@ -490,7 +490,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
     }
 
     fn try_remove_last_map(&mut self, mi: Rc<MapInfo>, file_path: &Path) -> Result<()> {
-        if Rc::<MapInfo>::strong_count(&mi) == 2 {
+        if Rc::<MapInfo>::strong_count(&mi) == 1 {
             mi.close()?;
             self.live_maps.borrow_mut().remove(file_path);
         }
@@ -554,15 +554,19 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
         use mio::{event::Evented, unix::EventedFd};
         match self.connection_infos.remove(&tok) {
             Some(ci) => {
-                let read_fd = ci.borrow().server_end_point.read_fd.get_fd()?;
-                let write_fd = ci.borrow().server_end_point.write_fd.get_fd()?;
+                let mut ci = ci.borrow_mut();
+                let read_fd = ci.server_end_point.read_fd.get_fd()?;
                 EventedFd(&read_fd).deregister(&self.poll)?;
-                EventedFd(&write_fd).deregister(&self.poll)?;
-                for (file_path, mi) in ci.borrow_mut().opened_files.drain() {
+                if ci.write_state.buf.len() != 0 {
+                    let write_fd = ci.server_end_point.write_fd.get_fd()?;
+                    EventedFd(&write_fd).deregister(&self.poll)?;
+                }
+                for (file_path, mi) in ci.opened_files.drain() {
                     self.try_remove_last_map(mi, &file_path)?;
                 }
             },
             None => {
+                return Err(RlsVfsIpcError::RemoveUnknownClient);
             }
         }
         Ok(())
@@ -597,7 +601,8 @@ impl LinuxVfsIpcClientEndPoint {
                 libc::write(write_fd, &buf[start_pos] as *const u8 as *const libc::c_void, len - start_pos)
             };
             if res < 0 {
-                // TODO: more fine grained error handling
+                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
+                // TODO: more fine grained error handling, like interrupted by a signal
                 handle_libc_error!("write");
             }
             start_pos += res as usize;
@@ -615,6 +620,8 @@ impl LinuxVfsIpcClientEndPoint {
                     libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
                 };
                 if res < 0 {
+                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
+                // TODO: more fine grained error handling, like interrupted by a signal
                     handle_libc_error!("read");
                 }
             }
@@ -670,8 +677,7 @@ impl LinuxVfsIpcServerEndPoint {
                 fd
             },
             Fd::Closed => {
-                // TODO
-                panic!()
+                fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
             }
         };
         let w_fd = match write_fd {
@@ -679,8 +685,7 @@ impl LinuxVfsIpcServerEndPoint {
                 fd
             },
             Fd::Closed => {
-                // TODO
-                panic!()
+                fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
             }
         };
         unsafe {
@@ -698,9 +703,23 @@ impl LinuxVfsIpcServerEndPoint {
 impl VfsIpcServerEndPoint for LinuxVfsIpcServerEndPoint {
 }
 
-pub struct LinuxVfsIpcFileHandle {
+pub struct OpenedLinuxVfsIpcFileHandle {
     addr: *mut libc::c_void,
     length: libc::size_t,
+}
+
+impl OpenedLinuxVfsIpcFileHandle {
+    pub fn close(&mut self) -> LibcResult<()> {
+        if unsafe { libc::munmap(self.addr, self.length) } < 0 {
+            handle_libc_error!("munmap");
+        }
+        Ok(())
+    }
+}
+
+pub enum LinuxVfsIpcFileHandle {
+    Open(OpenedLinuxVfsIpcFileHandle),
+    Closed,
 }
 
 impl LinuxVfsIpcFileHandle {
@@ -711,17 +730,41 @@ impl LinuxVfsIpcFileHandle {
             let shm_oflag = libc::O_RDONLY;
             let shm_mode: libc::mode_t = 0;
             let shm_fd = libc::shm_open(reply.path.as_ptr() as *const i8, shm_oflag, shm_mode);
+            if shm_fd < 0 {
+                handle_libc_error!("shm_open");
+            }
 
             let mmap_prot = libc::PROT_READ;
             // shared map to save us a few memory pages
             // only the server write to the mapped area, the clients only read them, so no problem here
             let mmap_flags = libc::MAP_SHARED;
             addr = libc::mmap(0 as *mut libc::c_void, length, mmap_prot, mmap_flags, shm_fd, 0 as libc::off_t);
+            if addr == libc::MAP_FAILED  {
+                handle_libc_error!("mmap");
+            }
+
+            if libc::close(shm_fd) < 0 {
+                handle_libc_error!("close");
+            }
         }
-        Ok((Self {
+
+        Ok((Self::Open(OpenedLinuxVfsIpcFileHandle {
             addr,
             length,
-        }, reply.user_data))
+        }), reply.user_data))
+    }
+
+    pub fn close(&mut self) -> LibcResult<()> {
+        match self {
+            Self::Open(handle) => {
+                handle.close()?;
+                *self = Self::Closed;
+                Ok(())
+            },
+            Self::Closed => {
+                fake_libc_error!("LinuxVfsIpcFileHandle::close" ,libc::EBADF);
+            },
+        }
     }
 }
 
@@ -729,17 +772,27 @@ impl VfsIpcFileHandle for LinuxVfsIpcFileHandle {
     type Error = RlsVfsIpcError;
     fn get_file_ref(&self) -> Result<&str> {
         // NB: whether the file contents are valid utf8 are never checked
-        Ok(unsafe {
-            let slice = std::slice::from_raw_parts(self.addr as *const u8, self.length as usize);
-            std::str::from_utf8_unchecked(&slice)
-        })
+        match self {
+            Self::Open(handle) => {
+                Ok(unsafe {
+                    let slice = std::slice::from_raw_parts(handle.addr as *const u8, handle.length as usize);
+                    std::str::from_utf8_unchecked(&slice)
+                })
+            },
+            Self::Closed => {
+                return Err(RlsVfsIpcError::GetFileFromClosedHandle);
+            }
+        }
     }
 }
 
 impl Drop for LinuxVfsIpcFileHandle {
     fn drop(&mut self) {
-        unsafe {
-            libc::munmap(self.addr, self.length);
+        match self {
+            Self::Open(_) => {
+                panic!("you drop a LinuxVfsIpcFileHanlde while it's still open")
+            },
+            Self::Closed => (),
         }
     }
 }

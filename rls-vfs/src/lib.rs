@@ -1,3 +1,5 @@
+#![feature(type_alias_enum_variants)]
+
 extern crate rls_span as span;
 #[macro_use]
 extern crate log;
