@@ -18,7 +18,7 @@ use serde::{Serialize, Deserialize};
 pub type Result<T> = std::result::Result<T, RlsVfsIpcError>;
 pub type LibcResult<T> = std::result::Result<T, LibcError>;
 
-enum Fd {
+pub enum Fd {
     Closed,
     Open(libc::c_int),
 }
@@ -215,7 +215,7 @@ impl MapInfo {
 }
 
 // a server that takes care of handling client's requests and managin mmap
-pub struct LinuxVfsIpcServer<U: Serialize + Clone> {
+pub struct LinuxVfsIpcServer<U: Serialize + Deserialize + Clone> {
     // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
     // ConnectionInfo
     connection_infos: HashMap<Token, Rc<RefCell<ConnectionInfo>>>,
@@ -226,7 +226,7 @@ pub struct LinuxVfsIpcServer<U: Serialize + Clone> {
     timestamp: usize
 }
 
-impl<U: Serialize + Clone> LinuxVfsIpcServer<U> {
+impl<U: Serialize + Deserialize + Clone> LinuxVfsIpcServer<U> {
     fn handle_request(&mut self, tok: Token, ci: Rc<RefCell<ConnectionInfo>>, req: VfsRequestMsg) -> Result<()> {
         match req {
             VfsRequestMsg::OpenFile(path) => {
@@ -486,7 +486,7 @@ impl<U: Serialize + Clone> LinuxVfsIpcServer<U> {
     }
 }
 
-impl<U: Serialize + Clone> VfsIpcServer<U> for LinuxVfsIpcServer<U> {
+impl<U: Serialize + Deserialize + Clone> VfsIpcServer<U> for LinuxVfsIpcServer<U> {
     type Channel = LinuxVfsIpcChannel;
     type ServerEndPoint = LinuxVfsIpcServerEndPoint;
     type ClientEndPoint = LinuxVfsIpcClientEndPoint;
@@ -561,18 +561,86 @@ pub struct LinuxVfsIpcClientEndPoint {
 }
 
 impl LinuxVfsIpcClientEndPoint {
-    fn new(read_fd: Fd, write_fd: Fd) -> LibcResult<Self> {
+    pub fn new(read_fd: Fd, write_fd: Fd) -> LibcResult<Self> {
         Ok(Self {
             read_fd,
             write_fd,
         })
     }
+
+    fn write_request(&mut self, req_msg: VfsRequestMsg) -> Result<()> {
+        let buf = match bincode::serialize(&req_msg) {
+            Ok(buf) => buf,
+            Err(err) => {
+                return Err(RlsVfsIpcError::SerializeError(err));
+            }
+        };
+        let len = buf.len();
+        let mut start_pos = 0;
+        let write_fd = self.write_fd.unwrap()?;
+        while start_pos < len {
+            let res = unsafe {
+                libc::write(write_fd, &buf[start_pos] as *const u8 as *const libc::c_void, len - start_pos)
+            };
+            if res < 0 {
+                // TODO: more fine grained error handling
+                handle_libc_error!("write");
+            }
+            start_pos += res as usize;
+        }
+        Ok(())
+    }
+
+    fn read_reply<U: Serialize + Deserialize + Clone>(&mut self) -> Result<VfsReplyMsg<U>> {
+        let buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
+        let buf:Vec<u8>;
+        let read_fd = self.read_fd.unwrap()?;
+        macro_rules! read_and_append {
+            () => {
+                let res = unsafe {
+                    libc::read(read_fd, &buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
+                };
+                if res < 0 {
+                    handle_libc_error!("read");
+                }
+            }
+        }
+        loop {
+            read_and_append!();
+            if buf.len() >= 4 {
+                break;
+            }
+        }
+        let len = match bincode::deserialize(&buf[0..4]) {
+            Ok(len) => len as usize,
+            Err(err) => {
+                return Err(RlsVfsIpcError::DeserializeError(err));
+            },
+        };
+        buf.reserve(len);
+        while buf.len() < len {
+            read_and_append!();
+        }
+        match bincode::deserialize(&buf[4..len]) {
+            Ok(ret) => {
+                Ok(ret)
+            },
+            Err(err) => {
+                Err(RlsVfsIpcError::DeserializeError(err));
+            }
+        }
+    }
 }
 
 impl VfsIpcClientEndPoint for LinuxVfsIpcClientEndPoint {
     type Error = RlsVfsIpcError;
-    fn request_file<U: Serialize + Clone>(path: &std::path::Path) -> Result<(String, U)> {
-        unimplemented!();
+    type FileHandle = LinuxVfsIpcFileHandle;
+    fn request_file<U: Serialize + Deserialize + Clone>(&mut self, path: &Path) -> Result<(Self::FileHandle, U)> {
+        let req_msg = VfsRequestMsg::OpenFile(path.to_owned());
+        self.write_request(req_msg)?;
+        let rep_msg = self.read_reply::<U>()?;
+        let res = Self::FileHandle::from_reply(rep_msg)?;
+        Ok(res)
     }
 }
 
@@ -616,13 +684,13 @@ impl LinuxVfsIpcServerEndPoint {
 impl VfsIpcServerEndPoint for LinuxVfsIpcServerEndPoint {
 }
 
-struct LinuxVfsIpcFileHandle {
+pub struct LinuxVfsIpcFileHandle {
     addr: *mut libc::c_void,
     length: libc::size_t,
 }
 
 impl LinuxVfsIpcFileHandle {
-    pub fn from_reply<U: Serialize  + Clone>(reply: VfsReplyMsg<U>) -> (Self, U) {
+    pub fn from_reply<U: Serialize + Deserialize + Clone>(reply: VfsReplyMsg<U>) -> LibcResult<(Self, U)> {
         let addr;
         let length = reply.length as libc::size_t;
         unsafe {
@@ -636,10 +704,10 @@ impl LinuxVfsIpcFileHandle {
             let mmap_flags = libc::MAP_SHARED;
             addr = libc::mmap(0 as *mut libc::c_void, length, mmap_prot, mmap_flags, shm_fd, 0 as libc::off_t);
         }
-        (Self {
+        Ok((Self {
             addr,
             length,
-        }, reply.user_data)
+        }, reply.user_data))
     }
 }
 

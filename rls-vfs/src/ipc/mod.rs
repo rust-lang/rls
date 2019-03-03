@@ -45,7 +45,8 @@ trait VfsIpcServer<U: Serialize + Clone> : Sized {
 
 trait VfsIpcClientEndPoint {
     type Error: std::error::Error;
-    fn request_file<U: Serialize + Clone>(path: &std::path::Path) -> Result<(String, U), Self::Error>;
+    type FileHandle: VfsIpcFileHandle;
+    fn request_file<'a, U: Serialize + Deserialize<'a> + Clone>(&mut self, path: &std::path::Path) -> Result<(Self::FileHandle, U), Self::Error>;
 }
 
 trait VfsIpcServerEndPoint {
@@ -57,13 +58,13 @@ trait VfsIpcFileHandle {
 }
 
 #[derive(Serialize, Deserialize)]
-enum VfsRequestMsg {
+pub enum VfsRequestMsg {
     OpenFile(std::path::PathBuf),
     CloseFile(std::path::PathBuf),
 }
 
 #[derive(Serialize, Deserialize)]
-struct VfsReplyMsg<U: Serialize + Clone> {
+pub struct VfsReplyMsg<U: Serialize + Deserialize + Clone> {
     // NB: make sure path is null-terminated
     path: String,
     // Save the client from calling fstat
