@@ -9,6 +9,7 @@ categories = ["development-tools"]
 edition = "2018"
 
 [dependencies]
+quick-error = "1.2"
 rls-span = "0.4"
 log = "0.4"
 mio = "0.6"

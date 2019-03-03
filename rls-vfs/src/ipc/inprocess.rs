@@ -2,14 +2,14 @@ use super::*;
 use std::sync::Arc;
 use std::marker::PhantomData;
 use mio::Token;
+use serde::{Serialize, Deserialize};
 
-struct InProcessVfsIpcChannel<U> {
-    _u: PhantomData<U>
+struct InProcessVfsIpcChannel {
 }
 
-impl<U> VfsIpcChannel<U> for InProcessVfsIpcChannel<U> {
-    type ServerEndPoint = InProcessVfsIpcServerEndPoint<U>;
-    type ClientEndPoint = InProcessVfsIpcClientEndPoint<U>;
+impl VfsIpcChannel for InProcessVfsIpcChannel {
+    type ServerEndPoint = InProcessVfsIpcServerEndPoint;
+    type ClientEndPoint = InProcessVfsIpcClientEndPoint;
 
     fn new_prefork() -> Self {
         unimplemented!();
@@ -22,16 +22,16 @@ impl<U> VfsIpcChannel<U> for InProcessVfsIpcChannel<U> {
     }
 }
 
-struct InProcessVfsIpcServer<U> {
+struct InProcessVfsIpcServer<U: Serialize> {
     _u: PhantomData<U>
 }
 
-impl<U> VfsIpcServer<U> for InProcessVfsIpcServer<U> {
-    type Channel = InProcessVfsIpcChannel<U>;
-    type ServerEndPoint = InProcessVfsIpcServerEndPoint<U>;
-    type ClientEndPoint = InProcessVfsIpcClientEndPoint<U>;
+impl<U: Serialize> VfsIpcServer<U> for InProcessVfsIpcServer<U> {
+    type Channel = InProcessVfsIpcChannel;
+    type ServerEndPoint = InProcessVfsIpcServerEndPoint;
+    type ClientEndPoint = InProcessVfsIpcClientEndPoint;
 
-    fn new(vfs: Arc<Vfs>) -> std::io::Result<Self> {
+    fn new(vfs: Arc<Vfs<U>>) -> std::io::Result<Self> {
         unimplemented!();
     }
 
@@ -48,20 +48,18 @@ impl<U> VfsIpcServer<U> for InProcessVfsIpcServer<U> {
     }
 }
 
-struct InProcessVfsIpcClientEndPoint<U> {
-    _u: PhantomData<U>
+struct InProcessVfsIpcClientEndPoint {
 }
 
-impl<U> VfsIpcClientEndPoint<U> for InProcessVfsIpcClientEndPoint<U> {
-    fn request_file(path: &std::path::Path) -> (String, U) {
+impl VfsIpcClientEndPoint for InProcessVfsIpcClientEndPoint {
+    fn request_file<U: Serialize>(path: &std::path::Path) -> (String, U) {
         unimplemented!();
     }
 }
 
-struct InProcessVfsIpcServerEndPoint<U> {
-    _u: PhantomData<U>
+struct InProcessVfsIpcServerEndPoint {
 }
 
-impl<U> VfsIpcServerEndPoint<U> for InProcessVfsIpcServerEndPoint<U> {
+impl VfsIpcServerEndPoint for InProcessVfsIpcServerEndPoint {
 }
 

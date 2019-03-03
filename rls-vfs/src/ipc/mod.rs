@@ -8,47 +8,51 @@ mod windows;
 #[cfg(target_os = "windows")]
 pub use self::windows::*;
 
-mod inprocess;
+//mod inprocess;
 
+use std::result::Result;
 use serde::{Serialize, Deserialize};
-pub use self::inprocess::*;
+//pub use self::inprocess::*;
 
 use super::Vfs;
 use std::sync::Arc;
 
-trait VfsIpcChannel<U> {
-    type ServerEndPoint: VfsIpcServerEndPoint<U>;
-    type ClientEndPoint: VfsIpcClientEndPoint<U>;
+trait VfsIpcChannel: Sized {
+    type ServerEndPoint: VfsIpcServerEndPoint;
+    type ClientEndPoint: VfsIpcClientEndPoint;
+    type Error: std::error::Error;
 
-    fn new_prefork() -> Self;
-    fn into_server_end_point_postfork(self) -> Self::ServerEndPoint;
-    fn into_client_end_point_postfork(self) -> Self::ClientEndPoint;
+    fn new_prefork() -> Result<Self, Self::Error>;
+    fn into_server_end_point_postfork(self) -> Result<Self::ServerEndPoint, Self::Error>;
+    fn into_client_end_point_postfork(self) -> Result<Self::ClientEndPoint, Self::Error>;
 }
 
-trait VfsIpcServer<U>: Sized {
-    type Channel: VfsIpcChannel<U>;
-    type ServerEndPoint: VfsIpcServerEndPoint<U>;
-    type ClientEndPoint: VfsIpcClientEndPoint<U>;
+trait VfsIpcServer<U: Serialize> : Sized {
+    type Channel: VfsIpcChannel;
+    type ServerEndPoint: VfsIpcServerEndPoint;
+    type ClientEndPoint: VfsIpcClientEndPoint;
+    type Error: std::error::Error;
 
-    fn new(vfs: Arc<Vfs>) -> std::io::Result<Self>;
+    fn new(vfs: Arc<Vfs<U>>) -> Result<Self, Self::Error>;
 
-    fn roll_the_loop(&mut self) -> std::io::Result<()>;
+    fn roll_the_loop(&mut self) -> Result<(), Self::Error>;
 
-    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> std::io::Result<mio::Token>;
+    fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> Result<mio::Token, Self::Error>;
 
-    fn remove_server_end_point(&mut self, tok: mio::Token) -> std::io::Result<()>;
+    fn remove_server_end_point(&mut self, tok: mio::Token) -> Result<(), Self::Error>;
 }
 
-trait VfsIpcClientEndPoint<U> {
-    fn request_file(path: &std::path::Path) -> (String, U);
+trait VfsIpcClientEndPoint {
+    type Error: std::error::Error;
+    fn request_file<U: Serialize>(path: &std::path::Path) -> Result<(String, U), Self::Error>;
 }
 
-trait VfsIpcServerEndPoint<U> {
+trait VfsIpcServerEndPoint {
 }
 
-trait VfsIpcFileHandle<U> {
-    fn get_file_ref(&self) -> &str;
-    fn get_user_data_ref(&self) -> &U;
+trait VfsIpcFileHandle {
+    type Error: std::error::Error;
+    fn get_file_ref(&self) -> Result<&str, Self::Error>;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -58,10 +62,10 @@ enum VfsRequestMsg {
 }
 
 #[derive(Serialize, Deserialize)]
-struct VfsReplyMsg<U> {
+struct VfsReplyMsg<U: Serialize> {
     // NB: make sure path is null-terminated
     path: String,
     // Save the client from calling fstat
-    length: usize,
+    length: u32,
     user_data: U,
 }
