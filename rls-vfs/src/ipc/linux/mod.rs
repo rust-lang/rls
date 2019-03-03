@@ -9,11 +9,10 @@ use std::sync::Arc;
 use std::clone::Clone;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::boxed::Box;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use mio::{Poll, Token};
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub type Result<T> = std::result::Result<T, RlsVfsIpcError>;
 pub type LibcResult<T> = std::result::Result<T, LibcError>;
@@ -215,18 +214,19 @@ impl MapInfo {
 }
 
 // a server that takes care of handling client's requests and managin mmap
-pub struct LinuxVfsIpcServer<U: Serialize + Deserialize + Clone> {
+pub struct LinuxVfsIpcServer<U: Serialize + DeserializeOwned + Clone> {
     // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
     // ConnectionInfo
     connection_infos: HashMap<Token, Rc<RefCell<ConnectionInfo>>>,
-    live_maps: HashMap<PathBuf, Rc<MapInfo>>,
+    // same reason as the Rc<RefCell<_>> for connection_infos
+    live_maps: Rc<RefCell<HashMap<PathBuf, Rc<MapInfo>>>>,
     poll: Poll,
     vfs: Arc<Vfs<U>>,
     server_pid: u32,
     timestamp: usize
 }
 
-impl<U: Serialize + Deserialize + Clone> LinuxVfsIpcServer<U> {
+impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
     fn handle_request(&mut self, tok: Token, ci: Rc<RefCell<ConnectionInfo>>, req: VfsRequestMsg) -> Result<()> {
         match req {
             VfsRequestMsg::OpenFile(path) => {
@@ -246,20 +246,24 @@ impl<U: Serialize + Deserialize + Clone> LinuxVfsIpcServer<U> {
         // TODO: more efficient impl, less memory copy and lookup
         use std::collections::hash_map::RawEntryMut;
         use super::super::FileContents;
-        let mi = match self.live_maps.raw_entry_mut().from_key(&path) {
+        let live_maps = self.live_maps.clone();
+        let mut live_maps = live_maps.borrow_mut();
+        let mi = match live_maps.raw_entry_mut().from_key(&path) {
             RawEntryMut::Occupied(occ) => {
                 occ.get().clone()
             },
             RawEntryMut::Vacant(vac) => {
                 let shm_name = self.generate_shm_name(&path);
-                match self.vfs.load_file(&path)? {
+                let mi = match self.vfs.load_file(&path)? {
                     FileContents::Text(s) => {
                         Rc::new(MapInfo::open(s.as_bytes(), shm_name)?)
                     }
                     FileContents::Binary(v) => {
                         Rc::new(MapInfo::open(&v, shm_name)?)
                     }
-                }
+                };
+                vac.insert(path.clone(), mi.clone());
+                mi
             },
         };
         let u = self.vfs.with_user_data(&path, |res| {
@@ -471,22 +475,25 @@ impl<U: Serialize + Deserialize + Clone> LinuxVfsIpcServer<U> {
         Ok(())
     }
 
-    fn generate_shm_name(&mut self, file_path: &Path) -> String {
+    fn generate_shm_name(&self, file_path: &Path) -> String {
         let ret = std::format!("/rls-{}-{}-{}\u{0000}", self.server_pid, file_path.display(), self.timestamp);
-        self.timestamp += 1;
         ret
+    }
+
+    fn bump_timestamp(&mut self) {
+        self.timestamp += 1;
     }
 
     fn try_remove_last_map(&mut self, mi: Rc<MapInfo>, file_path: &Path) -> Result<()> {
         if Rc::<MapInfo>::strong_count(&mi) == 2 {
             mi.close();
-            self.live_maps.remove(file_path);
+            self.live_maps.borrow_mut().remove(file_path);
         }
         Ok(())
     }
 }
 
-impl<U: Serialize + Deserialize + Clone> VfsIpcServer<U> for LinuxVfsIpcServer<U> {
+impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcServer<U> {
     type Channel = LinuxVfsIpcChannel;
     type ServerEndPoint = LinuxVfsIpcServerEndPoint;
     type ClientEndPoint = LinuxVfsIpcClientEndPoint;
@@ -495,7 +502,7 @@ impl<U: Serialize + Deserialize + Clone> VfsIpcServer<U> for LinuxVfsIpcServer<U
     fn new(vfs: Arc<Vfs<U>>) -> Result<Self> {
         Ok(Self {
             connection_infos: HashMap::new(),
-            live_maps: HashMap::new(),
+            live_maps: Rc::new(RefCell::new(HashMap::new())),
             poll: Poll::new()?,
             vfs,
             server_pid: std::process::id(),
@@ -591,14 +598,14 @@ impl LinuxVfsIpcClientEndPoint {
         Ok(())
     }
 
-    fn read_reply<U: Serialize + Deserialize + Clone>(&mut self) -> Result<VfsReplyMsg<U>> {
-        let buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
-        let buf:Vec<u8>;
+    fn read_reply<U: Serialize + DeserializeOwned + Clone>(&mut self) -> Result<VfsReplyMsg<U>> {
+        let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
+        let mut buf = Vec::<u8>::new();
         let read_fd = self.read_fd.unwrap()?;
         macro_rules! read_and_append {
             () => {
                 let res = unsafe {
-                    libc::read(read_fd, &buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
+                    libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
                 };
                 if res < 0 {
                     handle_libc_error!("read");
@@ -611,7 +618,7 @@ impl LinuxVfsIpcClientEndPoint {
                 break;
             }
         }
-        let len = match bincode::deserialize(&buf[0..4]) {
+        let len = match bincode::deserialize::<u32>(&buf[0..4]) {
             Ok(len) => len as usize,
             Err(err) => {
                 return Err(RlsVfsIpcError::DeserializeError(err));
@@ -626,7 +633,7 @@ impl LinuxVfsIpcClientEndPoint {
                 Ok(ret)
             },
             Err(err) => {
-                Err(RlsVfsIpcError::DeserializeError(err));
+                Err(RlsVfsIpcError::DeserializeError(err))
             }
         }
     }
@@ -635,7 +642,7 @@ impl LinuxVfsIpcClientEndPoint {
 impl VfsIpcClientEndPoint for LinuxVfsIpcClientEndPoint {
     type Error = RlsVfsIpcError;
     type FileHandle = LinuxVfsIpcFileHandle;
-    fn request_file<U: Serialize + Deserialize + Clone>(&mut self, path: &Path) -> Result<(Self::FileHandle, U)> {
+    fn request_file<U: Serialize + DeserializeOwned + Clone>(&mut self, path: &Path) -> Result<(Self::FileHandle, U)> {
         let req_msg = VfsRequestMsg::OpenFile(path.to_owned());
         self.write_request(req_msg)?;
         let rep_msg = self.read_reply::<U>()?;
@@ -690,7 +697,7 @@ pub struct LinuxVfsIpcFileHandle {
 }
 
 impl LinuxVfsIpcFileHandle {
-    pub fn from_reply<U: Serialize + Deserialize + Clone>(reply: VfsReplyMsg<U>) -> LibcResult<(Self, U)> {
+    pub fn from_reply<U: Serialize + DeserializeOwned + Clone>(reply: VfsReplyMsg<U>) -> LibcResult<(Self, U)> {
         let addr;
         let length = reply.length as libc::size_t;
         unsafe {
@@ -715,11 +722,10 @@ impl VfsIpcFileHandle for LinuxVfsIpcFileHandle {
     type Error = RlsVfsIpcError;
     fn get_file_ref(&self) -> Result<&str> {
         // NB: whether the file contents are valid utf8 are never checked
-        unsafe {
+        Ok(unsafe {
             let slice = std::slice::from_raw_parts(self.addr as *const u8, self.length as usize);
-            std::str::from_utf8_unchecked(&slice);
-        }
-        unimplemented!()
+            std::str::from_utf8_unchecked(&slice)
+        })
     }
 }
 

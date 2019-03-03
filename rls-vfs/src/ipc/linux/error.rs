@@ -6,7 +6,6 @@ use quick_error::quick_error;
 
 use std::convert::From;
 use std::error::Error;
-use std::fmt::{self, Debug};
 
 use super::super::super::Error as RlsVfsError;
 use bincode::Error as BinCodeError;

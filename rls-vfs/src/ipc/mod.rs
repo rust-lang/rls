@@ -11,7 +11,7 @@ pub use self::windows::*;
 //mod inprocess;
 
 use std::result::Result;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use std::sync::Arc;
 use std::clone::Clone;
 //pub use self::inprocess::*;
@@ -46,7 +46,7 @@ trait VfsIpcServer<U: Serialize + Clone> : Sized {
 trait VfsIpcClientEndPoint {
     type Error: std::error::Error;
     type FileHandle: VfsIpcFileHandle;
-    fn request_file<'a, U: Serialize + Deserialize<'a> + Clone>(&mut self, path: &std::path::Path) -> Result<(Self::FileHandle, U), Self::Error>;
+    fn request_file<U: Serialize + DeserializeOwned + Clone>(&mut self, path: &std::path::Path) -> Result<(Self::FileHandle, U), Self::Error>;
 }
 
 trait VfsIpcServerEndPoint {
@@ -64,7 +64,7 @@ pub enum VfsRequestMsg {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct VfsReplyMsg<U: Serialize + Deserialize + Clone> {
+pub struct VfsReplyMsg<U> {
     // NB: make sure path is null-terminated
     path: String,
     // Save the client from calling fstat
