@@ -7,7 +7,7 @@ pub use error::{LibcError, RlsVfsIpcError};
 use super::*;
 use std::sync::Arc;
 use std::clone::Clone;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
@@ -17,6 +17,7 @@ use serde::{Serialize, de::DeserializeOwned};
 pub type Result<T> = std::result::Result<T, RlsVfsIpcError>;
 pub type LibcResult<T> = std::result::Result<T, LibcError>;
 
+// A wrapper around linux fd which requires you to explicitly close it, Fd won't close itself on drop but panic, so remember to close it
 pub enum Fd {
     Closed,
     Open(libc::c_int),
@@ -47,13 +48,27 @@ impl Fd {
         }
     }
 
-    pub fn unwrap(&self) -> LibcResult<libc::c_int> {
+    pub fn get_fd(&self) -> LibcResult<libc::c_int> {
         match self {
             Fd::Closed => {
-                fake_libc_error!("Fd::unwrap", libc::EBADF);
+                fake_libc_error!("Fd::get_fd", libc::EBADF);
             }
             Fd::Open(fd) => {
                 Ok(*fd)
+            }
+        }
+    }
+
+    // take the responsibility of closing the fd
+    pub fn take_raw(&mut self) -> LibcResult<libc::c_int> {
+        match self {
+            Fd::Open(fd) => {
+                let fd = *fd;
+                *self = Fd::Closed;
+                Ok(fd)
+            },
+            Fd::Closed => {
+                fake_libc_error!("Fd::take_raw", libc::EBADF);
             }
         }
     }
@@ -62,16 +77,15 @@ impl Fd {
 impl Drop for Fd {
     fn drop(&mut self) {
         match self {
-            Fd::Open(fd) => {
-                if unsafe { libc::close(*fd) } < 0 {
-                    panic!("error while closing Fd");
-                }
+            Fd::Open(_) => {
+                panic!("you forget to close a fd before it is dropped");
             }
             Fd::Closed => ()
         }
     }
 }
 
+// a wrapper around linux pipe fd which requires you to explicitly close it
 struct Pipe {
     read_fd: Fd,
     write_fd: Fd,
@@ -201,7 +215,7 @@ impl MapInfo {
         })
     }
 
-    // close a shared memory, after closing, clients won't be able to "connect to" this mmap, buf existing
+    // close a shared memory, after closing, clients won't be able to "connect to" this mmap, but existing
     // shms are not invalidated.
     pub fn close(&self) -> LibcResult<()> {
         if unsafe {
@@ -214,12 +228,12 @@ impl MapInfo {
 }
 
 // a server that takes care of handling client's requests and managin mmap
-pub struct LinuxVfsIpcServer<U: Serialize + DeserializeOwned + Clone> {
+pub struct LinuxVfsIpcServer<U> {
     // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
     // ConnectionInfo
     connection_infos: HashMap<Token, Rc<RefCell<ConnectionInfo>>>,
     // same reason as the Rc<RefCell<_>> for connection_infos
-    live_maps: Rc<RefCell<HashMap<PathBuf, Rc<MapInfo>>>>,
+    live_maps: Rc<RefCell<HashMap<PathBuf, Weak<MapInfo>>>>,
     poll: Poll,
     vfs: Arc<Vfs<U>>,
     server_pid: u32,
@@ -227,7 +241,7 @@ pub struct LinuxVfsIpcServer<U: Serialize + DeserializeOwned + Clone> {
 }
 
 impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
-    fn handle_request(&mut self, tok: Token, ci: Rc<RefCell<ConnectionInfo>>, req: VfsRequestMsg) -> Result<()> {
+    fn handle_request(&mut self, tok: Token, ci: &mut ConnectionInfo, req: VfsRequestMsg) -> Result<()> {
         match req {
             VfsRequestMsg::OpenFile(path) => {
                 self.handle_open_request(tok, ci, path)
@@ -238,31 +252,44 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         }
     }
 
-    fn try_set_up_mmap(&mut self, path: &Path) -> Result<(Rc<MapInfo>, U)> {
+    fn setup_mmap(&mut self, path: &Path) -> Result<Rc<MapInfo>> {
+        use super::super::FileContents;
+        let shm_name = self.generate_shm_name(&path);
+        match self.vfs.load_file(&path)? {
+            FileContents::Text(s) => {
+                Ok(Rc::new(MapInfo::open(s.as_bytes(), shm_name)?))
+            }
+            FileContents::Binary(v) => {
+                Ok(Rc::new(MapInfo::open(&v, shm_name)?))
+            }
+        }
+    }
+
+    fn try_setup_mmap(&mut self, path: &Path) -> Result<(Rc<MapInfo>, U)> {
         // TODO: currently, vfs doesn't restrict which files are allowed to be opened, this may
         // need some change in the future.
         let path = path.canonicalize()?;
 
         // TODO: more efficient impl, less memory copy and lookup
-        use std::collections::hash_map::RawEntryMut;
-        use super::super::FileContents;
+        use std::collections::hash_map::Entry;
         let live_maps = self.live_maps.clone();
         let mut live_maps = live_maps.borrow_mut();
-        let mi = match live_maps.raw_entry_mut().from_key(&path) {
-            RawEntryMut::Occupied(occ) => {
-                occ.get().clone()
+        let mi = match live_maps.entry(path.clone()) {
+            Entry::Occupied(mut occ) => {
+                match occ.get().upgrade() {
+                    Some(rc) => {
+                        rc
+                    },
+                    None => {
+                        let mi = self.setup_mmap(&path)?;
+                        occ.insert(std::rc::Rc::downgrade(&mi));
+                        mi
+                    }
+                }
             },
-            RawEntryMut::Vacant(vac) => {
-                let shm_name = self.generate_shm_name(&path);
-                let mi = match self.vfs.load_file(&path)? {
-                    FileContents::Text(s) => {
-                        Rc::new(MapInfo::open(s.as_bytes(), shm_name)?)
-                    }
-                    FileContents::Binary(v) => {
-                        Rc::new(MapInfo::open(&v, shm_name)?)
-                    }
-                };
-                vac.insert(path.clone(), mi.clone());
+            Entry::Vacant(vac) => {
+                let mi = self.setup_mmap(&path)?;
+                vac.insert(std::rc::Rc::downgrade(&mi));
                 mi
             },
         };
@@ -277,19 +304,19 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         Ok((mi, u))
     }
 
-    fn handle_open_request(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo>>, path: PathBuf) -> Result<()> {
-        let (map_info, user_data) = self.try_set_up_mmap(&path)?;
+    fn handle_open_request(&mut self, token: Token, ci: &mut ConnectionInfo, path: PathBuf) -> Result<()> {
+        let (map_info, user_data) = self.try_setup_mmap(&path)?;
         let reply_msg = VfsReplyMsg::<U> {
             path: map_info.shm_name.clone(),
             length: map_info.length as u32,
             user_data
         };
-        ci.borrow_mut().opened_files.insert(path, map_info);
+        ci.opened_files.insert(path, map_info);
         self.write_reply(token, ci, reply_msg)
     }
 
-    fn write_reply(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo>>, reply_msg: VfsReplyMsg<U>) -> Result<()> {
-        let old_len = ci.borrow().write_state.buf.len();
+    fn write_reply(&mut self, token: Token, ci: &mut ConnectionInfo, reply_msg: VfsReplyMsg<U>) -> Result<()> {
+        let old_len = ci.write_state.buf.len();
         {
             let mut ext = match bincode::serialize(&reply_msg) {
                 Ok(ext) => ext,
@@ -297,7 +324,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
                     return Err(RlsVfsIpcError::SerializeError(err))
                 }
             };
-            ci.borrow_mut().write_state.buf.append(&mut ext);
+            ci.write_state.buf.append(&mut ext);
         }
 
         if old_len == 0usize {
@@ -310,9 +337,8 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
 
     // the write-fd is not in the poll, first write as much as possible until EWOULDBLOCK, if still
     // some contents remain, register the write-fd to the poll
-    fn initial_write(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo>>) -> Result<()> {
-        let write_fd = ci.borrow().server_end_point.write_fd.unwrap()?;
-        let mut ci = ci.borrow_mut();
+    fn initial_write(&mut self, token: Token, ci: &mut ConnectionInfo) -> Result<()> {
+        let write_fd = ci.server_end_point.write_fd.get_fd()?;
         let len = ci.write_state.buf.len();
         let mut start_pos = 0usize;
         while start_pos < len {
@@ -337,11 +363,10 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         Ok(())
     }
 
-    fn handle_close_request(&mut self, _tok: Token, ci: Rc<RefCell<ConnectionInfo>>, path: PathBuf) -> Result<()> {
-        let mut ci = ci.borrow_mut();
+    fn handle_close_request(&mut self, _tok: Token, ci: &mut ConnectionInfo, path: PathBuf) -> Result<()> {
         match ci.opened_files.remove(&path) {
             Some(mi) => {
-                self.try_remove_last_map(mi, &path);
+                self.try_remove_last_map(mi, &path)?;
             }
             None => {
                 panic!()
@@ -352,34 +377,29 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
 
     // a eof is met when reading a pipe, the connection's read side will not be used again(write
     // side may still be used to send replies)
-    fn finish_read(&mut self, tok: Token, ci: Rc<RefCell<ConnectionInfo>>) -> Result<()> {
+    fn finish_read(&mut self, _tok: Token, _ci: &mut ConnectionInfo) -> Result<()> {
         // TODO
         Ok(())
     }
 
     // try to read some requests and handle them
-    fn handle_read(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo>>) -> Result<()> {
+    fn handle_read(&mut self, token: Token, ci: &mut ConnectionInfo) -> Result<()> {
         // FIXME: this is ugly, but I don't want to spell a long name
-        macro_rules! buf_mut {
-            () => {
-                ci.borrow_mut().read_state.buf
-            }
-        };
         macro_rules! buf {
             () => {
-                ci.borrow().read_state.buf
+                ci.read_state.buf
             }
         }
 
         let mut buf1:[u8;4096] = unsafe { std::mem::uninitialized() };
         let mut met_eof = false;
-        let read_fd = ci.borrow().server_end_point.read_fd.unwrap()?;
+        let read_fd = ci.server_end_point.read_fd.get_fd()?;
         loop {
             let res = unsafe {
                 libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
             };
             if res > 0 {
-                buf_mut!().extend_from_slice(&buf1[..(res as usize)]);
+                buf!().extend_from_slice(&buf1[..(res as usize)]);
             } else {
                 match res {
                     0 => {
@@ -413,17 +433,15 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
                     return Err(RlsVfsIpcError::DeserializeError(err));
                 }
             };
-            self.handle_request(token, ci.clone(), msg);
+            self.handle_request(token, ci, msg)?;
             start_pos += msg_len;
         }
 
-        {
-            buf_mut!() = buf_mut!().split_off(start_pos);
-        }
+        buf!() = buf!().split_off(start_pos);
 
         if met_eof {
             if buf!().is_empty() {
-                self.finish_read(token, ci.clone())?;
+                self.finish_read(token, ci)?;
             } else {
                 return Err(RlsVfsIpcError::PipeCloseMiddle);
             }
@@ -432,23 +450,15 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
     }
 
     // try to write some replies to the pipe
-    fn handle_write(&mut self, token: Token, ci: Rc<RefCell<ConnectionInfo>>) -> Result<()> {
-        // FIXME: this is ugly, but I don't want to spell a long name
+    fn handle_write(&mut self, _token: Token, ci: &mut ConnectionInfo) -> Result<()> {
         macro_rules! buf {
             () => {
-                ci.borrow().write_state.buf
+                ci.write_state.buf
             }
         };
-
-        macro_rules! buf_mut {
-            () => {
-                ci.borrow_mut().write_state.buf
-            }
-        };
-
         let len = buf!().len();
         let mut start_pos:usize = 0;
-        let write_fd = ci.borrow().server_end_point.write_fd.unwrap()?;
+        let write_fd = ci.server_end_point.write_fd.get_fd()?;
         while len > start_pos {
             let res = unsafe {
                 libc::write(write_fd, &buf!()[0] as *const u8 as *const libc::c_void, (len - start_pos) as libc::size_t)
@@ -465,9 +475,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
             }
         }
 
-        {
-            buf_mut!().split_off(start_pos);
-        }
+        buf!().split_off(start_pos);
         if buf!().is_empty() {
             use mio::{event::Evented, unix::EventedFd};
             EventedFd(&write_fd).deregister(&self.poll)?;
@@ -475,18 +483,15 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         Ok(())
     }
 
+    // make sure the generated name is null-terminated
     fn generate_shm_name(&self, file_path: &Path) -> String {
         let ret = std::format!("/rls-{}-{}-{}\u{0000}", self.server_pid, file_path.display(), self.timestamp);
         ret
     }
 
-    fn bump_timestamp(&mut self) {
-        self.timestamp += 1;
-    }
-
     fn try_remove_last_map(&mut self, mi: Rc<MapInfo>, file_path: &Path) -> Result<()> {
         if Rc::<MapInfo>::strong_count(&mi) == 2 {
-            mi.close();
+            mi.close()?;
             self.live_maps.borrow_mut().remove(file_path);
         }
         Ok(())
@@ -524,10 +529,12 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
 
                 let ready = event.readiness();
                 if ready.contains(mio::Ready::readable()) {
-                    self.handle_read(token, ci.clone())?;
+                    let ci = ci.clone();
+                    self.handle_read(token, &mut ci.borrow_mut())?;
                 }
                 if ready.contains(mio::Ready::writable()) {
-                    self.handle_write(token, ci.clone())?;
+                    let ci = ci.clone();
+                    self.handle_write(token, &mut ci.borrow_mut())?;
                 }
             }
         }
@@ -535,7 +542,7 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
 
     fn add_server_end_point(&mut self, s_ep: Self::ServerEndPoint) -> Result<Token> {
         use mio::{event::Evented, unix::EventedFd};
-        let read_fd = s_ep.read_fd.unwrap()?;
+        let read_fd = s_ep.read_fd.get_fd()?;
         // fd's are unique
         let tok_usize = read_fd as usize;
         let tok = Token(tok_usize);
@@ -547,12 +554,12 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
         use mio::{event::Evented, unix::EventedFd};
         match self.connection_infos.remove(&tok) {
             Some(ci) => {
-                let read_fd = ci.borrow().server_end_point.read_fd.unwrap()?;
-                let write_fd = ci.borrow().server_end_point.write_fd.unwrap()?;
+                let read_fd = ci.borrow().server_end_point.read_fd.get_fd()?;
+                let write_fd = ci.borrow().server_end_point.write_fd.get_fd()?;
                 EventedFd(&read_fd).deregister(&self.poll)?;
                 EventedFd(&write_fd).deregister(&self.poll)?;
                 for (file_path, mi) in ci.borrow_mut().opened_files.drain() {
-                    self.try_remove_last_map(mi, &file_path);
+                    self.try_remove_last_map(mi, &file_path)?;
                 }
             },
             None => {
@@ -584,7 +591,7 @@ impl LinuxVfsIpcClientEndPoint {
         };
         let len = buf.len();
         let mut start_pos = 0;
-        let write_fd = self.write_fd.unwrap()?;
+        let write_fd = self.write_fd.get_fd()?;
         while start_pos < len {
             let res = unsafe {
                 libc::write(write_fd, &buf[start_pos] as *const u8 as *const libc::c_void, len - start_pos)
@@ -601,7 +608,7 @@ impl LinuxVfsIpcClientEndPoint {
     fn read_reply<U: Serialize + DeserializeOwned + Clone>(&mut self) -> Result<VfsReplyMsg<U>> {
         let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
         let mut buf = Vec::<u8>::new();
-        let read_fd = self.read_fd.unwrap()?;
+        let read_fd = self.read_fd.get_fd()?;
         macro_rules! read_and_append {
             () => {
                 let res = unsafe {
