@@ -28,9 +28,9 @@ rls-rustc = "0.5.0"
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.7"
 
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "4e74e2fc0908524d17735c768067117d3e84ee9c" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "716b02cb4c7b75ce435eb06defa25bc2d725909c" }
 cargo_metadata = "0.7"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "f69ec96906d300132ffd33151bf6641b950db96d", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "caccf8bd4c3d490d6a4cf329a3411bbf68753642", optional = true }
 env_logger = "0.6"
 failure = "0.1.1"
 home = "0.3"
