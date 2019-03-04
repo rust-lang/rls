@@ -330,29 +330,28 @@ mod tests_Pipe {
         t1.join();
         ret
     }
-/*
-    // FIXME: this seems not to be testable
+
     #[quickcheck]
     fn inter_process_write_read(input: Vec<u8>) -> bool {
         // TODO: large size pipe write/read, blocking test
         eprintln!("input size {}", input.len());
         let mut pipe = Pipe::new().unwrap();
-        use nix::unistd::{fork, ForkResult};
-        match fork() {
-            Ok(ForkResult::Parent { child, .. }) => {
-                let res = pipe.read_till_close().unwrap();
-                pipe.close().unwrap();
-                return res == input;
-            },
-            Ok(ForkResult::Child) => {
-                pipe.write_all(&input).unwrap();
-                pipe.close().unwrap();
-                std::process::exit(0);
-            },
-            Err(_) => return false,
+        let pid = unsafe { libc::fork() };
+        if pid < 0 {
+            // fork failed
+            return false;
+        } else if pid == 0 {
+            // child process
+            pipe.write_all(&input).unwrap();
+            pipe.close().unwrap();
+            unsafe { libc::exit(0) }
+        } else {
+            pipe.close_write().unwrap();
+            let res = pipe.read_till_close().unwrap();
+            pipe.close_read().unwrap();
+            return res == input;
         }
     }
-*/
 }
 
 pub struct LinuxVfsIpcChannel {
