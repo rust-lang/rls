@@ -130,6 +130,39 @@ impl Fd {
         Ok(())
     }
 
+    pub fn write_till_wouldblock(&self, cont: &[u8]) -> LibcResult<usize> {
+        let fd = self.get_fd()?;
+        let len = cont.len();
+        let mut start_pos = 0;
+        while start_pos < len {
+            let res = unsafe {
+                libc::write(fd, &cont[0] as *const u8 as *const libc::c_void, len - start_pos)
+            };
+            if res >= 0 {
+                start_pos += res as usize;
+            } else if  would_block_or_error!("write") {
+                return Ok(start_pos);
+            }
+        }
+        Ok(start_pos)
+    }
+
+    pub fn read_till_wouldblock(&self, cont: &mut Vec<u8>) -> LibcResult<()> {
+        let fd = self.get_fd()?;
+        let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
+        loop {
+            let res = unsafe {
+                libc::read(fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
+            };
+            if res > 0 {
+                cont.extend_from_slice(&buf1[..res as usize]);
+            } else if res == 0 || would_block_or_error!("read") {
+                // FIXME: res == 0 is the same as EDOULDBLOCK for pipe
+                return Ok(());
+            }
+        }
+    }
+
     pub fn read_all(&self, buf: &mut [u8]) -> LibcResult<()> {
         let len = buf.len();
         let mut start_pos = 0;
@@ -188,8 +221,6 @@ impl Drop for Fd {
 #[cfg(test)]
 mod tests_fd {
     use super::*;
-    use std::io::stderr;
-    use std::io::Write;
 
     #[test]
     #[should_panic]
@@ -478,15 +509,18 @@ fn blocking_read_impl<T: Serialize + DeserializeOwned + Clone>(read_fd: &Fd, rbu
             return Err(RlsVfsIpcError::DeserializeError(err));
         },
     };
+
     while rbuf.len() < len {
         read_and_append!();
     }
+
     let msg:T = match bincode::deserialize(&rbuf[4..len]) {
         Ok(msg) => msg,
         Err(err) => {
             return Err(RlsVfsIpcError::DeserializeError(err));
         },
     };
+
     *rbuf = rbuf.split_off(len);
     Ok(msg)
 }
@@ -498,6 +532,7 @@ fn blocking_write_impl<T: Serialize + DeserializeOwned + Clone>(write_fd: &Fd, t
             return Err(RlsVfsIpcError::SerializeError(err));
         },
     };
+
     let len = ext2.len() as u32;
     let mut ext1 = match bincode::serialize(&len) {
         Ok(ext) => ext,
@@ -505,11 +540,67 @@ fn blocking_write_impl<T: Serialize + DeserializeOwned + Clone>(write_fd: &Fd, t
             return Err(RlsVfsIpcError::SerializeError(err));
         },
     };
+
     wbuf.reserve(wbuf.len() + ext1.len() + ext2.len());
     wbuf.append(&mut ext1);
     wbuf.append(&mut ext2);
     write_fd.write_all(&wbuf)?;
     wbuf.clear();
+    Ok(())
+}
+
+fn nonblocking_read_impl<T: Serialize + DeserializeOwned + Clone>(read_fd: &Fd, rbuf: &mut Vec<u8>) -> Result<Option<T>> {
+    read_fd.read_till_wouldblock(rbuf)?;
+    let len = rbuf.len();
+    if len >= 4 {
+        let msg_len = match bincode::deserialize::<u32>(&rbuf[..4]) {
+            Ok(msg_len) => msg_len as usize + 4,
+            Err(err) => {
+                return Err(RlsVfsIpcError::DeserializeError(err));
+            },
+        };
+        if len >= msg_len {
+            let msg = match bincode::deserialize::<T>(&rbuf[4..msg_len]) {
+                Ok(msg) => {
+                    *rbuf = rbuf.split_off(msg_len);
+                    return Ok(Some(msg));
+                },
+                Err(err) => {
+                    return Err(RlsVfsIpcError::DeserializeError(err));
+                },
+            };
+        }
+    }
+    Ok(None)
+}
+
+fn nonblocking_write_impl_initial<T: Serialize + DeserializeOwned + Clone>(write_fd: &Fd, t: &T, wbuf: &mut Vec<u8>) -> Result<()> {
+    let mut ext2 = match bincode::serialize(t) {
+        Ok(ext) => ext,
+        Err(err) => {
+            return Err(RlsVfsIpcError::SerializeError(err));
+        },
+    };
+
+    let len = ext2.len() as u32;
+    let mut ext1 = match bincode::serialize(&len) {
+        Ok(ext) => ext,
+        Err(err) => {
+            return Err(RlsVfsIpcError::SerializeError(err));
+        },
+    };
+
+    wbuf.reserve(wbuf.len() + ext1.len() + ext2.len());
+    wbuf.append(&mut ext1);
+    wbuf.append(&mut ext2);
+    let written_size = write_fd.write_till_wouldblock(&wbuf)?;
+    *wbuf = wbuf.split_off(written_size);
+    Ok(())
+}
+
+fn nonblocking_write_impl_continue(write_fd: &Fd, wbuf: &mut Vec<u8>) -> Result<()> {
+    let written_size = write_fd.write_till_wouldblock(wbuf)?;
+    *wbuf = wbuf.split_off(written_size);
     Ok(())
 }
 
@@ -630,7 +721,7 @@ impl LinuxVfsIpcServerEndPoint {
             },
             Fd::Closed => {
                 fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
-            }
+            },
         };
         let w_fd = match write_fd {
             Fd::Open(fd) => {
@@ -638,7 +729,7 @@ impl LinuxVfsIpcServerEndPoint {
             },
             Fd::Closed => {
                 fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
-            }
+            },
         };
         unsafe {
             if libc::fcntl(r_fd, libc::F_SETFL, libc::O_NONBLOCK) < 0 ||  libc::fcntl(w_fd, libc::F_SETFL, libc::O_NONBLOCK) < 0 {
@@ -824,13 +915,19 @@ mod test_end_points {
     fn request_reply_client(ep: &mut LinuxVfsIpcClientEndPoint, req_rep: &Vec<(VfsRequestMsg, VfsReplyMsg<String>)>) -> bool {
         let mut rbuf = Vec::<u8>::new();
         let mut wbuf = Vec::<u8>::new();
+        eprintln!("child req_rep len {}", req_rep.len());
         for (req, rep) in req_rep {
+            eprintln!("child loop");
             ep.blocking_write_request(&req, &mut wbuf);
+            eprintln!("child write finish");
             let msg = ep.blocking_read_reply(&mut rbuf).unwrap();
+            eprintln!("child read finish");
             if msg != *rep {
+                eprintln!("child return false");
                 return false;
             }
         }
+        eprintln!("child return true");
         return rbuf.is_empty() && wbuf.is_empty();
     }
 
@@ -873,8 +970,97 @@ mod test_end_points {
         }
     }
 
+    fn run_epoll_server(process_num: usize, eps: &mut Vec<LinuxVfsIpcServerEndPoint>, req_reps: Vec<Vec<(VfsRequestMsg, VfsReplyMsg<String>)>>) -> bool {
+        use mio::{Poll, Token, Ready, PollOpt, event::Evented, unix::EventedFd, Events};
+        let mut progress = Vec::with_capacity(process_num);
+        let mut read_bufs = Vec::with_capacity(process_num);
+        let mut write_bufs = Vec::with_capacity(process_num);
+        progress.resize(process_num, 0);
+        read_bufs.resize(process_num, vec![]);
+        write_bufs.resize(process_num, vec![]);
+        let poll = Poll::new().unwrap();
+        for n in 0..process_num {
+            let read_fd = eps[n].read_fd.get_fd().unwrap();
+            EventedFd(&read_fd).register(&poll, Token(n), Ready::readable(), PollOpt::edge()).unwrap();
+        }
+        let mut finished = 0;
+        let mut events = Events::with_capacity(process_num * 2);
+        while finished < process_num {
+            poll.poll(&mut events, None).unwrap();
+            for event in &events {
+                let Token(mut tok) = event.token();
+                let ready = event.readiness();
+                if ready.is_readable() {
+                    match nonblocking_read_impl::<VfsRequestMsg>(&eps[tok].read_fd, &mut read_bufs[tok]).unwrap() {
+                        Some(msg) => {
+                            let p = progress[tok];
+                            progress[tok] += 1;
+                            if msg != req_reps[tok][p].0 {
+                                return false;
+                            }
+                            let old_len = write_bufs[tok].len();
+                            nonblocking_write_impl_initial(&eps[tok].write_fd, &req_reps[tok][p].1, &mut write_bufs[tok]).unwrap();
+                            if old_len == 0 && !write_bufs[tok].is_empty() {
+                                let write_fd = eps[tok].write_fd.get_fd().unwrap();
+                                EventedFd(&write_fd).register(&poll, Token(tok), Ready::writable(), PollOpt::edge()).unwrap();
+                            }
+                            if write_bufs[tok].is_empty() && progress[tok] == req_reps[tok].len() {
+                                finished += 1;
+                            }
+                        },
+                        None => (),
+                    }
+                }
+                if ready.is_writable() {
+                    nonblocking_write_impl_continue(&eps[tok].write_fd, &mut write_bufs[tok]);
+                    if write_bufs[tok].is_empty() {
+                        let write_fd = eps[tok].read_fd.get_fd().unwrap();
+                        poll.deregister(&EventedFd(&write_fd)).unwrap();
+                        if progress[tok] == req_reps[tok].len() {
+                            finished += 1;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
     #[test]
     fn request_reply_poll() {
+        let test = || {
+            let process_num = 32usize;
+            match prepare_fork(process_num) {
+                ReqRep::Parent(pids, mut eps, req_reps) => {
+                    assert!(run_epoll_server(process_num, &mut eps, req_reps));
+                    for ep in eps.iter_mut() {
+                        ep.close().unwrap();
+                    }
+                    for pid in pids {
+                        let mut exit_status = unsafe {std::mem::uninitialized() };
+                        if unsafe {
+                            libc::waitpid(pid, &mut exit_status as *mut libc::c_int, 0 as libc::c_int)
+                        } < 0 {
+                            panic!("waitpid");
+                        }
+                        assert!(exit_status == 0);
+                    };
+                    (-1, 0)
+                },
+                ReqRep::Children(pid, mut ep, req_rep) => {
+                    let mut exit_status = 0;
+                    if !request_reply_client(&mut ep, &req_rep) {
+                        exit_status = 1;
+                    }
+                    ep.close().unwrap();
+                    (pid, exit_status)
+                },
+            }
+        };
+        let (pid, exit_status) = test();
+        if pid > 0 {
+            std::process::exit(exit_status);
+        }
     }
 }
 
@@ -1049,51 +1235,12 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
     }
 
     fn write_reply(&mut self, token: Token, ci: &mut ConnectionInfo, reply_msg: VfsReplyMsg<U>) -> Result<()> {
-        // FIXME
         let old_len = ci.write_state.buf.len();
-        {
-            let mut ext = match bincode::serialize(&reply_msg) {
-                Ok(ext) => ext,
-                Err(err) => {
-                    return Err(RlsVfsIpcError::SerializeError(err))
-                }
-            };
-            ci.write_state.buf.append(&mut ext);
-        }
-
-        if old_len == 0usize {
-            // this means the write-fd is not in the poll
-            self.initial_write(token, ci)?;
-        }
-        Ok(())
-        // else, there are on-going write on the event poll, which will carry this message
-    }
-
-    // the write-fd is not in the poll, first write as much as possible until EWOULDBLOCK, if still
-    // some contents remain, register the write-fd to the poll
-    fn initial_write(&mut self, token: Token, ci: &mut ConnectionInfo) -> Result<()> {
-        let write_fd = ci.server_end_point.write_fd.get_fd()?;
-        let len = ci.write_state.buf.len();
-        let mut start_pos = 0usize;
-        while start_pos < len {
-            let res = 
-            unsafe {
-                libc::write(write_fd, &ci.write_state.buf[0] as *const u8 as *const libc::c_void, len - start_pos)
-            };
-            if res > 0 {
-                start_pos += res as usize;
-            } else if res == 0 {
-                // same as EWOULDBLOCK
-                break;
-            } else {
-                if would_block_or_error!("write") {
-                    break;
-                }
-            }
-        }
-        ci.write_state.buf = ci.write_state.buf.split_off(start_pos);
-        if start_pos < len {
+        nonblocking_write_impl_initial(&ci.server_end_point.write_fd, &reply_msg, &mut ci.write_state.buf)?;
+        let new_len = ci.write_state.buf.len();
+        if old_len == 0 && new_len != 0 {
             use mio::{event::Evented, unix::EventedFd};
+            let write_fd = ci.server_end_point.write_fd.get_fd()?;
             EventedFd(&write_fd).register(&self.poll, token, mio::Ready::writable(), mio::PollOpt::edge())?;
         }
         Ok(())
@@ -1119,99 +1266,21 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
 
     // try to read some requests and handle them
     fn handle_read(&mut self, token: Token, ci: &mut ConnectionInfo) -> Result<()> {
-        // FIXME: this is ugly, but I don't want to spell a long name
-        macro_rules! buf {
-            () => {
-                ci.read_state.buf
-            }
+        match nonblocking_read_impl::<VfsRequestMsg>(&ci.server_end_point.read_fd, &mut ci.read_state.buf)? {
+            Some(msg) => {
+                self.handle_request(token, ci, msg)
+            },
+            None => {
+                Ok(())
+            },
         }
-
-        let mut buf1:[u8;4096] = unsafe { std::mem::uninitialized() };
-        let mut met_eof = false;
-        let read_fd = ci.server_end_point.read_fd.get_fd()?;
-        loop {
-            let res = unsafe {
-                libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
-            };
-            if res > 0 {
-                buf!().extend_from_slice(&buf1[..(res as usize)]);
-            } else {
-                match res {
-                    0 => {
-                        met_eof = true;
-                        break;
-                    },
-                    _ => {
-                        if would_block_or_error!("read") {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        let len = buf!().len();
-        let mut start_pos = 0;
-        while start_pos + 4 <= len {
-            let msg_len = match bincode::deserialize::<u32>(&buf!()[start_pos..(start_pos + 4)]) {
-                Ok(msg_len) => msg_len as usize,
-                Err(err) => {
-                    return Err(RlsVfsIpcError::DeserializeError(err));
-                }
-            };
-            if msg_len + start_pos > len {
-                break;
-            }
-            let msg:VfsRequestMsg = match bincode::deserialize(&buf!()[(start_pos+4)..(start_pos+msg_len)]) {
-                Ok(msg) => msg,
-                Err(err) => {
-                    return Err(RlsVfsIpcError::DeserializeError(err));
-                }
-            };
-            self.handle_request(token, ci, msg)?;
-            start_pos += msg_len;
-        }
-
-        buf!() = buf!().split_off(start_pos);
-
-        if met_eof {
-            if buf!().is_empty() {
-                self.finish_read(token, ci)?;
-            } else {
-                return Err(RlsVfsIpcError::PipeCloseMiddle);
-            }
-        }
-        Ok(())
     }
 
     // try to write some replies to the pipe
     fn handle_write(&mut self, _token: Token, ci: &mut ConnectionInfo) -> Result<()> {
-        macro_rules! buf {
-            () => {
-                ci.write_state.buf
-            }
-        };
-        let len = buf!().len();
-        let mut start_pos:usize = 0;
-        let write_fd = ci.server_end_point.write_fd.get_fd()?;
-        while len > start_pos {
-            let res = unsafe {
-                libc::write(write_fd, &buf!()[0] as *const u8 as *const libc::c_void, (len - start_pos) as libc::size_t)
-            };
-            if res > 0 {
-                start_pos += res as usize;
-            } else if res == 0 {
-                // NB: same as EWOULDBLOCK
-                break;
-            } else {
-                if would_block_or_error!("write") {
-                    break;
-                }
-            }
-        }
-
-        buf!().split_off(start_pos);
-        if buf!().is_empty() {
+        nonblocking_write_impl_continue(&ci.server_end_point.write_fd, &mut ci.write_state.buf)?;
+        if ci.write_state.buf.is_empty() {
+            let write_fd = ci.server_end_point.write_fd.get_fd()?;
             use mio::{event::Evented, unix::EventedFd};
             EventedFd(&write_fd).deregister(&self.poll)?;
         }

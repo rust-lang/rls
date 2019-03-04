@@ -75,7 +75,7 @@ trait VfsIpcFileHandle {
     fn get_file_ref(&self) -> Result<&str, Self::Error>;
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Debug)]
 pub enum VfsRequestMsg {
     OpenFile(std::path::PathBuf),
     CloseFile(std::path::PathBuf),
