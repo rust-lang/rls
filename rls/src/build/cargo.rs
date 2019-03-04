@@ -206,7 +206,7 @@ fn run_cargo_ws(
 
     let compile_opts = CompileOptions {
         spec,
-        filter: CompileFilter::new(
+        filter: CompileFilter::from_raw_arguments(
             opts.lib,
             opts.bin,
             opts.bins,
