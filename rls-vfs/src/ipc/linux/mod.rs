@@ -621,72 +621,6 @@ impl LinuxVfsIpcClientEndPoint {
         self.write_fd.close()?;
         self.read_fd.close()
     }
-
-    fn write_request(&mut self, req_msg: VfsRequestMsg) -> Result<()> {
-        let buf = match bincode::serialize(&req_msg) {
-            Ok(buf) => buf,
-            Err(err) => {
-                return Err(RlsVfsIpcError::SerializeError(err));
-            }
-        };
-        let len = buf.len();
-        let mut start_pos = 0;
-        let write_fd = self.write_fd.get_fd()?;
-        while start_pos < len {
-            let res = unsafe {
-                libc::write(write_fd, &buf[start_pos] as *const u8 as *const libc::c_void, len - start_pos)
-            };
-            if res < 0 {
-                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
-                // TODO: more fine grained error handling, like interrupted by a signal
-                handle_libc_error!("write");
-            }
-            start_pos += res as usize;
-        }
-        Ok(())
-    }
-
-    fn read_reply<U: Serialize + DeserializeOwned + Clone>(&mut self) -> Result<VfsReplyMsg<U>> {
-        let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
-        let mut buf = Vec::<u8>::new();
-        let read_fd = self.read_fd.get_fd()?;
-        macro_rules! read_and_append {
-            () => {
-                let res = unsafe {
-                    libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
-                };
-                if res < 0 {
-                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
-                // TODO: more fine grained error handling, like interrupted by a signal
-                    handle_libc_error!("read");
-                }
-            }
-        }
-        loop {
-            read_and_append!();
-            if buf.len() >= 4 {
-                break;
-            }
-        }
-        let len = match bincode::deserialize::<u32>(&buf[0..4]) {
-            Ok(len) => len as usize,
-            Err(err) => {
-                return Err(RlsVfsIpcError::DeserializeError(err));
-            },
-        };
-        buf.reserve(len);
-        while buf.len() < len {
-            read_and_append!();
-        }
-        match bincode::deserialize(&buf[4..len]) {
-            Ok(ret) => {
-                Ok(ret)
-            },
-            Err(err) => {
-                Err(RlsVfsIpcError::DeserializeError(err))
-            }
-        }
-    }
 }
 
 impl VfsIpcClientEndPoint for LinuxVfsIpcClientEndPoint {
@@ -704,7 +638,7 @@ impl VfsIpcClientEndPoint for LinuxVfsIpcClientEndPoint {
     }
 
     fn reply_to_file_handle<U: Serialize + DeserializeOwned + Clone>(&mut self, rep: &VfsReplyMsg<U>) -> Result<Self::FileHandle> {
-        unimplemented!()
+        Ok(LinuxVfsIpcFileHandle::from_reply(rep)?.0)
     }
 }
 
@@ -915,19 +849,13 @@ mod test_end_points {
     fn request_reply_client(ep: &mut LinuxVfsIpcClientEndPoint, req_rep: &Vec<(VfsRequestMsg, VfsReplyMsg<String>)>) -> bool {
         let mut rbuf = Vec::<u8>::new();
         let mut wbuf = Vec::<u8>::new();
-        eprintln!("child req_rep len {}", req_rep.len());
         for (req, rep) in req_rep {
-            eprintln!("child loop");
             ep.blocking_write_request(&req, &mut wbuf);
-            eprintln!("child write finish");
             let msg = ep.blocking_read_reply(&mut rbuf).unwrap();
-            eprintln!("child read finish");
             if msg != *rep {
-                eprintln!("child return false");
                 return false;
             }
         }
-        eprintln!("child return true");
         return rbuf.is_empty() && wbuf.is_empty();
     }
 
@@ -1411,7 +1339,7 @@ pub enum LinuxVfsIpcFileHandle {
 }
 
 impl LinuxVfsIpcFileHandle {
-    pub fn from_reply<U: Serialize + DeserializeOwned + Clone>(reply: VfsReplyMsg<U>) -> LibcResult<(Self, U)> {
+    pub fn from_reply<U: Serialize + DeserializeOwned + Clone>(reply: &VfsReplyMsg<U>) -> LibcResult<(Self, U)> {
         let addr;
         let length = reply.length as libc::size_t;
         unsafe {
@@ -1439,7 +1367,7 @@ impl LinuxVfsIpcFileHandle {
         Ok((Self::Open(OpenedLinuxVfsIpcFileHandle {
             addr,
             length,
-        }), reply.user_data))
+        }), reply.user_data.clone()))
     }
 
     pub fn close(&mut self) -> LibcResult<()> {
