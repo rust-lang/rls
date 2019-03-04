@@ -932,6 +932,10 @@ mod test_end_points {
                                 let write_fd = eps[tok].write_fd.get_fd().unwrap();
                                 EventedFd(&write_fd).register(&poll, Token(tok), Ready::writable(), PollOpt::edge()).unwrap();
                             }
+                            if old_len != 0 && write_bufs[tok].is_empty() {
+                                let write_fd = eps[tok].write_fd.get_fd().unwrap();
+                                EventedFd(&write_fd).deregister(&poll).unwrap();
+                            }
                             if write_bufs[tok].is_empty() && progress[tok] == req_reps[tok].len() {
                                 finished += 1;
                             }
@@ -1076,11 +1080,11 @@ impl MapInfo {
 
 // a server that takes care of handling client's requests and managin mmap
 pub struct LinuxVfsIpcServer<U> {
-    // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
+    // need a RefCell<_>, because we didn't want to consume the &mut self when taking a &mut
     // ConnectionInfo
     connection_infos: HashMap<Token, Rc<RefCell<ConnectionInfo>>>,
-    // same reason as the Rc<RefCell<_>> for connection_infos
-    live_maps: Rc<RefCell<HashMap<PathBuf, Weak<MapInfo>>>>,
+    // same reason as the RefCell<_> for connection_infos
+    live_maps: RefCell<HashMap<PathBuf, Weak<MapInfo>>>,
     poll: Poll,
     vfs: Arc<Vfs<U>>,
     server_pid: u32,
@@ -1117,7 +1121,6 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         // need some change in the future.
         let path = path.canonicalize()?;
 
-        // TODO: more efficient impl, less memory copy and lookup
         use std::collections::hash_map::Entry;
         let live_maps = self.live_maps.clone();
         let mut live_maps = live_maps.borrow_mut();
@@ -1140,6 +1143,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
                 mi
             },
         };
+        // TODO: more efficient implementation, less lookup
         let u = self.vfs.with_user_data(&path, |res| {
             match res {
                 Err(err) => Err(err),
@@ -1163,13 +1167,15 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
     }
 
     fn write_reply(&mut self, token: Token, ci: &mut ConnectionInfo, reply_msg: VfsReplyMsg<U>) -> Result<()> {
+        use mio::{event::Evented, unix::EventedFd};
+        let write_fd = ci.server_end_point.write_fd.get_fd()?;
         let old_len = ci.write_state.buf.len();
         nonblocking_write_impl_initial(&ci.server_end_point.write_fd, &reply_msg, &mut ci.write_state.buf)?;
-        let new_len = ci.write_state.buf.len();
-        if old_len == 0 && new_len != 0 {
-            use mio::{event::Evented, unix::EventedFd};
-            let write_fd = ci.server_end_point.write_fd.get_fd()?;
+        if old_len == 0 && !ci.write_state.buf.is_empty() {
             EventedFd(&write_fd).register(&self.poll, token, mio::Ready::writable(), mio::PollOpt::edge())?;
+        }
+        if old_len != 0 && ci.write_state.buf.is_empty() {
+            EventedFd(&write_fd).deregister(&self.poll)?;
         }
         Ok(())
     }
@@ -1239,7 +1245,7 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
     fn new(vfs: Arc<Vfs<U>>) -> Result<Self> {
         Ok(Self {
             connection_infos: HashMap::new(),
-            live_maps: Rc::new(RefCell::new(HashMap::new())),
+            live_maps: RefCell::new(HashMap::new()),
             poll: Poll::new()?,
             vfs,
             server_pid: std::process::id(),
@@ -1258,15 +1264,15 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
                     Some(ci) => ci.clone(),
                     None => return Err(RlsVfsIpcError::TokenNotFound),
                 };
+                let mut ci = ci.clone();
+                let mut ci = &mut ci.borrow_mut();
 
                 let ready = event.readiness();
                 if ready.contains(mio::Ready::readable()) {
-                    let ci = ci.clone();
-                    self.handle_read(token, &mut ci.borrow_mut())?;
+                    self.handle_read(token, ci)?;
                 }
                 if ready.contains(mio::Ready::writable()) {
-                    let ci = ci.clone();
-                    self.handle_write(token, &mut ci.borrow_mut())?;
+                    self.handle_write(token, ci)?;
                 }
             }
         }
