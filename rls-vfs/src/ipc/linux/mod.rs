@@ -40,9 +40,35 @@ impl Fd {
                 if res < 0 {
                     handle_libc_error!("close");
                 } else {
-                    *self = Fd::Closed;
-                    Ok(())
+                    std::mem::forget(std::mem::replace(self, Fd::Closed));
                 }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn try_close(&mut self) -> LibcResult<()> {
+        match self {
+            Fd::Closed => {
+                Ok(())
+            },
+            Fd::Open(fd) => {
+                self.close()
+            }
+        }
+    }
+
+    pub fn try_clone(&self) -> LibcResult<Fd> {
+        match *self {
+            Fd::Closed => {
+                Ok(Fd::Closed)
+            },
+            Fd::Open(fd) => {
+                let fd1 = unsafe { libc::dup(fd) };
+                if fd1 < 0 {
+                    handle_libc_error!("dup");
+                }
+                Ok(Fd::Open(fd1))
             }
         }
     }
@@ -63,13 +89,76 @@ impl Fd {
         match self {
             Fd::Open(fd) => {
                 let fd = *fd;
-                *self = Fd::Closed;
+                std::mem::forget(std::mem::replace(self, Fd::Closed));
                 Ok(fd)
             },
             Fd::Closed => {
                 fake_libc_error!("Fd::take_raw", libc::EBADF);
             }
         }
+    }
+
+    pub fn write(&self, cont: &[u8]) -> LibcResult<usize> {
+        let len = cont.len();
+        let res = unsafe { libc::write(self.get_fd()?, &cont[0] as *const u8 as *const libc::c_void, len) };
+        if res < 0 {
+            handle_libc_error!("write");
+        }
+        Ok(res as usize)
+    }
+
+    pub fn read(&self, buf: &mut [u8]) -> LibcResult<usize> {
+        let len = buf.len();
+        let res = unsafe { libc::read(self.get_fd()?, &mut buf[0] as *mut u8 as *mut libc::c_void, len) };
+        if res < 0 {
+            handle_libc_error!("write");
+        }
+        Ok(res as usize)
+    }
+
+    pub fn write_all(&self, cont:&[u8]) -> LibcResult<()> {
+        let len = cont.len();
+        let mut start_pos = 0;
+        let write_fd = self.get_fd()?;
+        while start_pos < len {
+            let res = unsafe { libc::write(write_fd, &cont[start_pos] as *const u8 as *const libc::c_void, len - start_pos) };
+            if res <= 0 {
+                handle_libc_error!("write");
+            }
+            start_pos += res as usize;
+        }
+        Ok(())
+    }
+
+    pub fn read_all(&self, buf: &mut [u8]) -> LibcResult<()> {
+        let len = buf.len();
+        let mut start_pos = 0;
+        let read_fd = self.get_fd()?;
+        while start_pos < len {
+            let res = unsafe { libc::read(read_fd, &mut buf[start_pos] as *mut u8 as *mut libc::c_void, len - start_pos) };
+            if res <= 0 {
+                handle_libc_error!("write");
+            }
+            start_pos += res as usize;
+        }
+        Ok(())
+    }
+
+    pub fn read_till_close(&self) -> LibcResult<Vec<u8>> {
+        let mut buf: [u8;4096] = unsafe { std::mem::uninitialized() };
+        let mut ret = Vec::new();
+        let read_fd = self.get_fd()?;
+        loop {
+            let res = unsafe { libc::read(read_fd, &mut buf[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf)) };
+            if res < 0 {
+                handle_libc_error!("write");
+            }
+            if res == 0 {
+                break;
+            }
+            ret.extend_from_slice(&buf[0..(res as usize)]);
+        }
+        Ok(ret)
     }
 }
 
@@ -81,6 +170,39 @@ impl Drop for Fd {
             }
             Fd::Closed => ()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_Fd {
+    use super::*;
+    use std::io::stderr;
+    use std::io::Write;
+
+    #[test]
+    #[should_panic]
+    fn unclosed_fd_panic() {
+        let fd = Fd::from_raw(1);
+    }
+
+    #[test]
+    fn closed_fd_not_panic() {
+        let mut fds:[libc::c_int;2] = unsafe {std::mem::uninitialized()};
+        assert!(unsafe { libc::pipe2(&mut fds[0] as *mut libc::c_int, 0) } == 0);
+        let mut fd1 = Fd::from_raw(fds[0]);
+        let mut fd2 = Fd::from_raw(fds[1]);
+        let mut fd3 = fd2;
+        assert!(fd1.close().is_ok());
+        assert!(fd3.close().is_ok());
+    }
+
+    #[test]
+    fn close_invalid_fd_error() {
+        // I hope this is a invalid fd
+        let mut fd = Fd::from_raw(-1 as libc::c_int);
+        fd.close();
+        assert!(fd.close().is_err());
+        fd.take_raw();
     }
 }
 
@@ -105,13 +227,132 @@ impl Pipe {
          })
     }
 
-    fn close_write(&mut self) -> LibcResult<()> {
+    pub fn close_write(&mut self) -> LibcResult<()> {
         self.write_fd.close()
     }
 
     pub fn close_read(&mut self) -> LibcResult<()> {
         self.read_fd.close()
     }
+
+    pub fn close(&mut self) -> LibcResult<()> {
+        self.close_write()?;
+        self.close_read()
+    }
+
+    pub fn try_close(&mut self) -> LibcResult<()> {
+        self.write_fd.try_close()?;
+        self.read_fd.try_close()
+    }
+
+    pub fn write(&self, cont: &[u8]) -> LibcResult<usize> {
+        self.write_fd.write(cont)
+    }
+
+    pub fn read(&self, buf: &mut [u8]) -> LibcResult<usize> {
+        self.read_fd.read(buf)
+    }
+
+    pub fn write_all(&self, cont:&[u8]) -> LibcResult<()> {
+        self.write_fd.write_all(cont)
+    }
+
+    pub fn read_all(&self, buf: &mut [u8]) -> LibcResult<()> {
+        self.read_fd.read_all(buf)
+    }
+
+    pub fn read_till_close(&self) -> LibcResult<Vec<u8>> {
+        self.read_fd.read_till_close()
+    }
+
+    pub fn take_read(&mut self) -> Fd {
+        std::mem::replace(&mut self.read_fd, Fd::Closed)
+    }
+
+    pub fn take_write(&mut self) -> Fd {
+        std::mem::replace(&mut self.write_fd, Fd::Closed)
+    }
+
+}
+
+#[cfg(test)]
+mod tests_Pipe {
+    use super::*;
+
+    #[test]
+    fn pipe_new_close() {
+        let mut pipe = Pipe::new().unwrap();
+        pipe.close();
+    }
+
+    #[test]
+    #[should_panic]
+    fn pipe_new_no_close() {
+        // FIXME: test for double panic(abort)
+        let mut pipe = Pipe::new().unwrap();
+        pipe.close_read();
+    }
+
+    fn prop_read_write(pipe:&Pipe, input: &[u8]) -> bool {
+        let len = input.len();
+        let mut buf = Vec::<u8>::with_capacity(len);
+        pipe.write_all(input);
+        buf.resize(len, 0u8);
+        pipe.read_all(&mut buf);
+        input == buf.as_slice()
+    }
+
+    #[quickcheck]
+    fn check_write_read(input: Vec<u8>) -> bool {
+        // TODO: large size pipe write/read, blocking test
+        eprintln!("input size {}", input.len());
+        let mut pipe = Pipe::new().unwrap();
+        let ret = prop_read_write(&pipe, &input);
+        pipe.close();
+        ret
+    }
+
+    #[quickcheck]
+    fn threaded_write_read(input: Vec<u8>) -> bool {
+        // TODO: large size pipe write/read, blocking test
+        eprintln!("input size {}", input.len());
+        let mut pipe = Pipe::new().unwrap();
+        let mut read_fd = pipe.take_read();
+        let mut write_fd = pipe.take_write();
+        let input1 = input.clone();
+        let t1 = std::thread::spawn(move ||{
+            write_fd.write_all(&input1).unwrap();
+            write_fd.close().unwrap();
+        });
+        let res = read_fd.read_till_close().unwrap();
+        read_fd.close().unwrap();
+        let ret = res == input;
+        t1.join();
+        ret
+    }
+/*
+    // FIXME: this seems not to be testable
+    #[quickcheck]
+    fn inter_process_write_read(input: Vec<u8>) -> bool {
+        // TODO: large size pipe write/read, blocking test
+        eprintln!("input size {}", input.len());
+        let mut pipe = Pipe::new().unwrap();
+        use nix::unistd::{fork, ForkResult};
+        match fork() {
+            Ok(ForkResult::Parent { child, .. }) => {
+                let res = pipe.read_till_close().unwrap();
+                pipe.close().unwrap();
+                return res == input;
+            },
+            Ok(ForkResult::Child) => {
+                pipe.write_all(&input).unwrap();
+                pipe.close().unwrap();
+                std::process::exit(0);
+            },
+            Err(_) => return false,
+        }
+    }
+*/
 }
 
 pub struct LinuxVfsIpcChannel {
@@ -796,3 +1037,6 @@ impl Drop for LinuxVfsIpcFileHandle {
         }
     }
 }
+
+
+

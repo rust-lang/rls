@@ -1,5 +1,12 @@
 #![feature(type_alias_enum_variants)]
 
+#[cfg(test)]
+extern crate quickcheck;
+#[cfg(test)]
+#[macro_use(quickcheck)]
+extern crate quickcheck_macros;
+
+
 extern crate rls_span as span;
 #[macro_use]
 extern crate log;
