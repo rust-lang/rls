@@ -46,10 +46,28 @@ trait VfsIpcServer<U: Serialize + Clone> : Sized {
 trait VfsIpcClientEndPoint {
     type Error: std::error::Error;
     type FileHandle: VfsIpcFileHandle;
-    fn request_file<U: Serialize + DeserializeOwned + Clone>(&mut self, path: &std::path::Path) -> Result<(Self::FileHandle, U), Self::Error>;
+    type ReadBuffer;
+    type WriteBuffer;
+    // predicate: this can only be called with a blocking underlying fd
+    fn blocking_request_file<U: Serialize + DeserializeOwned + Clone>(&mut self, path: &std::path::Path, rbuf: &mut Self::ReadBuffer, wbuf: &mut Self::WriteBuffer) -> Result<(Self::FileHandle, U), Self::Error> {
+        let req = VfsRequestMsg::OpenFile(path.to_owned());
+        self.blocking_write_request(&req, wbuf)?;
+        let rep = self.blocking_read_reply::<U>(rbuf)?;
+        Ok((self.reply_to_file_handle(&rep)?, rep.user_data))
+    }
+    // flush the wbuf and write a request
+    fn blocking_write_request(&mut self, req: &VfsRequestMsg, wbuf: &mut Self::WriteBuffer) -> Result<(), Self::Error>;
+    // read a reply message from the rbuf and remote
+    fn blocking_read_reply<U: Serialize + DeserializeOwned + Clone>(&mut self, rbuf: &mut Self::ReadBuffer) -> Result<VfsReplyMsg<U>, Self::Error>;
+    fn reply_to_file_handle<U: Serialize + DeserializeOwned + Clone>(&mut self, rep: &VfsReplyMsg<U>) -> Result<Self::FileHandle, Self::Error>;
 }
 
 trait VfsIpcServerEndPoint {
+    type Error: std::error::Error;
+    type ReadBuffer;
+    type WriteBuffer;
+    fn blocking_read_request(&mut self, rbuf: &mut Self::ReadBuffer) -> Result<VfsRequestMsg, Self::Error>;
+    fn blocking_write_reply<U: Serialize + DeserializeOwned + Clone>(&mut self, rep: &VfsReplyMsg<U>, wbuf: &mut Self::WriteBuffer) -> Result<(), Self::Error>;
 }
 
 trait VfsIpcFileHandle {
@@ -57,13 +75,13 @@ trait VfsIpcFileHandle {
     fn get_file_ref(&self) -> Result<&str, Self::Error>;
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub enum VfsRequestMsg {
     OpenFile(std::path::PathBuf),
     CloseFile(std::path::PathBuf),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct VfsReplyMsg<U> {
     // NB: make sure path is null-terminated
     path: String,

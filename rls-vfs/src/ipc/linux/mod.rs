@@ -160,6 +160,18 @@ impl Fd {
         }
         Ok(ret)
     }
+
+    pub fn make_nonblocking() -> LibcResult<()> {
+        unimplemented!()
+    }
+
+    pub fn make_blocking() -> LibcResult<()> {
+        unimplemented!()
+    }
+
+    pub fn is_nonblocking() -> LibcResult<bool>{
+        unimplemented!()
+    }
 }
 
 impl Drop for Fd {
@@ -174,7 +186,7 @@ impl Drop for Fd {
 }
 
 #[cfg(test)]
-mod tests_Fd {
+mod tests_fd {
     use super::*;
     use std::io::stderr;
     use std::io::Write;
@@ -183,6 +195,18 @@ mod tests_Fd {
     #[should_panic]
     fn unclosed_fd_panic() {
         let fd = Fd::from_raw(1);
+    }
+
+    #[test]
+    fn double_close_error() {
+        let mut fds:[libc::c_int;2] = unsafe {std::mem::uninitialized()};
+        assert!(unsafe { libc::pipe2(&mut fds[0] as *mut libc::c_int, 0) } == 0);
+        let mut fd1 = Fd::from_raw(fds[0]);
+        let mut fd2 = Fd::from_raw(fds[1]);
+        assert!(fd1.close().is_ok());
+        assert!(fd2.close().is_ok());
+        assert!(fd1.close().is_err());
+        assert!(fd2.close().is_err());
     }
 
     #[test]
@@ -200,9 +224,8 @@ mod tests_Fd {
     fn close_invalid_fd_error() {
         // I hope this is a invalid fd
         let mut fd = Fd::from_raw(-1 as libc::c_int);
-        fd.close();
         assert!(fd.close().is_err());
-        fd.take_raw();
+        fd.take_raw().unwrap();
     }
 }
 
@@ -276,13 +299,14 @@ impl Pipe {
 }
 
 #[cfg(test)]
-mod tests_Pipe {
+mod tests_pipe {
     use super::*;
+    struct ChildProcess(pub libc::c_int);
 
     #[test]
     fn pipe_new_close() {
         let mut pipe = Pipe::new().unwrap();
-        pipe.close();
+        pipe.close().unwrap();
     }
 
     #[test]
@@ -290,15 +314,15 @@ mod tests_Pipe {
     fn pipe_new_no_close() {
         // FIXME: test for double panic(abort)
         let mut pipe = Pipe::new().unwrap();
-        pipe.close_read();
+        pipe.close_read().unwrap();
     }
 
     fn prop_read_write(pipe:&Pipe, input: &[u8]) -> bool {
         let len = input.len();
         let mut buf = Vec::<u8>::with_capacity(len);
-        pipe.write_all(input);
+        pipe.write_all(input).unwrap();
         buf.resize(len, 0u8);
-        pipe.read_all(&mut buf);
+        pipe.read_all(&mut buf).unwrap();
         input == buf.as_slice()
     }
 
@@ -308,7 +332,7 @@ mod tests_Pipe {
         eprintln!("input size {}", input.len());
         let mut pipe = Pipe::new().unwrap();
         let ret = prop_read_write(&pipe, &input);
-        pipe.close();
+        pipe.close().unwrap();
         ret
     }
 
@@ -327,29 +351,37 @@ mod tests_Pipe {
         let res = read_fd.read_till_close().unwrap();
         read_fd.close().unwrap();
         let ret = res == input;
-        t1.join();
+        t1.join().unwrap();
         ret
     }
 
     #[quickcheck]
     fn inter_process_write_read(input: Vec<u8>) -> bool {
+        let test = || {
         // TODO: large size pipe write/read, blocking test
         eprintln!("input size {}", input.len());
         let mut pipe = Pipe::new().unwrap();
         let pid = unsafe { libc::fork() };
         if pid < 0 {
             // fork failed
-            return false;
+            (-1, false)
         } else if pid == 0 {
             // child process
             pipe.write_all(&input).unwrap();
             pipe.close().unwrap();
-            unsafe { libc::exit(0) }
+            (pid, true)
         } else {
             pipe.close_write().unwrap();
             let res = pipe.read_till_close().unwrap();
             pipe.close_read().unwrap();
-            return res == input;
+            (-1, res == input)
+        }
+        };
+        let (pid, res) = test();
+        if pid >= 0 {
+            std::process::exit(0);
+        } else {
+            res
         }
     }
 }
@@ -372,15 +404,477 @@ impl VfsIpcChannel for LinuxVfsIpcChannel {
     }
 
     fn into_server_end_point_postfork(mut self) -> LibcResult<Self::ServerEndPoint> {
+        /*
+        eprintln!("server pipe fd {} {}", self.s2c_pipe.write_fd.get_fd()?, self.s2c_pipe.read_fd.get_fd()?);
+        eprintln!("server pipe fd {} {}", self.c2s_pipe.write_fd.get_fd()?, self.c2s_pipe.read_fd.get_fd()?);
+        eprintln!("server close fd {} {}", self.s2c_pipe.read_fd.get_fd()?, self.c2s_pipe.write_fd.get_fd()?);
+        eprintln!("server write fd: {}", self.s2c_pipe.write_fd.get_fd()?);
+        eprintln!("server read fd: {}", self.c2s_pipe.read_fd.get_fd()?);
+        */
         self.s2c_pipe.close_read()?;
         self.c2s_pipe.close_write()?;
         Self::ServerEndPoint::new(self.c2s_pipe.read_fd, self.s2c_pipe.write_fd)
     }
 
     fn into_client_end_point_postfork(mut self) -> LibcResult<Self::ClientEndPoint> {
+        /*
+        eprintln!("client pipe fd {} {}", self.s2c_pipe.write_fd.get_fd()?, self.s2c_pipe.read_fd.get_fd()?);
+        eprintln!("client pipe fd {} {}", self.c2s_pipe.write_fd.get_fd()?, self.c2s_pipe.read_fd.get_fd()?);
+        eprintln!("client close fd {} {}", self.s2c_pipe.write_fd.get_fd()?, self.c2s_pipe.read_fd.get_fd()?);
+        eprintln!("client write fd: {}", self.c2s_pipe.write_fd.get_fd()?);
+        eprintln!("client read fd: {}", self.s2c_pipe.read_fd.get_fd()?);
+        */
         self.s2c_pipe.close_write()?;
         self.c2s_pipe.close_read()?;
         Self::ClientEndPoint::new(self.s2c_pipe.read_fd, self.c2s_pipe.write_fd)
+    }
+}
+
+impl LinuxVfsIpcChannel {
+    pub fn take(&mut self) -> LinuxVfsIpcChannel {
+        let closed = LinuxVfsIpcChannel {
+            s2c_pipe: Pipe {
+                read_fd: Fd::Closed,
+                write_fd: Fd::Closed,
+            },
+            c2s_pipe: Pipe {
+                read_fd: Fd::Closed,
+                write_fd: Fd::Closed,
+            },
+        };
+        std::mem::replace(self, closed)
+    }
+
+    pub fn close(&mut self) -> LibcResult<()> {
+        self.s2c_pipe.close()?;
+        self.c2s_pipe.close()
+    }
+}
+
+fn blocking_read_impl<T: Serialize + DeserializeOwned + Clone>(read_fd: &Fd, rbuf: &mut Vec<u8>) -> Result<T> {
+    let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
+    let read_fd = read_fd.get_fd()?;
+    macro_rules! read_and_append {
+        () => {
+            let res = unsafe {
+                libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
+            };
+            if res < 0 {
+            // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
+            // TODO: more fine grained error handling, like interrupted by a signal
+                handle_libc_error!("read");
+            }
+            rbuf.extend_from_slice(&buf1[..res as usize]);
+        }
+    }
+
+    while rbuf.len() < 4 {
+        read_and_append!();
+    }
+
+    let len = match bincode::deserialize::<u32>(&rbuf[..4]) {
+        Ok(len) => len as usize + 4,
+        Err(err) => {
+            return Err(RlsVfsIpcError::DeserializeError(err));
+        },
+    };
+    while rbuf.len() < len {
+        read_and_append!();
+    }
+    let msg:T = match bincode::deserialize(&rbuf[4..len]) {
+        Ok(msg) => msg,
+        Err(err) => {
+            return Err(RlsVfsIpcError::DeserializeError(err));
+        },
+    };
+    *rbuf = rbuf.split_off(len);
+    Ok(msg)
+}
+
+fn blocking_write_impl<T: Serialize + DeserializeOwned + Clone>(write_fd: &Fd, t: &T, wbuf: &mut Vec<u8>) -> Result<()> {
+    let mut ext2 = match bincode::serialize(t) {
+        Ok(ext) => ext,
+        Err(err) => {
+            return Err(RlsVfsIpcError::SerializeError(err));
+        },
+    };
+    let len = ext2.len() as u32;
+    let mut ext1 = match bincode::serialize(&len) {
+        Ok(ext) => ext,
+        Err(err) => {
+            return Err(RlsVfsIpcError::SerializeError(err));
+        },
+    };
+    wbuf.reserve(wbuf.len() + ext1.len() + ext2.len());
+    wbuf.append(&mut ext1);
+    wbuf.append(&mut ext2);
+    write_fd.write_all(&wbuf)?;
+    wbuf.clear();
+    Ok(())
+}
+
+pub struct LinuxVfsIpcClientEndPoint {
+    read_fd: Fd,
+    write_fd: Fd,
+}
+
+impl LinuxVfsIpcClientEndPoint {
+    pub fn new(read_fd: Fd, write_fd: Fd) -> LibcResult<Self> {
+        Ok(Self {
+            read_fd,
+            write_fd,
+        })
+    }
+
+    pub fn close(&mut self) -> LibcResult<()> {
+        self.write_fd.close()?;
+        self.read_fd.close()
+    }
+
+    fn write_request(&mut self, req_msg: VfsRequestMsg) -> Result<()> {
+        let buf = match bincode::serialize(&req_msg) {
+            Ok(buf) => buf,
+            Err(err) => {
+                return Err(RlsVfsIpcError::SerializeError(err));
+            }
+        };
+        let len = buf.len();
+        let mut start_pos = 0;
+        let write_fd = self.write_fd.get_fd()?;
+        while start_pos < len {
+            let res = unsafe {
+                libc::write(write_fd, &buf[start_pos] as *const u8 as *const libc::c_void, len - start_pos)
+            };
+            if res < 0 {
+                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
+                // TODO: more fine grained error handling, like interrupted by a signal
+                handle_libc_error!("write");
+            }
+            start_pos += res as usize;
+        }
+        Ok(())
+    }
+
+    fn read_reply<U: Serialize + DeserializeOwned + Clone>(&mut self) -> Result<VfsReplyMsg<U>> {
+        let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
+        let mut buf = Vec::<u8>::new();
+        let read_fd = self.read_fd.get_fd()?;
+        macro_rules! read_and_append {
+            () => {
+                let res = unsafe {
+                    libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
+                };
+                if res < 0 {
+                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
+                // TODO: more fine grained error handling, like interrupted by a signal
+                    handle_libc_error!("read");
+                }
+            }
+        }
+        loop {
+            read_and_append!();
+            if buf.len() >= 4 {
+                break;
+            }
+        }
+        let len = match bincode::deserialize::<u32>(&buf[0..4]) {
+            Ok(len) => len as usize,
+            Err(err) => {
+                return Err(RlsVfsIpcError::DeserializeError(err));
+            },
+        };
+        buf.reserve(len);
+        while buf.len() < len {
+            read_and_append!();
+        }
+        match bincode::deserialize(&buf[4..len]) {
+            Ok(ret) => {
+                Ok(ret)
+            },
+            Err(err) => {
+                Err(RlsVfsIpcError::DeserializeError(err))
+            }
+        }
+    }
+}
+
+impl VfsIpcClientEndPoint for LinuxVfsIpcClientEndPoint {
+    type Error = RlsVfsIpcError;
+    type FileHandle = LinuxVfsIpcFileHandle;
+    type ReadBuffer = Vec<u8>;
+    type WriteBuffer = Vec<u8>;
+
+    fn blocking_write_request(&mut self, req:&VfsRequestMsg, wbuf: &mut Self::WriteBuffer) -> Result<()> {
+        blocking_write_impl(&self.write_fd, req, wbuf)
+    }
+
+    fn blocking_read_reply<U: Serialize + DeserializeOwned + Clone>(&mut self, rbuf: &mut Self::ReadBuffer) -> Result<VfsReplyMsg<U>> {
+        blocking_read_impl(&self.read_fd, rbuf)
+    }
+
+    fn reply_to_file_handle<U: Serialize + DeserializeOwned + Clone>(&mut self, rep: &VfsReplyMsg<U>) -> Result<Self::FileHandle> {
+        unimplemented!()
+    }
+}
+
+pub struct LinuxVfsIpcServerEndPoint {
+    read_fd: Fd,
+    write_fd: Fd,
+}
+
+impl LinuxVfsIpcServerEndPoint {
+    fn new(read_fd: Fd, write_fd: Fd) -> LibcResult<Self> {
+        let r_fd = match read_fd {
+            Fd::Open(fd) => {
+                fd
+            },
+            Fd::Closed => {
+                fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
+            }
+        };
+        let w_fd = match write_fd {
+            Fd::Open(fd) => {
+                fd
+            },
+            Fd::Closed => {
+                fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
+            }
+        };
+        unsafe {
+            if libc::fcntl(r_fd, libc::F_SETFL, libc::O_NONBLOCK) < 0 ||  libc::fcntl(w_fd, libc::F_SETFL, libc::O_NONBLOCK) < 0 {
+                handle_libc_error!("fcntl");
+            }
+        }
+        Ok(Self {
+            read_fd,
+            write_fd,
+        })
+    }
+
+    pub fn close(&mut self) -> LibcResult<()> {
+        self.write_fd.close()?;
+        self.read_fd.close()
+    }
+}
+
+#[cfg(test)]
+mod test_end_points {
+    use super::*;
+    use rand::Rng;
+
+    fn end_points_new_1(should_close: bool) {
+        let channel = LinuxVfsIpcChannel::new_prefork().unwrap();
+        let res = unsafe { libc::fork() };
+        if res < 0 {
+            panic!("failed to fork");
+        } else if res == 0 {
+            // child process
+            let mut ep = channel.into_client_end_point_postfork().unwrap();
+            if should_close {
+                ep.close().unwrap();
+            } else {
+                ep.write_fd.close().unwrap();
+            }
+        } else {
+            // parent process
+            let mut ep = channel.into_server_end_point_postfork().unwrap();
+            if should_close {
+                ep.close().unwrap();
+            } else {
+                ep.write_fd.close().unwrap();
+            }
+            let res = unsafe { libc::kill(res, libc::SIGKILL) };
+            if res < 0 {
+                panic!("failed to kill child process");
+            }
+        }
+    }
+
+    #[test]
+    fn end_points_new_close() {
+        end_points_new_1(true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn end_points_new_no_close() {
+        end_points_new_1(false);
+    }
+
+    const PATH_COMP:usize = 100;
+    const PATH_LEN:usize = 100;
+    const MSG_MAX:usize = 100;
+    const STR_MAX:usize = 100;
+    const CONT_MAX:u32 = 100_00;
+
+    fn random_ascii_string(min_len:usize, max_len:usize) -> String {
+        let mut rng = rand::thread_rng();
+        let char_dist = rand::distributions::Uniform::<u8>::new_inclusive(1, 127);
+        let len_dist = rand::distributions::Uniform::<usize>::new_inclusive(min_len, max_len);
+        let str_len = rng.sample(&len_dist);
+        rng.sample_iter(&char_dist).take(str_len).map(|c| { c as char }).collect::<String>()
+    }
+
+    fn generate_random_request() -> VfsRequestMsg {
+        let mut rng = rand::thread_rng();
+        let comp_dist = rand::distributions::Uniform::<usize>::new_inclusive(1, PATH_COMP);
+        let path_comp = rng.sample(comp_dist);
+        let mut path = PathBuf::new();
+        for p in 0..path_comp {
+            path.push(random_ascii_string(1, PATH_LEN));
+        }
+        if rng.gen::<bool>() {
+            VfsRequestMsg::OpenFile(path)
+        } else {
+            VfsRequestMsg::CloseFile(path)
+        }
+
+    }
+
+    fn generate_random_reply() -> VfsReplyMsg<String> {
+        let mut rng = rand::thread_rng();
+        let user_data = random_ascii_string(1, STR_MAX);
+        let path = random_ascii_string(1, PATH_LEN);
+        let length_dist = rand::distributions::Uniform::<u32>::new_inclusive(0 as u32, CONT_MAX);
+        let length = rng.sample(&length_dist);
+        VfsReplyMsg::<String> {
+            path,
+            length,
+            user_data,
+        }
+    }
+
+    fn prepare_request_reply() -> Vec<(VfsRequestMsg, VfsReplyMsg<String>)> {
+        let mut rng = rand::thread_rng();
+        let msg_dist = rand::distributions::Uniform::<usize>::new_inclusive(1, MSG_MAX);
+        let msg_num = rng.sample(&msg_dist);
+        let mut ret = Vec::with_capacity(msg_num);
+        for n  in 0..msg_num {
+            ret.push((generate_random_request(), generate_random_reply()));
+        }
+        ret
+    }
+
+    enum ReqRep {
+        Parent(Vec<libc::c_int>, Vec<LinuxVfsIpcServerEndPoint>, Vec<Vec<(VfsRequestMsg, VfsReplyMsg<String>)>>),
+        Children(i32, LinuxVfsIpcClientEndPoint, Vec<(VfsRequestMsg, VfsReplyMsg<String>)>),
+    }
+
+    fn prepare_fork(children_num: usize) -> ReqRep {
+        let mut req_reps = Vec::with_capacity(children_num);
+        let mut eps:Vec<LinuxVfsIpcServerEndPoint> = Vec::with_capacity(children_num);
+        let mut pids = Vec::with_capacity(children_num);
+        for n in 0..children_num {
+            let req_rep = prepare_request_reply();
+            let channel = LinuxVfsIpcChannel::new_prefork().unwrap();
+            let res = unsafe { libc::fork() };
+            if res < 0 {
+                panic!("failed to fork");
+            } else if res == 0 {
+                for p in eps.iter_mut() {
+                    p.close().unwrap();
+                }
+                return ReqRep::Children(res, channel.into_client_end_point_postfork().unwrap(), req_rep);
+            } else {
+                pids.push(res);
+                let ep = channel.into_server_end_point_postfork().unwrap();
+                eps.push(ep);
+                req_reps.push(req_rep);
+            }
+        }
+        return ReqRep::Parent(pids, eps, req_reps);
+    }
+
+    // server side
+    fn request_reply_server(ep: &mut LinuxVfsIpcServerEndPoint, req_rep: &Vec<(VfsRequestMsg, VfsReplyMsg<String>)>) -> bool {
+        let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
+        let mut buf = Vec::<u8>::new();
+        let read_fd = ep.read_fd.get_fd().unwrap();
+        let write_fd = ep.read_fd.get_fd().unwrap();
+        // temporarily set the server end point blocking
+        unsafe {
+            let flags = libc::fcntl(read_fd, libc::F_GETFL, 0);
+            libc::fcntl(read_fd, libc::F_SETFL, flags & !libc::O_NONBLOCK);
+
+            let flags = libc::fcntl(write_fd, libc::F_GETFL, 0);
+            libc::fcntl(write_fd, libc::F_SETFL, flags & !libc::O_NONBLOCK);
+        }
+
+        let mut rbuf = Vec::<u8>::new();
+        let mut wbuf = Vec::<u8>::new();
+        for (req, rep) in req_rep {
+            let msg = ep.blocking_read_request(&mut rbuf).unwrap();
+            if msg != *req {
+                return false;
+            }
+            ep.blocking_write_reply(&rep, &mut wbuf).unwrap();
+        }
+
+        unsafe {
+            let flags = libc::fcntl(read_fd, libc::F_GETFL, 0);
+            libc::fcntl(read_fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+
+            let flags = libc::fcntl(write_fd, libc::F_GETFL, 0);
+            libc::fcntl(write_fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+        }
+
+        return rbuf.is_empty() && wbuf.is_empty();
+    }
+
+    fn request_reply_client(ep: &mut LinuxVfsIpcClientEndPoint, req_rep: &Vec<(VfsRequestMsg, VfsReplyMsg<String>)>) -> bool {
+        let mut rbuf = Vec::<u8>::new();
+        let mut wbuf = Vec::<u8>::new();
+        for (req, rep) in req_rep {
+            ep.blocking_write_request(&req, &mut wbuf);
+            let msg = ep.blocking_read_reply(&mut rbuf).unwrap();
+            if msg != *rep {
+                return false;
+            }
+        }
+        return rbuf.is_empty() && wbuf.is_empty();
+    }
+
+    #[test]
+    fn request_reply() {
+        let test = || {
+            let process_num = 32usize;
+            match prepare_fork(process_num) {
+                ReqRep::Parent(pids, mut eps, req_reps) => {
+                    for n in 0..process_num {
+                        assert!(request_reply_server(&mut eps[n], &req_reps[n]));
+                    }
+                    for ep in eps.iter_mut() {
+                        ep.close().unwrap();
+                    }
+                    for pid in pids {
+                        let mut exit_status = unsafe {std::mem::uninitialized() };
+                        if unsafe {
+                            libc::waitpid(pid, &mut exit_status as *mut libc::c_int, 0 as libc::c_int)
+                        } < 0 {
+                            panic!("waitpid");
+                        }
+                        assert!(exit_status == 0);
+                    }
+                    (-1, 0)
+                },
+                ReqRep::Children(pid, mut ep, req_rep) => {
+                    let mut exit_status = 0;
+                    if !request_reply_client(&mut ep, &req_rep) {
+                        exit_status = 1;
+                    }
+                    ep.close().unwrap();
+                    (pid, exit_status)
+                },
+            }
+        };
+        let (pid, exit_status) = test();
+        if pid > 0 {
+            std::process::exit(exit_status);
+        }
+    }
+
+    #[test]
+    fn request_reply_poll() {
     }
 }
 
@@ -555,6 +1049,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
     }
 
     fn write_reply(&mut self, token: Token, ci: &mut ConnectionInfo, reply_msg: VfsReplyMsg<U>) -> Result<()> {
+        // FIXME
         let old_len = ci.write_state.buf.len();
         {
             let mut ext = match bincode::serialize(&reply_msg) {
@@ -813,134 +1308,18 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
     }
 }
 
-pub struct LinuxVfsIpcClientEndPoint {
-    read_fd: Fd,
-    write_fd: Fd,
-}
-
-impl LinuxVfsIpcClientEndPoint {
-    pub fn new(read_fd: Fd, write_fd: Fd) -> LibcResult<Self> {
-        Ok(Self {
-            read_fd,
-            write_fd,
-        })
-    }
-
-    fn write_request(&mut self, req_msg: VfsRequestMsg) -> Result<()> {
-        let buf = match bincode::serialize(&req_msg) {
-            Ok(buf) => buf,
-            Err(err) => {
-                return Err(RlsVfsIpcError::SerializeError(err));
-            }
-        };
-        let len = buf.len();
-        let mut start_pos = 0;
-        let write_fd = self.write_fd.get_fd()?;
-        while start_pos < len {
-            let res = unsafe {
-                libc::write(write_fd, &buf[start_pos] as *const u8 as *const libc::c_void, len - start_pos)
-            };
-            if res < 0 {
-                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
-                // TODO: more fine grained error handling, like interrupted by a signal
-                handle_libc_error!("write");
-            }
-            start_pos += res as usize;
-        }
-        Ok(())
-    }
-
-    fn read_reply<U: Serialize + DeserializeOwned + Clone>(&mut self) -> Result<VfsReplyMsg<U>> {
-        let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
-        let mut buf = Vec::<u8>::new();
-        let read_fd = self.read_fd.get_fd()?;
-        macro_rules! read_and_append {
-            () => {
-                let res = unsafe {
-                    libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
-                };
-                if res < 0 {
-                // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
-                // TODO: more fine grained error handling, like interrupted by a signal
-                    handle_libc_error!("read");
-                }
-            }
-        }
-        loop {
-            read_and_append!();
-            if buf.len() >= 4 {
-                break;
-            }
-        }
-        let len = match bincode::deserialize::<u32>(&buf[0..4]) {
-            Ok(len) => len as usize,
-            Err(err) => {
-                return Err(RlsVfsIpcError::DeserializeError(err));
-            },
-        };
-        buf.reserve(len);
-        while buf.len() < len {
-            read_and_append!();
-        }
-        match bincode::deserialize(&buf[4..len]) {
-            Ok(ret) => {
-                Ok(ret)
-            },
-            Err(err) => {
-                Err(RlsVfsIpcError::DeserializeError(err))
-            }
-        }
-    }
-}
-
-impl VfsIpcClientEndPoint for LinuxVfsIpcClientEndPoint {
-    type Error = RlsVfsIpcError;
-    type FileHandle = LinuxVfsIpcFileHandle;
-    fn request_file<U: Serialize + DeserializeOwned + Clone>(&mut self, path: &Path) -> Result<(Self::FileHandle, U)> {
-        let req_msg = VfsRequestMsg::OpenFile(path.to_owned());
-        self.write_request(req_msg)?;
-        let rep_msg = self.read_reply::<U>()?;
-        let res = Self::FileHandle::from_reply(rep_msg)?;
-        Ok(res)
-    }
-}
-
-pub struct LinuxVfsIpcServerEndPoint {
-    read_fd: Fd,
-    write_fd: Fd,
-}
-
-impl LinuxVfsIpcServerEndPoint {
-    fn new(read_fd: Fd, write_fd: Fd) -> LibcResult<Self> {
-        let r_fd = match read_fd {
-            Fd::Open(fd) => {
-                fd
-            },
-            Fd::Closed => {
-                fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
-            }
-        };
-        let w_fd = match write_fd {
-            Fd::Open(fd) => {
-                fd
-            },
-            Fd::Closed => {
-                fake_libc_error!("LinuxVfsIpcServerEndPoint::new", libc::EBADF);
-            }
-        };
-        unsafe {
-            if libc::fcntl(r_fd, libc::F_SETFL, libc::O_NONBLOCK) < 0 ||  libc::fcntl(w_fd, libc::F_SETFL, libc::O_NONBLOCK) < 0 {
-                handle_libc_error!("fcntl");
-            }
-        }
-        Ok(Self {
-            read_fd,
-            write_fd,
-        })
-    }
-}
-
 impl VfsIpcServerEndPoint for LinuxVfsIpcServerEndPoint {
+    type Error = RlsVfsIpcError;
+    type ReadBuffer = Vec<u8>;
+    type WriteBuffer = Vec<u8>;
+
+    fn blocking_read_request(&mut self, rbuf: &mut Self::ReadBuffer) -> Result<VfsRequestMsg> {
+        blocking_read_impl::<VfsRequestMsg>(&self.read_fd, rbuf)
+    }
+
+    fn blocking_write_reply<U: Serialize + DeserializeOwned + Clone>(&mut self, rep: &VfsReplyMsg<U>, wbuf: &mut Self::WriteBuffer) -> Result<()> {
+        blocking_write_impl(&self.write_fd, rep, wbuf)
+    }
 }
 
 pub struct OpenedLinuxVfsIpcFileHandle {
@@ -1036,6 +1415,4 @@ impl Drop for LinuxVfsIpcFileHandle {
         }
     }
 }
-
-
 
