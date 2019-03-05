@@ -16,6 +16,28 @@ use serde::{Serialize, de::DeserializeOwned};
 pub type Result<T> = std::result::Result<T, RlsVfsIpcError>;
 pub type LibcResult<T> = std::result::Result<T, LibcError>;
 
+#[cfg(test)]
+mod test_utils {
+    use rand::Rng;
+
+    pub fn random_ascii_string(min_len:usize, max_len:usize) -> String {
+        let mut rng = rand::thread_rng();
+        let char_dist = rand::distributions::Uniform::<u8>::new_inclusive(1, 127);
+        let len_dist = rand::distributions::Uniform::<usize>::new_inclusive(min_len, max_len);
+        let str_len = rng.sample(&len_dist);
+        rng.sample_iter(&char_dist).take(str_len).map(|c| { c as char }).collect::<String>()
+    }
+
+    // generate a valid path component, includes a-zA-z
+    pub fn random_path_components(min_len: usize, max_len: usize) -> String {
+        let mut rng = rand::thread_rng();
+        let char_dist = rand::distributions::Uniform::<u8>::new_inclusive(0, 51);
+        let len_dist = rand::distributions::Uniform::<usize>::new_inclusive(min_len, max_len);
+        let str_len = rng.sample(&len_dist);
+        rng.sample_iter(&char_dist).take(str_len).map(|c| { if c < 26 { (('a' as u8) + c) as char} else { (('A' as u8) + c - 26) as char } }).collect::<String>()
+    }
+}
+
 // A wrapper around linux fd which requires you to explicitly close it, Fd won't close itself on drop but panic, so remember to close it
 pub enum Fd {
     Closed,
@@ -52,7 +74,7 @@ impl Fd {
             Fd::Closed => {
                 Ok(())
             },
-            Fd::Open(fd) => {
+            Fd::Open(_) => {
                 self.close()
             }
         }
@@ -225,7 +247,7 @@ mod tests_fd {
     #[test]
     #[should_panic]
     fn unclosed_fd_panic() {
-        let fd = Fd::from_raw(1);
+        let _fd = Fd::from_raw(1);
     }
 
     #[test]
@@ -245,7 +267,7 @@ mod tests_fd {
         let mut fds:[libc::c_int;2] = unsafe {std::mem::uninitialized()};
         assert!(unsafe { libc::pipe2(&mut fds[0] as *mut libc::c_int, 0) } == 0);
         let mut fd1 = Fd::from_raw(fds[0]);
-        let mut fd2 = Fd::from_raw(fds[1]);
+        let fd2 = Fd::from_raw(fds[1]);
         let mut fd3 = fd2;
         assert!(fd1.close().is_ok());
         assert!(fd3.close().is_ok());
@@ -332,7 +354,6 @@ impl Pipe {
 #[cfg(test)]
 mod tests_pipe {
     use super::*;
-    struct ChildProcess(pub libc::c_int);
 
     #[test]
     fn pipe_new_close() {
@@ -560,7 +581,7 @@ fn nonblocking_read_impl<T: Serialize + DeserializeOwned + Clone>(read_fd: &Fd, 
             },
         };
         if len >= msg_len {
-            let msg = match bincode::deserialize::<T>(&rbuf[4..msg_len]) {
+            match bincode::deserialize::<T>(&rbuf[4..msg_len]) {
                 Ok(msg) => {
                     *rbuf = rbuf.split_off(msg_len);
                     return Ok(Some(msg));
@@ -685,6 +706,7 @@ impl LinuxVfsIpcServerEndPoint {
 #[cfg(test)]
 mod test_end_points {
     use super::*;
+    use super::test_utils::*;
     use rand::Rng;
 
     fn end_points_new_1(should_close: bool) {
@@ -732,20 +754,12 @@ mod test_end_points {
     const STR_MAX:usize = 100;
     const CONT_MAX:u32 = 100_00;
 
-    fn random_ascii_string(min_len:usize, max_len:usize) -> String {
-        let mut rng = rand::thread_rng();
-        let char_dist = rand::distributions::Uniform::<u8>::new_inclusive(1, 127);
-        let len_dist = rand::distributions::Uniform::<usize>::new_inclusive(min_len, max_len);
-        let str_len = rng.sample(&len_dist);
-        rng.sample_iter(&char_dist).take(str_len).map(|c| { c as char }).collect::<String>()
-    }
-
     fn generate_random_request() -> VfsRequestMsg {
         let mut rng = rand::thread_rng();
         let comp_dist = rand::distributions::Uniform::<usize>::new_inclusive(1, PATH_COMP);
         let path_comp = rng.sample(comp_dist);
         let mut path = PathBuf::new();
-        for p in 0..path_comp {
+        for _p in 0..path_comp {
             path.push(random_ascii_string(1, PATH_LEN));
         }
         if rng.gen::<bool>() {
@@ -774,7 +788,7 @@ mod test_end_points {
         let msg_dist = rand::distributions::Uniform::<usize>::new_inclusive(1, MSG_MAX);
         let msg_num = rng.sample(&msg_dist);
         let mut ret = Vec::with_capacity(msg_num);
-        for n  in 0..msg_num {
+        for _n in 0..msg_num {
             ret.push((generate_random_request(), generate_random_reply()));
         }
         ret
@@ -789,7 +803,7 @@ mod test_end_points {
         let mut req_reps = Vec::with_capacity(children_num);
         let mut eps:Vec<LinuxVfsIpcServerEndPoint> = Vec::with_capacity(children_num);
         let mut pids = Vec::with_capacity(children_num);
-        for n in 0..children_num {
+        for _n in 0..children_num {
             let req_rep = prepare_request_reply();
             let channel = LinuxVfsIpcChannel::new_prefork().unwrap();
             let res = unsafe { libc::fork() };
@@ -812,8 +826,6 @@ mod test_end_points {
 
     // server side
     fn request_reply_server(ep: &mut LinuxVfsIpcServerEndPoint, req_rep: &Vec<(VfsRequestMsg, VfsReplyMsg<String>)>) -> bool {
-        let mut buf1:[u8;4096] = unsafe {std::mem::uninitialized()};
-        let mut buf = Vec::<u8>::new();
         let read_fd = ep.read_fd.get_fd().unwrap();
         let write_fd = ep.read_fd.get_fd().unwrap();
         // temporarily set the server end point blocking
@@ -850,7 +862,7 @@ mod test_end_points {
         let mut rbuf = Vec::<u8>::new();
         let mut wbuf = Vec::<u8>::new();
         for (req, rep) in req_rep {
-            ep.blocking_write_request(&req, &mut wbuf);
+            ep.blocking_write_request(&req, &mut wbuf).unwrap();
             let msg = ep.blocking_read_reply(&mut rbuf).unwrap();
             if msg != *rep {
                 return false;
@@ -916,7 +928,7 @@ mod test_end_points {
         while finished < process_num {
             poll.poll(&mut events, None).unwrap();
             for event in &events {
-                let Token(mut tok) = event.token();
+                let Token(tok) = event.token();
                 let ready = event.readiness();
                 if ready.is_readable() {
                     match nonblocking_read_impl::<VfsRequestMsg>(&eps[tok].read_fd, &mut read_bufs[tok]).unwrap() {
@@ -944,7 +956,7 @@ mod test_end_points {
                     }
                 }
                 if ready.is_writable() {
-                    nonblocking_write_impl_continue(&eps[tok].write_fd, &mut write_bufs[tok]);
+                    nonblocking_write_impl_continue(&eps[tok].write_fd, &mut write_bufs[tok]).unwrap();
                     if write_bufs[tok].is_empty() {
                         let write_fd = eps[tok].read_fd.get_fd().unwrap();
                         poll.deregister(&EventedFd(&write_fd)).unwrap();
@@ -1014,77 +1026,13 @@ struct ConnectionInfo {
     write_state: PipeWriteState,
 }
 
-
-// information about a established mmap,
-// the ref-count is kept implicitly by Rc<MapInfo>
-// the real_path is kept by the key of a HashMap<PathBuf, Rc<MapInfo>>
-// NB: real_path should be canonical when appears in HashMap
-struct MapInfo {
-    // NB: make sure shm_name is null-terminated
-    shm_name: String,
-    length: libc::size_t,
-}
-
-impl MapInfo {
-    // construct a mmap, currently you can not query vfs for the version of a file
-    pub fn open(cont: &[u8], shm_name:String) -> LibcResult<Self> {
-        let length = cont.len() as libc::size_t;
-        unsafe {
-            let shm_oflag = libc::O_CREAT | libc::O_EXCL | libc::O_RDWR;
-            let shm_mode = libc::S_IRUSR | libc::S_IWUSR;
-            let shm_fd = libc::shm_open(shm_name.as_ptr() as *const libc::c_char, shm_oflag, shm_mode);
-
-            if shm_fd < 0 {
-                handle_libc_error!("shm_open");
-            }
-
-            if libc::ftruncate(shm_fd, length as libc::off_t) < 0 {
-                handle_libc_error!("ftruncate");
-            }
-
-            let mmap_prot = libc::PROT_READ | libc::PROT_WRITE;
-            // shared map to save us a few memory pages
-            // only the server write to the mapped area, the clients only read them, so no problem here
-            let mmap_flags = libc::MAP_SHARED;
-            let mmap_addr = libc::mmap(0 as *mut libc::c_void, length, mmap_prot, mmap_flags, shm_fd, 0);
-            if mmap_addr == libc::MAP_FAILED {
-                handle_libc_error!("mmap");
-            }
-            std::ptr::copy_nonoverlapping(cont.as_ptr() as *const u8, mmap_addr as *mut u8, length);
-            if libc::munmap(mmap_addr, length as libc::size_t) < 0 {
-                handle_libc_error!("munmap");
-            }
-
-            if libc::close(shm_fd) < 0 {
-                handle_libc_error!("close");
-            }
-        }
-
-        Ok(Self {
-            shm_name,
-            length,
-        })
-    }
-
-    // close a shared memory, after closing, clients won't be able to "connect to" this mmap, but existing
-    // shms are not invalidated.
-    pub fn close(&self) -> LibcResult<()> {
-        if unsafe {
-            libc::shm_unlink(self.shm_name.as_ptr() as *const libc::c_char)
-        } < 0 {
-            handle_libc_error!("shm_unlink");
-        }
-        Ok(())
-    }
-}
-
 // a server that takes care of handling client's requests and managin mmap
 pub struct LinuxVfsIpcServer<U> {
-    // need a RefCell<_>, because we didn't want to consume the &mut self when taking a &mut
+    // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
     // ConnectionInfo
     connection_infos: HashMap<Token, Rc<RefCell<ConnectionInfo>>>,
-    // same reason as the RefCell<_> for connection_infos
-    live_maps: RefCell<HashMap<PathBuf, Weak<MapInfo>>>,
+    // same reason as the Rc<RefCell<_>> for connection_infos
+    live_maps: Rc<RefCell<HashMap<PathBuf, Weak<MapInfo>>>>,
     poll: Poll,
     vfs: Arc<Vfs<U>>,
     server_pid: u32,
@@ -1157,13 +1105,17 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
 
     fn handle_open_request(&mut self, token: Token, ci: &mut ConnectionInfo, path: PathBuf) -> Result<()> {
         let (map_info, user_data) = self.try_setup_mmap(&path)?;
-        let reply_msg = VfsReplyMsg::<U> {
-            path: map_info.shm_name.clone(),
-            length: map_info.length as u32,
-            user_data
-        };
-        ci.opened_files.insert(path, map_info);
-        self.write_reply(token, ci, reply_msg)
+        if let MapInfo::Opened(ref mi) = std::ops::Deref::deref(&map_info) {
+            let reply_msg = VfsReplyMsg::<U> {
+                path: mi.shm_name.clone(),
+                length: mi.length as u32,
+                user_data
+            };
+            ci.opened_files.insert(path, map_info);
+            self.write_reply(token, ci, reply_msg)
+        } else {
+            return Err(RlsVfsIpcError::InternalError);
+        }
     }
 
     fn write_reply(&mut self, token: Token, ci: &mut ConnectionInfo, reply_msg: VfsReplyMsg<U>) -> Result<()> {
@@ -1191,12 +1143,13 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         }
         Ok(())
     }
-
+/*
     // a eof is met when reading a pipe, the connection's read side will not be used again(write
     // side may still be used to send replies)
-    fn finish_read(&mut self, _tok: Token, ci: &mut ConnectionInfo) -> Result<()> {
+    fn finish_read(&mut self, _tok: Token, _ci: &mut ConnectionInfo) -> Result<()> {
         Ok(())
     }
+*/
 
     // try to read some requests and handle them
     fn handle_read(&mut self, token: Token, ci: &mut ConnectionInfo) -> Result<()> {
@@ -1227,10 +1180,15 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         ret
     }
 
-    fn try_remove_last_map(&mut self, mi: Rc<MapInfo>, file_path: &Path) -> Result<()> {
-        if Rc::<MapInfo>::strong_count(&mi) == 1 {
-            mi.close()?;
-            self.live_maps.borrow_mut().remove(file_path);
+    fn try_remove_last_map(&mut self, mut mi: Rc<MapInfo>, file_path: &Path) -> Result<()> {
+        match std::rc::Rc::get_mut(&mut mi) {
+            Some(mi) => {
+                mi.unlink()?;
+                if self.live_maps.borrow_mut().remove(file_path).is_none() {
+                    return Err(RlsVfsIpcError::InternalError);
+                }
+            },
+            None => (),
         }
         Ok(())
     }
@@ -1245,7 +1203,7 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
     fn new(vfs: Arc<Vfs<U>>) -> Result<Self> {
         Ok(Self {
             connection_infos: HashMap::new(),
-            live_maps: RefCell::new(HashMap::new()),
+            live_maps: Rc::new(RefCell::new(HashMap::new())),
             poll: Poll::new()?,
             vfs,
             server_pid: std::process::id(),
@@ -1264,8 +1222,8 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
                     Some(ci) => ci.clone(),
                     None => return Err(RlsVfsIpcError::TokenNotFound),
                 };
-                let mut ci = ci.clone();
-                let mut ci = &mut ci.borrow_mut();
+                let ci = ci.clone();
+                let ci = &mut ci.borrow_mut();
 
                 let ready = event.readiness();
                 if ready.contains(mio::Ready::readable()) {
@@ -1325,26 +1283,35 @@ impl VfsIpcServerEndPoint for LinuxVfsIpcServerEndPoint {
     }
 }
 
-pub struct OpenedLinuxVfsIpcFileHandle {
+pub struct LinuxVfsIpcFileHandle {
     addr: *mut libc::c_void,
     length: libc::size_t,
 }
 
-impl OpenedLinuxVfsIpcFileHandle {
+impl LinuxVfsIpcFileHandle {
+    pub fn new() -> LinuxVfsIpcFileHandle {
+        LinuxVfsIpcFileHandle {
+            addr: libc::MAP_FAILED,
+            length: 0,
+        }
+    }
+
     pub fn close(&mut self) -> LibcResult<()> {
-        if unsafe { libc::munmap(self.addr, self.length) } < 0 {
-            handle_libc_error!("munmap");
+        if self.is_closed() {
+            fake_libc_error!("LinuxVfsIpcFileHandle::close" ,libc::EBADF);
+        } else {
+            if unsafe { libc::munmap(self.addr, self.length) } < 0 {
+                handle_libc_error!("munmap");
+            }
+            std::mem::forget(std::mem::replace(self, Self::new()));
         }
         Ok(())
     }
-}
 
-pub enum LinuxVfsIpcFileHandle {
-    Open(OpenedLinuxVfsIpcFileHandle),
-    Closed,
-}
+    pub fn is_closed(&self) -> bool {
+        return self.addr == libc::MAP_FAILED;
+    }
 
-impl LinuxVfsIpcFileHandle {
     pub fn from_reply<U: Serialize + DeserializeOwned + Clone>(reply: &VfsReplyMsg<U>) -> LibcResult<(Self, U)> {
         let addr;
         let length = reply.length as libc::size_t;
@@ -1364,29 +1331,11 @@ impl LinuxVfsIpcFileHandle {
             if addr == libc::MAP_FAILED  {
                 handle_libc_error!("mmap");
             }
-
             if libc::close(shm_fd) < 0 {
                 handle_libc_error!("close");
             }
         }
-
-        Ok((Self::Open(OpenedLinuxVfsIpcFileHandle {
-            addr,
-            length,
-        }), reply.user_data.clone()))
-    }
-
-    pub fn close(&mut self) -> LibcResult<()> {
-        match self {
-            Self::Open(handle) => {
-                handle.close()?;
-                *self = Self::Closed;
-                Ok(())
-            },
-            Self::Closed => {
-                fake_libc_error!("LinuxVfsIpcFileHandle::close" ,libc::EBADF);
-            },
-        }
+        Ok((Self { addr, length }, reply.user_data.clone()))
     }
 }
 
@@ -1394,28 +1343,254 @@ impl VfsIpcFileHandle for LinuxVfsIpcFileHandle {
     type Error = RlsVfsIpcError;
     fn get_file_ref(&self) -> Result<&str> {
         // NB: whether the file contents are valid utf8 are never checked
-        match self {
-            Self::Open(handle) => {
-                Ok(unsafe {
-                    let slice = std::slice::from_raw_parts(handle.addr as *const u8, handle.length as usize);
-                    std::str::from_utf8_unchecked(&slice)
-                })
-            },
-            Self::Closed => {
-                return Err(RlsVfsIpcError::GetFileFromClosedHandle);
-            }
+        if self.is_closed() {
+            return Err(RlsVfsIpcError::GetFileFromClosedHandle);
+        } else {
+            Ok(unsafe {
+                let slice = std::slice::from_raw_parts(self.addr as *const u8, self.length as usize);
+                std::str::from_utf8_unchecked(&slice)
+            })
         }
     }
 }
 
 impl Drop for LinuxVfsIpcFileHandle {
     fn drop(&mut self) {
+        if !self.is_closed() {
+            panic!("you drop a LinuxVfsIpcFileHanlde while it's still open")
+        }
+    }
+}
+
+struct OpenedMap {
+    // NB: make sure shm_name is null-terminated
+    shm_name: String,
+    length: libc::size_t,
+}
+
+// information about a established mmap,
+// the ref-count is kept implicitly by Rc<MapInfo>
+// the real_path is kept by the key of a HashMap<PathBuf, Rc<MapInfo>>
+// NB: real_path should be canonical when appears in HashMap
+enum MapInfo {
+    Opened(OpenedMap),
+    Closed,
+}
+
+impl MapInfo {
+    pub fn new() -> MapInfo {
+        MapInfo::Closed
+    }
+
+    // construct a mmap, currently you can not query vfs for the version of a file
+    pub fn open(cont: &[u8], shm_name:String) -> LibcResult<Self> {
+        let length = cont.len() as libc::size_t;
+        unsafe {
+            let shm_oflag = libc::O_CREAT | libc::O_EXCL | libc::O_RDWR;
+            let shm_mode = libc::S_IRUSR | libc::S_IWUSR;
+            let shm_fd = libc::shm_open(shm_name.as_ptr() as *const libc::c_char, shm_oflag, shm_mode);
+
+            if shm_fd < 0 {
+                handle_libc_error!("shm_open");
+            }
+
+            if libc::ftruncate(shm_fd, length as libc::off_t) < 0 {
+                handle_libc_error!("ftruncate");
+            }
+
+            let mmap_prot = libc::PROT_READ | libc::PROT_WRITE;
+            // shared map to save us a few memory pages
+            // only the server write to the mapped area, the clients only read them, so no problem here
+            let mmap_flags = libc::MAP_SHARED;
+            let mmap_addr = libc::mmap(0 as *mut libc::c_void, length, mmap_prot, mmap_flags, shm_fd, 0);
+            if mmap_addr == libc::MAP_FAILED {
+                handle_libc_error!("mmap");
+            }
+            std::ptr::copy_nonoverlapping(cont.as_ptr() as *const u8, mmap_addr as *mut u8, length);
+            if libc::munmap(mmap_addr, length as libc::size_t) < 0 {
+                handle_libc_error!("munmap");
+            }
+            if libc::close(shm_fd) < 0 {
+                handle_libc_error!("close");
+            }
+        }
+
+        Ok(Self::Opened(OpenedMap{
+            shm_name,
+            length,
+        }))
+    }
+
+    // close a shared memory, after closing, clients won't be able to "connect to" this mmap, but existing
+    // shms are not invalidated.
+    pub fn unlink(&mut self) -> LibcResult<()> {
         match self {
-            Self::Open(_) => {
-                panic!("you drop a LinuxVfsIpcFileHanlde while it's still open")
+            Self::Opened(OpenedMap { shm_name, .. } ) => {
+                if unsafe {
+                    libc::shm_unlink(shm_name.as_ptr() as *const libc::c_char)
+                } < 0 {
+                    handle_libc_error!("shm_unlink");
+                }
+                std::mem::forget(std::mem::replace(self, MapInfo::new()));
+                Ok(())
+            },
+            Self::Closed => {
+                fake_libc_error!("MapInfo::close", libc::EBADF);
+            }
+        }
+    }
+
+    pub fn post_fork_forget(&mut self) -> LibcResult<()> {
+        match self {
+            Self::Opened(_) => {
+                std::mem::forget(std::mem::replace(self, MapInfo::new()));
+                Ok(())
+            },
+            Self::Closed => {
+                fake_libc_error!("MapInfo::post_fork_forget", libc::EBADF);
+            }
+        }
+    }
+}
+
+impl Drop for MapInfo {
+    fn drop(&mut self) {
+        match self {
+            Self::Opened(_) => {
+                panic!("you forget to unlink a mmap {}", unsafe { libc::getpid() });
             },
             Self::Closed => (),
         }
+    }
+}
+
+#[cfg(test)]
+mod test_linux_vfs_ipc_file_handle_map_info {
+    use super::*;
+    use super::test_utils::*;
+
+    fn reply_from_map_info(mi: &MapInfo) -> Option<VfsReplyMsg<String>> {
+        let user_data = random_ascii_string(1, 4096);
+        if let MapInfo::Opened(mi) = mi {
+            Some(VfsReplyMsg::<String> {
+                path: mi.shm_name.clone(),
+                length: mi.length as u32,
+                user_data,
+            })
+        } else {
+            None
+        }
+    }
+
+    #[test]
+    fn from_reply_inter_process() {
+        let pid;
+        {
+            let (mut mi, cont) = generate_mi().unwrap();
+            let rep = reply_from_map_info(&mi).unwrap();
+            pid = unsafe { libc::fork() };
+            if pid < 0 {
+                panic!("failed to fork");
+            } else if pid == 0 {
+                mi.post_fork_forget().unwrap();
+                let (mut handle, _ud) = LinuxVfsIpcFileHandle::from_reply(&rep).unwrap();
+                let file = handle.get_file_ref().unwrap();
+                assert!(cont == file);
+                handle.close().unwrap();
+            } else {
+                let mut exit_status = unsafe {std::mem::uninitialized() };
+                let res = unsafe { libc::waitpid(pid, &mut exit_status as *mut libc::c_int, 0 as libc::c_int) };
+                assert!(res > 0 && exit_status == 0);
+                mi.unlink().unwrap();
+            }
+        }
+        if pid == 0 {
+            std::process::exit(0);
+        }
+    }
+
+    #[test]
+    fn new_handle_not_panic() {
+        let _handle = LinuxVfsIpcFileHandle::new();
+    }
+
+    fn helper_2(should_panic: bool) {
+        let mi = generate_mi();
+        if should_panic {
+            if mi.is_err() {
+                return;
+            }
+            let (mut mi, _cont) = mi.unwrap();
+            let rep = reply_from_map_info(&mi);
+            if rep.is_none() {
+                return;
+            }
+            let rep = rep.unwrap();
+            let handle = LinuxVfsIpcFileHandle::from_reply(&rep);
+            if handle.is_err() {
+                return;
+            }
+            let (mut handle, _ud) = handle.unwrap();
+            if mi.unlink().is_err() {
+                if handle.close().is_err() {
+                    return;
+                }
+            }
+        } else {
+            let (mut mi, cont) = mi.unwrap();
+            let rep = reply_from_map_info(&mi).unwrap();
+            let (mut handle, _ud) = LinuxVfsIpcFileHandle::from_reply(&rep).unwrap();
+            let file = handle.get_file_ref().unwrap();
+            assert!(cont == file);
+            handle.close().unwrap();
+            mi.unlink().unwrap();
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn unclosed_handle_panic() {
+        helper_2(true);
+    }
+
+    #[test]
+    fn closed_handle_not_panic() {
+        helper_2(false);
+    }
+
+    #[test]
+    fn new_map_info_not_panic() {
+        let _mi = MapInfo::new();
+    }
+
+    fn generate_mi() -> LibcResult<(MapInfo, String)> {
+        let content = random_ascii_string(1, 4096);
+        let mut shm_name = random_path_components(1, 64);
+        shm_name.push('\u{0000}');
+        Ok((MapInfo::open(content.as_bytes(), shm_name)?, content.clone()))
+    }
+
+    fn helper_1(should_panic: bool) {
+        let mi = generate_mi();
+        if should_panic {
+            if mi.is_err() {
+                return;
+            }
+        } else {
+            let (mut mi, _cont) = mi.unwrap();
+            mi.unlink().unwrap();
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn unclosed_map_info_panic() {
+        helper_1(true);
+    }
+
+    #[test]
+    fn closed_map_info_not_panic() {
+        helper_1(false);
     }
 }
 
