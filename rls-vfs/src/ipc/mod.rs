@@ -49,11 +49,12 @@ trait VfsIpcClientEndPoint {
     type ReadBuffer;
     type WriteBuffer;
     // predicate: this can only be called with a blocking underlying fd
-    fn blocking_request_file<U: Serialize + DeserializeOwned + Clone>(&mut self, path: &std::path::Path, rbuf: &mut Self::ReadBuffer, wbuf: &mut Self::WriteBuffer) -> Result<(Self::FileHandle, U), Self::Error> {
+    fn blocking_request_file<U: Serialize + DeserializeOwned + Clone>(&mut self, path: &std::path::Path, rbuf: &mut Self::ReadBuffer, wbuf: &mut Self::WriteBuffer) -> Result<(Self::FileHandle, Option<U>), Self::Error> {
         let req = VfsRequestMsg::OpenFile(path.to_owned());
         self.blocking_write_request(&req, wbuf)?;
         let rep = self.blocking_read_reply::<U>(rbuf)?;
-        Ok((self.reply_to_file_handle(&rep)?, rep.user_data))
+        let handle = self.reply_to_file_handle(&rep)?;
+        Ok((handle, rep.user_data))
     }
     // flush the wbuf and write a request
     fn blocking_write_request(&mut self, req: &VfsRequestMsg, wbuf: &mut Self::WriteBuffer) -> Result<(), Self::Error>;
@@ -87,5 +88,5 @@ pub struct VfsReplyMsg<U> {
     path: String,
     // Save the client from calling fstat
     length: u32,
-    user_data: U,
+    user_data: Option<U>,
 }

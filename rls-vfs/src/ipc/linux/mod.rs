@@ -233,7 +233,7 @@ impl Drop for Fd {
     fn drop(&mut self) {
         match self {
             Fd::Open(_) => {
-                panic!("you forget to close a fd before it is dropped");
+                panic!("you forget to close a fd before it is dropped {}", unsafe {libc::getpid()});
             }
             Fd::Closed => ()
         }
@@ -511,7 +511,7 @@ fn blocking_read_impl<T: Serialize + DeserializeOwned + Clone>(read_fd: &Fd, rbu
             let res = unsafe {
                 libc::read(read_fd, &mut buf1[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf1))
             };
-            if res < 0 {
+            if res <= 0 {
             // NB: no need to handle EWOULDBLOCK, as client side is blocking fd
             // TODO: more fine grained error handling, like interrupted by a signal
                 handle_libc_error!("read");
@@ -779,7 +779,7 @@ mod test_end_points {
         VfsReplyMsg::<String> {
             path,
             length,
-            user_data,
+            user_data: Some(user_data),
         }
     }
 
@@ -1026,6 +1026,25 @@ struct ConnectionInfo {
     write_state: PipeWriteState,
 }
 
+impl ConnectionInfo {
+    pub fn new(ep: LinuxVfsIpcServerEndPoint) -> ConnectionInfo {
+        ConnectionInfo {
+            server_end_point: ep,
+            opened_files: HashMap::new(),
+            read_state: PipeReadState { buf: Vec::new() },
+            write_state: PipeWriteState { buf: Vec::new() },
+        }
+    }
+
+    pub fn close(&mut self) -> LibcResult<()> {
+        self.server_end_point.close()?;
+        self.opened_files.clear();
+        self.read_state.buf.clear();
+        self.write_state.buf.clear();
+        Ok(())
+    }
+}
+
 // a server that takes care of handling client's requests and managin mmap
 pub struct LinuxVfsIpcServer<U> {
     // need a Rc<RefCell<_>>, because we didn't want to consume the &mut self when taking a &mut
@@ -1040,6 +1059,14 @@ pub struct LinuxVfsIpcServer<U> {
 }
 
 impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
+    fn shut_down(&mut self) -> Result<()> {
+        for (_, ci) in self.connection_infos.drain() {
+            ci.borrow_mut().close()?;
+        }
+        self.live_maps.borrow_mut().clear();
+        Ok(())
+    }
+
     fn handle_request(&mut self, tok: Token, ci: &mut ConnectionInfo, req: VfsRequestMsg) -> Result<()> {
         match req {
             VfsRequestMsg::OpenFile(path) => {
@@ -1053,7 +1080,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
 
     fn setup_mmap(&mut self, path: &Path) -> Result<Rc<MapInfo>> {
         use super::super::FileContents;
-        let shm_name = self.generate_shm_name(&path);
+        let shm_name = self.generate_shm_name();
         match self.vfs.load_file(&path)? {
             FileContents::Text(s) => {
                 Ok(Rc::new(MapInfo::open(s.as_bytes(), shm_name)?))
@@ -1064,7 +1091,7 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         }
     }
 
-    fn try_setup_mmap(&mut self, path: &Path) -> Result<(Rc<MapInfo>, U)> {
+    fn try_setup_mmap(&mut self, path: &Path) -> Result<(Rc<MapInfo>, Option<U>)> {
         // TODO: currently, vfs doesn't restrict which files are allowed to be opened, this may
         // need some change in the future.
         let path = path.canonicalize()?;
@@ -1094,9 +1121,12 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
         // TODO: more efficient implementation, less lookup
         let u = self.vfs.with_user_data(&path, |res| {
             match res {
-                Err(err) => Err(err),
+                Err(_) => {
+                    //Err(err)
+                    Ok(None)
+                },
                 Ok((_, u)) => {
-                    Ok(u.clone())
+                    Ok(Some(u.clone()))
                 },
             }
         })?;
@@ -1175,8 +1205,9 @@ impl<U: Serialize + DeserializeOwned + Clone> LinuxVfsIpcServer<U> {
     }
 
     // make sure the generated name is null-terminated
-    fn generate_shm_name(&self, file_path: &Path) -> String {
-        let ret = std::format!("/rls-{}-{}-{}\u{0000}", self.server_pid, file_path.display(), self.timestamp);
+    fn generate_shm_name(&mut self) -> String {
+        let ret = std::format!("/rls_{}_{}\u{0000}", self.server_pid, self.timestamp);
+        self.timestamp += 1;
         ret
     }
 
@@ -1243,6 +1274,7 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
         let tok_usize = read_fd as usize;
         let tok = Token(tok_usize);
         EventedFd(&read_fd).register(&self.poll, tok, mio::Ready::readable(), mio::PollOpt::edge())?;
+        self.connection_infos.insert(tok, Rc::new(RefCell::new(ConnectionInfo::new(s_ep))));
         Ok(tok)
     }
 
@@ -1260,12 +1292,199 @@ impl<U: Serialize + DeserializeOwned + Clone> VfsIpcServer<U> for LinuxVfsIpcSer
                 for (file_path, mi) in ci.opened_files.drain() {
                     self.try_remove_last_map(mi, &file_path)?;
                 }
+                ci.close()?;
             },
             None => {
                 return Err(RlsVfsIpcError::RemoveUnknownClient);
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test_linux_vfs_ipc_server {
+    use super::*;
+    use std::fs::{self, DirEntry};
+
+    fn client_nop(mut ep: LinuxVfsIpcClientEndPoint) -> libc::c_int {
+        ep.close().unwrap();
+        return 0;
+    }
+
+    // copied from rust documentation
+    fn visit_dirs(dir: &Path, cb: &Fn(&DirEntry) -> bool) -> bool {
+        /*
+        if dif == "target" {
+            return true;
+        }
+        */
+        if dir.is_dir() {
+            for entry in fs::read_dir(dir).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path.is_dir() {
+                    if !visit_dirs(&path, cb) {
+                        return false;
+                    }
+                } else {
+                    if !cb(&entry) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    fn client_request(ep: LinuxVfsIpcClientEndPoint) -> libc::c_int {
+        let cwd = std::env::current_dir().unwrap().join(Path::new("src"));
+        let ep = Rc::new(RefCell::new(ep));
+        let mut ret = 0;
+        {
+            let ep = ep.clone();
+            let read_buf = RefCell::new(Vec::<u8>::new());
+            let write_buf = RefCell::new(Vec::<u8>::new());
+            if visit_dirs(&cwd, &move |dir:&DirEntry| {
+                let mut read_buf = read_buf.borrow_mut();
+                let mut write_buf = write_buf.borrow_mut();
+                let mut ep = ep.borrow_mut();
+                let (mut file_handle, _) = ep.blocking_request_file::<()>(&dir.path(), &mut read_buf, &mut write_buf).unwrap();
+                let file_content = file_handle.get_file_ref().unwrap();
+                let file_content1 = fs::read_to_string(&dir.path()).unwrap();
+                if file_content != file_content1 {
+                    return false;
+                }
+                file_handle.close().unwrap();
+                return true;
+            }) {
+                ret = 0;
+            } else {
+                ret = 1;
+            }
+        }
+        ep.borrow_mut().close().unwrap();
+        return ret;
+    }
+
+    fn server_add_maybe_shut_down(should_shutdown: bool, eps: Vec<LinuxVfsIpcServerEndPoint>) -> libc::c_int {
+        let vfs = Arc::new(Vfs::<()>::new());
+        let mut vfs_ipc_server = LinuxVfsIpcServer::new(vfs).unwrap();
+        for ep in eps {
+            vfs_ipc_server.add_server_end_point(ep).unwrap();
+        }
+        if should_shutdown {
+            vfs_ipc_server.shut_down().unwrap();
+        }
+        return 0;
+    }
+
+    fn server_add_shut_down(eps: Vec<LinuxVfsIpcServerEndPoint>) -> libc::c_int {
+        server_add_maybe_shut_down(true, eps)
+    }
+
+    fn server_add_no_shut_down(eps: Vec<LinuxVfsIpcServerEndPoint>) -> libc::c_int {
+        server_add_maybe_shut_down(false, eps)
+    }
+    
+    fn server_add_poll(eps: Vec<LinuxVfsIpcServerEndPoint>) -> libc::c_int {
+        let vfs = Arc::new(Vfs::<()>::new());
+        let mut vfs_ipc_server = LinuxVfsIpcServer::new(vfs).unwrap();
+        for ep in eps {
+            vfs_ipc_server.add_server_end_point(ep).unwrap();
+        }
+        if vfs_ipc_server.roll_the_loop().is_err() {
+            return 1;
+        }
+        return 0;
+    }
+
+    fn spawn_child_process<F:Fn(LinuxVfsIpcClientEndPoint) -> libc::c_int>(proc_num: usize, client_fn: F) -> (Vec<libc::c_int>, Vec<LinuxVfsIpcServerEndPoint>) {
+        let mut pids = Vec::new();
+        let mut eps:Vec<LinuxVfsIpcServerEndPoint> = Vec::new();
+        for _n in 0..proc_num {
+            let channel = LinuxVfsIpcChannel::new_prefork().unwrap();
+            let res = unsafe { libc::fork() };
+            if res < 0 {
+                panic!("failed to fork");
+            } else if res == 0 {
+                for ep in eps.iter_mut() {
+                    ep.close().unwrap();
+                }
+                std::process::exit(client_fn(channel.into_client_end_point_postfork().unwrap()));
+            } else {
+                pids.push(res);
+                eps.push(channel.into_server_end_point_postfork().unwrap());
+            }
+        }
+        (pids, eps)
+    }
+
+    fn spawn_server_process<F:Fn(Vec<LinuxVfsIpcServerEndPoint>) -> libc::c_int>(eps: Vec<LinuxVfsIpcServerEndPoint>, server_fn: F) -> libc::c_int {
+        let res = unsafe { libc::fork() };
+        if res < 0 {
+            panic!("failed to fork");
+        } else if res == 0 {
+            std::process::exit(server_fn(eps));
+        } else {
+            for mut ep in eps {
+                ep.close().unwrap();
+            }
+            return res;
+        }
+    }
+
+    fn wait_checker(pid: libc::c_int) -> bool {
+        let mut exit_status = unsafe {std::mem::uninitialized() };
+        if unsafe {
+            libc::waitpid(pid, &mut exit_status as *mut libc::c_int, 0 as libc::c_int)
+        } < 0 {
+            panic!("waitpid");
+        }
+        return exit_status == 0;
+    }
+
+    // FIXME: what's the return status when a rust process panic?
+    fn wait_panic_checker(pid: libc::c_int) -> bool {
+        let mut exit_status = unsafe {std::mem::uninitialized() };
+        if unsafe {
+            libc::waitpid(pid, &mut exit_status as *mut libc::c_int, 0 as libc::c_int)
+        } < 0 {
+            panic!("waitpid");
+        }
+        return exit_status != 0;
+    }
+
+    fn kill_checker(pid: libc::c_int) -> bool {
+        let res = unsafe { libc::kill(pid, libc::SIGKILL) };
+        if res < 0 {
+            panic!("failed to kill server process");
+        }
+        return true;
+    }
+
+    fn vfs_ipc_server_test_impl<F1:Fn(Vec<LinuxVfsIpcServerEndPoint>) -> libc::c_int, F2: Fn(LinuxVfsIpcClientEndPoint) -> libc::c_int, F3: Fn(libc::c_int) -> bool, F4: Fn(libc::c_int) -> bool>(proc_num:usize, server_fn: F1, client_fn: F2, server_checker: F3, client_checker: F4) {
+        let (pids, eps) = spawn_child_process(proc_num, client_fn);
+        let server_pid = spawn_server_process(eps, server_fn);
+        for pid in pids {
+            assert!(client_checker(pid));
+        }
+        assert!(server_checker(server_pid));
+    }
+
+    #[test]
+    fn vfs_ipc_server_server_add_shut_down() {
+        vfs_ipc_server_test_impl(32usize, server_add_shut_down, client_nop, wait_checker, wait_checker);
+    }
+
+    #[test]
+    fn vfs_ipc_server_server_add_no_shut_down() {
+        vfs_ipc_server_test_impl(32usize, server_add_no_shut_down, client_nop, wait_panic_checker, wait_checker);
+    }
+
+    #[test]
+    fn vfs_ipc_server_poll() {
+        vfs_ipc_server_test_impl(32usize, server_add_poll, client_request, kill_checker, wait_checker);
     }
 }
 
@@ -1312,7 +1531,7 @@ impl LinuxVfsIpcFileHandle {
         return self.addr == libc::MAP_FAILED;
     }
 
-    pub fn from_reply<U: Serialize + DeserializeOwned + Clone>(reply: &VfsReplyMsg<U>) -> LibcResult<(Self, U)> {
+    pub fn from_reply<U: Serialize + DeserializeOwned + Clone>(reply: &VfsReplyMsg<U>) -> LibcResult<(Self, Option<U>)> {
         let addr;
         let length = reply.length as libc::size_t;
         unsafe {
@@ -1475,7 +1694,7 @@ mod test_linux_vfs_ipc_file_handle_map_info {
             Some(VfsReplyMsg::<String> {
                 path: mi.shm_name.clone(),
                 length: mi.length as u32,
-                user_data,
+                user_data: Some(user_data),
             })
         } else {
             None
