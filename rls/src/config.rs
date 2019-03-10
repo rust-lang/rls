@@ -181,7 +181,7 @@ impl Default for Config {
             jobs: None,
             all_targets: true,
             racer_completion: true,
-            clippy_preference: ClippyPreference::OptIn,
+            clippy_preference: ClippyPreference::default(),
             full_docs: Inferrable::Inferred(false),
             show_hover_context: true,
             rustfmt_path: None,
@@ -324,6 +324,12 @@ pub enum ClippyPreference {
     OptIn,
     /// Enable clippy.
     On,
+}
+
+impl Default for ClippyPreference {
+    fn default() -> Self {
+        ClippyPreference::OptIn
+    }
 }
 
 /// Permissive deserialization for `ClippyPreference`

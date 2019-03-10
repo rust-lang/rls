@@ -11,6 +11,8 @@ extern crate rustc_driver;
 #[allow(unused_extern_crates)]
 extern crate rustc_errors;
 #[allow(unused_extern_crates)]
+extern crate rustc_interface;
+#[allow(unused_extern_crates)]
 extern crate rustc_metadata;
 #[allow(unused_extern_crates)]
 extern crate rustc_plugin;
@@ -37,10 +39,10 @@ use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::{BufWriter, BuildResult};
 use crate::build::plan::{Crate, Edition};
 use crate::config::{ClippyPreference, Config};
-use self::rustc_driver::driver::CompileController;
-use self::rustc_driver::{run, run_compiler, CompilerCalls, RustcDefaultCalls};
+use self::rustc_driver::{run_compiler};
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
+use self::rustc_interface::interface;
 use self::rustc::session::Session;
 use self::rustc::session::config::Input;
 use self::syntax::source_map::{FileLoader, RealFileLoader};
@@ -68,7 +70,7 @@ pub(crate) fn rustc(
 
     let mut local_envs = envs.clone();
 
-    let clippy_pref = {
+    let clippy_preference = {
         let config = rls_config.lock().unwrap();
         if config.clear_env_rust_log {
             local_envs.insert(String::from("RUST_LOG"), None);
@@ -84,11 +86,11 @@ pub(crate) fn rustc(
 
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();
-    let args: Vec<_> = if cfg!(feature = "clippy") && clippy_pref != ClippyPreference::Off {
+    let args: Vec<_> = if cfg!(feature = "clippy") && clippy_preference != ClippyPreference::Off {
         // Allow feature gating in the same way as `cargo clippy`
         let mut clippy_args = vec!["--cfg".to_owned(), r#"feature="cargo-clippy""#.to_owned()];
 
-        if clippy_pref == ClippyPreference::OptIn {
+        if clippy_preference == ClippyPreference::OptIn {
             // `OptIn`: Require explicit `#![warn(clippy::all)]` annotation in each workspace crate
             clippy_args.push("-A".to_owned());
             clippy_args.push("clippy::all".to_owned());
@@ -99,21 +101,20 @@ pub(crate) fn rustc(
         args.to_owned()
     };
 
-    let analysis = Arc::default();
-    let input_files = Arc::default();
-    let controller =
-        Box::new(RlsRustcCalls::new(Arc::clone(&analysis), Arc::clone(&input_files), clippy_pref));
+    let mut callbacks = RlsRustcCalls { clippy_preference, ..Default::default() };
+    let analysis = Arc::clone(&callbacks.analysis);
+    let input_files = Arc::clone(&callbacks.input_files);
 
     // rustc explicitly panics in `run_compiler()` on compile failure, regardless
     // of whether it encounters an ICE (internal compiler error) or not.
     // TODO: Change librustc_driver behaviour to distinguish between ICEs and
     // regular compilation failure with errors?
     let result = ::std::panic::catch_unwind(|| {
-        run(move || {
+        rustc_driver::report_ices_to_stderr_if_any(move || {
             // Replace stderr so we catch most errors.
             run_compiler(
                 &args,
-                controller,
+                &mut callbacks,
                 Some(Box::new(ReplacedFileLoader::new(changed))),
                 Some(Box::new(BufWriter(buf))),
             )
@@ -139,36 +140,113 @@ pub(crate) fn rustc(
 
 // Our compiler controller. We mostly delegate to the default rustc
 // controller, but use our own callback for save-analysis.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct RlsRustcCalls {
     analysis: Arc<Mutex<Option<Analysis>>>,
     input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
 }
 
-impl RlsRustcCalls {
-    fn new(
-        analysis: Arc<Mutex<Option<Analysis>>>,
-        input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
-        clippy_preference: ClippyPreference,
-    ) -> RlsRustcCalls {
-        RlsRustcCalls { analysis, input_files, clippy_preference }
+impl rustc_driver::Callbacks for RlsRustcCalls {
+    fn config(&mut self, config: &mut interface::Config) {
+        // This also prevents the compiler from dropping expanded AST, which we
+        // still need in the `after_analysis` callback in order to process and
+        // pass the computed analysis in-memory.
+        config.opts.debugging_opts.save_analysis = true;
+    }
+
+    fn after_parsing(&mut self, _compiler: &interface::Compiler) -> bool {
+        #[cfg(feature = "clippy")]
+        {
+            if self.clippy_preference != ClippyPreference::Off {
+                clippy_after_parse_callback(_compiler);
+            }
+        }
+        // Continue execution
+        true
+    }
+
+    fn after_analysis(&mut self, compiler: &interface::Compiler) -> bool {
+        let sess = compiler.session();
+        let input = compiler.input();
+        let crate_name = compiler.crate_name().unwrap().peek().clone();
+
+        let cwd = &sess.working_dir.0;
+
+        let src_path = match input {
+            Input::File(ref name) => Some(name.to_path_buf()),
+            Input::Str { .. } => None,
+        }
+        .and_then(|path| src_path(Some(cwd), path));
+
+        let krate = Crate {
+            name: crate_name.to_owned(),
+            src_path,
+            disambiguator: sess.local_crate_disambiguator().to_fingerprint().as_value(),
+            edition: match sess.edition() {
+                RustcEdition::Edition2015 => Edition::Edition2015,
+                RustcEdition::Edition2018 => Edition::Edition2018,
+            },
+        };
+        let files = fetch_input_files(sess);
+
+        let mut input_files = self.input_files.lock().unwrap();
+        for file in &files {
+            input_files.entry(file.to_path_buf()).or_default().insert(krate.clone());
+        }
+
+        // Guaranteed to not be dropped yet in the pipeline thanks to the
+        // `config.opts.debugging_opts.save_analysis` value being set to `true`.
+        let expanded_crate = &compiler.expansion().unwrap().peek().0;
+        compiler.global_ctxt().unwrap().peek_mut().enter(|tcx| {
+            // There are two ways to move the data from rustc to the RLS, either
+            // directly or by serialising and deserialising. We only want to do
+            // the latter when there are compatibility issues between crates.
+
+            // This version passes via JSON, it is more easily backwards compatible.
+            // save::process_crate(state.tcx.unwrap(),
+            //                     state.expanded_crate.unwrap(),
+            //                     state.analysis.unwrap(),
+            //                     state.crate_name.unwrap(),
+            //                     state.input,
+            //                     None,
+            //                     save::DumpHandler::new(state.out_dir,
+            //                                            state.crate_name.unwrap()));
+            // This version passes directly, it is more efficient.
+            save::process_crate(
+                tcx,
+                &expanded_crate,
+                &crate_name,
+                &input,
+                None,
+                CallbackHandler {
+                    callback: &mut |a| {
+                        let mut analysis = self.analysis.lock().unwrap();
+                        let a = unsafe { ::std::mem::transmute(a.clone()) };
+                        *analysis = Some(a);
+                    },
+                },
+            );
+        });
+
+        true
     }
 }
 
 #[cfg(feature = "clippy")]
-fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_, '_>) {
+fn clippy_after_parse_callback(compiler: &interface::Compiler) {
     use self::rustc_plugin::registry::Registry;
 
+    let sess = compiler.session();
     let mut registry = Registry::new(
-        state.session,
-        state
-            .krate
-            .as_ref()
+        sess,
+        compiler
+            .parse()
             .expect(
                 "at this compilation stage \
                  the crate must be parsed",
             )
+            .peek()
             .span,
     );
     registry.args_hidden = Some(Vec::new());
@@ -179,7 +257,6 @@ fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_
     let Registry {
         early_lint_passes, late_lint_passes, lint_groups, llvm_passes, attributes, ..
     } = registry;
-    let sess = &state.session;
     let mut ls = sess.lint_store.borrow_mut();
     for pass in early_lint_passes {
         ls.register_early_pass(Some(sess), true, false, pass);
@@ -196,93 +273,6 @@ fn clippy_after_parse_callback(state: &mut rustc_driver::driver::CompileState<'_
 
     sess.plugin_llvm_passes.borrow_mut().extend(llvm_passes);
     sess.plugin_attributes.borrow_mut().extend(attributes);
-}
-
-impl<'a> CompilerCalls<'a> for RlsRustcCalls {
-    #[allow(clippy::boxed_local)] // https://github.com/rust-lang/rust-clippy/issues/1123
-    fn build_controller(
-        self: Box<Self>,
-        sess: &Session,
-        matches: &getopts::Matches,
-    ) -> CompileController<'a> {
-        let analysis = self.analysis.clone();
-        let input_files = self.input_files.clone();
-        #[cfg(feature = "clippy")]
-        let clippy_preference = self.clippy_preference;
-        let mut result = Box::new(RustcDefaultCalls).build_controller(sess, matches);
-        result.keep_ast = true;
-
-        #[cfg(feature = "clippy")]
-        {
-            if clippy_preference != ClippyPreference::Off {
-                result.after_parse.callback = Box::new(clippy_after_parse_callback);
-            }
-        }
-
-        result.after_expand.callback = Box::new(move |state| {
-            let cwd = &state.session.working_dir.0;
-
-            let src_path = match state.input {
-                Input::File(ref name) => Some(name.to_path_buf()),
-                Input::Str { .. } => None,
-            }
-            .and_then(|path| src_path(Some(cwd), path));
-
-            let krate = Crate {
-                name: state.crate_name.expect("missing crate name").to_owned(),
-                src_path,
-                disambiguator: state
-                    .session
-                    .local_crate_disambiguator()
-                    .to_fingerprint()
-                    .as_value(),
-                edition: match state.session.edition() {
-                    RustcEdition::Edition2015 => Edition::Edition2015,
-                    RustcEdition::Edition2018 => Edition::Edition2018,
-                },
-            };
-            let files = fetch_input_files(state.session);
-
-            let mut input_files = input_files.lock().unwrap();
-            for file in &files {
-                input_files.entry(file.to_path_buf()).or_default().insert(krate.clone());
-            }
-        });
-
-        result.after_analysis.callback = Box::new(move |state| {
-            // There are two ways to move the data from rustc to the RLS, either
-            // directly or by serialising and deserialising. We only want to do
-            // the latter when there are compatibility issues between crates.
-
-            // This version passes via JSON, it is more easily backwards compatible.
-            // save::process_crate(state.tcx.unwrap(),
-            //                     state.expanded_crate.unwrap(),
-            //                     state.analysis.unwrap(),
-            //                     state.crate_name.unwrap(),
-            //                     state.input,
-            //                     None,
-            //                     save::DumpHandler::new(state.out_dir,
-            //                                            state.crate_name.unwrap()));
-            // This version passes directly, it is more efficient.
-            save::process_crate(
-                state.tcx.expect("missing tcx"),
-                state.expanded_crate.expect("missing crate"),
-                state.crate_name.expect("missing crate name"),
-                state.input,
-                None,
-                CallbackHandler {
-                    callback: &mut |a| {
-                        let mut analysis = analysis.lock().unwrap();
-                        let a = unsafe { ::std::mem::transmute(a.clone()) };
-                        *analysis = Some(a);
-                    },
-                },
-            );
-        });
-        result.after_analysis.run_callback_on_error = true;
-
-        result
-    }
 }
 
 fn fetch_input_files(sess: &Session) -> Vec<PathBuf> {
