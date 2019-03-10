@@ -1,6 +1,6 @@
 [package]
 name = "rls-rustc"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "A simple shim around rustc to allow using save-analysis with a stable toolchain"
 license = "Apache-2.0/MIT"

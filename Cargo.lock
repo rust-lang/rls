@@ -1439,7 +1439,7 @@ dependencies = [
  "rls-analysis 0.16.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-blacklist 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-data 0.18.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rls-rustc 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rls-rustc 0.6.0",
  "rls-span 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rls-vfs 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1492,8 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "rls-rustc"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.6.0"
 
 [[package]]
 name = "rls-span"
@@ -2464,7 +2463,6 @@ dependencies = [
 "checksum rls-analysis 0.16.12 (registry+https://github.com/rust-lang/crates.io-index)" = "ae18d8ad01dec3b2014f4d7ae3c607d7adbcff79e5d3b48ea42ea71c10d43a71"
 "checksum rls-blacklist 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "b8ce1fdac03e138c4617ff87b194e1ff57a39bb985a044ccbd8673d30701e411"
 "checksum rls-data 0.18.2 (registry+https://github.com/rust-lang/crates.io-index)" = "5f80b84551b32e26affaf7f12374913b5061730c0dcd185d9e8fa5a15e36e65c"
-"checksum rls-rustc 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2f9dba7390427aefa953608429701e3665192ca810ba8ae09301e001b7c7bed0"
 "checksum rls-span 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "33d66f1d6c6ccd5c98029f162544131698f6ebb61d8c697681cac409dcd08805"
 "checksum rls-vfs 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "74698a8492cdc0c378e6a5e4c5ed27a2a32bf708ce0297931801238baba898a9"
 "checksum rustc-ap-arena 373.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8be999235b541fc8eb54901b66e899a06076709ac5f53d6b2c5c59d29ad54780"
