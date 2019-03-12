@@ -158,12 +158,12 @@ fn read_crate_data(path: &Path) -> Option<Analysis> {
 }
 
 #[cfg(feature = "serialize-rustc")]
-fn read_analysis(buf: &String) -> Result<Option<Analysis>, rustc_serialize::json::DecoderError> {
-    ::rustc_serialize::json::decode(&buf)
+fn read_analysis(buf: &str) -> Result<Option<Analysis>, rustc_serialize::json::DecoderError> {
+    ::rustc_serialize::json::decode(buf)
 }
 
 #[cfg(feature = "serialize-serde")]
-fn read_analysis(buf: &String) -> Result<Option<Analysis>, serde_json::Error> {
+fn read_analysis(buf: &str) -> Result<Option<Analysis>, serde_json::Error> {
     ::serde_json::from_str(buf)
 }
 
