@@ -402,7 +402,10 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         });
 
         let time = t_start.elapsed();
-        info!("search: {}s", time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0);
+        info!(
+            "search: {}s",
+            time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0
+        );
         result
     }
 
