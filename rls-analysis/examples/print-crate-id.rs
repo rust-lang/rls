@@ -2,6 +2,7 @@ extern crate env_logger;
 extern crate rls_analysis;
 
 use rls_analysis::{AnalysisHost, AnalysisLoader, SearchDirectory};
+use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -42,7 +43,7 @@ fn main() {
         std::process::exit(1);
     }
     let loader = Loader::new(PathBuf::from(env::args().nth(1).unwrap()));
-    let crates = rls_analysis::read_analysis_from_files(&loader, Default::default(), &[]);
+    let crates = rls_analysis::read_analysis_from_files(&loader, HashMap::new(), &[]);
 
     for krate in &crates {
         println!("Crate {:?} data version {:?}", krate.id, krate.analysis.version);
