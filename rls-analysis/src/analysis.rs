@@ -181,7 +181,7 @@ impl Analysis {
         self.per_crate
             .values()
             .filter(|c| c.path.is_some())
-            .map(|c| (c.path.as_ref().unwrap().clone(), c.timestamp.clone()))
+            .map(|c| (c.path.as_ref().unwrap().clone(), c.timestamp))
             .collect()
     }
 
@@ -212,8 +212,7 @@ impl Analysis {
         //     "error in for_each_crate, found {} results, expected 0 or 1",
         //     result.len(),
         // );
-        let temp = result.drain(..).next();
-        temp // stupid NLL bug
+        result.into_iter().nth(0)
     }
 
     pub fn for_all_crates<F, T>(&self, f: F) -> Vec<T>
@@ -235,14 +234,14 @@ impl Analysis {
     }
 
     pub fn ref_for_span(&self, span: &Span) -> Option<Ref> {
-        self.for_each_crate(|c| c.def_id_for_span.get(span).map(|r| r.clone()))
+        self.for_each_crate(|c| c.def_id_for_span.get(span).cloned())
     }
 
     // Like def_id_for_span, but will only return a def_id if it is in the same
     // crate.
     pub fn local_def_id_for_span(&self, span: &Span) -> Option<Id> {
         self.for_each_crate(|c| {
-            c.def_id_for_span.get(span).map(|r| r.some_id()).and_then(|id| {
+            c.def_id_for_span.get(span).map(Ref::some_id).and_then(|id| {
                 if c.defs.contains_key(&id) {
                     Some(id)
                 } else {

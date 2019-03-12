@@ -100,7 +100,7 @@ fn extract_target_triple(sys_root_path: &Path) -> String {
 }
 
 fn extract_rustc_host_triple() -> Option<String> {
-    let rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
+    let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
     let verbose_version = Command::new(rustc)
         .arg("--verbose")
         .arg("--version")
@@ -124,9 +124,7 @@ fn extract_rustup_target_triple(sys_root_path: &Path) -> String {
     let toolchain =
         sys_root_path.iter().last().and_then(OsStr::to_str).expect("extracting toolchain failed");
     // Extracts x86_64-pc-windows-msvc from nightly-x86_64-pc-windows-pc
-    let triple =
-        toolchain.splitn(2, '-').last().map(String::from).expect("extracting triple failed");
-    triple
+    toolchain.splitn(2, '-').last().map(String::from).expect("extracting triple failed")
 }
 
 fn sys_root_path() -> PathBuf {
@@ -134,7 +132,7 @@ fn sys_root_path() -> PathBuf {
         .ok()
         .map(PathBuf::from)
         .or_else(|| {
-            Command::new(env::var("RUSTC").unwrap_or(String::from("rustc")))
+            Command::new(env::var("RUSTC").unwrap_or_else(|_| String::from("rustc")))
                 .arg("--print")
                 .arg("sysroot")
                 .output()
