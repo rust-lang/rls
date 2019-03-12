@@ -123,7 +123,7 @@ fn read_crate_data(path: &Path) -> Option<Analysis> {
             Err(err)
         })
         .ok()?;
-    let s = ::rustc_serialize::json::decode(&buf)
+    let s = read_analysis(&buf)
         .or_else(|err| {
             warn!("deserialisation error: {:?}", err);
             json::parse(&buf)
@@ -155,6 +155,16 @@ fn read_crate_data(path: &Path) -> Option<Analysis> {
     info!("reading {:?} {}.{:09}s", path, d.as_secs(), d.subsec_nanos());
 
     s
+}
+
+#[cfg(feature = "serialize-rustc")]
+fn read_analysis(buf: &String) -> Result<Option<Analysis>, rustc_serialize::json::DecoderError> {
+    ::rustc_serialize::json::decode(&buf)
+}
+
+#[cfg(feature = "serialize-serde")]
+fn read_analysis(buf: &String) -> Result<Option<Analysis>, serde_json::Error> {
+    ::serde_json::from_str(buf)
 }
 
 pub fn name_space_for_def_kind(dk: DefKind) -> char {
