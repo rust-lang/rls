@@ -50,9 +50,9 @@ impl Crate {
 
 /// Reads raw analysis data for non-blacklisted crates from files in directories
 /// pointed by `loader`.
-pub fn read_analysis_from_files<L: AnalysisLoader, S: std::hash::BuildHasher + Default>(
+pub fn read_analysis_from_files<L: AnalysisLoader>(
     loader: &L,
-    crate_timestamps: HashMap<PathBuf, SystemTime, S>,
+    crate_timestamps: HashMap<PathBuf, SystemTime>,
     crate_blacklist: Blacklist,
 ) -> Vec<Crate> {
     let mut result = vec![];
