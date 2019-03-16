@@ -20,6 +20,10 @@ name = "rls"
 test = false
 path = "rls/src/main.rs"
 
+[patch.crates-io]
+rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "ce5cccc32c3897488d2c503fe9d2a9a429a9b0eb" }
+racer = { git = "https://github.com/racer-rust/racer", rev = "b1b5e4a3749687c3ecd761d810afdb43f19073ef" }
+
 [dependencies]
 rls-analysis = "0.16.12"
 rls-blacklist = "0.1.3"
