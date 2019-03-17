@@ -75,14 +75,14 @@ pub fn read_analysis_from_files<L: AnalysisLoader>(
                     let path = dir.path.join(&l.name);
                     let is_fresh = crate_timestamps.get(&path).map_or(true, |t| time > t);
                     if is_fresh {
-                        read_crate_data(&path).map(|analysis| {
+                        if let Some(analysis) = read_crate_data(&path) {
                             result.push(Crate::new(
                                 analysis,
                                 *time,
                                 Some(path),
                                 dir.prefix_rewrite.clone(),
                             ));
-                        });
+                        };
                     }
                 }
             }
@@ -131,7 +131,7 @@ fn read_crate_data(path: &Path) -> Option<Analysis> {
                     if let json::JsonValue::Object(obj) = parsed {
                         let expected =
                             Some(json::JsonValue::from(Analysis::new(Config::default()).version));
-                        let actual = obj.get("version").map(|v| v.clone());
+                        let actual = obj.get("version").cloned();
                         if expected != actual {
                             warn!(
                                 "Data file version mismatch; expected {:?} but got {:?}",

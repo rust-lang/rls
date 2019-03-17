@@ -87,7 +87,7 @@ impl Id {
     fn from_crate_and_local(crate_id: u32, local_id: u32) -> Id {
         // Use global crate number for high order bits,
         // then index for least significant bits.
-        Id(((crate_id as u64) << 32) | (local_id as u64))
+        Id((u64::from(crate_id) << 32) | u64::from(local_id))
     }
 }
 
@@ -239,7 +239,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
     }
 
     pub fn get_def(&self, id: Id) -> AResult<Def> {
-        self.with_analysis(|a| a.with_defs(id, |def| def.clone()))
+        self.with_analysis(|a| a.with_defs(id, Clone::clone))
     }
 
     pub fn goto_def(&self, span: &Span) -> AResult<Span> {
@@ -335,7 +335,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         let time = t_start.elapsed();
         info!(
             "find_all_refs: {}s",
-            time.as_secs() as f64 + time.subsec_nanos() as f64 / 1_000_000_000.0
+            time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0
         );
         result
     }
@@ -370,7 +370,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         let time = t_start.elapsed();
         info!(
             "query_defs: {}",
-            time.as_secs() as f64 + time.subsec_nanos() as f64 / 1_000_000_000.0
+            time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0
         );
 
         result
@@ -383,7 +383,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         let result = self.with_analysis(|a| {
             Some(a.with_def_names(name, |defs| {
                 info!("defs: {:?}", defs);
-                defs.into_iter()
+                defs.iter()
                     .flat_map(|id| {
                         a.with_ref_spans(*id, |refs| {
                             Some(
@@ -402,7 +402,10 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         });
 
         let time = t_start.elapsed();
-        info!("search: {}s", time.as_secs() as f64 + time.subsec_nanos() as f64 / 1_000_000_000.0);
+        info!(
+            "search: {}s",
+            time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0
+        );
         result
     }
 
@@ -420,7 +423,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         let time = t_start.elapsed();
         info!(
             "find_all_refs_by_id: {}s",
-            time.as_secs() as f64 + time.subsec_nanos() as f64 / 1_000_000_000.0
+            time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0
         );
         result
     }
@@ -431,7 +434,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
 
     /// Search for a symbol name, returning a list of def_ids for that name.
     pub fn search_for_id(&self, name: &str) -> AResult<Vec<Id>> {
-        self.with_analysis(|a| Some(a.with_def_names(name, |defs| defs.clone())))
+        self.with_analysis(|a| Some(a.with_def_names(name, Clone::clone)))
     }
 
     pub fn symbols(&self, file_name: &Path) -> AResult<Vec<SymbolResult>> {
