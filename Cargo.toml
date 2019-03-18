@@ -31,7 +31,7 @@ rls-vfs = "0.7"
 
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "716b02cb4c7b75ce435eb06defa25bc2d725909c" }
 cargo_metadata = "0.7"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "016d92d6ed5ae8a3785b65aa300768abbc26f818", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "92612c9de159889f77f05855a77482ee1d895f51", optional = true }
 env_logger = "0.6"
 failure = "0.1.1"
 home = "0.3"
