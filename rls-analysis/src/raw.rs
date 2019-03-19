@@ -123,7 +123,7 @@ fn read_crate_data(path: &Path) -> Option<Analysis> {
             Err(err)
         })
         .ok()?;
-    let s = read_analysis(&buf)
+    let s = decode_buf(&buf)
         .or_else(|err| {
             warn!("deserialisation error: {:?}", err);
             json::parse(&buf)
@@ -158,12 +158,12 @@ fn read_crate_data(path: &Path) -> Option<Analysis> {
 }
 
 #[cfg(feature = "serialize-rustc")]
-fn read_analysis(buf: &str) -> Result<Option<Analysis>, rustc_serialize::json::DecoderError> {
+fn decode_buf(buf: &str) -> Result<Option<Analysis>, rustc_serialize::json::DecoderError> {
     ::rustc_serialize::json::decode(buf)
 }
 
 #[cfg(feature = "serialize-serde")]
-fn read_analysis(buf: &str) -> Result<Option<Analysis>, serde_json::Error> {
+fn decode_buf(buf: &str) -> Result<Option<Analysis>, serde_json::Error> {
     ::serde_json::from_str(buf)
 }
 
