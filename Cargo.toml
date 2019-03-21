@@ -29,7 +29,7 @@ rls-rustc = { version = "0.6.0", path = "rls-rustc" }
 rls-span = { version = "0.4", features = ["serialize-serde"] }
 rls-vfs = "0.7"
 
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "716b02cb4c7b75ce435eb06defa25bc2d725909c" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "ed858daaf7c62f6f2156c47d00b0c669bcf9b183" }
 cargo_metadata = "0.7"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "92612c9de159889f77f05855a77482ee1d895f51", optional = true }
 env_logger = "0.6"
@@ -56,7 +56,7 @@ walkdir = "2"
 regex = "1"
 ordslice = "0.3"
 crossbeam-channel = "0.3"
-toml = "0.4"
+toml = "0.5"
 heck = "0.3"
 
 # A noop dependency that changes in the Rust repository, it's a bit of a hack.
