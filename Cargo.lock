@@ -1424,7 +1424,7 @@ dependencies = [
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-workspace-hack 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_tools_util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustfmt-nightly 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustfmt-nightly 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.87 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.87 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_ignored 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1671,7 +1671,7 @@ dependencies = [
 
 [[package]]
 name = "rustfmt-nightly"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "atty 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2470,7 +2470,7 @@ dependencies = [
 "checksum rustc_tools_util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b3c5a95edfa0c893236ae4778bb7c4752760e4c0d245e19b5eff33c5aa5eb9dc"
 "checksum rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
 "checksum rustfix 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "af7c21531a91512a4a51b490be6ba1c8eff34fdda0dc5bf87dc28d86748aac56"
-"checksum rustfmt-nightly 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b91974beb2a9b08408acc62f81d77cb3982902dd2109f3667e45cb126ac74514"
+"checksum rustfmt-nightly 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5134bc4a11ada7c3ba88ac3ff054caee2719e62c37fe36da0df2961c1dc34fed"
 "checksum ryu 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "eb9e9b8cde282a9fe6a42dd4681319bfb63f121b8a8ee9439c6f4107e58a46f7"
 "checksum same-file 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8f20c4be53a8a1ff4c1f1b2bd14570d2f634628709752f0702ecdd2b3f9a5267"
 "checksum schannel 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)" = "0e1a231dc10abf6749cfa5d7767f25888d484201accbd919b66ab5413c502d56"
