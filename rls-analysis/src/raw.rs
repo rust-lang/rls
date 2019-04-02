@@ -12,7 +12,6 @@ pub use data::{
     CratePreludeData, Def, DefKind, GlobalCrateId as CrateId, Import, Ref, Relation, RelationKind,
     SigElement, Signature, SpanData,
 };
-use json;
 use listings::{DirectoryListing, ListingKind};
 use {AnalysisLoader, Blacklist};
 
@@ -157,14 +156,26 @@ fn read_crate_data(path: &Path) -> Option<Analysis> {
     s
 }
 
-#[cfg(feature = "serialize-rustc")]
+#[cfg(all(feature = "serialize-rustc", not(feature = "serialize-serde")))]
 fn decode_buf(buf: &str) -> Result<Option<Analysis>, rustc_serialize::json::DecoderError> {
     ::rustc_serialize::json::decode(buf)
 }
 
-#[cfg(feature = "serialize-serde")]
+#[cfg(all(feature = "serialize-serde", not(feature = "serialize-rustc")))]
 fn decode_buf(buf: &str) -> Result<Option<Analysis>, serde_json::Error> {
     ::serde_json::from_str(buf)
+}
+
+#[cfg(all(feature = "serialize-rustc", feature = "serialize-serde"))]
+fn decode_buf(buf: &str) -> Result<Option<Analysis>, Box<dyn std::error::Error>> {
+    compile_error!("Features \"serialize-serde\" and \"serialize-rustc\" cannot both be enabled for this crate.")
+}
+
+#[cfg(not(any(feature = "serialize-serde", feature = "serialize-rustc")))]
+fn decode_buf(buf: &str) -> Result<Option<Analysis>, Box<dyn std::error::Error>> {
+    compile_error!(
+        "Either feature \"serialize-serde\" or \"serialize-rustc\" must be enabled for this crate."
+    )
 }
 
 pub fn name_space_for_def_kind(dk: DefKind) -> char {
