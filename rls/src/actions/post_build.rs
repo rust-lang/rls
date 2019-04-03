@@ -110,7 +110,7 @@ impl PostBuildHandler {
         error: &failure::Error,
         stdout: &str,
     ) {
-        use crate::lsp_data::{Diagnostic, Position};
+        use crate::lsp_data::Position;
         use std::fmt::Write;
 
         // These notifications will include empty sets of errors for files
