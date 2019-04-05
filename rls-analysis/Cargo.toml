@@ -11,7 +11,7 @@ exclude = [
 ]
 
 [dependencies]
-rustc-serialize = "0.3"
+rustc-serialize = { version = "0.3", optional = true }
 log = "0.4"
 rls-data = "= 0.18.2"
 rls-span = "0.4"
@@ -19,7 +19,14 @@ derive-new = "0.5"
 fst = { version = "0.3", default-features = false }
 itertools = "0.7.3"
 json = "0.11.13"
+serde = { version = "1.0", optional = true }
+serde_json = { version = "1.0", optional = true }
 
 [dev-dependencies]
 lazy_static = "1"
 env_logger = "0.5"
+
+[features]
+default = ["serialize-rustc"]
+serialize-rustc = ["rustc-serialize", "rls-data/serialize-rustc", "rls-span/serialize-rustc"]
+serialize-serde = ["serde", "serde_json", "rls-data/serialize-serde", "rls-span/serialize-serde"]
