@@ -1011,7 +1011,8 @@ fn client_find_definitions() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    let opts = json!({"settings": {"rust": {"racer_completion": false } } });
+    // FIXME: Without `all_targets=false`, this test will randomly fail.
+    let opts = json!({"settings": {"rust": {"racer_completion": false, "all_targets": false } } });
     rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
 
     rls.wait_for_indexing();
@@ -1398,7 +1399,9 @@ fn client_hover() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(0, initialize_params(root_path));
+    // FIXME: Without `all_targets=false`, this test will randomly fail.
+    let opts = json!({"settings": {"rust": { "all_targets": false } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
 
     rls.wait_for_indexing();
 
@@ -1661,7 +1664,9 @@ fn client_highlight() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(0, initialize_params(root_path));
+    // FIXME: Without `all_targets=false`, this test will randomly fail.
+    let opts = json!({"settings": {"rust": { "all_targets": false } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
 
     rls.wait_for_indexing();
 
@@ -1695,7 +1700,9 @@ fn client_rename() {
     let root_path = p.root();
     let mut rls = p.spawn_rls_async();
 
-    rls.request::<Initialize>(0, initialize_params(root_path));
+    // FIXME: Without `all_targets=false`, this test will randomly fail.
+    let opts = json!({"settings": {"rust": { "all_targets": false } } });
+    rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
 
     rls.wait_for_indexing();
 
