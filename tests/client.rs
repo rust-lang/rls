@@ -1788,8 +1788,8 @@ fn client_reformat_with_range() {
                 uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
             },
             range: Range {
-                start: Position { line: 2, character: 0 },
-                end: Position { line: 3, character: 0 },
+                start: Position { line: 1, character: 0 },
+                end: Position { line: 2, character: 0 },
             },
             options: FormattingOptions {
                 tab_size: 4,
@@ -1800,8 +1800,15 @@ fn client_reformat_with_range() {
     );
 
     let newline = if cfg!(windows) { "\r\n" } else { "\n" };
-    let formatted = "pub fn main() {\n    let world1 = \"world\";\n    println!(\"Hello, {}!\", world1);\n    let world2 = \"world\";\n    println!(\"Hello, {}!\", world2);\n    let world3 = \"world\";\n    println!(\"Hello, {}!\", world3);\n}\n"
-        .replace("\n", newline);
+    let formatted = r#"pub fn main() {
+    let world1 = "world";
+    println!("Hello, {}!", world1);
+let world2 = "world"; println!("Hello, {}!", world2);
+let world3 = "world"; println!("Hello, {}!", world3);
+    }
+"#
+    .replace("\r", "")
+    .replace("\n", newline);
 
     assert_eq!(result.unwrap()[0].new_text, formatted);
 }
