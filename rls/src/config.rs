@@ -103,14 +103,15 @@ impl<T> AsRef<T> for Inferrable<T> {
     }
 }
 
-/// Returns whether RLS was built using nightly channel.
+/// Returns whether unstable features are allowed.
 ///
-/// It is very similar to what rust and rustfmt uses [1] - it relies on
+/// It is very similar to what rustfmt uses [[1]] - it relies on
 /// CFG_RELEASE_CHANNEL being set by Rust bootstrap.
 /// In case the env var is missing, we assume that we're built by Cargo and are
 /// using nightly since that's the only channel supported right now.
+///
 /// [1]: https://github.com/rust-lang/rustfmt/blob/dfa94d150555da40780413d7f1a1378565208c99/src/config/config_type.rs#L53-L67
-pub fn is_nightly() -> bool {
+pub fn unstable_features_allowed() -> bool {
     option_env!("CFG_RELEASE_CHANNEL").map_or(true, |c| c == "nightly" || c == "dev")
 }
 
@@ -262,7 +263,7 @@ impl Config {
     /// Ensures that unstable options are only allowed if `unstable_features` is
     /// true and that is not allowed on stable release channels.
     pub fn normalise(&mut self) {
-        if !is_nightly() {
+        if !unstable_features_allowed() {
             if self.unstable_features {
                 eprintln!("`unstable_features` setting can only be used on nightly channel");
             }
