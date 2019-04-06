@@ -1763,9 +1763,9 @@ fn client_reformat() {
     assert_eq!(result.unwrap()[0], TextEdit {
         range: Range {
             start: Position { line: 0, character: 0 },
-            end: Position { line: 2, character: 0 },
+            end: Position { line: 1, character: u64::max_value() },
         },
-        new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}\n".to_string(),
+        new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}".to_string(),
     });
 }
 
@@ -1802,17 +1802,14 @@ fn client_reformat_with_range() {
     let newline = if cfg!(windows) { "\r\n" } else { "\n" };
     let formatted = r#"pub fn main() {
     let world1 = "world";
-    println!("Hello, {}!", world1);
-
-// Work around rustfmt#3494
-let world2 = "world"; println!("Hello, {}!", world2);
-let world3 = "world"; println!("Hello, {}!", world3);
-    }
-"#
+    println!("Hello, {}!", world1);"#
     .replace("\r", "")
     .replace("\n", newline);
 
-    assert_eq!(result.unwrap()[0].new_text, formatted);
+    let edits = result.unwrap();
+    assert_eq!(edits.len(), 2);
+    assert_eq!(edits[0].new_text, formatted);
+    assert_eq!(edits[1].new_text, "");
 }
 
 #[test]
