@@ -19,7 +19,7 @@ use std::env;
 use std::process;
 
 pub fn run() {
-    drop(env_logger::init());
+    env_logger::init();
     let result = rustc_driver::report_ices_to_stderr_if_any(|| {
         let args = env::args_os()
             .enumerate()
