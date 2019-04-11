@@ -1763,7 +1763,7 @@ fn client_reformat() {
     assert_eq!(result.unwrap()[0], TextEdit {
         range: Range {
             start: Position { line: 0, character: 0 },
-            end: Position { line: 1, character: u64::max_value() },
+            end: Position { line: 1, character: 69 },
         },
         new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}".to_string(),
     });
