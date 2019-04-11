@@ -35,18 +35,18 @@ use log::trace;
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 
-use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::{BufWriter, BuildResult};
-use crate::build::plan::{Crate, Edition};
-use crate::config::{ClippyPreference, Config};
-use self::rustc_driver::{run_compiler};
+use self::rustc::session::config::Input;
+use self::rustc::session::Session;
+use self::rustc_driver::run_compiler;
+use self::rustc_interface::interface;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
-use self::rustc_interface::interface;
-use self::rustc::session::Session;
-use self::rustc::session::config::Input;
-use self::syntax::source_map::{FileLoader, RealFileLoader};
 use self::syntax::edition::Edition as RustcEdition;
+use self::syntax::source_map::{FileLoader, RealFileLoader};
+use crate::build::environment::{Environment, EnvironmentLockFacade};
+use crate::build::plan::{Crate, Edition};
+use crate::build::{BufWriter, BuildResult};
+use crate::config::{ClippyPreference, Config};
 
 // Runs a single instance of Rustc (in-process).
 pub(crate) fn rustc(

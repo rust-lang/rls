@@ -15,13 +15,13 @@ use log::{debug, info, trace};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 
+use self::environment::EnvironmentLock;
+use self::plan::{BuildGraph, BuildPlan, WorkStatus};
+pub use self::plan::{Crate, Edition};
 use crate::actions::post_build::PostBuildHandler;
 use crate::actions::progress::{ProgressNotifier, ProgressUpdate};
 use crate::config::Config;
 use crate::lsp_data::Range;
-use self::environment::EnvironmentLock;
-use self::plan::{BuildGraph, BuildPlan, WorkStatus};
-pub use self::plan::{Crate, Edition};
 
 mod cargo;
 mod cargo_plan;

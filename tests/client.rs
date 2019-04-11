@@ -1803,8 +1803,8 @@ fn client_reformat_with_range() {
     let formatted = r#"pub fn main() {
     let world1 = "world";
     println!("Hello, {}!", world1);"#
-    .replace("\r", "")
-    .replace("\n", newline);
+        .replace("\r", "")
+        .replace("\n", newline);
 
     let edits = result.unwrap();
     assert_eq!(edits.len(), 2);
