@@ -17,12 +17,11 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use url::Url;
 
-use crate::actions::InitActionContext;
 use crate::actions::hover;
 use crate::actions::run::collect_run_actions;
+use crate::actions::InitActionContext;
 use crate::build::Edition;
 use crate::lsp_data;
-use crate::lsp_data::*;
 use crate::lsp_data::request::ApplyWorkspaceEdit;
 pub use crate::lsp_data::request::{
     CodeActionRequest as CodeAction, CodeLensRequest, Completion,
@@ -31,6 +30,7 @@ pub use crate::lsp_data::request::{
     HoverRequest as Hover, RangeFormatting, References, Rename,
     ResolveCompletionItem as ResolveCompletion, WorkspaceSymbol,
 };
+use crate::lsp_data::*;
 use crate::server;
 use crate::server::{Ack, Output, Request, RequestAction, ResponseError, ResponseWithMessage};
 

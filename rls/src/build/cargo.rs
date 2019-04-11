@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
-use cargo::core::Package;
 use cargo::core::resolver::ResolveError;
+use cargo::core::Package;
 use cargo::core::{
     enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace,
 };
@@ -184,9 +184,11 @@ fn run_cargo_ws(
 
         for package in &packages {
             if ws.members().find(|x| *x.name() == *package).is_none() {
-                warn!("couldn't find member package `{}` specified in `analyze_package` \
-                       configuration",
-                      package);
+                warn!(
+                    "couldn't find member package `{}` specified in `analyze_package` \
+                     configuration",
+                    package
+                );
             }
         }
 
