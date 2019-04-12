@@ -20,6 +20,7 @@ fn initialize_params(root_path: &Path) -> InitializeParams {
         initialization_options: None,
         capabilities: ClientCapabilities {
             workspace: None,
+            window: Some(WindowClientCapabilities { progress: Some(true) }),
             text_document: None,
             experimental: None,
         },
@@ -503,6 +504,7 @@ fn client_completion_suggests_arguments_in_statements() {
             initialization_options: None,
             capabilities: lsp_types::ClientCapabilities {
                 workspace: None,
+                window: Some(WindowClientCapabilities { progress: Some(true) }),
                 text_document: Some(TextDocumentClientCapabilities {
                     completion: Some(CompletionCapability {
                         completion_item: Some(CompletionItemCapability {

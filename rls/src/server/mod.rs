@@ -462,6 +462,7 @@ mod test {
             initialization_options: None,
             capabilities: lsp_types::ClientCapabilities {
                 workspace: None,
+                window: None,
                 text_document: None,
                 experimental: None,
             },

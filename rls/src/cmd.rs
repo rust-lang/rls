@@ -291,6 +291,7 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
         initialization_options: None,
         capabilities: ClientCapabilities {
             workspace: None,
+            window: Some(WindowClientCapabilities { progress: Some(true) }),
             text_document: None,
             experimental: None,
         },
