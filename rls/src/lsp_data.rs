@@ -342,40 +342,6 @@ impl ClientCapabilities {
     }
 }
 
-/* --------------- Custom JSON-RPC notifications -------------- */
-
-/// Custom LSP notification sent to client indicating that the server is currently
-/// processing data and may publish new diagnostics on `rustDocument/diagnosticsEnd`.
-#[derive(Debug)]
-pub enum DiagnosticsBegin {}
-
-impl LSPNotification for DiagnosticsBegin {
-    type Params = ();
-    const METHOD: &'static str = "rustDocument/diagnosticsBegin";
-}
-
-/// Custom LSP notification sent to client indicating that data processing started
-/// by a `rustDocument/diagnosticsBegin` has ended.
-/// For each `diagnosticsBegin` message, there is a single `diagnosticsEnd` message.
-/// This means that for multiple active `diagnosticsBegin` messages, there will
-/// be sent multiple `diagnosticsEnd` notifications.
-#[derive(Debug)]
-pub enum DiagnosticsEnd {}
-
-impl LSPNotification for DiagnosticsEnd {
-    type Params = ();
-    const METHOD: &'static str = "rustDocument/diagnosticsEnd";
-}
-
-/// Custom LSP notification sent to client indicating that a build process has begun.
-#[derive(Debug)]
-pub enum BeginBuild {}
-
-impl LSPNotification for BeginBuild {
-    type Params = ();
-    const METHOD: &'static str = "rustDocument/beginBuild";
-}
-
 /* ----------  Temporary LSP type until window/progress proposal is done --------- */
 
 // Notification from server to client for build progress.
