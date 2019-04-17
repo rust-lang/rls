@@ -1,6 +1,6 @@
 [package]
 name = "rls-analysis"
-version = "0.16.12"
+version = "0.16.13"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Library for processing rustc's save-analysis data for the RLS"
 license = "Apache-2.0/MIT"
