@@ -1,11 +1,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::lsp_data::{
-    MessageType, Progress, ProgressParams, PublishDiagnosticsParams, ShowMessageParams,
-};
 use crate::server::{Notification, Output};
 use lazy_static::lazy_static;
-use lsp_types::notification::{PublishDiagnostics, ShowMessage};
+use lsp_types::notification::{Progress, PublishDiagnostics, ShowMessage};
+use lsp_types::{MessageType, ProgressParams, PublishDiagnosticsParams, ShowMessageParams};
 
 /// Communication of build progress back to the client.
 pub trait ProgressNotifier: Send {
@@ -40,7 +38,7 @@ fn new_progress_params(title: String) -> ProgressParams {
 
     ProgressParams {
         id: format!("progress_{}", PROGRESS_ID_COUNTER.fetch_add(1, Ordering::SeqCst)),
-        title: Some(title),
+        title,
         message: None,
         percentage: None,
         done: None,

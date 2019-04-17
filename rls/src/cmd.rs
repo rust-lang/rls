@@ -13,7 +13,7 @@ use lsp_types::{
     ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
     DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
     FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,
-    TextDocumentPositionParams, TraceOption, WorkspaceSymbolParams,
+    TextDocumentPositionParams, TraceOption, WindowClientCapabilities, WorkspaceSymbolParams,
 };
 
 use std::collections::HashMap;
@@ -291,6 +291,7 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
         initialization_options: None,
         capabilities: ClientCapabilities {
             workspace: None,
+            window: Some(WindowClientCapabilities { progress: Some(true) }),
             text_document: None,
             experimental: None,
         },
