@@ -21,9 +21,10 @@ test = false
 path = "rls/src/main.rs"
 
 [dependencies]
-rls-analysis = "0.16.12"
+# TODO: Use 0.16.13 from crates.io with "serialize-serde" feature when published
+rls-analysis = { version = "0.16.12", path = "rls-analysis", features = ["serialize-serde"], default-features = false }
 rls-blacklist = "0.1.3"
-rls-data = { version = "0.18.2", features = ["serialize-serde", "serialize-rustc"] }
+rls-data = { version = "0.18.2", features = ["serialize-serde"] }
 # FIXME: Release rls-rustc 0.6.0 to crates.io
 rls-rustc = { version = "0.6.0", path = "rls-rustc" }
 rls-span = { version = "0.4", features = ["serialize-serde"] }

@@ -106,7 +106,7 @@ where
         let mut contents = String::new();
         file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
 
-        let data = rustc_serialize::json::decode(&contents).map_err(|e| e.to_string())?;
+        let data = serde_json::from_str(&contents).map_err(|e| e.to_string())?;
         analyses.push(data);
     }
 
