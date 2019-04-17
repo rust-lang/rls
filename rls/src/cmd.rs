@@ -13,7 +13,7 @@ use lsp_types::{
     ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
     DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
     FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,
-    TextDocumentPositionParams, TraceOption, WorkspaceSymbolParams,
+    TextDocumentPositionParams, TraceOption, WindowClientCapabilities, WorkspaceSymbolParams,
 };
 
 use std::collections::HashMap;
