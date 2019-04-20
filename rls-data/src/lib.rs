@@ -42,12 +42,9 @@ pub struct Analysis {
     pub refs: Vec<Ref>,
     pub macro_refs: Vec<MacroRef>,
     pub relations: Vec<Relation>,
-    #[cfg(feature = "borrows")]
-    pub per_fn_borrows: Vec<BorrowData>,
 }
 
 impl Analysis {
-    #[cfg(not(feature = "borrows"))]
     pub fn new(config: Config) -> Analysis {
         Analysis {
             config,
@@ -60,22 +57,6 @@ impl Analysis {
             refs: vec![],
             macro_refs: vec![],
             relations: vec![],
-        }
-    }
-
-    #[cfg(feature = "borrows")]
-    pub fn new(config: Config) -> Analysis {
-        Analysis {
-            config,
-            version: option_env!("CARGO_PKG_VERSION").map(|s| s.to_string()),
-            prelude: None,
-            imports: vec![],
-            defs: vec![],
-            impls: vec![],
-            refs: vec![],
-            macro_refs: vec![],
-            relations: vec![],
-            per_fn_borrows: vec![],
         }
     }
 }
@@ -332,64 +313,4 @@ pub struct SigElement {
     pub id: Id,
     pub start: usize,
     pub end: usize,
-}
-
-// Each `BorrowData` represents all of the scopes, loans and moves
-// within an fn or closure referred to by `ref_id`.
-#[cfg(feature = "borrows")]
-#[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
-#[derive(Debug, Clone)]
-pub struct BorrowData {
-    pub ref_id: Id,
-    pub scopes: Vec<Scope>,
-    pub loans: Vec<Loan>,
-    pub moves: Vec<Move>,
-    pub span: Option<SpanData>,
-}
-
-#[cfg(feature = "borrows")]
-#[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
-#[derive(Debug, Clone, Copy)]
-pub enum BorrowKind {
-    ImmBorrow,
-    MutBorrow,
-}
-
-// Each `Loan` is either temporary or assigned to a variable.
-// The `ref_id` refers to the value that is being loaned/borrowed.
-// Not all loans will be valid. Invalid loans can be used to help explain
-// improper usage.
-#[cfg(feature = "borrows")]
-#[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
-#[derive(Debug, Clone)]
-pub struct Loan {
-    pub ref_id: Id,
-    pub kind: BorrowKind,
-    pub span: SpanData,
-}
-
-// Each `Move` represents an attempt to move the value referred to by `ref_id`.
-// Not all `Move`s will be valid but can be used to help explain improper usage.
-#[cfg(feature = "borrows")]
-#[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
-#[derive(Debug, Clone)]
-pub struct Move {
-    pub ref_id: Id,
-    pub span: SpanData,
-}
-
-// Each `Scope` refers to "scope" of a variable (we don't track all values here).
-// Its ref_id refers to the variable, and the span refers to the scope/region where
-// the variable is "live".
-#[cfg(feature = "borrows")]
-#[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
-#[derive(Debug, Clone)]
-pub struct Scope {
-    pub ref_id: Id,
-    pub span: SpanData,
 }
