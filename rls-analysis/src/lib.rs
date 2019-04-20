@@ -15,11 +15,7 @@ extern crate itertools;
 extern crate json;
 extern crate rls_data as data;
 extern crate rls_span as span;
-#[cfg(feature = "serialize-rustc")]
-extern crate rustc_serialize;
-#[cfg(feature = "serialize-serde")]
 extern crate serde;
-#[cfg(feature = "serialize-serde")]
 extern crate serde_json;
 
 mod analysis;
