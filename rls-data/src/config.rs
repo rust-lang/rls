@@ -1,7 +1,6 @@
 /// Used to configure save-analysis.
-#[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Debug, Clone, Default)]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     /// File to output save-analysis data to.
     pub output_file: Option<String>,
