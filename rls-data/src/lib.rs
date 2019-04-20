@@ -15,7 +15,7 @@ pub mod config;
 
 use std::path::PathBuf;
 
-use config::Config;
+pub use config::Config;
 
 #[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
