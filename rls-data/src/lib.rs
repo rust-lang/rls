@@ -1,4 +1,6 @@
 extern crate rls_span as span;
+
+#[cfg(feature = "derive")]
 #[macro_use]
 extern crate serde_derive;
 
@@ -9,7 +11,7 @@ use std::path::PathBuf;
 pub use config::Config;
 
 #[derive(Debug, Clone, Default)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 #[repr(C)]
 pub struct Analysis {
     /// The Config used to generate this analysis data.
@@ -40,7 +42,7 @@ impl Analysis {
 // DefId::index is a newtype and so the JSON serialisation is ugly. Therefore
 // we use our own Id which is the same, but without the newtype.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Id {
     pub krate: u32,
     pub index: u32,
@@ -51,14 +53,14 @@ pub struct Id {
 /// different crate targets or versions and should point to the same crate when
 /// pulled by different other, dependent crates.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct GlobalCrateId {
     pub name: String,
     pub disambiguator: (u64, u64),
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct SpanData {
     pub file_name: PathBuf,
     pub byte_start: u32,
@@ -71,7 +73,7 @@ pub struct SpanData {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct CompilationOptions {
     pub directory: PathBuf,
     pub program: String,
@@ -80,7 +82,7 @@ pub struct CompilationOptions {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct CratePreludeData {
     pub crate_id: GlobalCrateId,
     pub crate_root: String,
@@ -90,7 +92,7 @@ pub struct CratePreludeData {
 
 /// Data for external crates in the prelude of a crate.
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct ExternalCrateData {
     /// Source file where the external crate is declared.
     pub file_name: String,
@@ -102,7 +104,7 @@ pub struct ExternalCrateData {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Import {
     pub kind: ImportKind,
     pub ref_id: Option<Id>,
@@ -114,7 +116,7 @@ pub struct Import {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub enum ImportKind {
     ExternCrate,
     Use,
@@ -122,7 +124,7 @@ pub enum ImportKind {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Def {
     pub kind: DefKind,
     pub id: Id,
@@ -139,7 +141,7 @@ pub struct Def {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub enum DefKind {
     // value = variant names
     Enum,
@@ -176,7 +178,7 @@ pub enum DefKind {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Impl {
     pub id: u32,
     pub kind: ImplKind,
@@ -190,7 +192,7 @@ pub struct Impl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub enum ImplKind {
     // impl Foo { ... }
     Inherent,
@@ -208,14 +210,14 @@ pub enum ImplKind {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Attribute {
     pub value: String,
     pub span: SpanData,
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Ref {
     pub kind: RefKind,
     pub span: SpanData,
@@ -223,7 +225,7 @@ pub struct Ref {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub enum RefKind {
     Function,
     Mod,
@@ -232,7 +234,7 @@ pub enum RefKind {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct MacroRef {
     pub span: SpanData,
     pub qualname: String,
@@ -240,7 +242,7 @@ pub struct MacroRef {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Relation {
     pub span: SpanData,
     pub kind: RelationKind,
@@ -249,14 +251,14 @@ pub struct Relation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub enum RelationKind {
     Impl { id: u32 },
     SuperTrait,
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Signature {
     pub text: String,
     pub defs: Vec<SigElement>,
@@ -264,7 +266,7 @@ pub struct Signature {
 }
 
 #[derive(Debug, Clone)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct SigElement {
     pub id: Id,
     pub start: usize,

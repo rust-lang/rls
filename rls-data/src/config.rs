@@ -1,6 +1,6 @@
 /// Used to configure save-analysis.
 #[derive(Debug, Clone, Default)]
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
 pub struct Config {
     /// File to output save-analysis data to.
     pub output_file: Option<String>,
