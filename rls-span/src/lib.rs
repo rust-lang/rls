@@ -44,6 +44,20 @@ impl<'dt, I: Indexed> Deserialize<'dt> for Column<I> {
     }
 }
 
+#[cfg(feature = "serialize-rustc")]
+impl<I: Indexed> rustc_serialize::Decodable for Column<I> {
+    fn decode<D: rustc_serialize::Decoder>(d: &mut D) -> Result<Column<I>, D::Error> {
+        d.read_u32().map(Column::new)
+    }
+}
+
+#[cfg(feature = "serialize-rustc")]
+impl<I: Indexed> rustc_serialize::Encodable for Column<I> {
+    fn encode<S: rustc_serialize::Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_u32(self.0)
+    }
+}
+
 impl Column<OneIndexed> {
     pub fn new_one_indexed(c: u32) -> Column<OneIndexed> {
         Column(c, PhantomData)
@@ -93,6 +107,20 @@ impl<'dt, I: Indexed> serde::Deserialize<'dt> for Row<I> {
     }
 }
 
+#[cfg(feature = "serialize-rustc")]
+impl<I: Indexed> rustc_serialize::Decodable for Row<I> {
+    fn decode<D: rustc_serialize::Decoder>(d: &mut D) -> Result<Row<I>, D::Error> {
+        d.read_u32().map(Row::new)
+    }
+}
+
+#[cfg(feature = "serialize-rustc")]
+impl<I: Indexed> rustc_serialize::Encodable for Row<I> {
+    fn encode<S: rustc_serialize::Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_u32(self.0)
+    }
+}
+
 impl Row<OneIndexed> {
     pub fn new_one_indexed(c: u32) -> Row<OneIndexed> {
         Row(c, PhantomData)
@@ -114,6 +142,7 @@ impl Row<ZeroIndexed> {
 }
 
 #[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Position<I: Indexed> {
     pub row: Row<I>,
@@ -147,6 +176,7 @@ impl Position<ZeroIndexed> {
 }
 
 #[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Range<I: Indexed> {
     pub row_start: Row<I>,
@@ -209,6 +239,7 @@ impl Range<ZeroIndexed> {
 }
 
 #[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Location<I: Indexed> {
     pub file: PathBuf,
@@ -244,6 +275,7 @@ impl Location<ZeroIndexed> {
 }
 
 #[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span<I: Indexed> {
     pub file: PathBuf,
@@ -295,11 +327,13 @@ impl Span<ZeroIndexed> {
 pub trait Indexed {}
 
 #[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Hash, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct ZeroIndexed;
 impl Indexed for ZeroIndexed {}
 
 #[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
 #[derive(Hash, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct OneIndexed;
 impl Indexed for OneIndexed {}

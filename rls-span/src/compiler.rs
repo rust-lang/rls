@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use crate::{Column, OneIndexed, Row, Span};
 
 #[cfg_attr(feature = "derive", derive(Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable))]
 #[derive(Debug, Clone)]
 pub struct DiagnosticSpan {
     pub file_name: String,
@@ -46,6 +47,7 @@ impl DiagnosticSpan {
 }
 
 #[cfg_attr(feature = "derive", derive(Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable))]
 #[derive(Debug, Clone)]
 pub struct DiagnosticSpanLine {
     pub text: String,
@@ -57,6 +59,7 @@ pub struct DiagnosticSpanLine {
 }
 
 #[cfg_attr(feature = "derive", derive(Deserialize))]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable))]
 #[derive(Debug, Clone)]
 pub struct DiagnosticSpanMacroExpansion {
     /// span where macro was applied to generate this code; note that
