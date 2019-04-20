@@ -1,6 +1,7 @@
 [package]
 name = "rls-span"
 version = "0.4.1"
+edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Types for identifying code spans/ranges"
 license = "Apache-2.0/MIT"

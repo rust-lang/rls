@@ -3,7 +3,7 @@
 ///! https://github.com/rust-lang/rust/blob/master/src/libsyntax/json.rs
 use std::path::PathBuf;
 
-use {Column, OneIndexed, Row, Span};
+use crate::{Column, OneIndexed, Row, Span};
 
 #[cfg_attr(feature = "derive", derive(Deserialize))]
 #[derive(Debug, Clone)]

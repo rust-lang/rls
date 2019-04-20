@@ -1,4 +1,3 @@
-extern crate serde;
 #[cfg(feature = "derive")]
 #[macro_use]
 extern crate serde_derive;
