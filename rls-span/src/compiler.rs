@@ -1,19 +1,11 @@
-// Copyright 2016 The RLS Project Developers.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
-/// These are the structures emitted by the compiler as part of JSON errors.
-/// The original source can be found at
-/// https://github.com/rust-lang/rust/blob/master/src/libsyntax/json.rs
+///! These are the structures emitted by the compiler as part of JSON errors.
+///! The original source can be found at
+///! https://github.com/rust-lang/rust/blob/master/src/libsyntax/json.rs
 use std::path::PathBuf;
 
 use {Column, OneIndexed, Row, Span};
 
-#[cfg_attr(feature = "serialize-serde", derive(Deserialize))]
+#[cfg_attr(feature = "derive", derive(Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DiagnosticSpan {
     pub file_name: String,
@@ -53,7 +45,7 @@ impl DiagnosticSpan {
     }
 }
 
-#[cfg_attr(feature = "serialize-serde", derive(Deserialize))]
+#[cfg_attr(feature = "derive", derive(Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DiagnosticSpanLine {
     pub text: String,
@@ -64,7 +56,7 @@ pub struct DiagnosticSpanLine {
     pub highlight_end: usize,
 }
 
-#[cfg_attr(feature = "serialize-serde", derive(Deserialize))]
+#[cfg_attr(feature = "derive", derive(Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DiagnosticSpanMacroExpansion {
     /// span where macro was applied to generate this code; note that
