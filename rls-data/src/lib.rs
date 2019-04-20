@@ -28,7 +28,7 @@ use config::Config;
 
 #[cfg_attr(feature = "serialize-serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serialize-rustc", derive(RustcDecodable, RustcEncodable))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[repr(C)]
 pub struct Analysis {
     /// The Config used to generate this analysis data.
@@ -45,18 +45,13 @@ pub struct Analysis {
 }
 
 impl Analysis {
+    /// Returns an initialized `Analysis` struct with `config` and also
+    /// `version` field to Cargo package version.
     pub fn new(config: Config) -> Analysis {
         Analysis {
             config,
             version: option_env!("CARGO_PKG_VERSION").map(ToString::to_string),
-            prelude: None,
-            compilation: None,
-            imports: vec![],
-            defs: vec![],
-            impls: vec![],
-            refs: vec![],
-            macro_refs: vec![],
-            relations: vec![],
+            ..Analysis::default()
         }
     }
 }
