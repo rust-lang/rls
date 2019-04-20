@@ -1,6 +1,7 @@
 [package]
 name = "rls-data"
 version = "0.18.2"
+edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Data structures used by the RLS and Rust compiler"
 license = "Apache-2.0/MIT"

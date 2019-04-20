@@ -8,8 +8,6 @@
 
 #![cfg(not(feature = "derive"))]
 
-extern crate serde;
-
 use super::*;
 
     #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]

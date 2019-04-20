@@ -1,4 +1,4 @@
-extern crate rls_span as span;
+use rls_span as span;
 
 #[cfg(feature = "derive")]
 #[macro_use]
