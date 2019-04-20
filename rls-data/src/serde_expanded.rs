@@ -7,6 +7,7 @@
 //! possible.
 
 #![cfg(not(feature = "derive"))]
+#![allow(clippy::all)]
 
 use super::*;
 
@@ -619,7 +620,7 @@ use super::*;
             }
         }
     };
-}
+
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Analysis: () = {
     #[allow(unknown_lints)]
@@ -1402,7 +1403,6 @@ const _IMPL_DESERIALIZE_FOR_Analysis: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Id: () = {
     #[allow(unknown_lints)]
@@ -1674,7 +1674,6 @@ const _IMPL_DESERIALIZE_FOR_Id: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_GlobalCrateId: () = {
     #[allow(unknown_lints)]
@@ -1952,7 +1951,6 @@ const _IMPL_DESERIALIZE_FOR_GlobalCrateId: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_SpanData: () = {
     #[allow(unknown_lints)]
@@ -2564,7 +2562,6 @@ const _IMPL_DESERIALIZE_FOR_SpanData: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_CompilationOptions: () = {
     #[allow(unknown_lints)]
@@ -2967,7 +2964,6 @@ const _IMPL_DESERIALIZE_FOR_CompilationOptions: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_CratePreludeData: () = {
     #[allow(unknown_lints)]
@@ -3373,7 +3369,6 @@ const _IMPL_DESERIALIZE_FOR_CratePreludeData: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_ExternalCrateData: () = {
     #[allow(unknown_lints)]
@@ -3705,7 +3700,6 @@ const _IMPL_DESERIALIZE_FOR_ExternalCrateData: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Import: () = {
     #[allow(unknown_lints)]
@@ -4288,7 +4282,6 @@ const _IMPL_DESERIALIZE_FOR_Import: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_ImportKind: () = {
     #[allow(unknown_lints)]
@@ -4473,7 +4466,6 @@ const _IMPL_DESERIALIZE_FOR_ImportKind: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Def: () = {
     #[allow(unknown_lints)]
@@ -5348,7 +5340,6 @@ const _IMPL_DESERIALIZE_FOR_Def: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_DefKind: () = {
     #[allow(unknown_lints)]
@@ -5857,7 +5848,6 @@ const _IMPL_DESERIALIZE_FOR_DefKind: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Impl: () = {
     #[allow(unknown_lints)]
@@ -6552,7 +6542,6 @@ const _IMPL_DESERIALIZE_FOR_Impl: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_ImplKind: () = {
     #[allow(unknown_lints)]
@@ -6860,7 +6849,6 @@ const _IMPL_DESERIALIZE_FOR_ImplKind: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Attribute: () = {
     #[allow(unknown_lints)]
@@ -7133,7 +7121,6 @@ const _IMPL_DESERIALIZE_FOR_Attribute: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Ref: () = {
     #[allow(unknown_lints)]
@@ -7466,7 +7453,6 @@ const _IMPL_DESERIALIZE_FOR_Ref: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_RefKind: () = {
     #[allow(unknown_lints)]
@@ -7667,7 +7653,6 @@ const _IMPL_DESERIALIZE_FOR_RefKind: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_MacroRef: () = {
     #[allow(unknown_lints)]
@@ -8005,7 +7990,6 @@ const _IMPL_DESERIALIZE_FOR_MacroRef: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_Relation: () = {
     #[allow(unknown_lints)]
@@ -8390,7 +8374,6 @@ const _IMPL_DESERIALIZE_FOR_Relation: () = {
         }
     }
 };
-
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
 const _IMPL_SERIALIZE_FOR_RelationKind: () = {
     #[allow(unknown_lints)]

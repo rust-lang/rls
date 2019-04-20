@@ -5,6 +5,7 @@ use rls_span as span;
 extern crate serde_derive;
 
 pub mod config;
+mod serde_expanded;
 
 use std::path::PathBuf;
 
