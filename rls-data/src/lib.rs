@@ -48,7 +48,7 @@ impl Analysis {
     pub fn new(config: Config) -> Analysis {
         Analysis {
             config,
-            version: option_env!("CARGO_PKG_VERSION").map(|s| s.to_string()),
+            version: option_env!("CARGO_PKG_VERSION").map(ToString::to_string),
             prelude: None,
             compilation: None,
             imports: vec![],
