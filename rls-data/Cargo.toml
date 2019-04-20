@@ -9,10 +9,10 @@ repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]
-rls-span = "0.4.1"
+rls-span = "0.5.0"
 serde = "1.0"
 serde_derive = { version = "1.0", optional = true }
 
 [features]
 default = []
-derive = ["serde_derive"]
+derive = ["serde_derive",  "rls-span/derive"]
