@@ -8,5 +8,5 @@ repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]
-rls-span = "0.4"
+rls-span = "0.5.1"
 log = "0.4.5"
