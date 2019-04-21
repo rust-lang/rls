@@ -327,7 +327,6 @@ fn _assertions() {
         Relation,
         Signature,
         SigElement,
-
         Config,
         // rls-span
         span::Column<span::ZeroIndexed>,
@@ -336,7 +335,6 @@ fn _assertions() {
         span::Range<span::ZeroIndexed>,
         span::Row<span::ZeroIndexed>,
         span::Span<span::ZeroIndexed>,
-
         span::Column<span::OneIndexed>,
         span::Location<span::OneIndexed>,
         span::Position<span::OneIndexed>,
