@@ -129,8 +129,8 @@ Currently we accept the following options:
 * `clippy_preference` (`String`, defaults to `"opt-in"`) controls eagerness of clippy
   diagnostics when available. Valid values are _(case-insensitive)_:
   - `"off"` Disable clippy lints.
-  - `"opt-in"` Clippy lints are shown when crates specify `#![warn(clippy)]`.
-  - `"on"` Clippy lints enabled for all crates in workspace.
+  - `"on"` Display the same diagnostics as command-line clippy invoked with no arguments (`clippy::all` unless overridden).
+  - `"opt-in"` Only display the lints [explicitly enabled in the code](https://github.com/rust-lang/rust-clippy#allowingdenying-lints). Start by adding `#![warn(clippy::all)]` to the root of each crate you want linted.
 
 and the following unstable options:
 
