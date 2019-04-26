@@ -47,6 +47,7 @@ macro_rules! parse_file_path {
     };
 }
 
+pub mod codelens;
 pub mod diagnostics;
 pub mod format;
 pub mod hover;

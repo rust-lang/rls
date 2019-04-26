@@ -19,6 +19,7 @@ use url::Url;
 
 use crate::actions::hover;
 use crate::actions::run::collect_run_actions;
+use crate::actions::codelens::*;
 use crate::actions::InitActionContext;
 use crate::build::Edition;
 use crate::lsp_data;
@@ -807,6 +808,7 @@ impl RequestAction for CodeLensRequest {
                 ret.push(lens);
             }
         }
+        ret.extend(collect_declaration_typings(&ctx, &params.text_document));
         Ok(ret)
     }
 }

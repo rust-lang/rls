@@ -396,6 +396,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(
             TextDocumentSyncKind::Incremental,
         )),
+        selection_range_provider: None,
         hover_provider: Some(true),
         completion_provider: Some(CompletionOptions {
             resolve_provider: Some(true),
