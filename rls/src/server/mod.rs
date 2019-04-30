@@ -315,7 +315,8 @@ impl<O: Output> LsService<O> {
                 requests::Definition,
                 requests::References,
                 requests::Completion,
-                requests::CodeLensRequest;
+                requests::CodeLensRequest,
+                requests::CodeLensResolve;
         );
         Ok(())
     }
@@ -428,7 +429,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         // info from the client.
         document_range_formatting_provider: Some(false),
 
-        code_lens_provider: Some(CodeLensOptions { resolve_provider: Some(false) }),
+        code_lens_provider: Some(CodeLensOptions { resolve_provider: Some(true) }),
         document_on_type_formatting_provider: None,
         signature_help_provider: None,
 
