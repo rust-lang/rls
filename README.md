@@ -64,7 +64,7 @@ When such breakages occur the nightly release will be missing rls. This is a tra
 To mitigate the issues we have:
 * rustup will warn if the update is missing any components you currently have. This means you can no longer accidentally update to a no-rls release. Once rls is available again it'll update.
 * rls, clippy are available on the stable channel. Meaning most developers installing for the first time should use stable.
-* However, if you need latest nightly rls you can use https://mexus.github.io/rustup-components-history/ to find and install a dated nightly release ie `rustup install nightly-2018-12-06`.
+* However, if you need latest nightly rls you can use https://rust-lang.github.io/rustup-components-history/ to find and install a dated nightly release ie `rustup install nightly-2018-12-06`.
 
 Also see [#641](https://github.com/rust-lang/rls/issues/641).
 
