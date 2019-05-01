@@ -215,5 +215,5 @@ fn resolve_with_prev<'cfg>(
     ws: &Workspace<'cfg>,
     prev: Option<&Resolve>,
 ) -> CargoResult<Resolve> {
-    ops::resolve_with_previous(registry, ws, Method::Everything, prev, None, &[], true, false)
+    ops::resolve_with_previous(registry, ws, Method::Everything, prev, None, &[], true)
 }

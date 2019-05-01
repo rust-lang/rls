@@ -197,8 +197,11 @@ fn run_cargo_ws(
 
     let spec = Packages::from_flags(all, Vec::new(), packages)?;
 
-    let pkg_names =
-        spec.to_package_id_specs(&ws)?.iter().map(|pkg_spec| pkg_spec.name().to_owned()).collect();
+    let pkg_names = spec
+        .to_package_id_specs(&ws)?
+        .iter()
+        .map(|pkg_spec| pkg_spec.name().as_str().to_owned())
+        .collect();
     trace!("specified packages to be built by Cargo: {:#?}", pkg_names);
 
     // Since the Cargo build routine will try to regenerate the unit dep graph,
@@ -353,7 +356,7 @@ impl Executor for RlsExecutor {
     /// unit of work (may still be modified for runtime-known dependencies, when
     /// the work is actually executed). This is called even for a target that
     /// is fresh and won't be compiled.
-    fn init(&self, cx: &Context<'_, '_>, unit: &Unit<'_>) {
+    fn init<'a>(&self, cx: &Context<'a, '_>, unit: &Unit<'a>) {
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
         let plan = compilation_cx
             .build_plan
