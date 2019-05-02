@@ -121,13 +121,13 @@ impl CargoPlan {
     /// Places a given `Unit`, along with its `Unit` dependencies (recursively)
     /// into the dependency graph as long as the passed `Unit` isn't filtered
     /// out by the `filter` closure.
-    pub(crate) fn emplace_dep_with_filter<Filter>(
+    pub(crate) fn emplace_dep_with_filter<'a, Filter>(
         &mut self,
-        unit: &Unit<'_>,
-        cx: &Context<'_, '_>,
+        unit: &Unit<'a>,
+        cx: &Context<'a, '_>,
         filter: &Filter,
     ) where
-        Filter: Fn(&Unit<'_>) -> bool,
+        Filter: Fn(&Unit<'a>) -> bool,
     {
         if !filter(unit) {
             return;
