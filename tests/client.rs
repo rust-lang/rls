@@ -935,7 +935,7 @@ fn client_format_utf16_range() {
         result.unwrap().iter().map(|edit| edit.new_text.as_str().replace('\r', "")).collect();
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
-    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
+    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n\n"]);
 }
 
 #[test]
@@ -1765,9 +1765,9 @@ fn client_reformat() {
     assert_eq!(result.unwrap()[0], TextEdit {
         range: Range {
             start: Position { line: 0, character: 0 },
-            end: Position { line: 1, character: 69 },
+            end: Position { line: 2, character: 0 },
         },
-        new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}".to_string(),
+        new_text: "pub mod foo;\npub fn main() {\n    let world = \"world\";\n    println!(\"Hello, {}!\", world);\n}\n".to_string(),
     });
 }
 
@@ -1804,14 +1804,15 @@ fn client_reformat_with_range() {
     let newline = if cfg!(windows) { "\r\n" } else { "\n" };
     let formatted = r#"pub fn main() {
     let world1 = "world";
-    println!("Hello, {}!", world1);"#
-        .replace("\r", "")
-        .replace("\n", newline);
+    println!("Hello, {}!", world1);
+"#
+    .replace("\r", "")
+    .replace("\n", newline);
 
     let edits = result.unwrap();
     assert_eq!(edits.len(), 2);
     assert_eq!(edits[0].new_text, formatted);
-    assert_eq!(edits[1].new_text, "");
+    assert_eq!(edits[1].new_text, newline);
 }
 
 #[test]

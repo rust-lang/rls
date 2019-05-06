@@ -224,13 +224,13 @@ mod tests {
             )
         }
         // Handle single-line text wrt. added/removed trailing newline
-        test_case("fn main() {} ", vec![(0, 0, 0, 13, "fn main() {}\n")]);
-        test_case("fn main() {} \n", vec![(0, 0, 0, 13, "fn main() {}")]);
-        test_case("\nfn main() {} \n", vec![(0, 0, 1, 13, "fn main() {}")]);
+        test_case("fn main() {} ", vec![(0, 0, 1, 0, "fn main() {}\n\n")]);
+        test_case("fn main() {} \n", vec![(0, 0, 1, 0, "fn main() {}\n")]);
+        test_case("\nfn main() {} \n", vec![(0, 0, 2, 0, "fn main() {}\n")]);
         // Check that we send two separate edits
         test_case(
             "  struct Upper ;\n\nstruct Lower ;",
-            vec![(0, 0, 0, 16, "struct Upper;"), (2, 0, 2, 14, "struct Lower;\n")],
+            vec![(0, 0, 1, 0, "struct Upper;\n"), (2, 0, 3, 0, "struct Lower;\n\n")],
         );
     }
 }
