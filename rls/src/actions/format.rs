@@ -78,9 +78,6 @@ impl Rustfmt {
             NewlineStyle::Native => native,
         };
 
-        let lsp_line_length = |line: &str| line.chars().map(char::len_utf16).sum();
-        let line_cols: Vec<usize> = input.lines().map(lsp_line_length).collect();
-
         let output = self.format(input, cfg)?;
         let ModifiedLines { chunks } = output.parse().map_err(|_| Error::Failed)?;
 
@@ -89,23 +86,18 @@ impl Rustfmt {
             .map(|item| {
                 // Rustfmt's line indices are 1-based
                 let start_line = u64::from(item.line_number_orig) - 1;
-                let end_line = {
-                    // Could underflow if we don't remove lines and there's only one
-                    let removed = u64::from(item.lines_removed).saturating_sub(1);
-                    start_line + removed
-                };
-                let end_col: Option<usize> = line_cols.get(end_line as usize).copied();
-                let end_col: u64 = end_col.map(|col| col as u64).unwrap_or_else(u64::max_value);
+                let end_line = start_line + u64::from(item.lines_removed);
 
                 TextEdit {
                     range: Range {
                         start: Position::new(start_line, 0),
-                        // We don't extend the range past the last line because
-                        // sometimes it may not exist, skewing the diff and
-                        // making us add an invalid additional trailing newline.
-                        end: Position::new(end_line, end_col),
+                        end: Position::new(end_line, 0),
                     },
-                    new_text: item.lines.join(newline),
+                    new_text: item.lines.iter().fold(String::new(), |mut acc, s| {
+                        acc.push_str(s);
+                        acc.push_str(newline);
+                        acc
+                    }),
                 }
             })
             .collect())
