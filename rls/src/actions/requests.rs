@@ -18,22 +18,23 @@ use serde_json;
 use url::Url;
 
 use crate::actions::hover;
-use crate::actions::run::collect_run_actions;
 use crate::actions::codelens::*;
+use crate::actions::run::collect_run_actions;
+
 use crate::actions::InitActionContext;
 use crate::build::Edition;
 use crate::lsp_data;
 use crate::lsp_data::request::ApplyWorkspaceEdit;
 pub use crate::lsp_data::request::{
-    CodeActionRequest as CodeAction, CodeLensRequest, Completion,
+    CodeActionRequest as CodeAction, CodeLensRequest, CodeLensResolve, Completion,
     DocumentHighlightRequest as DocumentHighlight, DocumentSymbolRequest as Symbols,
     ExecuteCommand, Formatting, GotoDefinition as Definition, GotoImplementation as Implementation,
     HoverRequest as Hover, RangeFormatting, References, Rename,
     ResolveCompletionItem as ResolveCompletion, WorkspaceSymbol,
-    CodeLensResolve
+
 };
 use crate::lsp_data::*;
-use crate::lsp_data::{Range, Position};
+use crate::lsp_data::{Position, Range};
 use crate::server;
 use crate::server::{Ack, Output, Request, RequestAction, ResponseError, ResponseWithMessage};
 
@@ -757,55 +758,6 @@ impl RequestAction for ResolveCompletion {
     }
 }
 
-impl RequestAction for CodeLensResolve {
-    type Response = CodeLens;
-
-    fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Err(ResponseError::Empty)
-    }
-
-    fn handle(ctx: InitActionContext, params: Self::Params) -> Result<Self::Response, ResponseError> {
-        if ctx.active_build_count.load(Ordering::Relaxed) > 0 {return Ok(params);}
-        let analysis = &ctx.analysis;
-        let range = params.range;
-        if let Some(data) = params.data {
-            let resolve_type: String = serde_json::from_value(data["lens_type"].clone()).unwrap();
-            match resolve_type.as_str() {
-                "type_span" => {
-                    let id: TextDocumentIdentifier = serde_json::from_value(data["file"].clone()).unwrap();
-                    let file = parse_file_path(&id.uri).unwrap();
-                    let position: Position = serde_json::from_value(data["position"].clone()).unwrap();
-                    let span_position = Position::new(position.line, position.character - 1);
-                    let span = ctx.convert_pos_to_span(file.clone(), span_position);
-                    let typename = analysis.show_type(&span);
-                    let mutable: bool = serde_json::from_value(data["mutable"].clone()).unwrap();
-                    let command = match typename {
-                        Ok(typename)=>{
-                            Some(Command {
-                                title: {if mutable {":mut "} else {": "}}.to_string() + &typename,
-                                command: "".to_string(),
-                                arguments: None})
-                        }
-                        _=>{
-                            Some(Command {
-                                title: {if mutable {":mut ???"} else {": ???"}}.to_string(),
-                                command: "".to_string(),
-                                arguments: None})}
-                    };
-                    Ok(CodeLens {range, command, data: Some(data)})
-                }
-                "test" => {
-                    let pos = Position::new(0, 0);
-                    Ok(CodeLens {range: Range::new(pos, pos), command: Some(Command {title: "test successful".to_string(), command: "".to_string(), arguments: None}), data: None})
-                }
-                _ => {Err(ResponseError::Message(ErrorCode::ServerError(2), String::from("Unhandled CodeLens Resolve")))}    
-            }
-        } else {
-            Err(ResponseError::Message(ErrorCode::ServerError(3), String::from("CodeLens Resolve Request without data")))
-        }
-    }
-}
-
 pub(crate) fn racer_coord(
     row: span::Row<span::OneIndexed>,
     col: span::Column<span::ZeroIndexed>,
@@ -866,7 +818,7 @@ impl RequestAction for CodeLensRequest {
             command: None,
             data: Some(serde_json::json!({
                 "lens_type": String::from("test")
-            }))
+            })),
         });
         Ok(ret)
     }

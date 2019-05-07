@@ -315,8 +315,7 @@ impl<O: Output> LsService<O> {
                 requests::Definition,
                 requests::References,
                 requests::Completion,
-                requests::CodeLensRequest,
-                requests::CodeLensResolve;
+                requests::CodeLensRequest;
         );
         Ok(())
     }
@@ -397,7 +396,6 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(
             TextDocumentSyncKind::Incremental,
         )),
-        selection_range_provider: None,
         hover_provider: Some(true),
         completion_provider: Some(CompletionOptions {
             resolve_provider: Some(true),
@@ -429,7 +427,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         // info from the client.
         document_range_formatting_provider: Some(false),
 
-        code_lens_provider: Some(CodeLensOptions { resolve_provider: Some(true) }),
+        code_lens_provider: Some(CodeLensOptions { resolve_provider: None }),
         document_on_type_formatting_provider: None,
         signature_help_provider: None,
 

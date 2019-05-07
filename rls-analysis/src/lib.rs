@@ -349,6 +349,14 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         })
     }
 
+    pub fn show_name(&self, span: &Span) -> AResult<String> {
+        self.with_analysis(|a| {
+            a.def_id_for_span(span)
+                .and_then(|id| a.with_defs(id, clone_field!(name)))
+                .or_else(|| a.with_globs(span, clone_field!(value)))
+        })
+    }
+
     pub fn docs(&self, span: &Span) -> AResult<String> {
         self.with_analysis(|a| {
             a.def_id_for_span(span).and_then(|id| a.with_defs(id, clone_field!(docs)))
