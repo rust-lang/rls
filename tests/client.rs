@@ -935,7 +935,7 @@ fn client_format_utf16_range() {
         result.unwrap().iter().map(|edit| edit.new_text.as_str().replace('\r', "")).collect();
     // Actual formatting isn't important - what is, is that the buffer isn't
     // malformed and code stays semantically equivalent.
-    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n\n"]);
+    assert_eq!(new_text, vec!["/* 😢😢😢😢😢😢😢 */\nfn main() {}\n"]);
 }
 
 #[test]
