@@ -290,7 +290,6 @@ fn declaration_collection() {
             declaration.character
         );
     }
-    assert!(false);
 }
 
 pub fn collect_declaration_typings(
