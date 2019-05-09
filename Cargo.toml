@@ -29,9 +29,9 @@ rls-rustc = { version = "0.6.0", path = "rls-rustc" }
 rls-span = "0.5"
 rls-vfs = "0.8"
 
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "beb8fcb5248dc2e6aa488af9613216d5ccb31c6a" }
+cargo = { git = "https://github.com/rust-lang/cargo", version = "0.37.0"} # rev = "beb8fcb5248dc2e6aa488af9613216d5ccb31c6a" }
 cargo_metadata = "0.7"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "089a7beb7d7094c3fe8152c7a7c7c739c186fd62", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", version = "0.0.212", optional = true }
 env_logger = "0.6"
 failure = "0.1.1"
 home = "0.3"
