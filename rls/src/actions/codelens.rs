@@ -1,10 +1,8 @@
-
 use crate::actions::InitActionContext;
 use crate::lsp_data::*;
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
-
 
 use rls_vfs::FileContents;
 use std::collections::HashMap;
@@ -221,7 +219,7 @@ const MULTIPLE_DECLARATIONS_REGEX: &'static str = r"(&?(mut\s+)?\w+(\s*:\s*\w+)?
 
 fn collect_declarations(text: &str) -> Vec<(Position, bool)> {
     lazy_static! {
-        static ref LET_REGEX: Regex = Regex::new(r"let(\s+mut)?\s+(\w+)[ :=]").unwrap();
+        static ref LET_REGEX: Regex = Regex::new(r"(let|for)(\s+mut)?\s+(\w+)[ :=]").unwrap();
         static ref TUPLE_UNPACKING: Regex = Regex::new(
             &(r"(let\s+|for\s+|if let[^=]+)(\(".to_string() + MULTIPLE_DECLARATIONS_REGEX + r"\))")
         )
@@ -230,9 +228,8 @@ fn collect_declarations(text: &str) -> Vec<(Position, bool)> {
             Regex::new(&(r"\(".to_string() + MULTIPLE_DECLARATIONS_REGEX + r"\)[)\s]*=>")).unwrap();
         static ref CLOSURE_PARAMETERS: Regex =
             Regex::new(&(r"\|".to_string() + MULTIPLE_DECLARATIONS_REGEX + r"\|")).unwrap();
-        static ref INNER_DECLARATION: Regex = Regex::new(r"&?\s*(mut\s+)?\w").unwrap();
+        static ref INNER_DECLARATION: Regex = Regex::new(r"&?\s*(mut\s+)?\w+").unwrap();
     }
-
 
     let mut declarations = Vec::<(Position, bool)>::new();
     for capture in LET_REGEX.find_iter(text) {
@@ -332,34 +329,43 @@ pub fn collect_declaration_typings(
                 } else {
                     simplify_typename(typename.replace("'<empty>", "'_"), &root)
                 };
-                ret.push(CodeLens {range: lens_range, command: Some(Command {
-                    title: var_name + if *mutable { "mut " } else { "" } + &typename,
-                    command: "".to_string(),
-                    arguments: None,
-                }), data:  None})
+                ret.push(CodeLens {
+                    range: lens_range,
+                    command: Some(Command {
+                        title: var_name + if *mutable { "mut " } else { "" } + &typename,
+                        command: "".to_string(),
+                        arguments: None,
+                    }),
+                    data: None,
+                })
             }
             Err(e) => {
                 let command = "".to_string();
                 if !ctx.analysis_ready() {
-                    let title = var_name
-                        + &format!("Waiting for index. Edit or switch tab to refresh.");
+                    let title =
+                        var_name + &format!("Waiting for index. Edit or switch tab to refresh.");
                     ret.push(CodeLens {
                         range: lens_range,
-                        command: Some(Command{title, command, arguments: None}),
-                        data: None
+                        command: Some(Command { title, command, arguments: None }),
+                        data: None,
                     })
                 } else {
                     #[cfg(debug_assertions)]
                     {
-                        let title = format!("Err({}) at ({}, {})", e, position.line+1, position.character+1);
+                        let title = format!(
+                            "Err({}) at ({}, {})",
+                            e,
+                            position.line + 1,
+                            position.character + 1
+                        );
                         ret.push(CodeLens {
                             range: lens_range,
-                            command: Some(Command{title, command, arguments: None}),
-                            data: None
+                            command: Some(Command { title, command, arguments: None }),
+                            data: None,
                         })
                     }
                 }
-            },
+            }
         }
     }
     ret

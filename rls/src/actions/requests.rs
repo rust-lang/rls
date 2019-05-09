@@ -17,8 +17,8 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use url::Url;
 
-use crate::actions::hover;
 use crate::actions::codelens::*;
+use crate::actions::hover;
 use crate::actions::run::collect_run_actions;
 
 use crate::actions::InitActionContext;
@@ -31,7 +31,6 @@ pub use crate::lsp_data::request::{
     ExecuteCommand, Formatting, GotoDefinition as Definition, GotoImplementation as Implementation,
     HoverRequest as Hover, RangeFormatting, References, Rename,
     ResolveCompletionItem as ResolveCompletion, WorkspaceSymbol,
-
 };
 use crate::lsp_data::*;
 use crate::lsp_data::{Position, Range};
