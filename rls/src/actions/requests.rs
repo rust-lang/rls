@@ -812,14 +812,6 @@ impl RequestAction for CodeLensRequest {
             }
         }
         ret.extend(collect_declaration_typings(&ctx, &params.text_document));
-        let pos = Position::new(0, 0);
-        ret.push(CodeLens {
-            range: Range::new(pos, pos),
-            command: None,
-            data: Some(serde_json::json!({
-                "lens_type": String::from("test")
-            })),
-        });
         Ok(ret)
     }
 }
