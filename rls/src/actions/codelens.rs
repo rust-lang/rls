@@ -4,7 +4,6 @@ use crate::lsp_data::*;
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
-use serde_json::json;
 
 
 use rls_vfs::FileContents;
@@ -297,11 +296,8 @@ pub fn collect_declaration_typings(
     params: &TextDocumentIdentifier,
 ) -> Vec<CodeLens> {
     let analysis = &ctx.analysis;
-
     let file = parse_file_path(&params.uri).unwrap();
-
     let mut ret = Vec::new();
-
     let text = match ctx.vfs.load_file(&file) {
         Ok(FileContents::Text(text)) => text,
         Ok(FileContents::Binary(_)) => return ret,
@@ -313,66 +309,58 @@ pub fn collect_declaration_typings(
     if !text.contains("let") {
         return ret;
     }
-
     let declarations = collect_declarations(&text);
-
     let root = parse_uses(&text);
     for (position, mutable) in declarations.iter() {
-        let command = {
-            let span_position = Position::new(position.line, position.character - 1);
-            let span = ctx.convert_pos_to_span(file.clone(), span_position);
-            let var_name = {
-                if let Ok(name) = analysis.show_name(&span) {
-                    name + ": "
-                } else {
-                    "".to_string()
-                }
-            };
-            let typename = analysis.show_type(&span);
-            match typename {
-                Ok(typename) => {
-                    let typename = if typename.contains("[closure") {
-                        "closure".to_string()
-                    } else {
-                        simplify_typename(typename.replace("'<empty>", "'_"), &root)
-                    };
-                    Some(Command {
-                        title: var_name + if *mutable { "mut " } else { "" } + &typename,
-                        command: "".to_string(),
-                        arguments: None,
-                    })
-                }
-                _ => Some(Command {
-                    title: if ctx.analysis_ready() {
-                        "".to_string()
-                    } else {
-                        var_name
-                            + &format!(
-                                "Waiting for index. Edit or switch tab to refresh.",
-                                // span_position.line + 1,
-                                // span_position.character + 1
-                            )
-                    },
-                    command: "".to_string(),
-                    arguments: None,
-                }),
+        let span_position = Position::new(position.line, position.character - 1);
+        let span = ctx.convert_pos_to_span(file.clone(), span_position);
+        let var_name = {
+            if let Ok(name) = analysis.show_name(&span) {
+                name + ": "
+            } else {
+                "".to_string()
             }
         };
-        let start = *position;
-        let mut end = *position;
-        end.character += 1;
-        let lens = CodeLens {
-            range: Range::new(start, end),
-            command,
-            data: Some(json!({
-                "lens_type": String::from("type_span"),
-                "position": start,
-                "file": params.clone(),
-                "mutable": mutable
-            })),
-        };
-        ret.push(lens);
+        let lens_start = *position;
+        let mut lens_end = *position;
+        lens_end.character += 1;
+        let lens_range = Range::new(lens_start, lens_end);
+        match analysis.show_type(&span) {
+            Ok(typename) => {
+                let typename = if typename.contains("[closure") {
+                    "closure".to_string()
+                } else {
+                    simplify_typename(typename.replace("'<empty>", "'_"), &root)
+                };
+                ret.push(CodeLens {range: lens_range, command: Some(Command {
+                    title: var_name + if *mutable { "mut " } else { "" } + &typename,
+                    command: "".to_string(),
+                    arguments: None,
+                }), data:  None})
+            }
+            Err(e) => {
+                let command = "".to_string();
+                if !ctx.analysis_ready() {
+                    let title = var_name
+                        + &format!("Waiting for index. Edit or switch tab to refresh.");
+                    ret.push(CodeLens {
+                        range: lens_range,
+                        command: Some(Command{title, command, arguments: None}),
+                        data: None
+                    })
+                } else {
+                    #[cfg(debug_assertions)]
+                    {
+                        let title = format!("Err({}) at ({}, {})", e, position.line+1, position.character+1);
+                        ret.push(CodeLens {
+                            range: lens_range,
+                            command: Some(Command{title, command, arguments: None}),
+                            data: None
+                        })
+                    }
+                }
+            },
+        }
     }
-
     ret
 }

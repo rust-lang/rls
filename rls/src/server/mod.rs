@@ -403,6 +403,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         }),
         definition_provider: Some(true),
         type_definition_provider: None,
+        selection_range_provider: None,
         implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
         references_provider: Some(true),
         document_highlight_provider: Some(true),
