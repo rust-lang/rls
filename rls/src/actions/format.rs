@@ -78,9 +78,6 @@ impl Rustfmt {
             NewlineStyle::Native => native,
         };
 
-        let lsp_line_length = |line: &str| line.chars().map(char::len_utf16).sum();
-        let line_cols: Vec<usize> = input.lines().map(lsp_line_length).collect();
-
         let output = self.format(input, cfg)?;
         let ModifiedLines { chunks } = output.parse().map_err(|_| Error::Failed)?;
 
@@ -89,23 +86,29 @@ impl Rustfmt {
             .map(|item| {
                 // Rustfmt's line indices are 1-based
                 let start_line = u64::from(item.line_number_orig) - 1;
-                let end_line = {
-                    // Could underflow if we don't remove lines and there's only one
-                    let removed = u64::from(item.lines_removed).saturating_sub(1);
-                    start_line + removed
-                };
-                let end_col: Option<usize> = line_cols.get(end_line as usize).copied();
-                let end_col: u64 = end_col.map(|col| col as u64).unwrap_or_else(u64::max_value);
+                let end_line = start_line + u64::from(item.lines_removed);
+
+                let mut new_text = item.lines.join(newline);
+
+                // Rustfmt represents an added line as start_line == end_line, new_text == "",
+                // which is a no-op, so we need to add a terminating newline.
+                if start_line == end_line && new_text.len() == 0 {
+                    new_text.push_str(newline);
+                }
+
+                // Line deletions are represented as start_line != end_line, new_text == "".
+                // If we're not deleting a line, there should always be a terminating newline.
+                let delete_only = start_line != end_line && new_text.len() == 0;
+                if !delete_only && !new_text.ends_with(newline) {
+                    new_text.push_str(newline);
+                }
 
                 TextEdit {
                     range: Range {
                         start: Position::new(start_line, 0),
-                        // We don't extend the range past the last line because
-                        // sometimes it may not exist, skewing the diff and
-                        // making us add an invalid additional trailing newline.
-                        end: Position::new(end_line, end_col),
+                        end: Position::new(end_line, 0),
                     },
-                    new_text: item.lines.join(newline),
+                    new_text,
                 }
             })
             .collect())
@@ -232,13 +235,13 @@ mod tests {
             )
         }
         // Handle single-line text wrt. added/removed trailing newline
-        test_case("fn main() {} ", vec![(0, 0, 0, 13, "fn main() {}\n")]);
-        test_case("fn main() {} \n", vec![(0, 0, 0, 13, "fn main() {}")]);
-        test_case("\nfn main() {} \n", vec![(0, 0, 1, 13, "fn main() {}")]);
+        test_case("fn main() {} ", vec![(0, 0, 1, 0, "fn main() {}\n")]);
+        test_case("fn main() {} \n", vec![(0, 0, 1, 0, "fn main() {}\n")]);
+        test_case("\nfn main() {} \n", vec![(0, 0, 2, 0, "fn main() {}\n")]);
         // Check that we send two separate edits
         test_case(
             "  struct Upper ;\n\nstruct Lower ;",
-            vec![(0, 0, 0, 16, "struct Upper;"), (2, 0, 2, 14, "struct Lower;\n")],
+            vec![(0, 0, 1, 0, "struct Upper;\n"), (2, 0, 3, 0, "struct Lower;\n")],
         );
     }
 }
