@@ -388,6 +388,8 @@ impl Executor for RlsExecutor {
         id: PackageId,
         target: &Target,
         mode: CompileMode,
+        _on_stdout_line: &mut dyn FnMut(&str) -> CargoResult<()>,
+        _on_stderr_line: &mut dyn FnMut(&str) -> CargoResult<()>,
     ) -> CargoResult<()> {
         // Use JSON output so that we can parse the rustc output.
         cargo_cmd.arg("--error-format=json");
