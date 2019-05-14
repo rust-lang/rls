@@ -23,7 +23,26 @@ pub fn collect_run_actions(ctx: &InitActionContext, file: &Path) -> Vec<RunActio
     }
 
     lazy_static! {
-        static ref TEST_FN_RE: Regex = Regex::new(r"#\[test\]\s*\n\s*fn\s*(?P<name>\w+)").unwrap();
+        /// __(a):__ `\#\[test\]` matches `#[test]`
+        ///
+        /// __(b):__ `^[^\/]*?fn\s+(?P<name>\w+)` matches any line which contains `fn name` before any comment is started and captures the word after fn.
+        /// The laziness of the quantifier is there to make the regex quicker (about 5 times less steps)
+        ///
+        /// __(c):__ `(\n|.)*?` will match anything lazilly, matching whatever shortest string exists between __(a)__ and __(b)__, ensuring
+        /// that whatever sits in between `#[test]` and the next function declaration doesn't interfere. It MUST be lazy, both for performance,
+        /// as well as to prevent matches with further declared functions.
+        ///
+        /// __(d):__ `(?m)` sets the and `m` regex flags to allow `^` to match line starts.
+        ///
+        /// This regex is still imperfect, for example:
+        /// ```rust
+        /// #[test] /*
+        /// But at this point it's pretty much a deliberate attempt
+        /// to make `fn wrong_function` be matched instead of */
+        /// fn right_function() {}
+        /// ```
+        static ref TEST_FN_RE: Regex =
+            Regex::new(r"(?m)#\[test\](\n|.)*?^[^/]*?fn\s+(?P<name>\w+)").unwrap();
     }
 
     let line_index = LineIndex::new(&text);
