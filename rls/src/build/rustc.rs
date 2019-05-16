@@ -114,6 +114,7 @@ pub(crate) fn rustc(
             // Replace stderr so we catch most errors.
             run_compiler(
                 &args,
+                &clippy_lints::PREINTERNED_SYMBOLS,
                 &mut callbacks,
                 Some(Box::new(ReplacedFileLoader::new(changed))),
                 Some(Box::new(BufWriter(buf))),

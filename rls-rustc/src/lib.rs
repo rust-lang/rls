@@ -33,7 +33,7 @@ pub fn run() {
             })
             .collect::<Vec<_>>();
 
-        run_compiler(&args, &mut ShimCalls, None, None)
+        run_compiler(&args, &[], &mut ShimCalls, None, None)
     })
     .and_then(|result| result);
     process::exit(result.is_err() as i32);
