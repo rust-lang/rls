@@ -47,8 +47,8 @@ impl ProjectModel {
         let mut config = Config::default()?;
         // Enable nightly flag for cargo(see #1043)
         cargo::core::enable_nightly_features();
-        // frozen = false, locked = false
-        config.configure(0, Some(true), &None, false, false, &None, &[])?;
+        // frozen = false, locked = false, offline = false
+        config.configure(0, Some(true), &None, false, false, false, &None, &[])?;
         let ws = Workspace::new(&ws_manifest, &config)?;
         // get resolve from lock file
         let prev = {
