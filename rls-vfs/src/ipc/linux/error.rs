@@ -39,7 +39,7 @@ impl LibcError {
     }
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "error from libc funciton {} with errno {}", self.func, self.errno)
+        write!(f, "error from libc function {} with errno {}", self.func, self.errno)
     }
 }
 

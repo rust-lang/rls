@@ -133,7 +133,7 @@ impl Fd {
         let len = buf.len();
         let res = unsafe { libc::read(self.get_fd()?, &mut buf[0] as *mut u8 as *mut libc::c_void, len) };
         if res < 0 {
-            handle_libc_error!("write");
+            handle_libc_error!("read");
         }
         Ok(res as usize)
     }
@@ -192,7 +192,7 @@ impl Fd {
         while start_pos < len {
             let res = unsafe { libc::read(read_fd, &mut buf[start_pos] as *mut u8 as *mut libc::c_void, len - start_pos) };
             if res <= 0 {
-                handle_libc_error!("write");
+                handle_libc_error!("read");
             }
             start_pos += res as usize;
         }
@@ -206,7 +206,7 @@ impl Fd {
         loop {
             let res = unsafe { libc::read(read_fd, &mut buf[0] as *mut u8 as *mut libc::c_void, std::mem::size_of_val(&buf)) };
             if res < 0 {
-                handle_libc_error!("write");
+                handle_libc_error!("read");
             }
             if res == 0 {
                 break;
