@@ -133,7 +133,7 @@ VSCode - select "Rust Language Server" from the drop down box ("Rust Language
 Server" will only show up if there is any debugging output from RLS). Do not
 write to stdout, that will cause LSP errors (this means you cannot
 `println`). You can enable logging using
-[RUST_LOG](https://doc.rust-lang.org/log/env_logger/) environment variable
+[RUST_LOG](https://docs.rs/env_logger/) environment variable
 (e.g. `RUST_LOG=rls=debug code`). For adding your own, temporary logging you may
 find the `eprintln` macro useful.
 
