@@ -392,6 +392,10 @@ impl Executor for RlsExecutor {
         _on_stderr_line: &mut dyn FnMut(&str) -> CargoResult<()>,
     ) -> CargoResult<()> {
         // Use JSON output so that we can parse the rustc output.
+        // Filter first to work around "--error-format" being passed with
+        // CARGO_PIPELINING(?) enabled in Cargo.
+        let filtered_args = filter_arg(cargo_cmd.get_args(), "--error-format");
+        cargo_cmd.args_replace(&filtered_args);
         cargo_cmd.arg("--error-format=json");
         // Delete any stale data. We try and remove any json files with
         // the same crate name as Cargo would emit. This includes files
@@ -751,6 +755,18 @@ fn dedup_flags(flag_str: &str) -> String {
         }
     }
     result
+}
+
+fn filter_arg(args: &[OsString], key: &str) -> Vec<String> {
+    let key_as_prefix = key.to_owned() + "=";
+    args.iter()
+        .zip(vec!["".into()].iter().chain(args.iter()))
+        .filter_map(|(x, prev)| {
+            x.to_str()
+                .filter(|x| !x.starts_with(&key_as_prefix) && prev != key)
+                .map(|x| x.to_string())
+        })
+        .collect()
 }
 
 /// Error wrapper that tries to figure out which manifest the cause best relates to in the project
