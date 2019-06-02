@@ -156,6 +156,11 @@ message.
 The command line interface is useful for debugging and testing, especially to
 narrow down a bug to either the RLS or a client.
 
+Note that the [positions][LSP_POSITION] in the requests and the responses are
+_zero-based_ (contrary to what you'll normally see in the IDE line numbers).
+
+[LSP_POSITION]: https://github.com/Microsoft/language-server-protocol/blob/gh-pages/specification.md#position
+
 ## Standard library support
 
 The way it works is that when the libraries are built, the compiler can emit all
