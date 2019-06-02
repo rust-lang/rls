@@ -143,23 +143,30 @@ Testing is unfortunately minimal. There is support for regression tests, but not
 many actual tests exists yet. There is significant [work to do](https://github.com/rust-lang/rls/issues/12)
 before we have a comprehensive testing story.
 
-You can run the RLS in command line mode by running with a `--cli` flag,
-e.g., `cargo run -- --cli`. You need to run it in the root directory of the
-project to be analyzed. This should initialize the RLS (which will take some
-time for large projects) and then give you a `>` prompt. Type `help` (or just
-`h`) to see the commands available.
+### CLI
 
-During initialization RLS will print out a number of progress messages to the
-console. Those messages might hide the prompt. Look for `progress[done:true]`
-message.
+You can run RLS in the command line mode which is useful for debugging and
+testing, especially to narrow down a bug to either the RLS or a client.
 
-The command line interface is useful for debugging and testing, especially to
-narrow down a bug to either the RLS or a client.
+You need to run it in the root directory of the project to be analyzed with the
+`--cli` flag, e.g., `cargo run -- --cli`. This should initialize the RLS (which
+will take some time for large projects) and then give you a `>` prompt. During
+initialization RLS will print out a number of progress messages to the console
+(that might hide the prompt) during which some of the commands may not work
+properly. Look for the final message that will signal the end of the
+initialization phase which will look something like:
 
-Note that the [positions][LSP_POSITION] in the requests and the responses are
+```
+{"jsonrpc":"2.0","method":"window/progress","params":{"done":true,"id":"progress_0","message":null,"percentage":null,"title":"Indexing"}}
+```
+
+Type `help` (or just `h`) to see the [commands available][CLI_COMMANDS]. Note
+that the [positions][LSP_POSITION] in the requests and the responses are
 _zero-based_ (contrary to what you'll normally see in the IDE line numbers).
 
 [LSP_POSITION]: https://github.com/Microsoft/language-server-protocol/blob/gh-pages/specification.md#position
+
+[CLI_COMMANDS]: https://github.com/rust-lang/rls/blob/6d99a32d888a427250ff06229b6030b7dc276eac/rls/src/cmd.rs#L390-L424
 
 ## Standard library support
 
