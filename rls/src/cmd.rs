@@ -58,12 +58,7 @@ pub fn run() {
 
         // Switch on the action and build an appropriate message.
         let msg = match action {
-            "def" => {
-                let file_name = bits.next().expect("Expected file name");
-                let row = bits.next().expect("Expected line number");
-                let col = bits.next().expect("Expected column number");
-                def(file_name, row, col).to_string()
-            }
+            "def" => generate_def(&mut bits),
             "rename" => {
                 let file_name = bits.next().expect("Expected file name");
                 let row = bits.next().expect("Expected line number");
@@ -160,9 +155,14 @@ pub fn run() {
             }
             _ => {
                 println!("Unknown action. Type 'help' to see available actions.");
-                continue;
+                "".to_string()
             }
         };
+
+        if msg.is_empty() {
+            // The command generation failed or there is nothing to do for now.
+            continue;
+        }
 
         // Send the message to the server.
         print_verb!("message: {:?}", msg);
@@ -172,15 +172,55 @@ pub fn run() {
     }
 }
 
-fn def(file_name: &str, row: &str, col: &str) -> Request<requests::Definition> {
+macro_rules! read_unsigned {
+    ( $var:ident, $type:ty, $name:expr, $input:ident ) => {
+        let $var: $type;
+        $var = match $input.next() {
+            Some(s) => match <$type>::from_str(s) {
+                Ok(i) => i,
+                Err(e) => {
+                    eprintln!("def: {} number: {}", $name, e);
+                    return "".to_string();
+                }
+            },
+            None => {
+                eprintln!("def: expected {}", $name);
+                return "".to_string();
+            }
+        };
+    };
+}
+
+macro_rules! read_str {
+    ( $var:ident, $name:expr, $input:ident ) => {
+        let $var: &str;
+        $var = match $input.next() {
+            Some(s) => s,
+            None => {
+                eprintln!("def: expected {}", $name);
+                return "".to_string();
+            }
+        };
+    }
+}
+
+fn generate_def(input: &mut dyn Iterator<Item = &str>) -> String {
+    read_str!(file_name, "file name", input);
+    read_unsigned!(row, u64, "line number", input);
+    read_unsigned!(col, u64, "col number", input);
+
     let params = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
-        position: Position::new(
-            u64::from_str(row).expect("Bad line number"),
-            u64::from_str(col).expect("Bad column number"),
-        ),
+        position: Position::new(row, col),
     };
-    Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
+
+    Request::<requests::Definition> {
+        id: next_id(),
+        params,
+        received: Instant::now(),
+        _action: PhantomData,
+    }
+    .to_string()
 }
 
 fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requests::Rename> {
