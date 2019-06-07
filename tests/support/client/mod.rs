@@ -40,7 +40,7 @@ mod child_process;
 // however we only call `Runtime::block_on` and whenever we do it, there are no
 // active borrows in scope.
 type Messages = Rc<RefCell<Vec<Value>>>;
-type Channels = Rc<RefCell<Vec<(Box<Fn(&Value) -> bool>, oneshot::Sender<Value>)>>>;
+type Channels = Rc<RefCell<Vec<(Box<dyn Fn(&Value) -> bool>, oneshot::Sender<Value>)>>>;
 
 type LspFramed<T> = tokio::codec::Framed<T, LspCodec>;
 

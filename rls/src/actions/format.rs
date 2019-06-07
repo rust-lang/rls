@@ -92,13 +92,13 @@ impl Rustfmt {
 
                 // Rustfmt represents an added line as start_line == end_line, new_text == "",
                 // which is a no-op, so we need to add a terminating newline.
-                if start_line == end_line && new_text.len() == 0 {
+                if start_line == end_line && new_text.is_empty() {
                     new_text.push_str(newline);
                 }
 
                 // Line deletions are represented as start_line != end_line, new_text == "".
                 // If we're not deleting a line, there should always be a terminating newline.
-                let delete_only = start_line != end_line && new_text.len() == 0;
+                let delete_only = start_line != end_line && new_text.is_empty();
                 if !delete_only && !new_text.ends_with(newline) {
                     new_text.push_str(newline);
                 }
