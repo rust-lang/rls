@@ -2,10 +2,6 @@ language: rust
 dist: xenial
 cache:
   cargo: false
-os:
-  - linux
-  - osx
-  - windows
 rust:
   - nightly
 install:
@@ -13,19 +9,33 @@ install:
   # Required for Racer autoconfiguration
   - rustup component add rust-src
   - rustup component add rust-analysis
+matrix:
+  fast_finish: true
+  include:
+    - os: linux
+    - os: osx
+    - os: windows
+    - env: CLIPPY=true
+      if: commit_message =~ /(?i:^update.*\b(clippy)\b)/
 script:
-  # Since the rls-* subcrates use crates.io-based dependencies of themselves it
-  # makes sense to test them in isolation rather than just RLS itself
-  - (cd rls-analysis && cargo test -v && cargo fmt -- --check)
-  - (cd rls-blacklist && cargo test -v && cargo fmt -- --check)
-  - (cd rls-data && cargo test -v && cargo fmt -- --check)
-  - (cd rls-rustc && cargo test -v && cargo fmt -- --check)
-  - (cd rls-span && cargo test -v && cargo fmt -- --check)
-  - (cd rls-vfs && cargo test -v && cargo fmt -- --check)
-  - cargo fmt -- --check
-  - cargo build -v
-  - cargo test -v
-  - cargo test test_tooltip_std -- --ignored
+  - |
+    if [ ${CLIPPY} = true ]; then
+      cargo build -v --features "clippy"
+      cargo test -v --features "clippy"
+    else
+      # Since the rls-* subcrates use crates.io-based dependencies of themselves it
+      # makes sense to test them in isolation rather than just RLS itself
+      (cd rls-analysis && cargo test -v && cargo fmt -- --check)
+      (cd rls-blacklist && cargo test -v && cargo fmt -- --check)
+      (cd rls-data && cargo test -v && cargo fmt -- --check)
+      (cd rls-rustc && cargo test -v && cargo fmt -- --check)
+      (cd rls-span && cargo test -v && cargo fmt -- --check)
+      (cd rls-vfs && cargo test -v && cargo fmt -- --check)
+      cargo fmt -- --check
+      cargo build -v
+      cargo test -v
+      cargo test test_tooltip_std -- --ignored
+    fi
 
 env:
   global:
