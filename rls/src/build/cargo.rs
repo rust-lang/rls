@@ -454,6 +454,8 @@ impl Executor for RlsExecutor {
             .or_else(|| env::current_exe().ok().and_then(|x| x.to_str().map(String::from)))
             .expect("Couldn't set executable for RLS rustc shim");
         cmd.program(rustc_shim);
+        // In case RLS is set as the rustc shim signal to `main_inner()` to call
+        // `rls_rustc::run()`.
         cmd.env(crate::RUSTC_SHIM_ENV_VAR_NAME, "1");
 
         // Add args and envs to cmd.
