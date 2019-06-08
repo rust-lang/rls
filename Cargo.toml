@@ -29,22 +29,22 @@ rls-rustc = { version = "0.6.0", path = "rls-rustc" }
 rls-span = "0.5"
 rls-vfs = "0.8"
 
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "d56af31df1fbe45105ccd3b633297b2bc61e7405" }
-cargo_metadata = "0.7"
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "545f354259be4e9745ea00a524c0e4c51df01aa6" }
+cargo_metadata = "0.8"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "71be6f62fa920c0bd10cdf3a29aeb8c6719a8075", optional = true }
 env_logger = "0.6"
 failure = "0.1.1"
 home = "0.3"
 itertools = "0.8"
-jsonrpc-core = "10"
-lsp-types = { version = "0.57", features = ["proposed"] }
+jsonrpc-core = "12"
+lsp-types = { version = "=0.57.2", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
 racer = { version = "2.1.22", default-features = false }
 rand = "0.6"
 rayon = "1"
-rustc_tools_util = "0.1.1"
+rustc_tools_util = "0.2"
 rustfmt-nightly = "1.2"
 rustc-serialize = "0.3"
 serde = "1.0"
@@ -74,7 +74,7 @@ tokio-process = "0.2"
 tokio-timer = "0.2"
 
 [build-dependencies]
-rustc_tools_util = "0.1.1"
+rustc_tools_util = "0.2"
 
 [features]
 clippy = ["clippy_lints"]

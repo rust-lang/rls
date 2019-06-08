@@ -433,6 +433,7 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
 
         folding_range_provider: None,
         workspace: None,
+        selection_range_provider: None,
     }
 }
 
