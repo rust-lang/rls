@@ -77,5 +77,4 @@ tokio-timer = "0.2"
 rustc_tools_util = "0.1.1"
 
 [features]
-default = ["clippy"]
 clippy = ["clippy_lints"]
