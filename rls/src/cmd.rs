@@ -364,7 +364,8 @@ fn init() -> Sender<String> {
     let service = LsService::new(
         analysis,
         vfs,
-        Arc::new(Mutex::new(Config::default())),
+        // Don't clear `RUST_LOG` in CLI mode since it's intended for debugging purposes.
+        Arc::new(Mutex::new(Config { clear_env_rust_log: false, ..Default::default() })),
         Box::new(ChannelMsgReader::new(receiver)),
         PrintlnOutput,
     );
