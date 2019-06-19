@@ -456,6 +456,11 @@ fn client_test_complete_self_crate_name() {
     assert_eq!(item.detail.unwrap(), "pub fn function() -> usize");
 }
 
+// Spurious in Rust CI, e.g.
+// https://github.com/rust-lang/rust/pull/60730
+// https://github.com/rust-lang/rust/pull/61771
+// https://github.com/rust-lang/rust/pull/61932
+#[ignore]
 #[test]
 fn client_completion_suggests_arguments_in_statements() {
     let p = project("ws_with_test_dir")
