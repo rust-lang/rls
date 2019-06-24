@@ -195,10 +195,13 @@ fn rustfmt_args(config: &Config, config_path: &Path) -> Vec<String> {
         "--quiet".into(),
     ];
 
-    args.push("--file-lines".into());
-    let file_lines_json = config.file_lines().to_json_spans();
-    let lines: String = serde_json::to_string(&file_lines_json).unwrap();
-    args.push(lines);
+    // Otherwise --file-lines [] are treated as no lines rather than FileLines::all()
+    if config.file_lines().files().count() > 0 {
+        args.push("--file-lines".into());
+        let file_lines_json = config.file_lines().to_json_spans();
+        let lines = serde_json::to_string(&file_lines_json).unwrap();
+        args.push(lines);
+    }
 
     args.push("--config-path".into());
     args.push(config_path.to_str().map(ToOwned::to_owned).unwrap());
