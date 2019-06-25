@@ -195,10 +195,13 @@ fn rustfmt_args(config: &Config, config_path: &Path) -> Vec<String> {
         "--quiet".into(),
     ];
 
-    args.push("--file-lines".into());
-    let file_lines_json = config.file_lines().to_json_spans();
-    let lines: String = serde_json::to_string(&file_lines_json).unwrap();
-    args.push(lines);
+    // Otherwise --file-lines [] are treated as no lines rather than FileLines::all()
+    if config.file_lines().files().count() > 0 {
+        args.push("--file-lines".into());
+        let file_lines_json = config.file_lines().to_json_spans();
+        let lines = serde_json::to_string(&file_lines_json).unwrap();
+        args.push(lines);
+    }
 
     args.push("--config-path".into());
     args.push(config_path.to_str().map(ToOwned::to_owned).unwrap());
@@ -211,6 +214,8 @@ mod tests {
     use super::*;
     use crate::config::FmtConfig;
     use lsp_types::{Position, Range, TextEdit};
+    use rustfmt_nightly::FileLines;
+    use std::str::FromStr;
 
     #[test]
     fn calc_text_edits() {
@@ -243,5 +248,21 @@ mod tests {
             "  struct Upper ;\n\nstruct Lower ;",
             vec![(0, 0, 1, 0, "struct Upper;\n"), (2, 0, 3, 0, "struct Lower;\n")],
         );
+    }
+
+    #[test]
+    fn no_empty_file_lines() {
+        let config_with_lines = {
+            let mut config = Config::default();
+            config.set().file_lines(
+                FileLines::from_str(r#"[{ "file": "stdin", "range": [0, 5] }]"#).unwrap(),
+            );
+            config
+        };
+        let args = rustfmt_args(&config_with_lines, Path::new("dummy"));
+        assert!(args.join(" ").find("--file-lines").is_some());
+
+        let args = rustfmt_args(&Config::default(), Path::new("dummy"));
+        assert_eq!(args.join(" ").find("--file-lines"), None);
     }
 }
