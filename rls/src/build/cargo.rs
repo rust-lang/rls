@@ -391,9 +391,9 @@ impl Executor for RlsExecutor {
         _on_stdout_line: &mut dyn FnMut(&str) -> CargoResult<()>,
         _on_stderr_line: &mut dyn FnMut(&str) -> CargoResult<()>,
     ) -> CargoResult<()> {
-        // Use JSON output so that we can parse the rustc output.
-        // Filter first to work around "--error-format" being passed with
-        // CARGO_PIPELINING(?) enabled in Cargo.
+        // Enforce JSON output so that we can parse the rustc output by
+        // stripping --error-format if it was specified (e.g. Cargo pipelined
+        // build)
         let filtered_args = filter_arg(cargo_cmd.get_args(), "--error-format");
         cargo_cmd.args_replace(&filtered_args);
         cargo_cmd.arg("--error-format=json");
