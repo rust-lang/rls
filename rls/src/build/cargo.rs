@@ -759,16 +759,25 @@ fn dedup_flags(flag_str: &str) -> String {
     result
 }
 
+/// Removes a selected flag of a `--flag=VALUE` or `--flag VALUE` shape from `args` (command line args for Rust).
 fn filter_arg(args: &[OsString], key: &str) -> Vec<String> {
     let key_as_prefix = key.to_owned() + "=";
-    args.iter()
-        .zip(vec!["".into()].iter().chain(args.iter()))
-        .filter_map(|(x, prev)| {
-            x.to_str()
-                .filter(|x| !x.starts_with(&key_as_prefix) && prev != key)
-                .map(|x| x.to_string())
-        })
-        .collect()
+    let mut ret = vec![];
+
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        let first = arg.to_str().unwrap();
+
+        if first == key {
+            iter.next();
+        } else if first.starts_with(&key_as_prefix) {
+            // no-op
+        } else {
+            ret.push(first.to_owned());
+        }
+    }
+
+    ret
 }
 
 /// Error wrapper that tries to figure out which manifest the cause best relates to in the project
@@ -853,7 +862,7 @@ impl failure::Fail for ManifestAwareError {
 
 #[cfg(test)]
 mod test {
-    use super::dedup_flags;
+    use super::{dedup_flags, filter_arg};
 
     #[test]
     fn test_dedup_flags() {
@@ -885,5 +894,22 @@ mod test {
                 "-C link-args=-fuse-ld=gold -C target-cpu=native -C link-args=-fuse-ld=gold"
             ) == " -Clink-args=-fuse-ld=gold -Ctarget-cpu=native"
         );
+    }
+
+    #[test]
+    fn test_filter_arg() {
+        use std::ffi::OsString;
+
+        fn args(input: &str) -> Vec<OsString> {
+            input.split_whitespace().map(OsString::from).collect()
+        }
+
+        assert!(filter_arg(&args("--error-format=json"), "--error-format").is_empty());
+        assert!(filter_arg(&args("--error-format json"), "--error-format").is_empty());
+        assert_eq!(filter_arg(&args("-a --error-format=json"), "--error-format"), ["-a"]);
+        assert_eq!(filter_arg(&args("-a --error-format json"), "--error-format"), ["-a"]);
+        assert_eq!(filter_arg(&args("-a --error-format=json -b"), "--error-format"), ["-a", "-b"]);
+        assert_eq!(filter_arg(&args("-a --error-format json -b"), "--error-format"), ["-a", "-b"]);
+        assert_eq!(filter_arg(&args("-a -b -x"), "--error-format"), ["-a", "-b", "-x"]);
     }
 }
