@@ -995,6 +995,7 @@ fn client_lens_run() {
 }
 
 #[test]
+#[ignore] // Spurious in Rust CI, https://github.com/rust-lang/rust/issues/62225
 fn client_find_definitions() {
     const SRC: &str = r#"
         struct Foo {
