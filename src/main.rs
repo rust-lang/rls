@@ -18,6 +18,8 @@ extern crate cargo;
 extern crate env_logger;
 extern crate languageserver_types as ls_types;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate log;
 extern crate racer;
 extern crate rls_analysis as analysis;

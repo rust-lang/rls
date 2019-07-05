@@ -11,6 +11,7 @@
 use cargo::core::{PackageId, Shell, Workspace, Verbosity};
 use cargo::ops::{compile_with_exec, Executor, Context, Packages, CompileOptions, CompileMode, CompileFilter, Unit};
 use cargo::util::{Config as CargoConfig, ProcessBuilder, homedir, important_paths, ConfigValue, CargoResult};
+use serde_json;
 
 use build::{Internals, BufWriter, BuildResult, CompilationContext, Environment};
 use config::Config;
@@ -105,7 +106,7 @@ fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathB
         (opts, rustflags)
     };
 
-    let spec = Packages::from_flags(opts.all, &opts.exclude, &opts.package)
+    let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)
         .expect("Couldn't create Packages for Cargo");
 
     let compile_opts = CompileOptions {
@@ -127,8 +128,10 @@ fn run_cargo(exec: RlsExecutor, rls_config: Arc<Mutex<Config>>, build_dir: PathB
     }
 
     let mut restore_env = Environment::push(&env);
-    // FIXME use serialize for this rather than writing in out by hand.
-    restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(r#"{"output_file": null, "full_docs": false, "pub_only": false, "signatures": false, "borrow_data": false}"#)));
+    let mut save_config = ::data::config::Config::default();
+    save_config.pub_only = true;
+    let save_config = serde_json::to_string(&save_config).expect("could not serialise config");
+    restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(save_config)));
 
     compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
 }
@@ -207,23 +210,26 @@ impl Executor for RlsExecutor {
     }
 
     fn exec(&self, cargo_cmd: ProcessBuilder, id: &PackageId) -> CargoResult<()> {
-        trace!("exec");
         // Delete any stale data. We try and remove any json files with
         // the same crate name as Cargo would emit. This includes files
         // with the same crate name but different hashes, e.g., those
         // made with a different compiler.
         let cargo_args = cargo_cmd.get_args();
         let crate_name = parse_arg(cargo_args, "--crate-name").expect("no crate-name in rustc command line");
+        trace!("exec: {}", crate_name);
+
         let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
         let analysis_dir = Path::new(&out_dir).join("save-analysis");
         if let Ok(dir_contents) = read_dir(&analysis_dir) {
+            let lib_crate_name = "lib".to_owned() + &crate_name;
             for entry in dir_contents {
                 let entry = entry.expect("unexpected error reading save-analysis directory");
                 let name = entry.file_name();
                 let name = name.to_str().unwrap();
-                if name.starts_with(&crate_name) && name.ends_with(".json") {
-                    debug!("removing: `{:?}`", name);
-                    remove_file(entry.path()).expect("could not remove file");
+                if (name.starts_with(&crate_name) || name.starts_with(&lib_crate_name)) && name.ends_with(".json") {
+                    if let Err(e) = remove_file(entry.path()) {
+                        debug!("Error deleting file, {}: {}", name, e);
+                    }
                 }
             }
         }
@@ -285,7 +291,7 @@ impl Executor for RlsExecutor {
                 // as others may emit required metadata for dependent crate types
                 if a.starts_with("--emit") && is_final_crate_type && !self.workspace_mode {
                     cmd.arg("--emit=dep-info");
-                } else {
+                } else if a != "-Zsave-analysis" {
                     cmd.arg(a);
                 }
             }

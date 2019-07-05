@@ -9,7 +9,7 @@
 // except according to those terms.
 
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::path::PathBuf;
 use std::error::Error;
 
@@ -22,11 +22,32 @@ use vfs::FileContents;
 
 pub use ls_types::*;
 
-pub fn parse_file_path(uri: &Url) -> Result<PathBuf, Box<Error>> {
+#[derive(Debug)]
+pub enum UrlFileParseError {
+    InvalidScheme,
+    InvalidFilePath
+}
+
+impl Error for UrlFileParseError {
+    fn description(&self) -> &str {
+        match *self {
+            UrlFileParseError::InvalidScheme => "URI scheme is not `file`",
+            UrlFileParseError::InvalidFilePath => "Invalid file path in URI",
+        }
+    }
+}
+
+impl fmt::Display for UrlFileParseError where UrlFileParseError: Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.description())
+    }
+}
+
+pub fn parse_file_path(uri: &Url) -> Result<PathBuf, UrlFileParseError> {
     if uri.scheme() != "file" {
-        Err("URI scheme is not `file`".into())
+        Err(UrlFileParseError::InvalidScheme)
     } else {
-        uri.to_file_path().map_err(|_err| "Invalid file path in URI".into())
+        uri.to_file_path().map_err(|_err| UrlFileParseError::InvalidFilePath)
     }
 }
 
@@ -59,7 +80,7 @@ pub mod ls_util {
                             span::Column::new_zero_indexed(p.character as u32))
     }
 
-    pub fn location_to_rls(l: Location) -> Result<span::Span<span::ZeroIndexed>, Box<Error>> {
+    pub fn location_to_rls(l: Location) -> Result<span::Span<span::ZeroIndexed>, UrlFileParseError> {
         parse_file_path(&l.uri).map(|path| Span::from_range(range_to_rls(l.range), path))
     }
 
@@ -174,6 +195,24 @@ pub fn completion_item_from_racer_match(m : racer::Match) -> CompletionItem {
 }
 
 /* -----------------  JSON-RPC protocol types ----------------- */
+
+/// Supported initilization options that can be passed in the `initialize`
+/// request, under `initialization_options` key. These are specific to the RLS.
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(default)]
+pub struct InitializationOptions {
+    /// Should the build not be triggered immediately after receiving `initialize`
+    #[serde(rename="omitInitBuild")]
+    pub omit_init_build: bool,
+}
+
+impl Default for InitializationOptions {
+    fn default() -> Self {
+        InitializationOptions {
+            omit_init_build: false
+        }
+    }
+}
 
 /// An event-like (no response needed) notification message.
 #[derive(Debug, Serialize)]

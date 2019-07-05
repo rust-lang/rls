@@ -397,8 +397,13 @@ impl<O: Output> LsService<O> {
         self.output.success(id, ResponseData::Init(result));
 
         let root_path = params.root_path.map(PathBuf::from).expect("No root path");
+        let init_options: InitializationOptions =
+            params.initialization_options
+                      .and_then(|options| serde_json::from_value(options).ok())
+                      .unwrap_or_default();
+
         self.handler.init(root_path);
-        self.handler.inited().init(self.output.clone());
+        self.handler.inited().init(init_options, self.output.clone());
     }
 
     pub fn handle_message(&mut self) -> ServerStateChange {
