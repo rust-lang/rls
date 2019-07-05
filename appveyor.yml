@@ -15,6 +15,8 @@ install:
   # Install rust
   - rustup-init.exe -y --default-host %TARGET% --default-toolchain %CHANNEL%-%TARGET%
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  # Required for Racer autoconfiguration
+  - rustup component add rust-src
   # Print version info
   - rustc -Vv
   - cargo -V
@@ -22,14 +24,11 @@ install:
 
 build: false
 
-build_script:
-  # Build both build/test configurations to make sure both compile
-  - cargo build --release --verbose
-
 test_script:
-  # Test compilation reuses built dependencies during `cargo build --release`
-  - cargo test --release --verbose
+  # compile #[cfg(not(test))] code
+  - cargo build --verbose
+  - cargo test --verbose
 
 cache:
-  - target
-  - C:\Users\appveyor\.cargo\registry
+  - target -> Cargo.lock
+  - C:\Users\appveyor\.cargo\registry -> Cargo.lock

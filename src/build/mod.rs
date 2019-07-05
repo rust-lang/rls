@@ -8,6 +8,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Running builds as-needed for the server to answer questions.
+
 pub use self::cargo::make_cargo_config;
 
 use data::Analysis;
@@ -60,6 +62,7 @@ use self::plan::{Plan as BuildPlan, WorkStatus};
 /// used from multiple threads. It will spawn threads itself as necessary.
 //
 // See comment on `request_build` for implementation notes.
+#[derive(Clone)]
 pub struct BuildQueue {
     internals: Arc<Internals>,
     // The build queue - we only have one low and one high priority build waiting.
@@ -86,15 +89,16 @@ struct Internals {
     building: AtomicBool,
 }
 
+/// The result of a build request.
 #[derive(Debug)]
 pub enum BuildResult {
-    // Build was succesful, argument is warnings.
+    /// Build was successful, argument is warnings.
     Success(Vec<String>, Vec<Analysis>),
-    // Build finished with errors, argument is errors and warnings.
+    /// Build finished with errors, argument is errors and warnings.
     Failure(Vec<String>, Vec<Analysis>),
-    // Build was coelesced with another build.
+    /// Build was coalesced with another build.
     Squashed,
-    // There was an error attempting to build.
+    /// There was an error attempting to build.
     Err,
 }
 
@@ -119,7 +123,7 @@ struct CompilationContext {
     build_dir: Option<PathBuf>,
     /// Build plan, which should know all the inter-package/target dependencies
     /// along with args/envs. Only contains inter-package dep-graph for now.
-    build_plan: BuildPlan
+    build_plan: BuildPlan,
 }
 
 impl CompilationContext {
@@ -183,6 +187,7 @@ impl Build {
 }
 
 impl BuildQueue {
+    /// Construct a new build queue.
     pub fn new(vfs: Arc<Vfs>, config: Arc<Mutex<Config>>) -> BuildQueue {
         BuildQueue {
             internals: Arc::new(Internals::new(vfs, config)),
@@ -190,38 +195,44 @@ impl BuildQueue {
         }
     }
 
-    // Requests a build (see comments on BuildQueue for what that means).
-    //
-    // Now for the complicated bits. Not all builds are equal - they might have
-    // different arguments, build directory, etc. Lets call all such things the
-    // context for the build. We don't try and compare contexts but rely on some
-    // invariants:
-    // * context can only change if the build priority is `Cargo` or the build_dir
-    //   changes (in the latter case we upgrade the priority to `Cargo`).
-    // * If the context changes, all previous build requests can be ignored (even
-    //   if they change the context themselves).
-    // * If there are multiple requests with the same context, we can skip all
-    //   but the most recent.
-    // * A pending request is obsolete (and may be discarded) if a more recent
-    //   request has happened.
-    //
-    // ## implementation
-    //
-    // This layer of the build queue is single-threaded and we aim to return quickly.
-    // A single build thread is spawned to do any building (we never do parallel
-    // builds so that we don't hog the CPU, we might want to change that in the
-    // future).
-    //
-    // There is never any point in queuing more than one build of each priority
-    // (we might want to do a high priority build, then a low priority one). So
-    // our build queue is just a single slot (for each priority). We record if a
-    // build is waiting and if not, if a build is running.
-    //
-    // `and_then` is a closure to run after a build has completed or been squashed.
-    // It must return quickly and without blocking. If it has work to do, it should
-    // spawn a thread to do it.
+    /// Requests a build (see comments on `BuildQueue` for what that means).
+    ///
+    /// Now for the complicated bits. Not all builds are equal - they might have
+    /// different arguments, build directory, etc. Lets call all such things the
+    /// context for the build. We don't try and compare contexts but rely on
+    /// some invariants:
+    ///
+    /// * Context can only change if the build priority is `Cargo` or the
+    ///   `build_dir` changes (in the latter case we upgrade the priority to
+    ///   `Cargo`).
+    ///
+    /// * If the context changes, all previous build requests can be ignored
+    ///   (even if they change the context themselves).
+    ///
+    /// * If there are multiple requests with the same context, we can skip all
+    ///   but the most recent.
+    ///
+    /// * A pending request is obsolete (and may be discarded) if a more recent
+    ///   request has happened.
+    ///
+    /// ## Implementation
+    ///
+    /// This layer of the build queue is single-threaded and we aim to return
+    /// quickly.  A single build thread is spawned to do any building (we never
+    /// do parallel builds so that we don't hog the CPU, we might want to change
+    /// that in the future).
+    ///
+    /// There is never any point in queuing more than one build of each priority
+    /// (we might want to do a high priority build, then a low priority one). So
+    /// our build queue is just a single slot (for each priority). We record if
+    /// a build is waiting and if not, if a build is running.
+    ///
+    /// `and_then` is a closure to run after a build has completed or been
+    /// squashed.  It must return quickly and without blocking. If it has work
+    /// to do, it should spawn a thread to do it.
     pub fn request_build<F>(&self, new_build_dir: &Path, mut priority: BuildPriority, and_then: F)
-        where F: FnOnce(BuildResult) + Send + 'static
+    where
+        F: FnOnce(BuildResult) + Send + 'static,
     {
         trace!("request_build {:?}", priority);
         let needs_compilation_ctx_from_cargo = {
@@ -312,7 +323,8 @@ impl BuildQueue {
 
             // Normal priority threads sleep before starting up.
             if build.priority == BuildPriority::Normal {
-                let wait_to_build = { // Release lock before we sleep
+                let wait_to_build = {
+                    // Release lock before we sleep
                     let config = internals.config.lock().unwrap();
                     config.wait_to_build
                 };
@@ -320,19 +332,18 @@ impl BuildQueue {
                 thread::sleep(Duration::from_millis(wait_to_build));
 
                 // Check if a new build arrived while we were sleeping.
-                let interupt = {
+                let interrupt = {
                     let queued = queued.lock().unwrap();
                     queued.0.is_pending() || queued.1.is_pending()
                 };
-                if interupt {
+                if interrupt {
                     and_then(BuildResult::Squashed);
                     continue;
                 }
             }
 
             // Run the build.
-            let result = internals.run_build(&build.build_dir, build.priority,
-                                             &build.built_files);
+            let result = internals.run_build(&build.build_dir, build.priority, &build.built_files);
             // Assert that the build was not squashed.
             if let BuildResult::Squashed = result {
                 unreachable!();
@@ -354,7 +365,11 @@ impl BuildQueue {
     /// version of this file.
     pub fn mark_file_dirty(&self, file: PathBuf, version: FileVersion) {
         trace!("Marking file as dirty: {:?} ({})", file, version);
-        self.internals.dirty_files.lock().unwrap().insert(file, version);
+        self.internals
+            .dirty_files
+            .lock()
+            .unwrap()
+            .insert(file, version);
     }
 }
 
@@ -384,7 +399,11 @@ impl Internals {
         // Check if the build directory changed and update it.
         {
             let mut compilation_cx = self.compilation_cx.lock().unwrap();
-            if compilation_cx.build_dir.as_ref().map_or(true, |dir| dir != new_build_dir) {
+            if compilation_cx
+                .build_dir
+                .as_ref()
+                .map_or(true, |dir| dir != new_build_dir)
+            {
                 // We'll need to re-run cargo in this case.
                 assert!(priority == BuildPriority::Cargo);
                 (*compilation_cx).build_dir = Some(new_build_dir.to_owned());
@@ -398,19 +417,20 @@ impl Internals {
         }
 
         let result = self.build();
-        // On a successful build, clear dirty files that were successfuly built
+        // On a successful build, clear dirty files that were successfully built
         // now. It's possible that a build was scheduled with given files, but
         // user later changed them. These should still be left as dirty (not built).
         match *&result {
             BuildResult::Success(_, _) | BuildResult::Failure(_, _) => {
                 let mut dirty_files = self.dirty_files.lock().unwrap();
                 dirty_files.retain(|file, dirty_version| {
-                    built_files.get(file)
-                    .map(|built_version| built_version < dirty_version)
-                    .unwrap_or(false)
+                    built_files
+                        .get(file)
+                        .map(|built_version| built_version < dirty_version)
+                        .unwrap_or(false)
                 });
                 trace!("Files still dirty after the build: {:?}", *dirty_files);
-            },
+            }
             _ => {}
         };
         result
@@ -443,8 +463,7 @@ impl Internals {
             // If the build plan has already been cached, use it, unless Cargo
             // has to be specifically rerun (e.g. when build scripts changed)
             let work = {
-                let modified: Vec<_> = self.dirty_files.lock().unwrap()
-                                           .keys().cloned().collect();
+                let modified: Vec<_> = self.dirty_files.lock().unwrap().keys().cloned().collect();
                 let cx = self.compilation_cx.lock().unwrap();
                 cx.build_plan.prepare_work(&modified)
             };
@@ -468,7 +487,14 @@ impl Internals {
         let envs = &compile_cx.envs;
         let build_dir = compile_cx.build_dir.as_ref().unwrap();
         let env_lock = self.env_lock.as_facade();
-        rustc::rustc(&self.vfs, args, envs, build_dir, self.config.clone(), env_lock)
+        rustc::rustc(
+            &self.vfs,
+            args,
+            envs,
+            build_dir,
+            self.config.clone(),
+            env_lock,
+        )
     }
 }
 

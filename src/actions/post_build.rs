@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use build::BuildResult;
-use lsp_data::{NotificationMessage, PublishDiagnosticsParams, ls_util};
+use lsp_data::{ls_util, NotificationMessage, PublishDiagnosticsParams};
 use lsp_data::{NOTIFICATION_DIAGNOSTICS_BEGIN, NOTIFICATION_DIAGNOSTICS_END};
 use server::Output;
 use CRATE_BLACKLIST;
@@ -22,7 +22,7 @@ use Span;
 
 use analysis::AnalysisHost;
 use data::Analysis;
-use ls_types::{self, Diagnostic, Range, DiagnosticSeverity, NumberOrString};
+use ls_types::{self, Diagnostic, DiagnosticSeverity, NumberOrString, Range};
 use serde_json;
 use span::compiler::DiagnosticSpan;
 use url::Url;
@@ -49,8 +49,8 @@ impl<O: Output> PostBuildHandler<O> {
         ));
 
         match result {
-            BuildResult::Success(messages, new_analysis) |
-            BuildResult::Failure(messages, new_analysis) => {
+            BuildResult::Success(messages, new_analysis)
+            | BuildResult::Failure(messages, new_analysis) => {
                 thread::spawn(move || {
                     trace!("build - Success");
 
@@ -64,26 +64,20 @@ impl<O: Output> PostBuildHandler<O> {
                         self.reload_analysis_from_memory(new_analysis);
                     }
 
-                    self.out.notify(NotificationMessage::new(
-                        NOTIFICATION_DIAGNOSTICS_END,
-                        None,
-                    ));
+                    self.out
+                        .notify(NotificationMessage::new(NOTIFICATION_DIAGNOSTICS_END, None));
                 });
             }
             BuildResult::Squashed => {
                 trace!("build - Squashed");
-                self.out.notify(NotificationMessage::new(
-                    NOTIFICATION_DIAGNOSTICS_END,
-                    None,
-                ));
-            },
+                self.out
+                    .notify(NotificationMessage::new(NOTIFICATION_DIAGNOSTICS_END, None));
+            }
             BuildResult::Err => {
                 trace!("build - Error");
-                self.out.notify(NotificationMessage::new(
-                    NOTIFICATION_DIAGNOSTICS_END,
-                    None,
-                ));
-            },
+                self.out
+                    .notify(NotificationMessage::new(NOTIFICATION_DIAGNOSTICS_END, None));
+            }
         }
     }
 
@@ -99,8 +93,16 @@ impl<O: Output> PostBuildHandler<O> {
         }
 
         for msg in &messages {
-            if let Some(FileDiagnostic { file_path, diagnostic, suggestions }) = parse_diagnostics(msg) {
-                results.entry(file_path).or_insert_with(Vec::new).push((diagnostic, suggestions));
+            if let Some(FileDiagnostic {
+                file_path,
+                diagnostic,
+                suggestions,
+            }) = parse_diagnostics(msg)
+            {
+                results
+                    .entry(file_path)
+                    .or_insert_with(Vec::new)
+                    .push((diagnostic, suggestions));
             }
         }
 
@@ -110,7 +112,9 @@ impl<O: Output> PostBuildHandler<O> {
     fn reload_analysis_from_disk(&self) {
         let cwd = ::std::env::current_dir().unwrap();
         if self.use_black_list {
-            self.analysis.reload_with_blacklist(&self.project_path, &cwd, &CRATE_BLACKLIST).unwrap();
+            self.analysis
+                .reload_with_blacklist(&self.project_path, &cwd, &CRATE_BLACKLIST)
+                .unwrap();
         } else {
             self.analysis.reload(&self.project_path, &cwd).unwrap();
         }
@@ -118,12 +122,14 @@ impl<O: Output> PostBuildHandler<O> {
 
     fn reload_analysis_from_memory(&self, analysis: Vec<Analysis>) {
         let cwd = ::std::env::current_dir().unwrap();
-        for data in analysis.into_iter() {
-            if self.use_black_list {
-                self.analysis.reload_from_analysis(data, &self.project_path, &cwd, &CRATE_BLACKLIST).unwrap();
-            } else {
-                self.analysis.reload_from_analysis(data, &self.project_path, &cwd, &[]).unwrap();
-            }
+        if self.use_black_list {
+            self.analysis
+                .reload_from_analysis(analysis, &self.project_path, &cwd, &CRATE_BLACKLIST)
+                .unwrap();
+        } else {
+            self.analysis
+                .reload_from_analysis(analysis, &self.project_path, &cwd, &[])
+                .unwrap();
         }
     }
 }
@@ -153,7 +159,7 @@ struct CompilerMessage {
 
 #[derive(Debug, Deserialize)]
 struct CompilerMessageCode {
-    code: String
+    code: String,
 }
 
 fn parse_diagnostics(message: &str) -> Option<FileDiagnostic> {
@@ -220,7 +226,8 @@ fn make_suggestions(children: Vec<CompilerMessage>, file: &Path) -> Vec<Suggesti
 }
 
 fn primary_span(message: &CompilerMessage) -> Span {
-    let primary = message.spans
+    let primary = message
+        .spans
         .iter()
         .filter(|x| x.is_primary)
         .next()
@@ -229,17 +236,14 @@ fn primary_span(message: &CompilerMessage) -> Span {
     primary.rls_span().zero_indexed()
 }
 
-fn emit_notifications<O: Output>(
-    build_results: &BuildResults,
-    show_warnings: bool,
-    out: &O,
-) {
+fn emit_notifications<O: Output>(build_results: &BuildResults, show_warnings: bool, out: &O) {
     let cwd = ::std::env::current_dir().unwrap();
 
     for (path, diagnostics) in build_results {
         let params = PublishDiagnosticsParams {
             uri: Url::from_file_path(cwd.join(path)).unwrap(),
-            diagnostics: diagnostics.iter()
+            diagnostics: diagnostics
+                .iter()
                 .filter_map(|&(ref d, _)| {
                     if show_warnings || d.severity != Some(DiagnosticSeverity::Warning) {
                         Some(d.clone())

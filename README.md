@@ -64,9 +64,6 @@ rustup component add rust-analysis --toolchain nightly
 rustup component add rust-src --toolchain nightly
 ```
 
-If you've never set up Racer before, you'll need to set up your RUST_SRC_PATH variable. To do so, 
-you can follow the [Racer configuration steps](https://github.com/phildawes/racer#configuration)
-
 ## Running
 
 Though the RLS is built to work with many IDEs and editors, we currently use
