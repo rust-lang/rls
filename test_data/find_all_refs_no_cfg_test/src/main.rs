@@ -12,9 +12,8 @@ struct Bar {
 }
 
 #[test]
-pub fn test_fn() {
-    let bar = Bar { x: 4 };
-    println!("bar: {}", bar.x);
+struct Bar {
+    x: u64,
 }
 
 pub fn main() {

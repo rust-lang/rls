@@ -15,7 +15,7 @@ use rustfmt::config::WriteMode;
 
 const DEFAULT_WAIT_TO_BUILD: u64 = 500;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     pub sysroot: Option<String>,
     pub target: Option<String>,
@@ -36,7 +36,7 @@ impl Config {
             rustflags: None,
             build_lib: false,
             build_bin: None,
-            cfg_test: false,
+            cfg_test: true,
             unstable_features: false,
             wait_to_build: DEFAULT_WAIT_TO_BUILD,
             show_warnings: true,

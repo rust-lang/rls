@@ -13,8 +13,9 @@
 // the RLS as usual and prints the JSON result back on the command line.
 
 use analysis::{AnalysisHost, Target};
-use vfs::Vfs;
+use config::Config;
 use server::{self, ServerMessage, Request, Notification, Method, LsService, ParseError, ResponseData};
+use vfs::Vfs;
 
 use ls_types::{ClientCapabilities, TextDocumentPositionParams, TextDocumentIdentifier, TraceOption, Position, InitializeParams, RenameParams};
 use std::time::Duration;
@@ -231,6 +232,7 @@ fn init() -> Sender<ServerMessage> {
 
     let service = LsService::new(analysis,
                                  vfs,
+                                 Arc::new(Mutex::new(Config::default())),
                                  Box::new(ChannelMsgReader::new(receiver)),
                                  PrintlnOutput);
     thread::spawn(move || LsService::run(service));

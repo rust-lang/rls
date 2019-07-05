@@ -1,5 +1,5 @@
 [package]
-name = "bin_lib"
+name = "bin_lib_no_cfg_test"
 version = "0.1.0"
 authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
 
