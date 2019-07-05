@@ -13,51 +13,55 @@
 
 mod harness;
 
-use std::sync::{Arc, Mutex};
-use env_logger;
-use serde_json;
-
 use analysis;
+use actions::requests;
 use config::{Config, Inferrable};
-use server::{self as ls_server, ServerMessage, Request, Method};
+use server::{self as ls_server, Request};
 use jsonrpc_core;
 use vfs;
 
 use self::harness::{expect_messages, ExpectedMessage, init_env, mock_server, mock_server_with_config, RecordOutput, src};
 
-use url::Url;
 use ls_types::*;
 use lsp_data::InitializationOptions;
+
+use env_logger;
+use serde_json;
+use std::marker::PhantomData;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use url::Url;
 
-impl ServerMessage {
-    pub fn initialize(id: usize, root_path: Option<String>) -> ServerMessage {
-         Self::initialize_with_opts(id, root_path, None)
+pub fn initialize<'a>(id: usize, root_path: Option<String>) -> Request<'a, ls_server::InitializeRequest> {
+     initialize_with_opts(id, root_path, None)
+}
+
+pub fn initialize_with_opts<'a>(id: usize, root_path: Option<String>, initialization_options: Option<InitializationOptions>) -> Request<'a, ls_server::InitializeRequest> {
+    let init_opts = initialization_options.map(|val| serde_json::to_value(val).unwrap());
+    let params = InitializeParams {
+        process_id: None,
+        root_path,
+        root_uri: None,
+        initialization_options: init_opts,
+        capabilities: ClientCapabilities {
+            workspace: None,
+            text_document: None,
+            experimental: None,
+        },
+        trace: TraceOption::Off,
+    };
+    Request {
+        id,
+        params,
+        _action: PhantomData,
     }
+}
 
-    pub fn initialize_with_opts(id: usize, root_path: Option<String>, initialization_options: Option<InitializationOptions>) -> ServerMessage {
-        let init_opts = initialization_options
-                            .map(|val| serde_json::to_value(val).unwrap());
-
-        ServerMessage::Request(Request {
-            id: id,
-            method: Method::Initialize(InitializeParams {
-                process_id: None,
-                root_path,
-                root_uri: None,
-                initialization_options: init_opts,
-                capabilities: ClientCapabilities {
-                    workspace: None,
-                    text_document: None,
-                    experimental: None,
-                },
-                trace: TraceOption::Off,
-            })
-        })
-    }
-
-    pub fn request(id: usize, method: Method) -> ServerMessage {
-        ServerMessage::Request(Request { id: id, method: method })
+pub fn request<'a, T: ls_server::RequestAction<'a>>(id: usize, params: T::Params) -> Request<'a, T> {
+    Request {
+        id,
+        params,
+        _action: PhantomData,
     }
 }
 
@@ -71,11 +75,11 @@ fn test_goto_def() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::GotoDefinition(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::Definition>(11, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -103,11 +107,11 @@ fn test_hover() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::Hover(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::Hover>(11, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -125,6 +129,49 @@ fn test_hover() {
 }
 
 #[test]
+fn test_workspace_symbol() {
+    let (cache, _tc) = init_env("workspace_symbol");
+
+    let root_path = cache.abs_path(Path::new("."));
+
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::WorkspaceSymbol>(42, WorkspaceSymbolParams {
+            query: "nemo".to_owned(),
+        }).to_string(),
+    ];
+
+    let mut config = Config::default();
+    config.cfg_test = true;
+    let (mut server, results) = mock_server_with_config(messages, config);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
+
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(42)).expect_contains(r#""id":42"#)
+                                                                     // in main.rs
+                                                                     .expect_contains(r#"main.rs"#)
+                                                                     .expect_contains(r#""name":"nemo""#)
+                                                                     .expect_contains(r#""kind":12"#)
+                                                                     .expect_contains(r#""range":{"start":{"line":11,"character":11},"end":{"line":11,"character":15}}"#)
+                                                                     .expect_contains(r#""containerName":"x""#)
+                                                                     
+                                                                     // in foo.rs
+                                                                     .expect_contains(r#"foo.rs"#)
+                                                                     .expect_contains(r#""name":"nemo""#)
+                                                                     .expect_contains(r#""kind":2"#)
+                                                                     .expect_contains(r#""range":{"start":{"line":0,"character":4},"end":{"line":0,"character":8}}"#)
+                                                                     .expect_contains(r#""containerName":"foo""#)]);
+}
+
+#[test]
 fn test_find_all_refs() {
     let (mut cache, _tc) = init_env("find_all_refs");
 
@@ -134,12 +181,12 @@ fn test_find_all_refs() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::References(ReferenceParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::References>(42, ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
-        })),
+        }).to_string(),
     ];
 
     let mut config = Config::default();
@@ -170,12 +217,12 @@ fn test_find_all_refs_no_cfg_test() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::References(ReferenceParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::References>(42, ReferenceParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 10, "Bar")),
             context: ReferenceContext { include_declaration: true }
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -199,7 +246,7 @@ fn test_borrow_error() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -223,11 +270,11 @@ fn test_highlight() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::DocumentHighlight(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::DocumentHighlight>(42, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url),
             position: cache.mk_ls_position(src(&source_file_path, 22, "world"))
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -255,12 +302,12 @@ fn test_rename() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::Rename(RenameParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::Rename>(42, RenameParams {
             text_document: text_doc,
             position: cache.mk_ls_position(src(&source_file_path, 22, "world")),
             new_name: "foo".to_owned()
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -289,15 +336,15 @@ fn test_reformat() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::Formatting(DocumentFormattingParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::Formatting>(42, DocumentFormattingParams {
             text_document: text_doc,
             options: FormattingOptions {
                 tab_size: 4,
                 insert_spaces: true,
                 properties: ::std::collections::HashMap::new(),
             },
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -324,8 +371,8 @@ fn test_reformat_with_range() {
     let url = Url::from_file_path(cache.abs_path(&source_file_path)).expect("couldn't convert file path to URL");
     let text_doc = TextDocumentIdentifier::new(url);
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(42, Method::RangeFormatting(DocumentRangeFormattingParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::RangeFormatting>(42, DocumentRangeFormattingParams {
             text_document: text_doc,
             range: Range {
                 start: Position { line: 12, character: 0 },
@@ -336,7 +383,7 @@ fn test_reformat_with_range() {
                 insert_spaces: true,
                 properties: ::std::collections::HashMap::new(),
             },
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -361,7 +408,7 @@ fn test_multiple_binaries() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
     let mut config = Config::default();
@@ -388,15 +435,15 @@ fn test_completion() {
     let text_doc = TextDocumentIdentifier::new(url);
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(11, Method::Completion(TextDocumentPositionParams {
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::Completion>(11, TextDocumentPositionParams {
             text_document: text_doc.clone(),
             position: cache.mk_ls_position(src(&source_file_path, 22, "rld"))
-        })),
-        ServerMessage::request(22, Method::Completion(TextDocumentPositionParams {
+        }).to_string(),
+        request::<requests::Completion>(22, TextDocumentPositionParams {
             text_document: text_doc.clone(),
             position: cache.mk_ls_position(src(&source_file_path, 25, "x)"))
-        })),
+        }).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -424,7 +471,7 @@ fn test_bin_lib_project() {
     let root_path = cache.abs_path(Path::new("."));
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
     let mut config = Config::default();
@@ -447,7 +494,7 @@ fn test_bin_lib_project_no_cfg_test() {
     let root_path = cache.abs_path(Path::new("."));
 
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
     ];
 
     let mut config = Config::default();
@@ -472,7 +519,7 @@ fn test_bin_lib_project_no_cfg_test() {
 //     let root_path = cache.abs_path(Path::new("."));
 
 //     let messages = vec![
-//         ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())),
+//         initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
 //     ];
 
 //     let mut config = Config::default();
@@ -498,7 +545,7 @@ fn test_infer_lib() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -518,7 +565,7 @@ fn test_infer_bin() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -538,7 +585,7 @@ fn test_infer_custom_bin() {
 
     let root_path = cache.abs_path(Path::new("."));
     let messages = vec![
-        ServerMessage::initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned()))
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -559,9 +606,9 @@ fn test_omit_init_build() {
     let root_path = cache.abs_path(Path::new("."));
     let root_path = root_path.as_os_str().to_str().map(|x| x.to_owned());
     let init_options = Some(InitializationOptions { omit_init_build: true });
-    let initialize = ServerMessage::initialize_with_opts(0, root_path, init_options);
+    let initialize = initialize_with_opts(0, root_path, init_options);
 
-    let messages = vec![initialize];
+    let messages = vec![initialize.to_string()];
 
     let (mut server, results) = mock_server(messages);
 
@@ -616,20 +663,20 @@ fn test_find_impls() {
     // e.g., https://travis-ci.org/rust-lang-nursery/rls/jobs/265339002
 
     let messages = vec![
-        ServerMessage::initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())),
-        ServerMessage::request(1, Method::FindImpls(TextDocumentPositionParams {
+        initialize(0,root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string(),
+        request::<requests::FindImpls>(1, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url.clone()),
             position: cache.mk_ls_position(src(&source_file_path, 13, "Bar"))
-        })),
-        ServerMessage::request(2, Method::FindImpls(TextDocumentPositionParams {
+        }).to_string(),
+        request::<requests::FindImpls>(2, TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url.clone()),
             position: cache.mk_ls_position(src(&source_file_path, 16, "Super"))
-        })),
+        }).to_string(),
         // Does not work on Travis
-        // ServerMessage::request(3, Method::FindImpls(TextDocumentPositionParams {
+        // request::<requests::FindImpls>(3, TextDocumentPositionParams {
         //     text_document: TextDocumentIdentifier::new(url),
         //     position: cache.mk_ls_position(src(&source_file_path, 20, "Eq"))
-        // })),
+        // })).to_string(),
     ];
 
     let (mut server, results) = mock_server(messages);
@@ -665,4 +712,27 @@ fn test_find_impls() {
     //     ExpectedMessage::new(Some(3))
     //         .expect_contains(r#""range":{"start":{"line":19,"character":12},"end":{"line":19,"character":15}}"#)
     // ]);
+}
+
+#[test]
+fn test_handle_utf8_directory() {
+    let (cache, _tc) = init_env("unicødë");
+
+    let root_path = cache.abs_path(Path::new("."));
+    let root_url = Url::from_directory_path(&root_path).unwrap();
+    let messages = vec![
+        initialize(0, root_path.as_os_str().to_str().map(|x| x.to_owned())).to_string()
+    ];
+
+    let (mut server, results) = mock_server(messages);
+    // Initialise and build.
+    assert_eq!(ls_server::LsService::handle_message(&mut server),
+               ls_server::ServerStateChange::Continue);
+    expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
+                                       ExpectedMessage::new(None)
+                                           .expect_contains(root_url.path())
+                                           .expect_contains("struct is never used: `Unused`"),
+                                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }

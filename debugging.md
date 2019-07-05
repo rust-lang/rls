@@ -198,7 +198,8 @@ On Linux:
 export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib:$LD_LIBRARY_PATH
 ```
 
-On MacOS:
+On MacOS (this might only work if SIP is disabled (depending on how you run the
+RLS), you could modify the environment in the client):
 
 ```
 export DYLD_LIBRARY_PATH=$(rustc --print sysroot)/lib:$DYLD_LIBRARY_PATH
