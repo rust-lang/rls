@@ -8,10 +8,10 @@ reporting issues, writing documentation, writing tests, writing code, and
 implementing clients are all extremely valuable.
 
 Here is the list of known [issues](https://github.com/rust-lang-nursery/rls/issues).
-These are [good issues to start on](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aopen+is%3Aissue+label%3Aeasy).
+These are [good issues to start on](https://github.com/rust-lang-nursery/rls/issues?q=is%3Aissue+is%3Aopen+label%3Agood-first-issue).
 
 We're happy to help however we can. The best way to get help is either to
-leave a comment on an issue in this repo, or to ping us (nrc or jntrnr) in #rust-tools
+leave a comment on an issue in this repo, or to ping us (nrc) in #rust-dev-tools
 on IRC.
 
 We'd love for existing and new tools to use the RLS. If that sounds interesting
@@ -301,10 +301,29 @@ the RLS.
 
 The RLS uses some custom extensions to the Language Server Protocol.
 
-* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent from the RLS
-  to a client before a build starts and before any diagnostics from a build are sent.
-* `rustDocument/diagnosticsEnd`: notification, no arguments. Sent from the RLS
-  to a client when a build is complete (successfully or not, or even skipped)
-  and all post-build analysis by the RLS is complete.
+#### RLS to LSP Client
+
+These are all sent from the RLS to an LSP client and are only used to improve
+the user experience by showing progress indicators.
+
+* `rustDocument/diagnosticsBegin`: notification, no arguments. Sent before a
+  build starts and before any diagnostics from a build are sent.
+* `rustDocument/diagnosticsEnd`: notification, no arguments. Sent when a build
+  is complete (successfully or not, or even skipped) and all post-build analysis
+  by the RLS is complete.
 * `rustWorkspace/deglob`: message sent from the client to the RLS to initiate a
   deglob refactoring.
+
+#### LSP Client to RLS
+
+The following request is to support Rust specific features.
+
+* `rustDocument/implementations`: request
+  params: [`TextDocumentPositionParams`]
+  result: [`Location`]`[]`
+
+  List all implementation blocks for a trait, struct, or enum denoted by the
+  given text document position.
+
+[`TextDocumentPositionParams`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#textdocumentpositionparams)
+[`Location`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#location)

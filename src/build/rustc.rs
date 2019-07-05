@@ -26,7 +26,8 @@ use self::syntax::ast;
 use self::syntax::codemap::{FileLoader, RealFileLoader};
 
 use config::Config;
-use build::{BufWriter, BuildResult, Environment};
+use build::{BufWriter, BuildResult};
+use build::environment::{Environment, EnvironmentLockFacade};
 use data::Analysis;
 use vfs::Vfs;
 
@@ -38,7 +39,7 @@ use std::sync::{Arc, Mutex};
 
 
 // Runs a single instance of rustc. Runs in-process.
-pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path, rls_config: Arc<Mutex<Config>>) -> BuildResult {
+pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>>, build_dir: &Path, rls_config: Arc<Mutex<Config>>, env_lock: EnvironmentLockFacade) -> BuildResult {
     trace!("rustc - args: `{:?}`, envs: {:?}, build dir: {:?}", args, envs, build_dir);
 
     let changed = vfs.get_cached_files();
@@ -49,7 +50,9 @@ pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>
         local_envs.insert(String::from("RUST_LOG"), None);
     }
 
-    let _restore_env = Environment::push(&local_envs);
+    let (guard, _) = env_lock.lock();
+    let _restore_env = Environment::push_with_lock(&local_envs, guard);
+
     let buf = Arc::new(Mutex::new(vec![]));
     let err_buf = buf.clone();
     let args = args.to_owned();
@@ -76,6 +79,7 @@ pub fn rustc(vfs: &Vfs, args: &[String], envs: &HashMap<String, Option<OsString>
         .unwrap());
 
     let analysis = analysis.lock().unwrap().clone();
+    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or(vec![]);
     match exit_code {
         Ok(0) => BuildResult::Success(stderr_json_msg, analysis),
         _ => BuildResult::Failure(stderr_json_msg, analysis),

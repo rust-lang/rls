@@ -1,4 +1,4 @@
-pub struct MemberLibStruct;
+struct UnusedLib;
 
 #[cfg(test)]
 mod tests {

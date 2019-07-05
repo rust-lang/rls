@@ -107,8 +107,14 @@ squiggles to see the text of the error.
 
 ## Configuration
 
-The RLS can be configured on a per-project basis by adding a file called
-`.rls.toml` or `rls.toml` to the project root (i.e., next to Cargo.toml).
+The RLS can be configured on a per-project basis, using the official Visual
+Studio Code extension this will be done via the workspace settings file
+`settings.json`.
+
+Other editors will have their own way of sending the
+[workspace/DidChangeConfiguration](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#workspace_didChangeConfiguration)
+method.
+
 Entries in this file will affect how the RLS operates and how it builds your
 project.
 
@@ -123,7 +129,7 @@ Currently we accept the following options:
   running `cargo test` rather than `cargo build`. I.e., compiles (but does not
   run) test code.
 * `unstable_features` (`bool`, defaults to `false`) enables unstable features.
-  Currently, this includes renaming and formatting.
+  Currently, this includes only range formatting.
 * `sysroot` (`String`, defaults to `""`) if the given string is not empty, use
   the given path as the sysroot for all rustc invocations instead of trying to
   detect the sysroot automatically
@@ -140,23 +146,7 @@ Currently we accept the following options:
 
 ## Troubleshooting
 
-If you get an error like `error while loading shared libraries` while starting
-up the RLS, you should try the following:
-
-On Linux:
-
-```
-export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib:$LD_LIBRARY_PATH
-```
-
-On MacOS:
-
-```
-export DYLD_LIBRARY_PATH=$(rustc --print sysroot)/lib:$DYLD_LIBRARY_PATH
-```
-
-(This should not happen if you are using Rustup, only if building and running
-from source).
+For tips on debugging and troubleshooting, see [debugging.md](debugging.md).
 
 ## Contributing
 

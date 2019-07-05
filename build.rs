@@ -1,4 +1,4 @@
-// Copyright 2016 The Rust Project Developers. See the COPYRIGHT
+// Copyright 2016-2017 The Rust Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution and at
 // http://rust-lang.org/COPYRIGHT.
 //
@@ -8,9 +8,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-// The original code is [rustup.rs][rustup]
-// [rustup]: https://github.com/rust-lang-nursery/rustup.rs/tree/a1c6be19add9c99f8d8868ec384aa76057fe7f70
-
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -18,6 +15,9 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=CFG_RELEASE_CHANNEL");
+
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
     File::create(out_dir.join("commit-info.txt"))
@@ -30,8 +30,16 @@ fn main() {
 // (git not installed or if this is not a git repository) just return an empty string.
 fn commit_info() -> String {
     match (commit_hash(), commit_date()) {
-        (Some(hash), Some(date)) => format!(" ({} {})", hash.trim_right(), date),
+        (Some(hash), Some(date)) => format!("{} ({} {})", channel(), hash.trim_right(), date),
         _ => String::new(),
+    }
+}
+
+fn channel() -> String {
+    if let Ok(channel) = env::var("CFG_RELEASE_CHANNEL") {
+        channel
+    } else {
+        "nightly".to_owned()
     }
 }
 

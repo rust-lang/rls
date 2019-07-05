@@ -13,7 +13,7 @@ use std::fmt::{self, Debug};
 use std::path::PathBuf;
 use std::error::Error;
 
-use analysis::raw;
+use analysis::DefKind;
 use url::Url;
 use serde::Serialize;
 use span;
@@ -142,22 +142,22 @@ pub mod ls_util {
     }
 }
 
-pub fn source_kind_from_def_kind(k: raw::DefKind) -> SymbolKind {
+pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     match k {
-        raw::DefKind::Enum => SymbolKind::Enum,
-        raw::DefKind::Tuple => SymbolKind::Array,
-        raw::DefKind::Struct => SymbolKind::Class,
-        raw::DefKind::Union => SymbolKind::Class,
-        raw::DefKind::Trait => SymbolKind::Interface,
-        raw::DefKind::Function |
-        raw::DefKind::Method |
-        raw::DefKind::Macro => SymbolKind::Function,
-        raw::DefKind::Mod => SymbolKind::Module,
-        raw::DefKind::Type => SymbolKind::Interface,
-        raw::DefKind::Local |
-        raw::DefKind::Static |
-        raw::DefKind::Const |
-        raw::DefKind::Field => SymbolKind::Variable,
+        DefKind::Enum => SymbolKind::Enum,
+        DefKind::Tuple => SymbolKind::Array,
+        DefKind::Struct => SymbolKind::Class,
+        DefKind::Union => SymbolKind::Class,
+        DefKind::Trait => SymbolKind::Interface,
+        DefKind::Function |
+        DefKind::Method |
+        DefKind::Macro => SymbolKind::Function,
+        DefKind::Mod => SymbolKind::Module,
+        DefKind::Type => SymbolKind::Interface,
+        DefKind::Local |
+        DefKind::Static |
+        DefKind::Const |
+        DefKind::Field => SymbolKind::Variable,
     }
 }
 

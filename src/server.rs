@@ -36,6 +36,11 @@ pub fn server_failure(id: jsonrpc::Id, error: jsonrpc::Error) -> jsonrpc::Failur
 #[allow(non_upper_case_globals)]
 pub const REQUEST__Deglob: &'static str = "rustWorkspace/deglob";
 
+#[cfg(test)]
+#[allow(non_upper_case_globals)]
+pub const REQUEST__FindImpls: &'static str = "rustDocument/implementations";
+
+
 #[derive(Debug, Serialize)]
 pub struct Ack;
 
@@ -290,6 +295,7 @@ messages! {
         "textDocument/codeAction" => CodeAction(CodeActionParams);
         "workspace/executeCommand" => ExecuteCommand(ExecuteCommandParams);
         "rustWorkspace/deglob" => Deglob(Location);
+        "rustDocument/implementations" => FindImpls(TextDocumentPositionParams);
     }
     notifications {
         "initialized" => Initialized;
@@ -383,11 +389,11 @@ impl<O: Output> LsService<O> {
                 execute_command_provider: Some(ExecuteCommandOptions {
                     commands: vec!["rls.applySuggestion".to_owned()],
                 }),
+                rename_provider: Some(true),
                 // These are supported if the `unstable_features` option is set.
                 // We'll update these capabilities dynamically when we get config
                 // info from the client.
                 document_range_formatting_provider: Some(false),
-                rename_provider: Some(false),
 
                 code_lens_provider: None,
                 document_on_type_formatting_provider: None,
@@ -518,6 +524,7 @@ impl<O: Output> LsService<O> {
                 Deglob(params) => { action: deglob };
                 ExecuteCommand(params) => { action: execute_command };
                 CodeAction(params) => { action: code_action };
+                FindImpls(params) => { action: find_impls };
             }
             notifications {
                 Initialized => {{ self.handler.inited().initialized(self.output.clone()) }};

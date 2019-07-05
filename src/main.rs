@@ -23,9 +23,10 @@ extern crate lazy_static;
 extern crate log;
 extern crate racer;
 extern crate rls_analysis as analysis;
-extern crate rls_vfs as vfs;
-extern crate rls_span as span;
 extern crate rls_data as data;
+extern crate rls_rustc as rustc_shim;
+extern crate rls_span as span;
+extern crate rls_vfs as vfs;
 extern crate rustfmt_nightly as rustfmt;
 extern crate serde;
 #[macro_use]
@@ -34,11 +35,10 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
-extern crate toml;
 extern crate url;
-extern crate url_serde;
 extern crate jsonrpc_core;
 
+use std::env;
 use std::sync::Arc;
 
 mod actions;
@@ -54,14 +54,25 @@ mod test;
 // Timeout = 1.5s (totally arbitrary).
 const COMPILER_TIMEOUT: u64 = 1500;
 
+const CRATE_BLACKLIST: [&'static str; 10] = [
+    "libc", "typenum", "alloc", "idna", "openssl", "libunicode_normalization", "serde",
+    "serde_json", "librustc_serialize", "libunicode_segmentation",
+];
+
+const RUSTC_SHIM_ENV_VAR_NAME: &'static str = "RLS_RUSTC_SHIM";
+
 type Span = span::Span<span::ZeroIndexed>;
 
 pub fn main() {
     env_logger::init().unwrap();
 
+    if env::var(RUSTC_SHIM_ENV_VAR_NAME).map(|v| v != "0").unwrap_or(false) {
+        rustc_shim::run();
+    }
+
     if let Some(first_arg) = ::std::env::args().skip(1).next() {
         match first_arg.as_str() {
-            "--version" | "-V" => println!("rls {}", version()),
+            "--version" | "-V" => println!("rls-preview {}", version()),
             "--help" | "-h" => println!("{}", help()),
             _ => cmd::run(),
         }
@@ -75,8 +86,7 @@ pub fn main() {
 }
 
 fn version() -> &'static str {
-    // FIXME when we have non-nightly channels, we shouldn't hardwire the "nightly" string here.
-    concat!(env!("CARGO_PKG_VERSION"), "-nightly", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
+    concat!(env!("CARGO_PKG_VERSION"), "-", include_str!(concat!(env!("OUT_DIR"), "/commit-info.txt")))
 }
 fn help() -> &'static str {
     r#" 

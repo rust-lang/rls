@@ -1,7 +1,6 @@
 [package]
-name = "member_bin"
+name = "infer_bin"
 version = "0.1.0"
 authors = ["Igor Matuszewski <Xanewok@gmail.com>"]
 
 [dependencies]
-member_lib = { path = "../member_lib" }

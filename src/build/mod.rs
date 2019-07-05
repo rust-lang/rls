@@ -8,25 +8,31 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+pub use self::cargo::make_cargo_config;
+
 use data::Analysis;
 use vfs::Vfs;
 use config::Config;
 
+use self::environment::EnvironmentLock;
+
 use std::boxed::FnBox;
 use std::collections::HashMap;
-use std::env;
 use std::ffi::OsString;
 use std::io::{self, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-
+mod environment;
 mod cargo;
 mod rustc;
+pub mod plan;
+
+use self::plan::Plan as BuildPlan;
 
 /// Manages builds.
 ///
@@ -57,7 +63,7 @@ mod rustc;
 pub struct BuildQueue {
     internals: Arc<Internals>,
     // The build queue - we only have one low and one high priority build waiting.
-    // (low, high) priority builds. 
+    // (low, high) priority builds.
     // This lock should only be held transiently.
     queued: Arc<Mutex<(Build, Build)>>,
 }
@@ -68,6 +74,7 @@ struct Internals {
     // This can be further expanded for multi-crate target configuration.
     // This lock should only be held transiently.
     compilation_cx: Arc<Mutex<CompilationContext>>,
+    env_lock: Arc<EnvironmentLock>,
     vfs: Arc<Vfs>,
     // This lock should only be held transiently.
     config: Arc<Mutex<Config>>,
@@ -77,9 +84,9 @@ struct Internals {
 #[derive(Debug)]
 pub enum BuildResult {
     // Build was succesful, argument is warnings.
-    Success(Vec<String>, Option<Analysis>),
+    Success(Vec<String>, Vec<Analysis>),
     // Build finished with errors, argument is errors and warnings.
-    Failure(Vec<String>, Option<Analysis>),
+    Failure(Vec<String>, Vec<Analysis>),
     // Build was coelesced with another build.
     Squashed,
     // There was an error attempting to build.
@@ -97,14 +104,17 @@ pub enum BuildPriority {
     Normal,
 }
 
-// Information passed to Cargo/rustc to build.
+/// Information passed to Cargo/rustc to build.
 #[derive(Debug)]
 struct CompilationContext {
-    // args and envs are saved from Cargo and passed to rustc.
+    /// args and envs are saved from Cargo and passed to rustc.
     args: Vec<String>,
     envs: HashMap<String, Option<OsString>>,
-    // The build directory is supplied by the client and passed to Cargo.
+    /// The build directory is supplied by the client and passed to Cargo.
     build_dir: Option<PathBuf>,
+    /// Build plan, which should know all the inter-package/target dependencies
+    /// along with args/envs. Only contains inter-package dep-graph for now.
+    build_plan: BuildPlan
 }
 
 impl CompilationContext {
@@ -113,6 +123,7 @@ impl CompilationContext {
             args: vec![],
             envs: HashMap::new(),
             build_dir: None,
+            build_plan: BuildPlan::new(),
         }
     }
 }
@@ -337,6 +348,9 @@ impl Internals {
             compilation_cx: Arc::new(Mutex::new(CompilationContext::new())),
             vfs,
             config,
+            // Since environment is global mutable state and we can run multiple server
+            // instances, be sure to use a global lock to ensure env var consistency
+            env_lock: EnvironmentLock::get(),
             building: AtomicBool::new(false),
         }
     }
@@ -385,16 +399,16 @@ impl Internals {
 
         // Don't hold this lock when we run Cargo.
         let needs_to_run_cargo = self.compilation_cx.lock().unwrap().args.is_empty();
-        let workspace_mode = self.config.lock().unwrap().workspace_mode; 
- 
-        if workspace_mode || needs_to_run_cargo { 
+        let workspace_mode = self.config.lock().unwrap().workspace_mode;
+
+        if workspace_mode || needs_to_run_cargo {
             let result = cargo::cargo(self);
- 
-            match result { 
-                BuildResult::Err => return BuildResult::Err, 
-                _ if workspace_mode => return result, 
-                _ => {}, 
-            }; 
+
+            match result {
+                BuildResult::Err => return BuildResult::Err,
+                _ if workspace_mode => return result,
+                _ => {},
+            };
         }
 
         let compile_cx = self.compilation_cx.lock().unwrap();
@@ -402,7 +416,8 @@ impl Internals {
         assert!(!args.is_empty());
         let envs = &compile_cx.envs;
         let build_dir = compile_cx.build_dir.as_ref().unwrap();
-        rustc::rustc(&self.vfs, args, envs, build_dir, self.config.clone())
+        let env_lock = self.env_lock.as_facade();
+        rustc::rustc(&self.vfs, args, envs, build_dir, self.config.clone(), env_lock)
     }
 }
 
@@ -415,51 +430,5 @@ impl Write for BufWriter {
     }
     fn flush(&mut self) -> io::Result<()> {
         self.0.lock().unwrap().flush()
-    }
-}
-
-
-// Ensures we don't race on the env vars. This is only likely in tests, where we
-// have multiple copies of the RLS running in the same process.
-lazy_static! {
-    static ref ENV_LOCK: Mutex<()> = Mutex::new(());
-}
-
-// An RAII helper to set and reset the current working directory and env vars.
-struct Environment<'a> {
-    old_vars: HashMap<String, Option<OsString>>,
-    _guard: MutexGuard<'a, ()>,
-}
-
-impl<'a> Environment<'a> {
-    fn push(envs: &HashMap<String, Option<OsString>>) -> Environment<'a> {
-        let mut result = Environment {
-            old_vars: HashMap::new(),
-            _guard: ENV_LOCK.lock().unwrap(),
-        };
-
-        for (k, v) in envs {
-            result.push_var(k, v);
-        }
-        result
-    }
-
-    fn push_var(&mut self, key: &str, value: &Option<OsString>) {
-        self.old_vars.insert(key.to_owned(), env::var_os(key));
-        match *value {
-            Some(ref v) => env::set_var(key, v),
-            None => env::remove_var(key),
-        }
-    }
-}
-
-impl<'a> Drop for Environment<'a> {
-    fn drop(&mut self) {
-        for (k, v) in &self.old_vars {
-            match *v {
-                Some(ref v) => env::set_var(k, v),
-                None => env::remove_var(k),
-            }
-        }
     }
 }

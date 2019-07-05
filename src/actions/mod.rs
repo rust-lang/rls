@@ -10,18 +10,25 @@
 
 mod compiler_message_parsing;
 
+use cargo::CargoResult;
+use cargo::util::important_paths;
+use cargo::core::{Shell, Workspace};
+
 use analysis::{AnalysisHost};
 use url::Url;
 use vfs::{Vfs, Change, FileContents};
 use racer;
 use rustfmt::{Input as FmtInput, format_input};
 use rustfmt::file_lines::{Range as RustfmtRange, FileLines};
-use config::{Config, FmtConfig};
+use config::{Config, FmtConfig, Inferrable};
+use serde::Deserialize;
+use serde::de::Error;
 use serde_json;
 use span;
 use Span;
 
 use build::*;
+use CRATE_BLACKLIST;
 use lsp_data::*;
 use server::{ResponseData, Output, Ack};
 use jsonrpc_core::types::ErrorCode;
@@ -29,6 +36,7 @@ use jsonrpc_core::types::ErrorCode;
 use std::collections::HashMap;
 use std::panic;
 use std::path::{Path, PathBuf};
+use std::io::sink;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -89,6 +97,19 @@ impl ActionHandler {
     pub fn init<O: Output>(&self, init_options: InitializationOptions, out: O) {
         trace!("init: {:?}", init_options);
 
+        let project_dir = self.current_project.clone();
+        let config = self.config.clone();
+        // Spawn another thread since we're shelling out to Cargo and this can
+        // cause a non-trivial amount of time due to disk access
+        thread::spawn(move || {
+            let mut config = config.lock().unwrap();
+            if let Err(e)  = infer_config_defaults(&project_dir, &mut *config) {
+                debug!("Encountered an error while trying to infer config \
+                    defaults: {:?}", e);
+            }
+
+        });
+
         if !init_options.omit_init_build {
             self.build_current_project(BuildPriority::Cargo, out);
         }
@@ -100,8 +121,10 @@ impl ActionHandler {
         const WATCH_ID: &'static str = "rls-watch";
         // TODO we should watch for workspace Cargo.tomls too
         let pattern = format!("{}/Cargo{{.toml,.lock}}", self.current_project.to_str().unwrap());
+        let target_pattern = format!("{}/target", self.current_project.to_str().unwrap());
+        // For target, we only watch if it gets deleted.
         let options = json!({
-            "watchers": [{ "globPattern": pattern }]
+            "watchers": [{ "globPattern": pattern }, { "globPattern": target_pattern, "kind": 4 }]
         });
         let output = serde_json::to_string(
             &RequestMessage::new(out.provide_id(),
@@ -168,9 +191,9 @@ impl ActionHandler {
         let previous_build_results = self.previous_build_results.clone();
         let project_path_clone = project_path.to_owned();
         let out = out.clone();
-        let show_warnings = {
+        let (show_warnings, use_black_list) = {
             let config = self.config.lock().unwrap();
-            config.show_warnings
+            (config.show_warnings, config.use_crate_blacklist)
         };
 
         // We use `rustDocument` document here since these notifications are
@@ -178,7 +201,8 @@ impl ActionHandler {
         out.notify("rustDocument/diagnosticsBegin");
         self.build_queue.request_build(project_path, priority, move |result| {
             match result {
-                BuildResult::Success(messages, new_analysis) | BuildResult::Failure(messages, new_analysis) => {
+                BuildResult::Success(messages, new_analysis) |
+                BuildResult::Failure(messages, new_analysis) => {
                     thread::spawn(move || {
                         trace!("build - Success");
 
@@ -200,10 +224,20 @@ impl ActionHandler {
 
                         debug!("reload analysis: {:?}", project_path_clone);
                         let cwd = ::std::env::current_dir().unwrap();
-                        if let Some(new_analysis) = new_analysis {
-                            analysis.reload_from_analysis(new_analysis, &project_path_clone, &cwd).unwrap();
+                        if new_analysis.is_empty() {
+                            if use_black_list {
+                                analysis.reload_with_blacklist(&project_path_clone, &cwd, &CRATE_BLACKLIST).unwrap();
+                            } else {
+                                analysis.reload(&project_path_clone, &cwd).unwrap();
+                            }
                         } else {
-                            analysis.reload(&project_path_clone, &cwd).unwrap();
+                            for data in new_analysis.into_iter() {
+                                if use_black_list {
+                                    analysis.reload_from_analysis(data, &project_path_clone, &cwd, &CRATE_BLACKLIST).unwrap();
+                                } else {
+                                    analysis.reload_from_analysis(data, &project_path_clone, &cwd, &[]).unwrap();
+                                }
+                            }
                         }
 
                         out.notify("rustDocument/diagnosticsEnd");
@@ -221,9 +255,32 @@ impl ActionHandler {
         });
     }
 
+    pub fn find_impls<O: Output>(&self, id: usize, params: TextDocumentPositionParams, out: O) {
+        let t = thread::current();
+        let file_path = parse_file_path!(&params.text_document.uri, "find_impls");
+        let span = self.convert_pos_to_span(file_path, params.position);
+        let type_id = self.analysis.id(&span).expect("Analysis: Getting typeid from span");
+        let analysis = self.analysis.clone();
+
+        let handle = thread::spawn(move || {
+            let result = analysis.find_impls(type_id).map(|spans| {
+                spans.into_iter().map(|x| ls_util::rls_to_location(&x)).collect()
+            });
+            t.unpark();
+            result
+        });
+        thread::park_timeout(Duration::from_millis(::COMPILER_TIMEOUT));
+
+        let result = handle.join();
+        trace!("find_impls: {:?}", result);
+        match result {
+            Ok(Ok(r)) => out.success(id, ResponseData::Locations(r)),
+            _ => out.failure_message(id, ErrorCode::InternalError, "Find Implementations failed to complete successfully"),
+        }
+    }
+
     pub fn on_open<O: Output>(&self, open: DidOpenTextDocumentParams, _out: O) {
         trace!("on_open: {:?}", open.text_document.uri);
-
         let file_path = parse_file_path!(&open.text_document.uri, "on_open");
 
         self.vfs.set_file(&file_path, &open.text_document.text);
@@ -449,19 +506,18 @@ impl ActionHandler {
         match compiler_result {
             Ok(Ok(r)) => {
                 let result = vec![ls_util::rls_to_location(&r)];
-                trace!("goto_def TO: {:?}", result);
+                trace!("goto_def (compiler): {:?}", result);
                 out.success(id, ResponseData::Locations(result));
             }
             _ => {
-                info!("goto_def - falling back to Racer");
                 match racer_handle {
                     Some(racer_handle) => match racer_handle.join() {
                         Ok(Some(r)) => {
-                            trace!("goto_def: {:?}", r);
+                            trace!("goto_def (Racer): {:?}", r);
                             out.success(id, ResponseData::Locations(vec![r]));
                         }
                         Ok(None) => {
-                            trace!("goto_def: None");
+                            trace!("goto_def (Racer): None");
                             out.success(id, ResponseData::Locations(vec![]));
                         }
                         _ => {
@@ -584,22 +640,45 @@ impl ActionHandler {
     pub fn deglob<O: Output>(&self, id: usize, location: Location, out: O) {
         let t = thread::current();
         let span = ls_util::location_to_rls(location.clone());
-        let span = ignore_non_file_uri!(span, &location.uri, "deglob");
+        let mut span = ignore_non_file_uri!(span, &location.uri, "deglob");
 
         trace!("deglob {:?}", span);
 
         // Start by checking that the user has selected a glob import.
         if span.range.start() == span.range.end() {
-            out.failure_message(id, ErrorCode::InvalidParams, "Empty selection");
-            return;
+            // search for a glob in the line
+            let vfs = self.vfs.clone();
+            let line = match vfs.load_line(&span.file, span.range.row_start) {
+                Ok(l) => l,
+                Err(_) => {
+                    out.failure_message(id, ErrorCode::InvalidParams, "Could not retrieve line from VFS.");
+                    return;
+                }
+            };
+
+            // search for exactly one "::*;" in the line. This should work fine for formatted text, but
+            // multiple use statements could be in the same line, then it is not possible to find which
+            // one to deglob.
+            let matches: Vec<_> = line.char_indices().filter(|&(_, chr)| chr == '*').collect();
+            if matches.len() == 0 {
+                out.failure_message(id, ErrorCode::InvalidParams, "No glob in selection.");
+                return;
+            } else if matches.len() > 1 {
+                out.failure_message(id, ErrorCode::InvalidParams, "Multiple globs in selection.");
+                return;
+            }
+            let index = matches[0].0 as u32;
+            span.range.col_start = span::Column::new_zero_indexed(index);
+            span.range.col_end = span::Column::new_zero_indexed(index+1);
         }
 
         // Save-analysis exports the deglobbed version of a glob import as its type string.
         let vfs = self.vfs.clone();
         let analysis = self.analysis.clone();
         let out_clone = out.clone();
+        let span_ = span.clone();
         let rustw_handle = thread::spawn(move || {
-            match vfs.load_span(span.clone()) {
+            match vfs.load_span(span_.clone()) {
                 Ok(ref s) if s != "*" => {
                     out_clone.failure_message(id, ErrorCode::InvalidParams, "Not a glob");
                     t.unpark();
@@ -614,7 +693,7 @@ impl ActionHandler {
                 _ => {}
             }
 
-            let ty = analysis.show_type(&span);
+            let ty = analysis.show_type(&span_);
             t.unpark();
 
             ty.map_err(|_| {
@@ -643,7 +722,7 @@ impl ActionHandler {
         let output = serde_json::to_string(
             &RequestMessage::new(out.provide_id(),
                                  "workspace/applyEdit".to_owned(),
-                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(location, deglob_str) })
+                                 ApplyWorkspaceEditParams { edit: make_workspace_edit(ls_util::rls_to_location(&span), deglob_str) })
         ).unwrap();
         out.response(output);
 
@@ -718,45 +797,70 @@ impl ActionHandler {
 
     pub fn on_change_config<O: Output>(&self, params: DidChangeConfigurationParams, out: O) {
         trace!("config change: {:?}", params.settings);
-        if let Some(config) = params.settings.get("rust") {
-            if let Ok(new_config) = serde_json::from_value(config.clone()): Result<Config, _> {
-                let unstable_features = new_config.unstable_features;
+        let config = params.settings.get("rust")
+                         .ok_or(serde_json::Error::missing_field("rust"))
+                         .and_then(|value| Config::deserialize(value));
 
-                {
-                    let mut config = self.config.lock().unwrap();
-                    *config = new_config;
-                }
-                // We do a clean build so that if we've changed any relevant options
-                // for Cargo, we'll notice them. But if nothing relevant changes
-                // then we don't do unnecessary building (i.e., we don't delete
-                // artifacts on disk).
-                self.build_current_project(BuildPriority::Cargo, out.clone());
-
-                const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
-                const RENAME_ID: &'static str = "rls-rename";
-                // FIXME should handle the response
-                if unstable_features {
-                    let output = serde_json::to_string(
-                        &RequestMessage::new(out.provide_id(),
-                                             NOTIFICATION__RegisterCapability.to_owned(),
-                                             RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null },
-                                                                                      Registration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned(), register_options: serde_json::Value::Null }] })
-                    ).unwrap();
-                    out.response(output);
-                } else {
-                    let output = serde_json::to_string(
-                        &RequestMessage::new(out.provide_id(),
-                                             NOTIFICATION__UnregisterCapability.to_owned(),
-                                             UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() },
-                                                                                           Unregistration { id: RENAME_ID.to_owned(), method: REQUEST__Rename.to_owned() }] })
-                    ).unwrap();
-                    out.response(output);
-                }
-
+        let new_config = match config {
+            Ok(mut value) => {
+                value.normalise();
+                value
+            }
+            Err(err) => {
+                debug!("Received unactionable config: {:?} (error: {:?})", params.settings, err);
                 return;
             }
+        };
+
+        let unstable_features = new_config.unstable_features;
+
+        {
+            let mut config = self.config.lock().unwrap();
+
+            // User may specify null (to be inferred) options, in which case
+            // we schedule further inference on a separate thread not to block
+            // the main thread
+            let needs_inference = new_config.needs_inference();
+            // In case of null options, we provide default values for now
+            config.update(new_config);
+            trace!("Updated config: {:?}", *config);
+
+            if needs_inference {
+                let project_dir = self.current_project.clone();
+                let config = self.config.clone();
+                // Will lock and access Config just outside the current scope
+                thread::spawn(move || {
+                    let mut config = config.lock().unwrap();
+                    if let Err(e)  = infer_config_defaults(&project_dir, &mut *config) {
+                        debug!("Encountered an error while trying to infer config \
+                            defaults: {:?}", e);
+                    }
+                });
+            }
         }
-        debug!("Received unactionable config: {:?}", params.settings);
+        // We do a clean build so that if we've changed any relevant options
+        // for Cargo, we'll notice them. But if nothing relevant changes
+        // then we don't do unnecessary building (i.e., we don't delete
+        // artifacts on disk).
+        self.build_current_project(BuildPriority::Cargo, out.clone());
+
+        const RANGE_FORMATTING_ID: &'static str = "rls-range-formatting";
+        // FIXME should handle the response
+        if unstable_features {
+            let output = serde_json::to_string(
+                &RequestMessage::new(out.provide_id(),
+                                        NOTIFICATION__RegisterCapability.to_owned(),
+                                        RegistrationParams { registrations: vec![Registration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned(), register_options: serde_json::Value::Null }] })
+            ).unwrap();
+            out.response(output);
+        } else {
+            let output = serde_json::to_string(
+                &RequestMessage::new(out.provide_id(),
+                                        NOTIFICATION__UnregisterCapability.to_owned(),
+                                        UnregistrationParams { unregisterations: vec![Unregistration { id: RANGE_FORMATTING_ID.to_owned(), method: REQUEST__RangeFormatting.to_owned() }] })
+            ).unwrap();
+            out.response(output);
+        }
     }
 
     fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {
@@ -794,6 +898,76 @@ impl ActionHandler {
 
         Span::from_positions(start_pos, end_pos, file_path)
     }
+}
+
+fn infer_config_defaults(project_dir: &Path, config: &mut Config) -> CargoResult<()> {
+    // Note that this may not be equal build_dir when inside a workspace member
+    let manifest_path = important_paths::find_root_manifest_for_wd(None, project_dir)?;
+    trace!("root manifest_path: {:?}", &manifest_path);
+
+    // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
+    let manifest_dir = manifest_path.parent().unwrap();
+    let shell = Shell::from_write(Box::new(sink()));
+    let cargo_config = make_cargo_config(manifest_dir, shell);
+
+    let ws = Workspace::new(&manifest_path, &cargo_config)?;
+
+    // Auto-detect --lib/--bin switch if working under single package mode
+    // or under workspace mode with `analyze_package` specified
+    let package = match config.workspace_mode {
+        true => {
+            let package_name = match config.analyze_package {
+                // No package specified, nothing to do
+                None => { return Ok(()); },
+                Some(ref package) => package,
+            };
+
+            ws.members()
+              .find(move |x| x.name() == package_name)
+              .ok_or(
+                  format!("Couldn't find specified `{}` package via \
+                      `analyze_package` in the workspace", package_name)
+              )?
+        },
+        false => ws.current()?,
+    };
+
+    trace!("infer_config_defaults: Auto-detected `{}` package", package.name());
+
+    let targets = package.targets();
+    let (lib, bin) = if targets.iter().any(|x| x.is_lib()) {
+        (true, None)
+    } else {
+        let mut bins = targets.iter().filter(|x| x.is_bin());
+        // No `lib` detected, but also can't find any `bin` target - there's
+        // no sensible target here, so just Err out
+        let first = bins.nth(0)
+            .ok_or("No `bin` or `lib` targets in the package")?;
+
+        let mut bins = targets.iter().filter(|x| x.is_bin());
+        let target = match bins.find(|x| x.src_path().ends_with("main.rs")) {
+            Some(main_bin) => main_bin,
+            None => first,
+        };
+
+        (false, Some(target.name().to_owned()))
+    };
+
+    trace!("infer_config_defaults: build_lib: {:?}, build_bin: {:?}", lib, bin);
+
+    // Unless crate target is explicitly specified, mark the values as
+    // inferred, so they're not simply ovewritten on config change without
+    // any specified value
+    let (lib, bin) = match (&config.build_lib, &config.build_bin) {
+        (&Inferrable::Specified(true), _) => (lib, None),
+        (_, &Inferrable::Specified(Some(_))) => (false, bin),
+        _ => (lib, bin),
+    };
+
+    config.build_lib.infer(lib);
+    config.build_bin.infer(bin);
+
+    Ok(())
 }
 
 fn racer_coord(line: span::Row<span::OneIndexed>,
