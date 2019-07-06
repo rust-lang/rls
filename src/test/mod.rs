@@ -83,6 +83,7 @@ fn test_goto_def() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -114,6 +115,7 @@ fn test_hover() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -147,6 +149,7 @@ fn test_find_all_refs() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -180,6 +183,7 @@ fn test_find_all_refs_no_cfg_test() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -203,6 +207,7 @@ fn test_borrow_error() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains(r#""message":"cannot borrow `x` as mutable more than once at a time""#),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
@@ -230,6 +235,7 @@ fn test_highlight() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -262,6 +268,7 @@ fn test_rename() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -298,6 +305,7 @@ fn test_reformat() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -337,6 +345,7 @@ fn test_reformat_with_range() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -362,6 +371,7 @@ fn test_multiple_binaries() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("unused variable: `bin_name2`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
@@ -394,6 +404,7 @@ fn test_completion() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
@@ -424,6 +435,7 @@ fn test_bin_lib_project() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 }
@@ -446,6 +458,7 @@ fn test_bin_lib_project_no_cfg_test() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("cannot find struct, variant or union type `LibCfgTestStruct` in module `bin_lib_no_cfg_test`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
@@ -469,6 +482,7 @@ fn test_bin_lib_project_no_cfg_test() {
 //     assert_eq!(ls_server::LsService::handle_message(&mut server),
 //                ls_server::ServerStateChange::Continue);
 //     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+//                                        ExpectedMessage::new(None).expect_contains("beginBuild"),
 //                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
 //                                        // TODO: Ideally we should check for message contents for different crates/targets,
 //                                        // however order of received messages is non-deterministic and this
@@ -492,6 +506,7 @@ fn test_infer_lib() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedLib`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
@@ -511,6 +526,7 @@ fn test_infer_bin() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedBin`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
@@ -530,6 +546,7 @@ fn test_infer_custom_bin() {
     assert_eq!(ls_server::LsService::handle_message(&mut server),
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(), &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                                       ExpectedMessage::new(None).expect_contains("beginBuild"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                                        ExpectedMessage::new(None).expect_contains("struct is never used: `UnusedCustomBin`"),
                                        ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
@@ -621,6 +638,7 @@ fn test_find_impls() {
                ls_server::ServerStateChange::Continue);
     expect_messages(results.clone(),
                     &[ExpectedMessage::new(Some(0)).expect_contains("capabilities"),
+                      ExpectedMessage::new(None).expect_contains("beginBuild"),
                       ExpectedMessage::new(None).expect_contains("diagnosticsBegin"),
                       ExpectedMessage::new(None).expect_contains("diagnosticsEnd")]);
 
