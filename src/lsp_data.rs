@@ -21,6 +21,11 @@ use racer;
 use vfs::FileContents;
 
 pub use ls_types::*;
+use jsonrpc_core::version;
+
+pub const NOTIFICATION_DIAGNOSTICS_BEGIN: &'static str = "rustDocument/diagnosticsBegin";
+pub const NOTIFICATION_DIAGNOSTICS_END:   &'static str = "rustDocument/diagnosticsEnd";
+pub const NOTIFICATION_BUILD_BEGIN:       &'static str = "rustDocument/beginBuild";
 
 #[derive(Debug)]
 pub enum UrlFileParseError {
@@ -216,20 +221,18 @@ impl Default for InitializationOptions {
 
 /// An event-like (no response needed) notification message.
 #[derive(Debug, Serialize)]
-pub struct NotificationMessage<T>
-    where T: Debug + Serialize
-{
-    jsonrpc: &'static str,
-    pub method: String,
-    pub params: T,
+pub struct NotificationMessage {
+    jsonrpc: version::Version,
+    pub method: &'static str,
+    pub params: Option<PublishDiagnosticsParams>,
 }
 
-impl <T> NotificationMessage<T> where T: Debug + Serialize {
-    pub fn new(method: String, params: T) -> Self {
+impl NotificationMessage {
+    pub fn new(method: &'static str, params: Option<PublishDiagnosticsParams>) -> Self {
         NotificationMessage {
-            jsonrpc: "2.0",
-            method: method,
-            params: params
+            jsonrpc: version::Version::V2,
+            method,
+            params,
         }
     }
 }

@@ -51,15 +51,16 @@ pub(super) fn cargo(internals: &Internals) -> BuildResult {
     let handle = thread::spawn(|| run_cargo(compilation_cx, config, vfs, env_lock,
                                             diagnostics, analyses, out));
 
-    match handle.join() {
+    match handle.join().map_err(|_| "thread panicked".into()).and_then(|res| res) {
         Ok(_) if workspace_mode => {
             let diagnostics = Arc::try_unwrap(diagnostics_clone).unwrap().into_inner().unwrap();
             let analyses = Arc::try_unwrap(analyses_clone).unwrap().into_inner().unwrap();
             BuildResult::Success(diagnostics, analyses)
         },
         Ok(_) => BuildResult::Success(vec![], vec![]),
-        Err(_) => {
-            info!("cargo stdout {}", String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap());
+        Err(err) => {
+            let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
+            info!("cargo failed\ncause: {}\nstdout: {}", err, stdout);
             BuildResult::Err
         }
     }
@@ -71,7 +72,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
              env_lock: Arc<EnvironmentLock>,
              compiler_messages: Arc<Mutex<Vec<String>>>,
              analyses: Arc<Mutex<Vec<Analysis>>>,
-             out: Arc<Mutex<Vec<u8>>>) {
+             out: Arc<Mutex<Vec<u8>>>) -> CargoResult<()> {
     // Lock early to guarantee synchronized access to env var for the scope of Cargo routine.
     // Additionally we need to pass inner lock to RlsExecutor, since it needs to hand it down
     // during exec() callback when calling linked compiler in parallel, for which we need to
@@ -87,8 +88,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         compilation_cx.build_dir.as_ref().unwrap().clone()
     };
     // Note that this may not be equal build_dir when inside a workspace member
-    let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)
-        .expect(&format!("Couldn't find a root manifest for cwd: {:?}", &build_dir));
+    let manifest_path = important_paths::find_root_manifest_for_wd(None, &build_dir)?;
     trace!("root manifest_path: {:?}", &manifest_path);
     // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
     let manifest_dir = manifest_path.parent().unwrap();
@@ -98,7 +98,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
 
     let config = make_cargo_config(manifest_dir, shell);
 
-    let ws = Workspace::new(&manifest_path, &config).expect("could not create cargo workspace");
+    let ws = Workspace::new(&manifest_path, &config)?;
 
     // TODO: It might be feasible to keep this CargoOptions structure cached and regenerate
     // it on every relevant configuration change
@@ -132,8 +132,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
         (opts, rustflags, rls_config.clear_env_rust_log)
     };
 
-    let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)
-        .expect("Couldn't create Packages for Cargo");
+    let spec = Packages::from_flags(ws.is_virtual(), opts.all, &opts.exclude, &opts.package)?;
 
     let compile_opts = CompileOptions {
         target: opts.target.as_ref().map(|t| &t[..]),
@@ -157,7 +156,7 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
     let mut restore_env = Environment::push_with_lock(&env, lock_guard);
     let mut save_config = ::data::config::Config::default();
     save_config.pub_only = true;
-    let save_config = serde_json::to_string(&save_config).expect("could not serialise config");
+    let save_config = serde_json::to_string(&save_config)?;
     restore_env.push_var("RUST_SAVE_ANALYSIS_CONFIG", &Some(OsString::from(save_config)));
 
     let exec = RlsExecutor::new(&ws,
@@ -168,10 +167,12 @@ fn run_cargo(compilation_cx: Arc<Mutex<CompilationContext>>,
                                 compiler_messages,
                                 analyses);
 
-    compile_with_exec(&ws, &compile_opts, Arc::new(exec)).expect("could not run cargo");
+    compile_with_exec(&ws, &compile_opts, Arc::new(exec))?;
 
     trace!("Created build plan after Cargo compilation routine: {:?}",
         compilation_cx.lock().unwrap().build_plan);
+
+    Ok(())
 }
 
 struct RlsExecutor {
@@ -227,6 +228,8 @@ impl RlsExecutor {
         }
     }
 
+    /// Returns wheter a given package is a primary one (every member of the
+    /// workspace is considered as such).
     fn is_primary_crate(&self, id: &PackageId) -> bool {
         if self.workspace_mode {
             self.member_packages.lock().unwrap().contains(id)
@@ -253,13 +256,9 @@ impl Executor for RlsExecutor {
     }
 
     fn force_rebuild(&self, unit: &Unit) -> bool {
-        // TODO: Currently workspace_mode doesn't use rustc, so it doesn't
-        // need args. When we start using rustc, we might consider doing
-        // force_rebuild to retrieve args for given package if they're stale/missing
-        if self.workspace_mode {
-            return false;
-        }
-
+        // In workspace_mode we need to force rebuild every package in the
+        // workspace, even if it's not dirty at a time, to cache compiler
+        // invocations in the build plan.
         // We only do a cargo build if we want to force rebuild the last
         // crate (e.g., because some args changed). Therefore we should
         // always force rebuild the primary crate.
@@ -324,22 +323,14 @@ impl Executor for RlsExecutor {
             };
             trace!("rustc not intercepted - {}{}", id.name(), build_script_notice);
 
-            // Recreate the original command, minus -Zsave-analysis. Since the
-            // shim sets it internally, be sure not to use it.
             if ::CRATE_BLACKLIST.contains(&&*crate_name) {
+                // By running the original command (rather than using our shim), we
+                // avoid producing save-analysis data.
                 trace!("crate is blacklisted");
-                let mut cargo_cmd = cargo_cmd.clone();
-                let args: Vec<_> = cargo_cmd.get_args().iter().cloned()
-                    .filter(|x| x != "Zsave-analysis").collect();
-                cargo_cmd.args_replace(&args);
-
                 return cargo_cmd.exec();
             }
             cmd.arg("--sysroot");
             cmd.arg(&sysroot);
-            // TODO: Make sure we don't pass any unstable options (incl. -Zsave-analysis)
-            // to the shim. For stable toolchains it won't accept those as arguments,
-            // but rather it sets them internally instead to work around that
             return cmd.exec();
         }
 
@@ -382,7 +373,6 @@ impl Executor for RlsExecutor {
             // NB: In `workspace_mode` regular compilation is performed here (and we don't
             // only calculate dep-info) so it should fix the problem mentioned above.
             let modified = args.iter()
-                .filter(|a| *a != "-Zsave-analysis")
                 .map(|a| {
                     // Emitting only dep-info is possible only for final crate type, as
                     // as others may emit required metadata for dependent crate types

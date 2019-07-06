@@ -4,6 +4,8 @@
 
 # Rust Language Server (RLS)
 
+[impl period](https://blog.rust-lang.org/2017/09/18/impl-future-for-rust.html) has been started! Join us at [Gitter.im](https://gitter.im/rust-impl-period/WG-dev-tools-rls).
+
 **This project is in the alpha stage of development. It is likely to be buggy in
 some situations; proceed with caution.**
 
@@ -152,3 +154,5 @@ For tips on debugging and troubleshooting, see [debugging.md](debugging.md).
 
 You can look in the [contributing.md](https://github.com/rust-lang-nursery/rls/blob/master/contributing.md)
 in this repo to learn more about contributing to this project.
+
+If you want to implement RLS support in an editor, see [clients.md](clients.md).

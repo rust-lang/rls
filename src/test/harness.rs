@@ -22,19 +22,19 @@ use config::Config;
 use env_logger;
 use ls_types;
 use serde_json;
-use server::{self as ls_server, ServerMessage};
+use server as ls_server;
 use vfs;
 
 const TEST_TIMEOUT_IN_SEC: u64 = 320;
 
 // Initialise and run the internals of an LS protocol RLS server.
-pub fn mock_server(messages: Vec<ServerMessage>) -> (ls_server::LsService<RecordOutput>, LsResultList)
+pub fn mock_server(messages: Vec<String>) -> (ls_server::LsService<RecordOutput>, LsResultList)
 {
     let config = Config::default();
     mock_server_with_config(messages, config)
 }
 
-pub fn mock_server_with_config(messages: Vec<ServerMessage>, mut config: Config) -> (ls_server::LsService<RecordOutput>, LsResultList)
+pub fn mock_server_with_config(messages: Vec<String>, mut config: Config) -> (ls_server::LsService<RecordOutput>, LsResultList)
 {
     let analysis = Arc::new(analysis::AnalysisHost::new(analysis::Target::Debug));
     let vfs = Arc::new(vfs::Vfs::new());
@@ -47,12 +47,12 @@ pub fn mock_server_with_config(messages: Vec<ServerMessage>, mut config: Config)
 
 
 struct MockMsgReader {
-    messages: Vec<ServerMessage>,
+    messages: Vec<String>,
     cur: Mutex<usize>,
 }
 
 impl MockMsgReader {
-    fn new(messages: Vec<ServerMessage>) -> MockMsgReader {
+    fn new(messages: Vec<String>) -> MockMsgReader {
         MockMsgReader {
             messages: messages,
             cur: Mutex::new(0),
@@ -74,7 +74,7 @@ impl ls_server::MessageReader for MockMsgReader {
 
         let message = &self.messages[index];
 
-        Some(message.to_message_str())
+        Some(message.to_owned())
     }
 }
 
@@ -147,7 +147,7 @@ pub fn expect_messages(results: LsResultList, expected: &[&ExpectedMessage]) {
 
     let mut results = results.lock().unwrap();
 
-    println!("expect_messages: results: {:?},\nexpected: {:?}", *results, expected);
+    println!("expect_messages:\n  results: {:#?},\n  expected: {:#?}", *results, expected);
     assert_eq!(results.len(), expected.len());
     for (found, expected) in results.iter().zip(expected.iter()) {
         let values: serde_json::Value = serde_json::from_str(found).unwrap();
