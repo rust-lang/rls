@@ -1,11 +1,3 @@
-// Copyright 2017 The RLS Project Developers.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Defines an `AnalysisLoader` trait, which allows to specify directories
 //! from which save-analysis JSON files can be read. Also supplies a
 //! default implementation `CargoAnalysisLoader` for Cargo-emitted save-analysis
@@ -17,7 +9,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use AnalysisHost;
+use crate::AnalysisHost;
 
 #[derive(Debug)]
 pub struct CargoAnalysisLoader {
@@ -150,7 +142,7 @@ pub enum Target {
 }
 
 impl fmt::Display for Target {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Target::Release => write!(f, "release"),
             Target::Debug => write!(f, "debug"),

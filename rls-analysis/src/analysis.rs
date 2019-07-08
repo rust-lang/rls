@@ -1,19 +1,11 @@
-// Copyright 2017 The RLS Project Developers.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 use fst;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use raw::{CrateId, DefKind};
-use {Id, Span, SymbolQuery};
+use crate::raw::{CrateId, DefKind};
+use crate::{Id, Span, SymbolQuery};
 
 /// This is the main database that contains all the collected symbol information,
 /// such as definitions, their mapping between spans, hierarchy and so on,

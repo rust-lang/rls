@@ -1,19 +1,11 @@
-// Copyright 2016 The RLS Project Developers.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 use data::config::Config;
 use data::Analysis;
 pub use data::{
     CratePreludeData, Def, DefKind, GlobalCrateId as CrateId, Import, Ref, Relation, RelationKind,
     SigElement, Signature, SpanData,
 };
-use listings::{DirectoryListing, ListingKind};
-use {AnalysisLoader, Blacklist};
+use crate::listings::{DirectoryListing, ListingKind};
+use crate::{AnalysisLoader, Blacklist};
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -52,7 +44,7 @@ impl Crate {
 pub fn read_analysis_from_files<L: AnalysisLoader>(
     loader: &L,
     crate_timestamps: HashMap<PathBuf, SystemTime>,
-    crate_blacklist: Blacklist,
+    crate_blacklist: Blacklist<'_>,
 ) -> Vec<Crate> {
     let mut result = vec![];
 
@@ -99,7 +91,7 @@ pub fn read_analysis_from_files<L: AnalysisLoader>(
     result
 }
 
-fn ignore_data(file_name: &str, crate_blacklist: Blacklist) -> bool {
+fn ignore_data(file_name: &str, crate_blacklist: Blacklist<'_>) -> bool {
     crate_blacklist.iter().any(|name| file_name.starts_with(&format!("lib{}-", name)))
 }
 

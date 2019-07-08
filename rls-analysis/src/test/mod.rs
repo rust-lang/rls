@@ -1,20 +1,9 @@
-// Copyright 2016 The RLS Project Developers.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
-use loader::SearchDirectory;
-use raw::DefKind;
-use {AnalysisHost, AnalysisLoader};
+use crate::loader::SearchDirectory;
+use crate::raw::DefKind;
+use crate::{AnalysisHost, AnalysisLoader};
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
-#[cfg(test)]
-extern crate env_logger;
 
 #[derive(Clone, new)]
 struct TestAnalysisLoader {

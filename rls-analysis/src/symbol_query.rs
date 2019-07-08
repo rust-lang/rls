@@ -57,7 +57,7 @@ impl SymbolQuery {
         stream.union()
     }
 
-    pub(crate) fn search_stream<F, T>(&self, mut stream: fst::map::Union, f: F) -> Vec<T>
+    pub(crate) fn search_stream<F, T>(&self, mut stream: fst::map::Union<'_>, f: F) -> Vec<T>
     where
         F: Fn(&mut Vec<T>, &fst::map::IndexedValue),
     {

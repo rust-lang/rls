@@ -1,20 +1,12 @@
-// Copyright 2016 The RLS Project Developers.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! For processing the raw save-analysis data from rustc into the rls
 //! in-memory representation.
 
-use analysis::{Def, Glob, PerCrateAnalysis, Ref};
+use crate::analysis::{Def, Glob, PerCrateAnalysis, Ref};
 use data;
-use loader::AnalysisLoader;
-use raw::{self, CrateId, DefKind, RelationKind};
-use util;
-use {AResult, AnalysisHost, Id, Span, NULL};
+use crate::loader::AnalysisLoader;
+use crate::raw::{self, CrateId, DefKind, RelationKind};
+use crate::util;
+use crate::{AResult, AnalysisHost, Id, Span, NULL};
 
 use span;
 
