@@ -52,7 +52,7 @@ impl Crate {
 pub fn read_analysis_from_files<L: AnalysisLoader>(
     loader: &L,
     crate_timestamps: HashMap<PathBuf, SystemTime>,
-    crate_blacklist: Blacklist,
+    crate_blacklist: Blacklist<'_>,
 ) -> Vec<Crate> {
     let mut result = vec![];
 
@@ -99,7 +99,7 @@ pub fn read_analysis_from_files<L: AnalysisLoader>(
     result
 }
 
-fn ignore_data(file_name: &str, crate_blacklist: Blacklist) -> bool {
+fn ignore_data(file_name: &str, crate_blacklist: Blacklist<'_>) -> bool {
     crate_blacklist.iter().any(|name| file_name.starts_with(&format!("lib{}-", name)))
 }
 

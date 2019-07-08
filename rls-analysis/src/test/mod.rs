@@ -13,9 +13,6 @@ use crate::{AnalysisHost, AnalysisLoader};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-#[cfg(test)]
-extern crate env_logger;
-
 #[derive(Clone, new)]
 struct TestAnalysisLoader {
     path: PathBuf,

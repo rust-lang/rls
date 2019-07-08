@@ -6,17 +6,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![warn(rust_2018_idioms)]
+
 #[macro_use]
 extern crate derive_new;
 #[macro_use]
 extern crate log;
-extern crate fst;
-extern crate itertools;
-extern crate json;
+
 extern crate rls_data as data;
 extern crate rls_span as span;
-extern crate serde;
-extern crate serde_json;
 
 mod analysis;
 mod listings;
@@ -136,7 +134,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         analysis: Vec<data::Analysis>,
         path_prefix: &Path,
         base_dir: &Path,
-        blacklist: Blacklist,
+        blacklist: Blacklist<'_>,
     ) -> AResult<()> {
         self.reload_with_blacklist(path_prefix, base_dir, blacklist)?;
 
@@ -160,7 +158,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         &self,
         path_prefix: &Path,
         base_dir: &Path,
-        blacklist: Blacklist,
+        blacklist: Blacklist<'_>,
     ) -> AResult<()> {
         trace!("reload_with_blacklist {:?} {:?} {:?}", path_prefix, base_dir, blacklist);
         let empty = self.analysis.lock()?.is_none();
@@ -190,7 +188,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         &self,
         path_prefix: &Path,
         base_dir: &Path,
-        blacklist: Blacklist,
+        blacklist: Blacklist<'_>,
     ) -> AResult<()> {
         trace!("hard_reload {:?} {:?}", path_prefix, base_dir);
         // We're going to create a dummy AnalysisHost that we will fill with data,
@@ -551,7 +549,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
 }
 
 impl ::std::fmt::Display for Id {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -566,7 +564,7 @@ impl ::std::error::Error for AError {
 }
 
 impl ::std::fmt::Display for AError {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         write!(f, "{}", ::std::error::Error::description(self))
     }
 }

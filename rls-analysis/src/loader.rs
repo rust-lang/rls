@@ -150,7 +150,7 @@ pub enum Target {
 }
 
 impl fmt::Display for Target {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Target::Release => write!(f, "release"),
             Target::Debug => write!(f, "debug"),
