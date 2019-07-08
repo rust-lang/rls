@@ -1,3 +1,5 @@
+#![warn(rust_2018_idioms)]
+
 extern crate rls_span as span;
 #[macro_use]
 extern crate log;
@@ -150,7 +152,7 @@ impl Into<String> for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Error::OutOfSync(ref path_buf) => {
                 write!(f, "file {} out of sync with filesystem", path_buf.display())
