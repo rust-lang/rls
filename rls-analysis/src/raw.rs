@@ -4,14 +4,15 @@ pub use data::{
     CratePreludeData, Def, DefKind, GlobalCrateId as CrateId, Import, Ref, Relation, RelationKind,
     SigElement, Signature, SpanData,
 };
-use crate::listings::{DirectoryListing, ListingKind};
-use crate::{AnalysisLoader, Blacklist};
 
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
+
+use crate::listings::{DirectoryListing, ListingKind};
+use crate::{AnalysisLoader, Blacklist};
 
 #[derive(Debug)]
 pub struct Crate {
