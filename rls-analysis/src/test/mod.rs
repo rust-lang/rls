@@ -6,9 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use loader::SearchDirectory;
-use raw::DefKind;
-use {AnalysisHost, AnalysisLoader};
+use crate::loader::SearchDirectory;
+use crate::raw::DefKind;
+use crate::{AnalysisHost, AnalysisLoader};
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

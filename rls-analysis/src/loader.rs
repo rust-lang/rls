@@ -17,7 +17,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use AnalysisHost;
+use crate::AnalysisHost;
 
 #[derive(Debug)]
 pub struct CargoAnalysisLoader {

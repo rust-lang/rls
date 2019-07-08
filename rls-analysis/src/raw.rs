@@ -12,8 +12,8 @@ pub use data::{
     CratePreludeData, Def, DefKind, GlobalCrateId as CrateId, Import, Ref, Relation, RelationKind,
     SigElement, Signature, SpanData,
 };
-use listings::{DirectoryListing, ListingKind};
-use {AnalysisLoader, Blacklist};
+use crate::listings::{DirectoryListing, ListingKind};
+use crate::{AnalysisLoader, Blacklist};
 
 use std::collections::HashMap;
 use std::fs::File;

@@ -9,12 +9,12 @@
 //! For processing the raw save-analysis data from rustc into the rls
 //! in-memory representation.
 
-use analysis::{Def, Glob, PerCrateAnalysis, Ref};
+use crate::analysis::{Def, Glob, PerCrateAnalysis, Ref};
 use data;
-use loader::AnalysisLoader;
-use raw::{self, CrateId, DefKind, RelationKind};
-use util;
-use {AResult, AnalysisHost, Id, Span, NULL};
+use crate::loader::AnalysisLoader;
+use crate::raw::{self, CrateId, DefKind, RelationKind};
+use crate::util;
+use crate::{AResult, AnalysisHost, Id, Span, NULL};
 
 use span;
 

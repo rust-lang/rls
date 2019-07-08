@@ -12,8 +12,8 @@ use std::iter;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use raw::{CrateId, DefKind};
-use {Id, Span, SymbolQuery};
+use crate::raw::{CrateId, DefKind};
+use crate::{Id, Span, SymbolQuery};
 
 /// This is the main database that contains all the collected symbol information,
 /// such as definitions, their mapping between spans, hierarchy and so on,
