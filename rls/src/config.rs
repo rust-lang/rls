@@ -8,6 +8,7 @@ use std::io::sink;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use cargo::core::{Shell, Workspace};
 use cargo::util::{homedir, important_paths, Config as CargoConfig};
@@ -135,7 +136,9 @@ pub struct Config {
     /// `true` to build the project only when a file got saved and not on file change.
     /// Default: `false`.
     pub build_on_save: bool,
-    pub use_crate_blacklist: bool,
+    /// Blacklist of crates for RLS to skip. By default omits `winapi`, Unicode
+    /// table crates, `serde`, `libc`, `glium` and other.
+    pub crate_blacklist: Inferrable<CrateBlacklist>,
     /// The Cargo target directory. If set, overrides the default one.
     pub target_dir: Inferrable<Option<PathBuf>>,
     pub features: Vec<String>,
@@ -185,7 +188,7 @@ impl Default for Config {
             show_warnings: true,
             clear_env_rust_log: true,
             build_on_save: false,
-            use_crate_blacklist: true,
+            crate_blacklist: Inferrable::Inferred(CrateBlacklist::default()),
             target_dir: Inferrable::Inferred(None),
             features: vec![],
             all_features: false,
@@ -432,10 +435,65 @@ impl Default for FmtConfig {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+/// List of crates for which IDE analysis should not be generated
+pub struct CrateBlacklist(pub Arc<[String]>);
+
+impl<'de> Deserialize<'de> for CrateBlacklist {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let boxed = <Box<[String]> as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(CrateBlacklist(boxed.into()))
+    }
+}
+
+impl Default for CrateBlacklist {
+    fn default() -> Self {
+        CrateBlacklist(
+            [
+                "cocoa",
+                "gleam",
+                "glium",
+                "idna",
+                "libc",
+                "openssl",
+                "rustc_serialize",
+                "serde",
+                "serde_json",
+                "typenum",
+                "unicode_normalization",
+                "unicode_segmentation",
+                "winapi",
+            ]
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .into(),
+        )
+    }
+}
+
 #[test]
 fn clippy_preference_from_str() {
     assert_eq!(ClippyPreference::from_str("Optin"), Ok(ClippyPreference::OptIn));
     assert_eq!(ClippyPreference::from_str("OFF"), Ok(ClippyPreference::Off));
     assert_eq!(ClippyPreference::from_str("opt-in"), Ok(ClippyPreference::OptIn));
     assert_eq!(ClippyPreference::from_str("on"), Ok(ClippyPreference::On));
+}
+
+#[test]
+fn blacklist_default() {
+    let value = serde_json::json!({});
+    let config = Config::try_deserialize(&value, &mut Default::default(), &mut vec![]).unwrap();
+    assert_eq!(config.crate_blacklist.as_ref(), &CrateBlacklist::default());
+    let value = serde_json::json!({"crate_blacklist": []});
+
+    let config = Config::try_deserialize(&value, &mut Default::default(), &mut vec![]).unwrap();
+    assert_eq!(&*config.crate_blacklist.as_ref().0, &[] as &[String]);
+
+    let value = serde_json::json!({"crate_blacklist": ["serde"]});
+    let config = Config::try_deserialize(&value, &mut Default::default(), &mut vec![]).unwrap();
+    assert_eq!(&*config.crate_blacklist.as_ref().0, &["serde".to_string()]);
 }

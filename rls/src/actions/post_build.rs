@@ -16,6 +16,7 @@ use crate::actions::diagnostics::{parse_diagnostics, Diagnostic, ParsedDiagnosti
 use crate::actions::progress::DiagnosticsNotifier;
 use crate::build::{BuildResult, Crate};
 use crate::concurrency::JobToken;
+use crate::config::CrateBlacklist;
 use crate::lsp_data::{PublishDiagnosticsParams, Range};
 
 use failure;
@@ -35,7 +36,7 @@ pub struct PostBuildHandler {
     pub file_to_crates: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     pub project_path: PathBuf,
     pub show_warnings: bool,
-    pub use_black_list: bool,
+    pub crate_blacklist: CrateBlacklist,
     pub related_information_support: bool,
     pub shown_cargo_error: Arc<AtomicBool>,
     pub active_build_count: Arc<AtomicUsize>,
@@ -172,28 +173,15 @@ impl PostBuildHandler {
     }
 
     fn reload_analysis_from_disk(&self, cwd: &Path) {
-        if self.use_black_list {
-            self.analysis
-                .reload_with_blacklist(&self.project_path, cwd, &rls_blacklist::CRATE_BLACKLIST)
-                .unwrap();
-        } else {
-            self.analysis.reload(&self.project_path, cwd).unwrap();
-        }
+        self.analysis
+            .reload_with_blacklist(&self.project_path, cwd, &self.crate_blacklist.0[..])
+            .unwrap();
     }
 
     fn reload_analysis_from_memory(&self, cwd: &Path, analysis: Vec<Analysis>) {
-        if self.use_black_list {
-            self.analysis
-                .reload_from_analysis(
-                    analysis,
-                    &self.project_path,
-                    cwd,
-                    &rls_blacklist::CRATE_BLACKLIST,
-                )
-                .unwrap();
-        } else {
-            self.analysis.reload_from_analysis(analysis, &self.project_path, cwd, &[]).unwrap();
-        }
+        self.analysis
+            .reload_from_analysis(analysis, &self.project_path, cwd, &self.crate_blacklist.0[..])
+            .unwrap();
     }
 
     fn finalize(mut self) {

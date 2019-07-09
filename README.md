@@ -115,8 +115,10 @@ Currently we accept the following options:
 * `all_targets` (`bool`, defaults to `true`) checks the project as if you were
   running `cargo check --all-targets`. I.e., check all targets and integration
   tests too
-* `use_crate_blacklist` (`bool`, defaults to `true`) if disabled, also indexes
-  data from the [blacklisted](https://github.com/nrc/rls-blacklist/blob/master/src/lib.rs) crates
+* `crate_blacklist` (`[String]`, defaults to [this list](https://github.com/rust-dev-tools/rls-blacklist/blob/master/src/lib.rs))
+  allows to specify which crates should be skipped by the RLS.
+  By default skips libraries that are of considerable size but which the user
+  often may not be directly interested in, thus reducing the build latency.
 * `build_on_save` (`bool`, defaults to `false`) toggles whether the RLS should
   perform continuous analysis or only after a file is saved
 * `features` (`[String]`, defaults to empty) list of Cargo features to enable
