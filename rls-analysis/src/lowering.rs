@@ -2,13 +2,10 @@
 //! in-memory representation.
 
 use crate::analysis::{Def, Glob, PerCrateAnalysis, Ref};
-use data;
 use crate::loader::AnalysisLoader;
 use crate::raw::{self, CrateId, DefKind, RelationKind};
 use crate::util;
 use crate::{AResult, AnalysisHost, Id, Span, NULL};
-
-use span;
 
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};

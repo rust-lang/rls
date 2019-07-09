@@ -170,6 +170,12 @@ impl fmt::Display for Error {
     }
 }
 
+impl<U> Default for Vfs<U> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<U> Vfs<U> {
     /// Creates a new, empty VFS.
     pub fn new() -> Vfs<U> {
@@ -558,7 +564,7 @@ impl<T: FileLoader, U> VfsInternal<T, U> {
         let mut files = self.files.lock().unwrap();
         match files.get_mut(path) {
             Some(ref mut file) => {
-                if let None = file.user_data {
+                if file.user_data.is_none() {
                     let text = match file.kind {
                         FileKind::Text(ref f) => Some(&f.text as &str),
                         FileKind::Binary(_) => None,
@@ -587,7 +593,7 @@ fn coalesce_changes<'a>(changes: &'a [Change]) -> HashMap<&'a Path, Vec<&'a Chan
     // Note that for any given file, we preserve the order of the changes.
     let mut result = HashMap::new();
     for c in changes {
-        result.entry(&*c.file()).or_insert(vec![]).push(c);
+        result.entry(&*c.file()).or_insert_with(Vec::new).push(c);
     }
     result
 }
@@ -735,7 +741,7 @@ impl TextFile {
                     new_text.push_str(&self.text[range.1 as usize..]);
                     new_text
                 }
-                Change::AddFile { file: _, ref text } => text.to_owned(),
+                Change::AddFile { ref text, .. } => text.to_owned(),
             };
 
             self.text = new_text;
@@ -823,7 +829,7 @@ fn byte_in_str(s: &str, c: span::Column<span::ZeroIndexed>) -> Result<usize, Err
         }
     }
 
-    return Err(Error::InternalError("Out of bounds access in `byte_in_str`"));
+    Err(Error::InternalError("Out of bounds access in `byte_in_str`"))
 }
 
 /// Return a UTF-8 byte offset in `s` for a given UTF-16 code unit offset.
@@ -842,7 +848,7 @@ fn byte_in_str_utf16(s: &str, c: span::Column<span::ZeroIndexed>) -> Result<usiz
         utf16_offset += chr.len_utf16();
     }
 
-    return Err(Error::InternalError("UTF-16 code unit offset is not at `str` char boundary"));
+    Err(Error::InternalError("UTF-16 code unit offset is not at `str` char boundary"))
 }
 
 trait FileLoader {
@@ -864,7 +870,7 @@ impl FileLoader for RealFileLoader {
             }
         };
         let mut buf = vec![];
-        if let Err(_) = file.read_to_end(&mut buf) {
+        if file.read_to_end(&mut buf).is_err() {
             return Err(Error::Io(
                 Some(file_name.to_owned()),
                 Some(format!("Could not read file: {}", file_name.display())),
