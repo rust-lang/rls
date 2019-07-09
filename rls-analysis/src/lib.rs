@@ -25,6 +25,7 @@ pub use raw::{name_space_for_def_kind, read_analysis_from_files, Crate, CrateId,
 pub use symbol_query::SymbolQuery;
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Instant, SystemTime};
@@ -85,8 +86,6 @@ impl Id {
 /// Used to indicate a missing index in the Id.
 pub const NULL: Id = Id(u64::MAX);
 
-type Blacklist<'a> = &'a [&'static str];
-
 macro_rules! clone_field {
     ($field: ident) => {
         |x| x.$field.clone()
@@ -126,7 +125,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         analysis: Vec<data::Analysis>,
         path_prefix: &Path,
         base_dir: &Path,
-        blacklist: Blacklist<'_>,
+        blacklist: &[impl AsRef<str> + Debug],
     ) -> AResult<()> {
         self.reload_with_blacklist(path_prefix, base_dir, blacklist)?;
 
@@ -143,14 +142,14 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
     }
 
     pub fn reload(&self, path_prefix: &Path, base_dir: &Path) -> AResult<()> {
-        self.reload_with_blacklist(path_prefix, base_dir, &[])
+        self.reload_with_blacklist(path_prefix, base_dir, &[] as &[&str])
     }
 
     pub fn reload_with_blacklist(
         &self,
         path_prefix: &Path,
         base_dir: &Path,
-        blacklist: Blacklist<'_>,
+        blacklist: &[impl AsRef<str> + Debug],
     ) -> AResult<()> {
         trace!("reload_with_blacklist {:?} {:?} {:?}", path_prefix, base_dir, blacklist);
         let empty = self.analysis.lock()?.is_none();
@@ -173,14 +172,14 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
 
     /// Reloads the entire project's analysis data.
     pub fn hard_reload(&self, path_prefix: &Path, base_dir: &Path) -> AResult<()> {
-        self.hard_reload_with_blacklist(path_prefix, base_dir, &[])
+        self.hard_reload_with_blacklist(path_prefix, base_dir, &[] as &[&str])
     }
 
     pub fn hard_reload_with_blacklist(
         &self,
         path_prefix: &Path,
         base_dir: &Path,
-        blacklist: Blacklist<'_>,
+        blacklist: &[impl AsRef<str> + Debug],
     ) -> AResult<()> {
         trace!("hard_reload {:?} {:?}", path_prefix, base_dir);
         // We're going to create a dummy AnalysisHost that we will fill with data,
@@ -542,7 +541,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
 
 impl ::std::fmt::Display for Id {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        self.0.fmt(f)
+        ::std::fmt::Display::fmt(&self.0, f)
     }
 }
 

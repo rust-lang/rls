@@ -42,7 +42,8 @@ fn main() {
         std::process::exit(1);
     }
     let loader = Loader::new(PathBuf::from(env::args().nth(1).unwrap()));
-    let crates = rls_analysis::read_analysis_from_files(&loader, Default::default(), &[]);
+    let crates =
+        rls_analysis::read_analysis_from_files(&loader, Default::default(), &[] as &[&str]);
 
     for krate in &crates {
         println!("Crate {:?} data version {:?}", krate.id, krate.analysis.version);

@@ -6,13 +6,14 @@ pub use data::{
 };
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
 use crate::listings::{DirectoryListing, ListingKind};
-use crate::{AnalysisLoader, Blacklist};
+use crate::AnalysisLoader;
 
 #[derive(Debug)]
 pub struct Crate {
@@ -45,7 +46,7 @@ impl Crate {
 pub fn read_analysis_from_files<L: AnalysisLoader>(
     loader: &L,
     crate_timestamps: HashMap<PathBuf, SystemTime>,
-    crate_blacklist: Blacklist<'_>,
+    crate_blacklist: &[impl AsRef<str> + Debug],
 ) -> Vec<Crate> {
     let mut result = vec![];
 
@@ -92,8 +93,8 @@ pub fn read_analysis_from_files<L: AnalysisLoader>(
     result
 }
 
-fn ignore_data(file_name: &str, crate_blacklist: Blacklist<'_>) -> bool {
-    crate_blacklist.iter().any(|name| file_name.starts_with(&format!("lib{}-", name)))
+fn ignore_data(file_name: &str, crate_blacklist: &[impl AsRef<str>]) -> bool {
+    crate_blacklist.iter().any(|name| file_name.starts_with(&format!("lib{}-", name.as_ref())))
 }
 
 fn read_file_contents(path: &Path) -> io::Result<String> {
