@@ -335,7 +335,7 @@ impl InitActionContext {
                 related_information_support: self.client_capabilities.related_information_support,
                 shown_cargo_error: self.shown_cargo_error.clone(),
                 active_build_count: self.active_build_count.clone(),
-                use_black_list: config.use_crate_blacklist,
+                crate_blacklist: config.crate_blacklist.as_ref().clone(),
                 notifier: Box::new(BuildDiagnosticsNotifier::new(out.clone())),
                 blocked_threads: vec![],
                 _token: token,

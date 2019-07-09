@@ -498,19 +498,23 @@ impl Executor for RlsExecutor {
                 cmd.get_envs(),
             );
 
-            if rls_blacklist::CRATE_BLACKLIST.contains(&&*crate_name) {
+            let (crate_blacklist, full_docs) = {
+                let config = self.config.lock().unwrap();
+                (config.crate_blacklist.clone(), *config.full_docs.clone().as_ref())
+            };
+            if crate_blacklist.as_ref().0.contains(&crate_name) {
                 // By running the original command (rather than using our shim), we
                 // avoid producing save-analysis data.
                 trace!("crate is blacklisted");
                 return cargo_cmd.exec();
             }
             // Only include public symbols in externally compiled deps data
-            let mut save_config = rls_data::config::Config::default();
-            save_config.pub_only = true;
-            save_config.reachable_only = true;
-            save_config.full_docs =
-                self.config.lock().map(|config| *config.full_docs.as_ref()).unwrap();
-            let save_config = serde_json::to_string(&save_config)?;
+            let save_config = serde_json::to_string(&rls_data::config::Config {
+                pub_only: true,
+                reachable_only: true,
+                full_docs,
+                ..Default::default()
+            })?;
             cmd.env("RUST_SAVE_ANALYSIS_CONFIG", &OsString::from(save_config));
 
             return cmd.exec();
