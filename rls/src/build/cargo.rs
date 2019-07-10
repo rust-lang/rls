@@ -363,9 +363,9 @@ impl Executor for RlsExecutor {
             .as_cargo_mut()
             .expect("build plan should be properly initialized before running Cargo");
 
-        let only_primary = |unit: &Unit<'_>| self.is_primary_package(unit.pkg.package_id());
+        let only_primary = |unit: Unit<'_>| self.is_primary_package(unit.pkg.package_id());
 
-        plan.emplace_dep_with_filter(unit, cx, &only_primary);
+        plan.emplace_dep_with_filter(*unit, cx, &only_primary);
     }
 
     fn force_rebuild(&self, unit: &Unit<'_>) -> bool {

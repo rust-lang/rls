@@ -123,18 +123,18 @@ impl CargoPlan {
     /// out by the `filter` closure.
     pub(crate) fn emplace_dep_with_filter<'a, Filter>(
         &mut self,
-        unit: &Unit<'a>,
+        unit: Unit<'a>,
         cx: &Context<'a, '_>,
         filter: &Filter,
     ) where
-        Filter: Fn(&Unit<'a>) -> bool,
+        Filter: Fn(Unit<'a>) -> bool,
     {
         if !filter(unit) {
             return;
         }
 
         let key = key_from_unit(unit);
-        self.units.entry(key.clone()).or_insert_with(|| (*unit).into());
+        self.units.entry(key.clone()).or_insert_with(|| unit.into());
         // Process only those units, which are not yet in the dep graph.
         if self.dep_graph.get(&key).is_some() {
             return;
@@ -143,15 +143,16 @@ impl CargoPlan {
         // Keep all the additional Unit information for a given unit (It's
         // worth remembering, that the units are only discriminated by a
         // pair of (PackageId, TargetKind), so only first occurrence will be saved.
-        self.units.insert(key.clone(), (*unit).into());
+        self.units.insert(key.clone(), unit.into());
 
         // Fetch and insert relevant unit dependencies to the forward dep graph.
-        let units = cx.dep_targets(unit);
+        let units = cx.dep_targets(&unit);
         let dep_keys: HashSet<UnitKey> = units
             .iter()
+            .copied()
             // We might not want certain deps to be added transitively (e.g.
             // when creating only a sub-dep-graph, limiting the scope).
-            .filter(|unit| filter(unit))
+            .filter(|unit| filter(*unit))
             .map(key_from_unit)
             // Units can depend on others with different Targets or Profiles
             // (e.g. different `run_custom_build`) despite having the same UnitKey.
@@ -170,7 +171,7 @@ impl CargoPlan {
 
         // Recursively process other remaining forward dependencies.
         for unit in units {
-            self.emplace_dep_with_filter(&unit, cx, filter);
+            self.emplace_dep_with_filter(unit, cx, filter);
         }
     }
 
@@ -321,9 +322,7 @@ impl CargoPlan {
             visited: &mut HashSet<UnitKey>,
             output: &mut Vec<UnitKey>,
         ) {
-            if visited.contains(unit) {
-                return;
-            } else {
+            if !visited.contains(unit) {
                 visited.insert(unit.clone());
                 for neighbour in graph.get(unit).into_iter().flat_map(|nodes| nodes) {
                     dfs(neighbour, graph, visited, output);
@@ -461,7 +460,7 @@ impl PackageMap {
     }
 }
 
-fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
+fn key_from_unit(unit: Unit<'_>) -> UnitKey {
     (unit.pkg.package_id(), unit.target.clone(), unit.mode)
 }
 

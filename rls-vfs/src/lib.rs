@@ -50,6 +50,7 @@ pub enum VfsSpan {
     Utf16CodeUnit(SpanData),
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl VfsSpan {
     pub fn from_usv(span: span::Span<span::ZeroIndexed>, len: Option<u64>) -> VfsSpan {
         VfsSpan::UnicodeScalarValue(SpanData { span, len })

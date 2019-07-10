@@ -293,6 +293,7 @@ impl Drop for AnalysisQueue {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 enum QueuedJob {
     Job(Job),
     Terminate,
