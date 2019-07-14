@@ -232,10 +232,10 @@ pub struct AnalysisQueue {
 impl AnalysisQueue {
     // Create a new queue and start the worker thread.
     pub fn init() -> AnalysisQueue {
-        let queue = Arc::new(Mutex::new(Vec::new()));
+        let queue = Arc::default();
         let worker_thread = thread::spawn({
             let queue = Arc::clone(&queue);
-            move || AnalysisQueue::run_worker_thread(queue)
+            || AnalysisQueue::run_worker_thread(queue)
         })
         .thread()
         .clone();

@@ -369,7 +369,7 @@ fn init() -> Sender<String> {
         Box::new(ChannelMsgReader::new(receiver)),
         PrintlnOutput,
     );
-    thread::spawn(move || LsService::run(service));
+    thread::spawn(|| LsService::run(service));
 
     sender
         .send(

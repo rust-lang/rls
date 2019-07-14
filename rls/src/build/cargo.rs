@@ -59,7 +59,7 @@ pub(super) fn cargo(
         let analysis = Arc::clone(&analysis);
         let input_files = Arc::clone(&input_files);
         let out = Arc::clone(&out);
-        move || {
+        || {
             run_cargo(
                 compilation_cx,
                 package_arg,
