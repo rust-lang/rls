@@ -166,7 +166,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         Compilation::Continue
     }
 
-    fn after_analysis(&mut self, compiler: &interface::Compiler) -> Compilation {
+    fn after_expansion(&mut self, compiler: &interface::Compiler) -> Compilation {
         let sess = compiler.session();
         let input = compiler.input();
         let crate_name = compiler.crate_name().unwrap().peek().clone();
@@ -189,10 +189,19 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             },
         };
 
+        // We populate the file -> edition mapping only after expansion since it
+        // can pull additional input files
         let mut input_files = self.input_files.lock().unwrap();
         for file in fetch_input_files(sess) {
             input_files.entry(file).or_default().insert(krate.clone());
         }
+
+        Compilation::Continue
+    }
+
+    fn after_analysis(&mut self, compiler: &interface::Compiler) -> Compilation {
+        let input = compiler.input();
+        let crate_name = compiler.crate_name().unwrap().peek().clone();
 
         // Guaranteed to not be dropped yet in the pipeline thanks to the
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
