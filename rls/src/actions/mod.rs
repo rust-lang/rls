@@ -86,9 +86,9 @@ impl ActionContext {
         let ctx = match *self {
             ActionContext::Uninit(ref uninit) => {
                 let ctx = InitActionContext::new(
-                    uninit.analysis.clone(),
-                    uninit.vfs.clone(),
-                    uninit.config.clone(),
+                    Arc::clone(&uninit.analysis),
+                    Arc::clone(&uninit.vfs),
+                    Arc::clone(&uninit.config),
                     client_capabilities,
                     current_project,
                     uninit.pid,
@@ -189,7 +189,7 @@ impl InitActionContext {
         pid: u32,
         client_supports_cmd_run: bool,
     ) -> InitActionContext {
-        let build_queue = BuildQueue::new(vfs.clone(), config.clone());
+        let build_queue = BuildQueue::new(Arc::clone(&vfs), Arc::clone(&config));
         let analysis_queue = Arc::new(AnalysisQueue::init());
         InitActionContext {
             analysis,
@@ -226,7 +226,7 @@ impl InitActionContext {
                 info!("loading cargo project model");
                 let pm = ProjectModel::load(&self.current_project.join("Cargo.toml"), &self.vfs)?;
                 let pm = Arc::new(pm);
-                *self.project_model.lock().unwrap() = Some(pm.clone());
+                *self.project_model.lock().unwrap() = Some(Arc::clone(&pm));
                 Ok(pm)
             }
         }
@@ -245,7 +245,7 @@ impl InitActionContext {
                 }
             }
         }
-        racer::FileCache::new(RacerVfs(self.vfs.clone()))
+        racer::FileCache::new(RacerVfs(Arc::clone(&self.vfs)))
     }
 
     pub fn racer_session<'c>(&self, cache: &'c racer::FileCache) -> racer::Session<'c> {
@@ -326,15 +326,15 @@ impl InitActionContext {
         let pbh = {
             let config = self.config.lock().unwrap();
             PostBuildHandler {
-                analysis: self.analysis.clone(),
-                analysis_queue: self.analysis_queue.clone(),
-                previous_build_results: self.previous_build_results.clone(),
-                file_to_crates: self.file_to_crates.clone(),
+                analysis: Arc::clone(&self.analysis),
+                analysis_queue: Arc::clone(&self.analysis_queue),
+                previous_build_results: Arc::clone(&self.previous_build_results),
+                file_to_crates: Arc::clone(&self.file_to_crates),
                 project_path: project_path.to_owned(),
                 show_warnings: config.show_warnings,
                 related_information_support: self.client_capabilities.related_information_support,
-                shown_cargo_error: self.shown_cargo_error.clone(),
-                active_build_count: self.active_build_count.clone(),
+                shown_cargo_error: Arc::clone(&self.shown_cargo_error),
+                active_build_count: Arc::clone(&self.active_build_count),
                 crate_blacklist: config.crate_blacklist.as_ref().clone(),
                 notifier: Box::new(BuildDiagnosticsNotifier::new(out.clone())),
                 blocked_threads: vec![],

@@ -270,18 +270,19 @@ impl BuildQueue {
             pbh,
         };
 
-        let queued_clone = self.queued.clone();
-        let internals_clone = self.internals.clone();
-
         let mut queued = self.queued.lock().unwrap();
         Self::push_build(&mut queued, build);
 
         // Need to spawn while holding the lock on queued so that we don't race.
         if !self.internals.building.swap(true, Ordering::SeqCst) {
-            thread::spawn(move || {
-                BuildQueue::run_thread(queued_clone, &internals_clone);
-                let building = internals_clone.building.swap(false, Ordering::SeqCst);
-                assert!(building);
+            thread::spawn({
+                let queued = Arc::clone(&self.queued);
+                let internals = Arc::clone(&self.internals);
+                move || {
+                    BuildQueue::run_thread(queued, &internals);
+                    let building = internals.building.swap(false, Ordering::SeqCst);
+                    assert!(building);
+                }
             });
         }
     }

@@ -85,7 +85,7 @@ pub(crate) fn rustc(
     let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
 
     let buf = Arc::new(Mutex::new(vec![]));
-    let err_buf = buf.clone();
+    let err_buf = Arc::clone(&buf);
     let args: Vec<_> = if cfg!(feature = "clippy") && clippy_preference != ClippyPreference::Off {
         // Allow feature gating in the same way as `cargo clippy`
         let mut clippy_args = vec!["--cfg".to_owned(), r#"feature="cargo-clippy""#.to_owned()];
@@ -188,11 +188,10 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                 RustcEdition::Edition2018 => Edition::Edition2018,
             },
         };
-        let files = fetch_input_files(sess);
 
         let mut input_files = self.input_files.lock().unwrap();
-        for file in &files {
-            input_files.entry(file.to_path_buf()).or_default().insert(krate.clone());
+        for file in fetch_input_files(sess) {
+            input_files.entry(file).or_default().insert(krate.clone());
         }
 
         // Guaranteed to not be dropped yet in the pipeline thanks to the
@@ -285,7 +284,6 @@ fn fetch_input_files(sess: &Session) -> Vec<PathBuf> {
         .filter(|fmap| !fmap.is_imported())
         .map(|fmap| fmap.name.to_string())
         .map(|fmap| src_path(Some(cwd), fmap).unwrap())
-        .map(PathBuf::from)
         .collect()
 }
 

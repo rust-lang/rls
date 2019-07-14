@@ -183,9 +183,8 @@ impl RequestAction for Definition {
         // Save-analysis thread.
         let file_path = parse_file_path!(&params.text_document.uri, "goto_def")?;
         let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
-        let analysis = ctx.analysis.clone();
 
-        if let Ok(out) = analysis.goto_def(&span) {
+        if let Ok(out) = ctx.analysis.goto_def(&span) {
             let result = vec![ls_util::rls_to_location(&out)];
             trace!("goto_def (compiler): {:?}", result);
             Ok(result)

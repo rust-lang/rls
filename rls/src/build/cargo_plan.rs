@@ -33,7 +33,12 @@ use crate::build::PackageArg;
 /// Main key type by which `Unit`s will be distinguished in the build plan.
 /// In `Target` we're mostly interested in `TargetKind` (Lib, Bin, ...) and name
 /// (e.g., we can have 2 binary targets with different names).
-pub(crate) type UnitKey = (PackageId, Target, CompileMode);
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct UnitKey {
+    pkg_id: PackageId,
+    target: Target,
+    mode: CompileMode,
+}
 
 /// Holds the information how exactly the build will be performed for a given
 /// workspace with given, specified features.
@@ -83,7 +88,7 @@ impl CargoPlan {
         mode: CompileMode,
         cmd: &ProcessBuilder,
     ) {
-        let unit_key = (id, target.clone(), mode);
+        let unit_key = UnitKey { pkg_id: id, target: target.clone(), mode };
         self.compiler_jobs.insert(unit_key, cmd.clone());
     }
 
@@ -107,7 +112,7 @@ impl CargoPlan {
             })
             .collect();
 
-        let unit_key = (id, target.clone(), mode);
+        let unit_key = UnitKey { pkg_id: id, target: target.clone(), mode };
         trace!("Caching these files: {:#?} for {:?} key", &input_files, &unit_key);
 
         // Create reverse file -> unit mapping (to be used for dirty unit calculation).
@@ -123,18 +128,18 @@ impl CargoPlan {
     /// out by the `filter` closure.
     pub(crate) fn emplace_dep_with_filter<'a, Filter>(
         &mut self,
-        unit: &Unit<'a>,
+        unit: Unit<'a>,
         cx: &Context<'a, '_>,
         filter: &Filter,
     ) where
-        Filter: Fn(&Unit<'a>) -> bool,
+        Filter: Fn(Unit<'a>) -> bool,
     {
         if !filter(unit) {
             return;
         }
 
-        let key = key_from_unit(unit);
-        self.units.entry(key.clone()).or_insert_with(|| (*unit).into());
+        let key = UnitKey::from(unit);
+        self.units.entry(key.clone()).or_insert_with(|| unit.into());
         // Process only those units, which are not yet in the dep graph.
         if self.dep_graph.get(&key).is_some() {
             return;
@@ -143,16 +148,17 @@ impl CargoPlan {
         // Keep all the additional Unit information for a given unit (It's
         // worth remembering, that the units are only discriminated by a
         // pair of (PackageId, TargetKind), so only first occurrence will be saved.
-        self.units.insert(key.clone(), (*unit).into());
+        self.units.insert(key.clone(), unit.into());
 
         // Fetch and insert relevant unit dependencies to the forward dep graph.
-        let units = cx.dep_targets(unit);
+        let units = cx.dep_targets(&unit);
         let dep_keys: HashSet<UnitKey> = units
             .iter()
+            .copied()
             // We might not want certain deps to be added transitively (e.g.
             // when creating only a sub-dep-graph, limiting the scope).
-            .filter(|unit| filter(unit))
-            .map(key_from_unit)
+            .filter(|unit| filter(*unit))
+            .map(UnitKey::from)
             // Units can depend on others with different Targets or Profiles
             // (e.g. different `run_custom_build`) despite having the same UnitKey.
             // We coalesce them here while creating the UnitKey dep graph.
@@ -170,7 +176,7 @@ impl CargoPlan {
 
         // Recursively process other remaining forward dependencies.
         for unit in units {
-            self.emplace_dep_with_filter(&unit, cx, filter);
+            self.emplace_dep_with_filter(unit, cx, filter);
         }
     }
 
@@ -188,7 +194,7 @@ impl CargoPlan {
         let build_scripts: HashMap<&Path, UnitKey> = self
             .units
             .iter()
-            .filter(|&(&(_, ref target, _), _)| {
+            .filter(|(UnitKey { target, .. }, _)| {
                 target.is_custom_build() && target.src_path().is_path()
             })
             .map(|(key, unit)| (unit.target.src_path().path().unwrap(), key.clone()))
@@ -196,7 +202,7 @@ impl CargoPlan {
         let other_targets: HashMap<UnitKey, &Path> = self
             .units
             .iter()
-            .filter(|&(&(_, ref target, _), _)| !target.is_custom_build())
+            .filter(|(UnitKey { target, .. }, _)| !target.is_custom_build())
             .map(|(key, unit)| {
                 (
                     key.clone(),
@@ -321,9 +327,7 @@ impl CargoPlan {
             visited: &mut HashSet<UnitKey>,
             output: &mut Vec<UnitKey>,
         ) {
-            if visited.contains(unit) {
-                return;
-            } else {
+            if !visited.contains(unit) {
                 visited.insert(unit.clone());
                 for neighbour in graph.get(unit).into_iter().flat_map(|nodes| nodes) {
                     dfs(neighbour, graph, visited, output);
@@ -353,7 +357,7 @@ impl CargoPlan {
         let dirties = self.fetch_dirty_units(modified);
         trace!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties,);
 
-        if dirties.iter().any(|&(_, ref target, _)| *target.kind() == TargetKind::CustomBuild) {
+        if dirties.iter().any(|UnitKey { target, .. }| *target.kind() == TargetKind::CustomBuild) {
             WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages))
         } else {
             let graph = self.dirty_rev_dep_graph(&dirties);
@@ -461,8 +465,10 @@ impl PackageMap {
     }
 }
 
-fn key_from_unit(unit: &Unit<'_>) -> UnitKey {
-    (unit.pkg.package_id(), unit.target.clone(), unit.mode)
+impl From<Unit<'_>> for UnitKey {
+    fn from(unit: Unit<'_>) -> UnitKey {
+        UnitKey { pkg_id: unit.pkg.package_id(), target: unit.target.clone(), mode: unit.mode }
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
@@ -475,8 +481,8 @@ pub(crate) struct OwnedUnit {
     pub(crate) mode: CompileMode,
 }
 
-impl<'a> From<Unit<'a>> for OwnedUnit {
-    fn from(unit: Unit<'a>) -> OwnedUnit {
+impl From<Unit<'_>> for OwnedUnit {
+    fn from(unit: Unit<'_>) -> OwnedUnit {
         OwnedUnit {
             id: unit.pkg.package_id().to_owned(),
             target: unit.target.clone(),
@@ -487,11 +493,17 @@ impl<'a> From<Unit<'a>> for OwnedUnit {
     }
 }
 
+impl From<&OwnedUnit> for UnitKey {
+    fn from(unit: &OwnedUnit) -> UnitKey {
+        UnitKey { pkg_id: unit.id, target: unit.target.clone(), mode: unit.mode }
+    }
+}
+
 impl BuildKey for OwnedUnit {
     type Key = UnitKey;
 
     fn key(&self) -> UnitKey {
-        (self.id, self.target.clone(), self.mode)
+        UnitKey::from(self)
     }
 }
 
