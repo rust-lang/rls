@@ -40,48 +40,50 @@ pub(super) fn cargo(
     package_arg: PackageArg,
     progress_sender: Sender<ProgressUpdate>,
 ) -> BuildResult {
-    let compilation_cx = internals.compilation_cx.clone();
-    let config = internals.config.clone();
-    let vfs = internals.vfs.clone();
-    let env_lock = internals.env_lock.clone();
+    let compilation_cx = Arc::clone(&internals.compilation_cx);
+    let config = Arc::clone(&internals.config);
+    let vfs = Arc::clone(&internals.vfs);
+    let env_lock = Arc::clone(&internals.env_lock);
 
-    let diagnostics = Arc::new(Mutex::new(vec![]));
-    let diagnostics_clone = diagnostics.clone();
-    let analysis = Arc::new(Mutex::new(vec![]));
-    let analysis_clone = analysis.clone();
-    let input_files = Arc::new(Mutex::new(HashMap::new()));
-    let input_files_clone = input_files.clone();
-    let out = Arc::new(Mutex::new(vec![]));
-    let out_clone = out.clone();
+    let diagnostics = Arc::default();
+    let analysis = Arc::default();
+    let input_files = Arc::default();
+    let out = Arc::default();
 
     // Cargo may or may not spawn threads to run the various builds, since
     // we may be in separate threads we need to block and wait our thread.
     // However, if Cargo doesn't run a separate thread, then we'll just wait
     // forever. Therefore, we spawn an extra thread here to be safe.
-    let handle = thread::spawn(move || {
-        run_cargo(
-            compilation_cx,
-            package_arg,
-            config,
-            vfs,
-            env_lock,
-            diagnostics,
-            analysis,
-            input_files,
-            out,
-            progress_sender,
-        )
+    let handle = thread::spawn({
+        let diagnostics = Arc::clone(&diagnostics);
+        let analysis = Arc::clone(&analysis);
+        let input_files = Arc::clone(&input_files);
+        let out = Arc::clone(&out);
+        move || {
+            run_cargo(
+                compilation_cx,
+                package_arg,
+                config,
+                vfs,
+                env_lock,
+                diagnostics,
+                analysis,
+                input_files,
+                out,
+                progress_sender,
+            )
+        }
     });
 
     match handle.join().map_err(|_| failure::err_msg("thread panicked")).and_then(|res| res) {
         Ok(ref cwd) => {
-            let diagnostics = Arc::try_unwrap(diagnostics_clone).unwrap().into_inner().unwrap();
-            let analysis = Arc::try_unwrap(analysis_clone).unwrap().into_inner().unwrap();
-            let input_files = Arc::try_unwrap(input_files_clone).unwrap().into_inner().unwrap();
+            let diagnostics = Arc::try_unwrap(diagnostics).unwrap().into_inner().unwrap();
+            let analysis = Arc::try_unwrap(analysis).unwrap().into_inner().unwrap();
+            let input_files = Arc::try_unwrap(input_files).unwrap().into_inner().unwrap();
             BuildResult::Success(cwd.clone(), diagnostics, analysis, input_files, true)
         }
         Err(error) => {
-            let stdout = String::from_utf8(out_clone.lock().unwrap().to_owned()).unwrap();
+            let stdout = String::from_utf8(out.lock().unwrap().to_owned()).unwrap();
 
             let (manifest_path, manifest_error_range) = {
                 let mae = error.downcast_ref::<ManifestAwareError>();
@@ -257,7 +259,7 @@ fn run_cargo_ws(
         analysis,
         input_files,
         progress_sender,
-        reached_primary.clone(),
+        Arc::clone(&reached_primary),
     );
 
     let exec = Arc::new(exec) as Arc<dyn Executor>;

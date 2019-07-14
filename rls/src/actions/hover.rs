@@ -255,12 +255,11 @@ fn tooltip_local_variable_usage(
     doc_url: Option<String>,
 ) -> Vec<MarkedString> {
     debug!("tooltip_local_variable_usage: {}", def.name);
-    let vfs = ctx.vfs.clone();
 
     let the_type = def.value.trim().into();
     let mut context = String::new();
     if ctx.config.lock().unwrap().show_hover_context {
-        match vfs.load_line(&def.span.file, def.span.range.row_start) {
+        match ctx.vfs.load_line(&def.span.file, def.span.range.row_start) {
             Ok(line) => {
                 context.push_str(line.trim());
             }
@@ -282,7 +281,7 @@ fn tooltip_local_variable_usage(
 fn tooltip_type(ctx: &InitActionContext, def: &Def, doc_url: Option<String>) -> Vec<MarkedString> {
     debug!("tooltip_type: {}", def.name);
 
-    let vfs = ctx.vfs.clone();
+    let vfs = &ctx.vfs;
 
     let the_type = || def.value.trim().into();
     let the_type = def_decl(def, &vfs, the_type);
@@ -299,7 +298,7 @@ fn tooltip_field_or_variant(
 ) -> Vec<MarkedString> {
     debug!("tooltip_field_or_variant: {}", def.name);
 
-    let vfs = ctx.vfs.clone();
+    let vfs = &ctx.vfs;
 
     let the_type = def.value.trim().into();
     let docs = def_docs(def, &vfs);
@@ -315,7 +314,7 @@ fn tooltip_struct_enum_union_trait(
 ) -> Vec<MarkedString> {
     debug!("tooltip_struct_enum_union_trait: {}", def.name);
 
-    let vfs = ctx.vfs.clone();
+    let vfs = &ctx.vfs;
     let fmt_config = ctx.fmt_config();
     // We hover often, so use the in-process one to speed things up.
     let fmt = Rustfmt::Internal;
@@ -341,7 +340,7 @@ fn tooltip_struct_enum_union_trait(
 fn tooltip_mod(ctx: &InitActionContext, def: &Def, doc_url: Option<String>) -> Vec<MarkedString> {
     debug!("tooltip_mod: name: {}", def.name);
 
-    let vfs = ctx.vfs.clone();
+    let vfs = &ctx.vfs;
 
     let the_type = def.value.trim();
     let the_type = the_type.replace("\\\\", "/");
@@ -370,7 +369,7 @@ fn tooltip_function_method(
 ) -> Vec<MarkedString> {
     debug!("tooltip_function_method: {}", def.name);
 
-    let vfs = ctx.vfs.clone();
+    let vfs = &ctx.vfs;
     let fmt_config = ctx.fmt_config();
     // We hover often, so use the in-process one to speed things up.
     let fmt = Rustfmt::Internal;
@@ -441,11 +440,9 @@ fn tooltip_static_const_decl(
 ) -> Vec<MarkedString> {
     debug!("tooltip_static_const_decl: {}", def.name);
 
-    let vfs = ctx.vfs.clone();
+    let vfs = &ctx.vfs;
 
-    let the_type = def.value.trim().into();
-
-    let the_type = def_decl(def, &vfs, || the_type);
+    let the_type = def_decl(def, &vfs, || def.value.trim().into());
     let docs = def_docs(def, &vfs);
     let context = None;
 
@@ -684,7 +681,6 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
 /// Uses racer to synthesize a `Def` for the given `span`. If no appropriate
 /// match is found with coordinates, `None` is returned.
 fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
-    let vfs = ctx.vfs.clone();
     let file_path = &span.file;
 
     if !file_path.as_path().exists() {
@@ -692,7 +688,7 @@ fn racer_def(ctx: &InitActionContext, span: &Span<ZeroIndexed>) -> Option<Def> {
         return None;
     }
 
-    let name = vfs.load_line(file_path.as_path(), span.range.row_start).ok().and_then(|line| {
+    let name = ctx.vfs.load_line(file_path.as_path(), span.range.row_start).ok().and_then(|line| {
         let col_start = span.range.col_start.0 as usize;
         let col_end = span.range.col_end.0 as usize;
         line.get(col_start..col_end).map(ToOwned::to_owned)

@@ -6,7 +6,8 @@
 //! code completion, and enables renaming and refactorings.
 
 #![feature(rustc_private, drain_filter)]
-#![warn(clippy::all, rust_2018_idioms)]
+#![warn(rust_2018_idioms)]
+#![warn(clippy::all, clippy::clone_on_ref_ptr)]
 #![allow(clippy::cognitive_complexity, clippy::too_many_arguments, clippy::redundant_closure)]
 
 #[macro_use]

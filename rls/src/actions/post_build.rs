@@ -54,7 +54,7 @@ impl PostBuildHandler {
 
                 // Emit appropriate diagnostics using the ones from build.
                 self.handle_messages(&cwd, &messages);
-                let analysis_queue = self.analysis_queue.clone();
+                let analysis_queue = Arc::clone(&self.analysis_queue);
 
                 {
                     let mut files_to_crates = self.file_to_crates.lock().unwrap();
@@ -233,9 +233,12 @@ impl AnalysisQueue {
     // Create a new queue and start the worker thread.
     pub fn init() -> AnalysisQueue {
         let queue = Arc::new(Mutex::new(Vec::new()));
-        let queue_clone = queue.clone();
-        let worker_thread =
-            thread::spawn(move || AnalysisQueue::run_worker_thread(queue_clone)).thread().clone();
+        let worker_thread = thread::spawn({
+            let queue = Arc::clone(&queue);
+            move || AnalysisQueue::run_worker_thread(queue)
+        })
+        .thread()
+        .clone();
 
         AnalysisQueue { cur_cwd: Mutex::new(None), queue, worker_thread }
     }

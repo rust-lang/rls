@@ -5,6 +5,7 @@ use crate::Span;
 use log::{debug, trace, warn};
 use rls_vfs::{Change, VfsSpan};
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use crate::build::*;
 use crate::lsp_data::request::{RangeFormatting, RegisterCapability, UnregisterCapability};
@@ -170,7 +171,7 @@ impl BlockingNotificationAction for DidChangeConfiguration {
 
             if needs_inference {
                 let project_dir = ctx.current_project.clone();
-                let config = ctx.config.clone();
+                let config = Arc::clone(&ctx.config);
                 // Will lock and access Config just outside the current scope
                 thread::spawn(move || {
                     let mut config = config.lock().unwrap();

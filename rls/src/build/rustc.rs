@@ -85,7 +85,7 @@ pub(crate) fn rustc(
     let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
 
     let buf = Arc::new(Mutex::new(vec![]));
-    let err_buf = buf.clone();
+    let err_buf = Arc::clone(&buf);
     let args: Vec<_> = if cfg!(feature = "clippy") && clippy_preference != ClippyPreference::Off {
         // Allow feature gating in the same way as `cargo clippy`
         let mut clippy_args = vec!["--cfg".to_owned(), r#"feature="cargo-clippy""#.to_owned()];
