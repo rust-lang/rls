@@ -4,14 +4,30 @@ extern crate env_logger;
 extern crate rustc;
 extern crate rustc_driver;
 extern crate rustc_interface;
+extern crate syntax;
 
 use rustc::session::config::ErrorOutputType;
 use rustc::session::early_error;
 use rustc_driver::{run_compiler, Callbacks};
 use rustc_interface::interface;
+use syntax::source_map::FileLoader;
 
 use std::env;
 use std::process;
+
+#[cfg(feature = "ipc")]
+mod ipc;
+
+fn file_loader() -> Option<Box<dyn FileLoader + Send + Sync>> {
+    #[cfg(feature = "ipc")]
+    {
+        Some(Box::new(ipc::IpcFileLoader))
+    }
+    #[cfg(not(feature = "ipc"))]
+    {
+        None
+    }
+}
 
 pub fn run() {
     env_logger::init();
@@ -28,7 +44,7 @@ pub fn run() {
             })
             .collect::<Vec<_>>();
 
-        run_compiler(&args, &mut ShimCalls, None, None)
+        run_compiler(&args, &mut ShimCalls, file_loader(), None)
     })
     .and_then(|result| result);
     process::exit(result.is_err() as i32);

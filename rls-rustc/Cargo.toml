@@ -9,3 +9,7 @@ repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]
+parity-tokio-ipc = { version = "0.1", optional = true }
+
+[features]
+ipc = ["parity-tokio-ipc"]
