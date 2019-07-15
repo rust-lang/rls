@@ -1,14 +1,9 @@
 #![feature(rustc_private)]
 
 extern crate env_logger;
-extern crate getopts;
 extern crate rustc;
-extern crate rustc_codegen_utils;
 extern crate rustc_driver;
-extern crate rustc_errors;
 extern crate rustc_interface;
-extern crate rustc_metadata;
-extern crate syntax;
 
 use rustc::session::config::ErrorOutputType;
 use rustc::session::early_error;
