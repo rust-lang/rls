@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use cargo::util::ProcessBuilder;
 use log::trace;
+use serde::{Deserialize, Serialize};
 
 use crate::actions::progress::ProgressUpdate;
 use crate::build::cargo_plan::CargoPlan;
@@ -220,7 +221,7 @@ impl JobQueue {
 }
 
 /// Build system-agnostic, basic compilation unit
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Deserialize, Serialize)]
 pub struct Crate {
     pub name: String,
     pub src_path: Option<PathBuf>,
@@ -231,7 +232,7 @@ pub struct Crate {
 }
 
 // Temporary, until Edition from rustfmt is available
-#[derive(PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Copy, Clone, Deserialize, Serialize)]
 pub enum Edition {
     Edition2015,
     Edition2018,

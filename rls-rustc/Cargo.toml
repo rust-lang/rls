@@ -9,3 +9,18 @@ repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]
+env_logger = "0.6"
+log = "0.4"
+failure = "0.1"
+rand = "0.6"
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "72da1015d6d918fe1b29170acbf486d30e0c2695", optional = true }
+tokio = { version = "0.1", optional = true }
+futures = { version = "0.1", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+rls-data = { version = "0.19", optional = true }
+rls-ipc = { path = "../rls-ipc", optional = true }
+
+[features]
+clippy = ["clippy_lints"]
+ipc = ["tokio", "futures", "serde", "rls-data", "rls-ipc/client"]
+default = []

@@ -1,3 +1,3 @@
-fn main() {
-    rls_rustc::run();
+fn main() -> Result<(), ()> {
+    rls_rustc::run()
 }

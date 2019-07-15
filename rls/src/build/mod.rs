@@ -27,6 +27,8 @@ mod cargo;
 mod cargo_plan;
 pub mod environment;
 mod external;
+#[cfg(feature = "ipc")]
+mod ipc;
 mod plan;
 mod rustc;
 
