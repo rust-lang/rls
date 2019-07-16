@@ -21,7 +21,9 @@ mod ipc;
 fn file_loader() -> Option<Box<dyn FileLoader + Send + Sync>> {
     #[cfg(feature = "ipc")]
     {
-        Some(Box::new(ipc::IpcFileLoader))
+        let endpoint = std::env::var("RLS_IPC_ENDPOINT").ok()?;
+        let loader = ipc::IpcFileLoader::new(endpoint).expect("Couldn't connect to IPC endpoint");
+        Some(Box::new(loader))
     }
     #[cfg(not(feature = "ipc"))]
     {

@@ -10,6 +10,9 @@ categories = ["development-tools"]
 
 [dependencies]
 parity-tokio-ipc = { version = "0.1", optional = true }
+tokio = { version = "0.1", optional = true }
+futures = { version = "0.1", optional = true }
 
 [features]
-ipc = ["parity-tokio-ipc"]
+ipc = ["parity-tokio-ipc", "tokio", "futures"]
+default = ["ipc"] # TODO: Remove me
