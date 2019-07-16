@@ -1,3 +1,6 @@
+use jsonrpc_core::types::params::Params;
+use jsonrpc_core_client::transports::duplex;
+use jsonrpc_core_client::RpcError;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -5,21 +8,43 @@ use crate::syntax::source_map::FileLoader;
 use futures::Future;
 use parity_tokio_ipc::IpcConnection;
 
+use futures::sink::Sink;
+use futures::stream::Stream;
+use tokio::codec::Decoder;
+
 pub struct IpcFileLoader;
 
 impl IpcFileLoader {
     pub fn new(path: String) -> io::Result<Self> {
-        let mut runtime = tokio::runtime::Runtime::new().expect("Error creating tokio runtime");
+        let mut runtime = tokio::runtime::Runtime::new().unwrap();
+        let handle = runtime.reactor();
 
-        let connection = IpcConnection::connect(path, &Default::default())?;
+        eprintln!("ipc: Attempting to connect to {}", path);
+        let connection = IpcConnection::connect(path, handle)?;
+        let codec = jsonrpc_server_utils::codecs::StreamCodec::stream_incoming();
 
-        let rx_buf2 = vec![0u8; 5];
-        let fut = tokio::io::read_exact(connection, rx_buf2)
-            .map(|(_, buf)| buf)
-            .map_err(|err| panic!("Client 1 read error: {:?}", err));
+        let (sink, stream) = codec.framed(connection).split();
+        let sink = sink.sink_map_err(|e| RpcError::Other(e.into()));
+        let stream = stream.map_err(|e| RpcError::Other(e.into()));
+        eprintln!("ipc: Client connected");
 
-        let test_buf = runtime.block_on(fut).unwrap();
-        eprintln!("Read from IPC: `{}`", String::from_utf8(test_buf).unwrap());
+        eprintln!("ipc: Setting up duplex");
+        let (client, sender) = duplex(sink, stream);
+
+        let raw = jsonrpc_core_client::RawClient::from(sender);
+        eprintln!("ipc: Call say_hello");
+        let result = raw
+            .call_method("say_hello", Params::None)
+            .map(|val| {
+                eprintln!("ipc: Result of say_hello method: {:?}", val);
+            })
+            .map_err(|e| eprintln!("ipc: Called method say_hello failed with: {:?}", e));
+        let client = client.map_err(|e| {
+            eprintln!("Err: {:?}", e);
+            panic!();
+        });
+        runtime.spawn(client);
+        dbg!(&runtime.block_on(result));
 
         Ok(IpcFileLoader)
     }

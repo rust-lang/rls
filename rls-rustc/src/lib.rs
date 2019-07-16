@@ -33,6 +33,10 @@ fn file_loader() -> Option<Box<dyn FileLoader + Send + Sync>> {
 
 pub fn run() {
     env_logger::init();
+
+    file_loader();
+    process::exit(0);
+
     let result = rustc_driver::report_ices_to_stderr_if_any(|| {
         let args = env::args_os()
             .enumerate()

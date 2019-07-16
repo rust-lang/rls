@@ -3,38 +3,76 @@
 
 use std::process::Command;
 
-use futures::{stream::Stream, Future};
-use parity_tokio_ipc::{dummy_endpoint, Endpoint};
+use futures::{stream::Stream, sync::oneshot, Future};
+use parity_tokio_ipc::{dummy_endpoint, Endpoint, SecurityAttributes};
 use tokio;
 use tokio::io::{self, AsyncRead};
 
+use jsonrpc_ipc_server::jsonrpc_core::*;
+use jsonrpc_ipc_server::ServerBuilder;
+// use jsonrpc_derive::rpc;
+
 fn main() {
-    let endpoint = dummy_endpoint();
+    env_logger::init();
 
-    std::thread::spawn({
-        let endpoint = endpoint.clone();
-        move || {
-            let mut runtime = tokio::runtime::Runtime::new().expect("Can't create Runtime");
+    let endpoint_path = dummy_endpoint();
 
-            let endpoint = Endpoint::new(endpoint);
-            let connections = endpoint
-                .incoming(&Default::default())
-                .expect("failed to open up a new pipe/socket");
-            let server = connections
-                .for_each(|(stream, _)| {
-                    eprintln!("Connected!");
-                    let (_, writer) = stream.split();
-                    io::write_all(writer, b"Hello!").map(|_| ())
-                })
-                .map_err(|_| ());
-            runtime.block_on(server).unwrap();
-        }
+    use tokio::runtime::current_thread::Runtime;
+    let mut runtime = Runtime::new().unwrap();
+    // let handle = tokio::runtime::current_thread::Handle::current();
+    let handle = runtime.handle();
+    let executor = tokio::runtime::current_thread::TaskExecutor::current();
+
+    // let mut runtime = tokio::runtime::Runtime::new().unwrap();
+    // let handle = runtime.reactor();
+    // let executor = runtime.executor();
+
+    let mut io = IoHandler::new();
+    io.add_method("say_hello", |_params| {
+        eprintln!("ipc_tester: At long fucking last");
+        Ok(serde_json::Value::String("No eloszka".into()))
     });
+    let builder = ServerBuilder::new(io);
+    let server = builder.start(&endpoint_path).expect("Couldn't open socket");
 
-    let output = Command::new("cargo")
+    // let endpoint = Endpoint::new(endpoint_path.clone());
+    // let server = endpoint
+    //     .incoming(handle)
+    //     .unwrap()
+    //     .for_each(|(connection, _)| {
+    //         eprintln!("ipc_tester: Client connected!");
+    //         let (reader, writer) = connection.split();
+    //         // TODO: Try reading using a StreamCodec instead of buffers
+    //         let buf = [0u8; 5];
+    //         io::read_exact(reader, buf)
+    //             .map(|(_, buf)| {
+    //                 let buf = String::from_utf8_lossy(&buf);
+    //                 eprintln!("Read some: `{:?}`", buf)
+    //             })
+    //             .map_err(|e| {
+    //                 eprintln!("io error: {:?}", e);
+    //                 e
+    //             })
+    //     })
+    //     .map_err(|_| ());
+    // runtime.spawn(server);
+    eprintln!("ipc_tester: Started an IPC server");
+
+    std::thread::sleep_ms(1000);
+
+    let mut child = Command::new("cargo")
         .args(&["run", "--bin", "rustc"])
-        .env("RLS_IPC_ENDPOINT", endpoint)
-        .output()
+        // .env_remove("RUST_LOG")
+        .env("RLS_IPC_ENDPOINT", endpoint_path)
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
         .unwrap();
-    dbg!(&output);
+
+    std::thread::sleep_ms(1000);
+    // FIXME: It seems that the closing polls the inner future actually executing it...
+    // Couldn't do it otherwise.
+    server.close();
+
+    let exit = child.wait().unwrap();
+    dbg!(exit);
 }

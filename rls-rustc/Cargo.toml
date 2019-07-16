@@ -9,10 +9,17 @@ repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]
+env_logger = "0.6"
 parity-tokio-ipc = { version = "0.1", optional = true }
 tokio = { version = "0.1", optional = true }
 futures = { version = "0.1", optional = true }
+jsonrpc-ipc-server = { version = "12", optional = true }
+jsonrpc-core = { version = "12", optional = true }
+jsonrpc-core-client = { version = "12", optional = true }
+jsonrpc-derive = {version = "12", optional = true }
+serde = {version = "1", optional = true}
+jsonrpc-server-utils = {version = "12", optional = true}
 
 [features]
-ipc = ["parity-tokio-ipc", "tokio", "futures"]
+ipc = ["parity-tokio-ipc", "tokio", "futures", "jsonrpc-ipc-server", "jsonrpc-core-client", "jsonrpc-derive", "jsonrpc-core", "serde", "jsonrpc-server-utils"]
 default = ["ipc"] # TODO: Remove me
