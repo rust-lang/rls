@@ -155,7 +155,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         config.opts.debugging_opts.save_analysis = true;
     }
 
-    fn after_parsing(&mut self, _compiler: &interface::Compiler) -> bool {
+    fn after_parsing(&mut self, _compiler: &interface::Compiler) -> rustc_driver::Compilation {
         #[cfg(feature = "clippy")]
         {
             if self.clippy_preference != ClippyPreference::Off {
@@ -163,10 +163,10 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             }
         }
         // Continue execution
-        true
+        rustc_driver::Compilation::Continue
     }
 
-    fn after_analysis(&mut self, compiler: &interface::Compiler) -> bool {
+    fn after_analysis(&mut self, compiler: &interface::Compiler) -> rustc_driver::Compilation {
         let sess = compiler.session();
         let input = compiler.input();
         let crate_name = compiler.crate_name().unwrap().peek().clone();
@@ -228,7 +228,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             );
         });
 
-        true
+        rustc_driver::Compilation::Continue
     }
 }
 
