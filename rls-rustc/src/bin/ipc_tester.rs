@@ -1,71 +1,83 @@
 // TODO: Remove me, this is only here for demonstration purposes how to set up
 // a server.
+#![cfg(feature = "ipc")]
 
+use std::path::PathBuf;
 use std::process::Command;
+use std::{env, fs};
 
-use futures::{stream::Stream, sync::oneshot, Future};
-use parity_tokio_ipc::{dummy_endpoint, Endpoint, SecurityAttributes};
-use tokio;
-use tokio::io::{self, AsyncRead};
-
+use jsonrpc_core::Result as RpcResult;
+use jsonrpc_derive::rpc;
 use jsonrpc_ipc_server::jsonrpc_core::*;
 use jsonrpc_ipc_server::ServerBuilder;
+use tokio::runtime::Runtime;
+
+#[rpc]
+pub trait FileLoaderRpc {
+    /// Query the existence of a file.
+    #[rpc(name = "file_exists")]
+    fn file_exists(&self, path: PathBuf) -> RpcResult<bool>;
+
+    /// Returns an absolute path to a file, if possible.
+    #[rpc(name = "abs_path")]
+    fn abs_path(&self, path: PathBuf) -> RpcResult<Option<PathBuf>>;
+
+    /// Read the contents of an UTF-8 file into memory.
+    #[rpc(name = "read_file")]
+    fn read_file(&self, path: PathBuf) -> RpcResult<String>;
+}
+
+struct FileLoaderRpcImpl;
+impl FileLoaderRpc for FileLoaderRpcImpl {
+    fn file_exists(&self, path: PathBuf) -> RpcResult<bool> {
+        // Copied from syntax::source_map::RealFileLoader
+        Ok(fs::metadata(path).is_ok())
+    }
+    fn abs_path(&self, path: PathBuf) -> RpcResult<Option<PathBuf>> {
+        // Copied from syntax::source_map::RealFileLoader
+        Ok(if path.is_absolute() {
+            Some(path.to_path_buf())
+        } else {
+            env::current_dir().ok().map(|cwd| cwd.join(path))
+        })
+    }
+    fn read_file(&self, _path: PathBuf) -> RpcResult<String> {
+        unimplemented!()
+    }
+}
 
 fn main() {
-    env_logger::init();
+    let endpoint_path = {
+        let num: u64 = rand::Rng::gen(&mut rand::thread_rng());
+        if cfg!(windows) {
+            format!(r"\\.\pipe\ipc-pipe-{}", num)
+        } else {
+            format!(r"/tmp/ipc-uds-{}", num)
+        }
+    };
 
-    let endpoint_path = dummy_endpoint();
-
-    // let mut runtime = tokio::runtime::Runtime::new().unwrap();
-    let reactor = tokio::reactor::Reactor::new().expect("Can't construct an I/O reactor");
-    // let handle = runtime.reactor();
+    let runtime = Runtime::new().unwrap();
+    #[allow(deprecated)] // Windows won't work with lazily bound reactor
+    let reactor = runtime.reactor();
+    let executor = runtime.executor();
 
     let mut io = IoHandler::new();
-    io.add_method("say_hello", |_params| {
-        eprintln!("ipc_tester: At long fucking last");
-        Ok(serde_json::Value::String("No eloszka".into()))
-    });
-    let builder = ServerBuilder::new(io).event_loop_reactor(reactor.handle());
+    io.extend_with(FileLoaderRpcImpl.to_delegate());
+
+    let builder =
+        ServerBuilder::new(io).event_loop_executor(executor).event_loop_reactor(reactor.clone());
     let server = builder.start(&endpoint_path).expect("Couldn't open socket");
-
-    // let endpoint = Endpoint::new(endpoint_path.clone());
-    // let server = endpoint
-    //     .incoming(handle)
-    //     .unwrap()
-    //     .for_each(|(connection, _)| {
-    //         eprintln!("ipc_tester: Client connected!");
-    //         let (reader, writer) = connection.split();
-    //         // TODO: Try reading using a StreamCodec instead of buffers
-    //         let buf = [0u8; 5];
-    //         io::read_exact(reader, buf)
-    //             .map(|(_, buf)| {
-    //                 let buf = String::from_utf8_lossy(&buf);
-    //                 eprintln!("Read some: `{:?}`", buf)
-    //             })
-    //             .map_err(|e| {
-    //                 eprintln!("io error: {:?}", e);
-    //                 e
-    //             })
-    //     })
-    //     .map_err(|_| ());
-    // runtime.spawn(server);
     eprintln!("ipc_tester: Started an IPC server");
-
-    std::thread::sleep_ms(1000);
 
     let mut child = Command::new("cargo")
         .args(&["run", "--bin", "rustc"])
-        // .env_remove("RUST_LOG")
         .env("RLS_IPC_ENDPOINT", endpoint_path)
         .stderr(std::process::Stdio::inherit())
         .spawn()
         .unwrap();
 
-    std::thread::sleep_ms(1000);
-    // FIXME: It seems that the closing polls the inner future actually executing it...
-    // Couldn't do it otherwise.
-    // server.close();
-
     let exit = child.wait().unwrap();
     dbg!(exit);
+
+    server.wait();
 }

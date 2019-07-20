@@ -10,32 +10,33 @@ use rustc::session::config::ErrorOutputType;
 use rustc::session::early_error;
 use rustc_driver::{run_compiler, Callbacks};
 use rustc_interface::interface;
-use syntax::source_map::FileLoader;
 
-use std::env;
-use std::process;
+use std::{env, process};
 
 #[cfg(feature = "ipc")]
 mod ipc;
 
-fn file_loader() -> Option<Box<dyn FileLoader + Send + Sync>> {
-    #[cfg(feature = "ipc")]
-    {
-        let endpoint = std::env::var("RLS_IPC_ENDPOINT").ok()?;
-        let loader = ipc::IpcFileLoader::new(endpoint).expect("Couldn't connect to IPC endpoint");
-        Some(Box::new(loader))
-    }
-    #[cfg(not(feature = "ipc"))]
-    {
-        None
-    }
-}
-
 pub fn run() {
-    env_logger::init();
+    // env_logger::init();
 
-    file_loader();
-    process::exit(0);
+    #[cfg(feature = "ipc")]
+    let (file_loader, runtime) = {
+        let mut rt = tokio::runtime::Runtime::new().unwrap();
+        (
+            env::var("RLS_IPC_ENDPOINT")
+                .ok()
+                .and_then(|endpoint| {
+                    ipc::FileLoader::spawn(endpoint.into(), &mut rt)
+                        .map_err(|e| log::warn!("Couldn't connect to IPC endpoint: {:?}", e))
+                        .ok()
+                })
+                .map(ipc::FileLoader::into_boxed)
+                .unwrap_or(None),
+            rt,
+        )
+    };
+    #[cfg(not(feature = "ipc"))]
+    let file_loader = None;
 
     let result = rustc_driver::report_ices_to_stderr_if_any(|| {
         let args = env::args_os()
@@ -50,9 +51,13 @@ pub fn run() {
             })
             .collect::<Vec<_>>();
 
-        run_compiler(&args, &mut ShimCalls, file_loader(), None)
+        run_compiler(&args, &mut ShimCalls, file_loader, None)
     })
     .and_then(|result| result);
+
+    #[cfg(feature = "ipc")]
+    futures::future::Future::wait(runtime.shutdown_now()).unwrap();
+
     process::exit(result.is_err() as i32);
 }
 
