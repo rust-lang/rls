@@ -10,29 +10,22 @@ use tokio::io::{self, AsyncRead};
 
 use jsonrpc_ipc_server::jsonrpc_core::*;
 use jsonrpc_ipc_server::ServerBuilder;
-// use jsonrpc_derive::rpc;
 
 fn main() {
     env_logger::init();
 
     let endpoint_path = dummy_endpoint();
 
-    use tokio::runtime::current_thread::Runtime;
-    let mut runtime = Runtime::new().unwrap();
-    // let handle = tokio::runtime::current_thread::Handle::current();
-    let handle = runtime.handle();
-    let executor = tokio::runtime::current_thread::TaskExecutor::current();
-
     // let mut runtime = tokio::runtime::Runtime::new().unwrap();
+    let reactor = tokio::reactor::Reactor::new().expect("Can't construct an I/O reactor");
     // let handle = runtime.reactor();
-    // let executor = runtime.executor();
 
     let mut io = IoHandler::new();
     io.add_method("say_hello", |_params| {
         eprintln!("ipc_tester: At long fucking last");
         Ok(serde_json::Value::String("No eloszka".into()))
     });
-    let builder = ServerBuilder::new(io);
+    let builder = ServerBuilder::new(io).event_loop_reactor(reactor.handle());
     let server = builder.start(&endpoint_path).expect("Couldn't open socket");
 
     // let endpoint = Endpoint::new(endpoint_path.clone());
@@ -71,7 +64,7 @@ fn main() {
     std::thread::sleep_ms(1000);
     // FIXME: It seems that the closing polls the inner future actually executing it...
     // Couldn't do it otherwise.
-    server.close();
+    // server.close();
 
     let exit = child.wait().unwrap();
     dbg!(exit);
