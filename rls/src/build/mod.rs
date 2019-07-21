@@ -27,6 +27,8 @@ mod cargo;
 mod cargo_plan;
 pub mod environment;
 mod external;
+#[cfg(feature = "ipc")]
+mod ipc;
 mod plan;
 mod rustc;
 
@@ -461,6 +463,7 @@ impl Internals {
     ) -> BuildResult {
         trace!("run_build, {:?} {:?}", new_build_dir, priority);
 
+        let _ = ipc::start(Arc::clone(&self.vfs));
         // Check if the build directory changed and update it.
         {
             let mut compilation_cx = self.compilation_cx.lock().unwrap();

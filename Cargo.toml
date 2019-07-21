@@ -33,9 +33,13 @@ cargo_metadata = "0.8"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "71be6f62fa920c0bd10cdf3a29aeb8c6719a8075", optional = true }
 env_logger = "0.6"
 failure = "0.1.1"
+futures = { version = "0.1", optional = true }
 home = "0.3"
 itertools = "0.8"
-jsonrpc-core = "12"
+jsonrpc-core = "12.1"
+jsonrpc-core-client = { version = "12.1", optional = true }
+jsonrpc-derive = {version = "12.1", optional = true }
+jsonrpc-ipc-server = { version = "12.1", optional = true }
 lsp-types = { version = "=0.57.2", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
@@ -50,6 +54,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
 serde_ignored = "0.0"
+tokio = { version = "0.1", optional = true }
 url = "1"
 walkdir = "2"
 regex = "1"
@@ -77,3 +82,15 @@ rustc_tools_util = "0.2"
 
 [features]
 clippy = ["clippy_lints"]
+ipc = ["tokio", "futures", "jsonrpc-ipc-server", "jsonrpc-core-client", "jsonrpc-derive"]
+default = ["ipc"]
+
+
+[patch.crates-io]
+jsonrpc-ipc-server = { version = "12.1", git = "https://github.com/Xanewok/jsonrpc", branch = "event-loop-reactor", optional = true }
+jsonrpc-core = { git = "https://github.com/Xanewok/jsonrpc", branch = "event-loop-reactor", optional = true }
+jsonrpc-derive = { git = "https://github.com/Xanewok/jsonrpc", branch = "event-loop-reactor", optional = true }
+# We don't use it directly but we need to also patch this peer dependency
+# because we only partially patch the dep tree (and trait implementations
+# conflict due to monomorphization)
+jsonrpc-pubsub = { git = "https://github.com/Xanewok/jsonrpc", branch = "event-loop-reactor", optional = true }

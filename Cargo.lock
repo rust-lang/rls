@@ -828,12 +828,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "jsonrpc-client-transports"
-version = "12.0.0"
+version = "12.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-core 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "jsonrpc-pubsub 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -841,8 +842,8 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-core"
-version = "12.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "12.1.0"
+source = "git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor#5436d8a50d1c8cc366eb3a742c9b3766e022b2bd"
 dependencies = [
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -853,16 +854,16 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-core-client"
-version = "12.0.0"
+version = "12.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "jsonrpc-client-transports 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-client-transports 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "jsonrpc-derive"
 version = "12.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor#5436d8a50d1c8cc366eb3a742c9b3766e022b2bd"
 dependencies = [
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -872,15 +873,26 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-ipc-server"
-version = "12.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "12.1.0"
+source = "git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor#5436d8a50d1c8cc366eb3a742c9b3766e022b2bd"
 dependencies = [
- "jsonrpc-core 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-server-utils 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "jsonrpc-server-utils 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-tokio-ipc 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-service 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "jsonrpc-pubsub"
+version = "12.1.0"
+source = "git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor#5436d8a50d1c8cc366eb3a742c9b3766e022b2bd"
+dependencies = [
+ "jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -890,7 +902,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "globset 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-core 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-codec 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "unicase 2.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "jsonrpc-server-utils"
+version = "12.1.0"
+source = "git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor#5436d8a50d1c8cc366eb3a742c9b3766e022b2bd"
+dependencies = [
+ "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "globset 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1565,7 +1593,10 @@ dependencies = [
  "heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "home 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-core 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "jsonrpc-core-client 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-derive 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "jsonrpc-ipc-server 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "lsp-codec 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1628,13 +1659,16 @@ name = "rls-rustc"
 version = "0.6.0"
 dependencies = [
  "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-core 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-core-client 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-derive 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-ipc-server 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "jsonrpc-core-client 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-derive 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
+ "jsonrpc-ipc-server 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)",
  "jsonrpc-server-utils 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-tokio-ipc 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2667,12 +2701,14 @@ dependencies = [
 "checksum itoa 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "501266b7edd0174f8530248f87f99c88fbe60ca4ef3dd486835b8d8d53136f7f"
 "checksum jobserver 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "b3d51e24009d966c8285d524dbaf6d60926636b2a89caee9ce0bd612494ddc16"
 "checksum json 0.11.14 (registry+https://github.com/rust-lang/crates.io-index)" = "01d7903059b22f1f09ced2fb9562507e3556a953caa2f835c64ab022bb6148c2"
-"checksum jsonrpc-client-transports 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0245e08f98d627a579cdee6a2138d05ab64f6093efbcdeec50805d121ee13c0c"
-"checksum jsonrpc-core 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "288dca7f9713710a29e485076b9340156cb701edb46a881f5d0c31aa4f5b9143"
-"checksum jsonrpc-core-client 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "05e499e393aaa97cf5ff3a7444549c94a6d27e70be1c300b865187d722f1b426"
-"checksum jsonrpc-derive 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8afff172177878850d133ccdcd93cad794e85d7779ab334998d669ef80e13180"
-"checksum jsonrpc-ipc-server 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4bb900fe0d41002499c338b6893132006d1d914b6ea724559af66b6de6df79b5"
+"checksum jsonrpc-client-transports 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6be24a8de4ced80f6fd8b6ace54aa610823a7642976a0e8e00e3bb2f4d8c33f0"
+"checksum jsonrpc-core 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)" = "<none>"
+"checksum jsonrpc-core-client 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1603b6cc05060de7794c2962edd705e1ad2698bd2b0d2ddd4489f8c85df122b7"
+"checksum jsonrpc-derive 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)" = "<none>"
+"checksum jsonrpc-ipc-server 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)" = "<none>"
+"checksum jsonrpc-pubsub 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)" = "<none>"
 "checksum jsonrpc-server-utils 12.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "036a53ffa47533dcccf1e1bb16abb0f45ef9a2dc9a63654d2d2cd199b80ad33e"
+"checksum jsonrpc-server-utils 12.1.0 (git+https://github.com/Xanewok/jsonrpc?branch=event-loop-reactor)" = "<none>"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 "checksum lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bc5729f27f159ddd61f4df6228e827e86643d4d3e7c32183cb30a1c08f604a14"
 "checksum lazycell 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
