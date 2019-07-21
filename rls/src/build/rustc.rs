@@ -37,7 +37,7 @@ use rls_vfs::Vfs;
 
 use self::rustc::session::config::Input;
 use self::rustc::session::Session;
-use self::rustc_driver::run_compiler;
+use self::rustc_driver::{run_compiler, Compilation};
 use self::rustc_interface::interface;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
@@ -155,18 +155,18 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         config.opts.debugging_opts.save_analysis = true;
     }
 
-    fn after_parsing(&mut self, _compiler: &interface::Compiler) -> bool {
+    fn after_parsing(&mut self, _compiler: &interface::Compiler) -> Compilation {
         #[cfg(feature = "clippy")]
         {
             if self.clippy_preference != ClippyPreference::Off {
                 clippy_after_parse_callback(_compiler);
             }
         }
-        // Continue execution
-        true
+
+        Compilation::Continue
     }
 
-    fn after_analysis(&mut self, compiler: &interface::Compiler) -> bool {
+    fn after_analysis(&mut self, compiler: &interface::Compiler) -> Compilation {
         let sess = compiler.session();
         let input = compiler.input();
         let crate_name = compiler.crate_name().unwrap().peek().clone();
@@ -228,7 +228,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             );
         });
 
-        true
+        Compilation::Continue
     }
 }
 
