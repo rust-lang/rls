@@ -1126,6 +1126,7 @@ fn client_find_definitions() {
 }
 
 #[test]
+#[ignore] // Spurious in Rust CI, https://github.com/rust-lang/rust/pull/62805
 fn client_deglob() {
     let p = ProjectBuilder::try_from_fixture(fixtures_dir().join("deglob")).unwrap().build();
     let root_path = p.root();
