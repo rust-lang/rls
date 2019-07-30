@@ -1,9 +1,13 @@
+#![feature(step_trait)]
+
 #[cfg(feature = "derive")]
 #[macro_use]
 extern crate serde_derive;
 
 use serde::{Deserialize, Serialize};
 
+use std::convert::TryFrom;
+use std::iter::Step;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
@@ -78,6 +82,62 @@ impl Column<ZeroIndexed> {
     }
 }
 
+impl Step for Column<ZeroIndexed> {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        Some((end.0 - start.0) as usize)
+    }
+
+    fn replace_one(&mut self) -> Self {
+        self.0 = 1;
+        self.clone()
+    }
+
+    fn replace_zero(&mut self) -> Self {
+        self.0 = 0;
+        self.clone()
+    }
+
+    fn add_one(&self) -> Self {
+        Self::new(self.0 + 1)
+    }
+
+    fn sub_one(&self) -> Self {
+        Self::new(self.0 - 1)
+    }
+
+    fn add_usize(&self, n: usize) -> Option<Self> {
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
+    }
+}
+
+impl Step for Column<OneIndexed> {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        Some((end.0 - start.0) as usize)
+    }
+
+    fn replace_one(&mut self) -> Self {
+        self.0 = 2;
+        self.clone()
+    }
+
+    fn replace_zero(&mut self) -> Self {
+        self.0 = 1;
+        self.clone()
+    }
+
+    fn add_one(&self) -> Self {
+        Self::new(self.0 + 1)
+    }
+
+    fn sub_one(&self) -> Self {
+        Self::new(self.0 - 1)
+    }
+
+    fn add_usize(&self, n: usize) -> Option<Self> {
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
+    }
+}
+
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Row<I: Indexed>(pub u32, PhantomData<I>);
 
@@ -138,6 +198,62 @@ impl Row<ZeroIndexed> {
 
     pub fn one_indexed(self) -> Row<OneIndexed> {
         Row(self.0 + 1, PhantomData)
+    }
+}
+
+impl Step for Row<ZeroIndexed> {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        Some((end.0 - start.0) as usize)
+    }
+
+    fn replace_one(&mut self) -> Self {
+        self.0 = 1;
+        self.clone()
+    }
+
+    fn replace_zero(&mut self) -> Self {
+        self.0 = 0;
+        self.clone()
+    }
+
+    fn add_one(&self) -> Self {
+        Self::new(self.0 + 1)
+    }
+
+    fn sub_one(&self) -> Self {
+        Self::new(self.0 - 1)
+    }
+
+    fn add_usize(&self, n: usize) -> Option<Self> {
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
+    }
+}
+
+impl Step for Row<OneIndexed> {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        Some((end.0 - start.0) as usize)
+    }
+
+    fn replace_one(&mut self) -> Self {
+        self.0 = 2;
+        self.clone()
+    }
+
+    fn replace_zero(&mut self) -> Self {
+        self.0 = 1;
+        self.clone()
+    }
+
+    fn add_one(&self) -> Self {
+        Self::new(self.0 + 1)
+    }
+
+    fn sub_one(&self) -> Self {
+        Self::new(self.0 - 1)
+    }
+
+    fn add_usize(&self, n: usize) -> Option<Self> {
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
     }
 }
 
@@ -339,4 +455,18 @@ pub struct OneIndexed;
 impl Indexed for OneIndexed {}
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+
+    #[test]
+    fn iter_row() {
+        assert_eq!((Row::new_one_indexed(4)..Row::new_one_indexed(8)).count(), 4);
+        assert_eq!(
+            &*(Row::new_zero_indexed(0)..=Row::new_zero_indexed(8))
+                .filter(|r| r.0 < 3)
+                .map(|r| r.0)
+                .collect::<Vec<_>>(),
+            &[0, 1, 2],
+        );
+    }
+}
