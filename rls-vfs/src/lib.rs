@@ -921,8 +921,7 @@ mod tests {
 
         assert_eq!(
             '😢'.len_utf8(),
-            byte_in_str_utf16("😢a", Column::new_zero_indexed('😢'.len_utf16() as u32))
-                .unwrap()
+            byte_in_str_utf16("😢a", Column::new_zero_indexed('😢'.len_utf16() as u32)).unwrap()
         );
 
         // 😢 is represented by 2 u16s - we can't index in the middle of a character
