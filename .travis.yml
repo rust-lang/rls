@@ -26,7 +26,6 @@ script:
       # Since the rls-* subcrates use crates.io-based dependencies of themselves it
       # makes sense to test them in isolation rather than just RLS itself
       (cd rls-analysis && cargo test -v && cargo fmt -- --check)
-      (cd rls-blacklist && cargo test -v && cargo fmt -- --check)
       (cd rls-data && cargo test -v && cargo fmt -- --check)
       (cd rls-rustc && cargo test -v && cargo fmt -- --check)
       (cd rls-span && cargo test -v && cargo fmt -- --check)
