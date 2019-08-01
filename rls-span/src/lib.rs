@@ -112,7 +112,7 @@ impl Step for Column<ZeroIndexed> {
 
 impl Step for Column<OneIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        Some((end.0 - start.0) as usize)
+        <u32 as Step>::steps_between(&start.0, &end.0)
     }
 
     fn replace_one(&mut self) -> Self {
@@ -203,7 +203,7 @@ impl Row<ZeroIndexed> {
 
 impl Step for Row<ZeroIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        Some((end.0 - start.0) as usize)
+        <u32 as Step>::steps_between(&start.0, &end.0)
     }
 
     fn replace_one(&mut self) -> Self {
@@ -231,7 +231,7 @@ impl Step for Row<ZeroIndexed> {
 
 impl Step for Row<OneIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        Some((end.0 - start.0) as usize)
+        <u32 as Step>::steps_between(&start.0, &end.0)
     }
 
     fn replace_one(&mut self) -> Self {
