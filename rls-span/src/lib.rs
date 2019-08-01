@@ -84,7 +84,7 @@ impl Column<ZeroIndexed> {
 
 impl Step for Column<ZeroIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        Some((end.0 - start.0) as usize)
+        <u32 as Step>::steps_between(&start.0, &end.0)
     }
 
     fn replace_one(&mut self) -> Self {
@@ -106,7 +106,7 @@ impl Step for Column<ZeroIndexed> {
     }
 
     fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
     }
 }
 
@@ -134,7 +134,7 @@ impl Step for Column<OneIndexed> {
     }
 
     fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
     }
 }
 
@@ -225,7 +225,7 @@ impl Step for Row<ZeroIndexed> {
     }
 
     fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
     }
 }
 
@@ -253,7 +253,7 @@ impl Step for Row<OneIndexed> {
     }
 
     fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok().map(|n| Self::new(n)))
+        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
     }
 }
 
