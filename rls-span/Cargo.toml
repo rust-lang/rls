@@ -16,5 +16,6 @@ serde_derive = { version = "1.0", optional = true }
 
 [features]
 default = []
+nightly = []
 serialize-rustc = ["rustc-serialize"]
 derive = ["serde_derive"]

@@ -1,4 +1,4 @@
-#![feature(step_trait)]
+#![cfg_attr(feature = "nightly", feature(step_trait))]
 
 #[cfg(feature = "derive")]
 #[macro_use]
@@ -6,10 +6,13 @@ extern crate serde_derive;
 
 use serde::{Deserialize, Serialize};
 
-use std::convert::TryFrom;
-use std::iter::Step;
 use std::marker::PhantomData;
 use std::path::PathBuf;
+
+#[cfg(feature = "nightly")]
+use std::convert::TryFrom;
+#[cfg(feature = "nightly")]
+use std::iter::Step;
 
 pub mod compiler;
 mod serde_expanded;
@@ -82,6 +85,7 @@ impl Column<ZeroIndexed> {
     }
 }
 
+#[cfg(feature = "nightly")]
 impl Step for Column<ZeroIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         <u32 as Step>::steps_between(&start.0, &end.0)
@@ -110,6 +114,7 @@ impl Step for Column<ZeroIndexed> {
     }
 }
 
+#[cfg(feature = "nightly")]
 impl Step for Column<OneIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         <u32 as Step>::steps_between(&start.0, &end.0)
@@ -201,6 +206,7 @@ impl Row<ZeroIndexed> {
     }
 }
 
+#[cfg(feature = "nightly")]
 impl Step for Row<ZeroIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         <u32 as Step>::steps_between(&start.0, &end.0)
@@ -229,6 +235,7 @@ impl Step for Row<ZeroIndexed> {
     }
 }
 
+#[cfg(feature = "nightly")]
 impl Step for Row<OneIndexed> {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         <u32 as Step>::steps_between(&start.0, &end.0)
@@ -454,6 +461,7 @@ impl Indexed for ZeroIndexed {}
 pub struct OneIndexed;
 impl Indexed for OneIndexed {}
 
+#[cfg(feature = "nightly")]
 #[cfg(test)]
 mod test {
     use super::*;
