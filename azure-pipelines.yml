@@ -1,44 +1,36 @@
-trigger:
-- master
-pr:
-- master
-
-strategy:
-  matrix:
-    linux:
-      imageName: 'ubuntu-16.04'
-    mac:
-      imageName: 'macos-10.14'
-    windows:
-      imageName: 'vs2017-win2016'
-
-pool:
-  vmImage: $(imageName)
+trigger: ["master"]
+pr: ["master"]
 
 variables:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
   RLS_TEST_WAIT_FOR_AGES: 1
 
-steps:
-- template: ci/azure-install-rust.yml
+jobs:
+# Check formatting
+- template: ci/azure-rustfmt.yml
   parameters:
-    rust_version: nightly
-- script: rustup component add rustfmt
-  displayName: 'Add Rustfmt to enforce consistent formatting'
-- script: rustup component add rust-src rust-analysis
-  displayName: 'Install distributed Rust source code for Racer autocompletion'
-- script: (cd rls-analysis && cargo test -v && cargo fmt -- --check)
-  displayName: Test rls-analysis
-- script: (cd rls-data && cargo test -v && cargo fmt -- --check)
-  displayName: Test rls-data
-- script: (cd rls-rustc && cargo test -v && cargo fmt -- --check)
-  displayName: Test rls-rustc
-- script: (cd rls-span && cargo test -v && cargo fmt -- --check)
-  displayName: Test rls-span
-- script: (cd rls-vfs && cargo test -v && cargo fmt -- --check)
-  displayName: Test rls-vfs
-- script: cargo fmt -- --check
-- script: cargo build -v
-- script: cargo test -v
-- script: cargo test test_tooltip_std -- --ignored
+    rust: nightly-2019-08-01 # Use last well-known available nightly
+    name: rustfmt
+    crates:
+      rls-analysis: []
+      rls-data: []
+      rls-rustc: []
+      rls-span: []
+      rls-vfs: []
+      ".": []
+
+# Run unit and integration tests
+- template: ci/azure-test.yml
+  parameters:
+    rust: nightly
+    name: tests
+    crates:
+      rls-analysis: []
+      rls-data: []
+      rls-rustc: []
+      rls-span: []
+      rls-vfs: []
+      ".":
+        - test_name: test_tooltip_std
+          args: --ignored
