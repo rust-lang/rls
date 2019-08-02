@@ -15,6 +15,9 @@ fn main() {
     );
     println!(
         "cargo:rustc-env=FIXTURES_DIR={}",
-        Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("tests/fixtures").display()
+        Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("tests")
+            .join("fixtures")
+            .display()
     );
 }
