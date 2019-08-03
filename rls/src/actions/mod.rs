@@ -28,6 +28,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::convert::TryFrom;
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
 // we don't want to crash the RLS in case a client opens a file under different URI scheme
@@ -281,12 +282,21 @@ impl InitActionContext {
     fn file_edition(&self, file: PathBuf) -> Option<Edition> {
         let files_to_crates = self.file_to_crates.lock().unwrap();
 
-        let editions: HashSet<_> = files_to_crates.get(&file)?.iter().map(|c| c.edition).collect();
+        let editions: HashSet<_> = files_to_crates
+            .get(&file)
+            .map(|crates| crates.iter().map(|c| c.edition).collect())
+            .unwrap_or_default();
 
         let mut iter = editions.into_iter();
         match (iter.next(), iter.next()) {
             (ret @ Some(_), None) => ret,
-            _ => None,
+            (Some(_), Some(_)) => None,
+            _ => {
+                // fall back on checking the root manifest for edition
+                let manifest_path =
+                    cargo::util::important_paths::find_root_manifest_for_wd(&file).ok()?;
+                edition_from_manifest(manifest_path)
+            }
         }
     }
 
@@ -422,6 +432,24 @@ impl InitActionContext {
             span::Position::new(pos.row, end),
             file_path,
         )
+    }
+}
+
+/// Read edition from the manifest
+fn edition_from_manifest<P: AsRef<Path>>(manifest_path: P) -> Option<Edition> {
+    #[derive(Debug, serde::Deserialize)]
+    struct Manifest {
+        package: Package,
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct Package {
+        edition: Option<String>,
+    }
+
+    let manifest: Manifest = toml::from_str(&std::fs::read_to_string(manifest_path).ok()?).ok()?;
+    match manifest.package.edition {
+        Some(edition) => Edition::try_from(edition.as_str()).ok(),
+        None => Some(Edition::default()),
     }
 }
 
@@ -661,5 +689,26 @@ mod test {
         assert!(watch.is_relevant_save_doc(&did_save("file:///c:/some/dir/inner/Cargo.toml")));
         assert!(!watch.is_relevant_save_doc(&did_save("file:///c:/some/dir/inner/Cargo.lock")));
         assert!(!watch.is_relevant_save_doc(&did_save("file:///c:/Cargo.toml")));
+    }
+
+    #[test]
+    fn explicit_edition_from_manifest() -> Result<(), std::io::Error> {
+        use std::{fs::File, io::Write};
+
+        let dir = tempfile::tempdir()?;
+
+        let manifest_path = {
+            let path = dir.path().join("Cargo.toml");
+            let mut m = File::create(&path)?;
+            writeln!(m, "[package]\n\
+                         name = \"foo\"\n\
+                         version = \"1.0.0\"\n\
+                         edition = \"2018\"")?;
+            path
+        };
+
+        assert_eq!(edition_from_manifest(manifest_path), Some(Edition::Edition2018));
+
+        Ok(())
     }
 }

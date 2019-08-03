@@ -242,3 +242,15 @@ impl Default for Edition {
         Edition::Edition2015
     }
 }
+
+impl std::convert::TryFrom<&str> for Edition {
+    type Error = &'static str;
+
+    fn try_from(val: &str) -> Result<Self, Self::Error> {
+        Ok(match val {
+            "2015" => Edition::Edition2015,
+            "2018" => Edition::Edition2018,
+            _ => return Err("unknown"),
+        })
+    }
+}
