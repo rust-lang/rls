@@ -6,6 +6,7 @@
 - Support both owned and borrowed blacklisted crate names in `rls-analysis`
 - Publicly re-export `rls_analysis::raw::Crate`
 ### Changed
+- Formatting project files now only needs project to parse and expand macros (and not type-check)
 - Converted remaining crates `rls-*` to 2018 edition
 ### Removed
 - Removed `use_crate_blacklist` setting in favour of `crate_blacklist`
