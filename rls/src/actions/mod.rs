@@ -292,7 +292,7 @@ impl InitActionContext {
             (ret @ Some(_), None) => ret,
             (Some(_), Some(_)) => None,
             _ => {
-                // fall back on checking the root manifest for edition
+                // fall back on checking the root manifest for package edition
                 let manifest_path =
                     cargo::util::important_paths::find_root_manifest_for_wd(&file).ok()?;
                 edition_from_manifest(manifest_path)
@@ -435,7 +435,7 @@ impl InitActionContext {
     }
 }
 
-/// Read edition from the manifest
+/// Read package edition from the Cargo manifest
 fn edition_from_manifest<P: AsRef<Path>>(manifest_path: P) -> Option<Edition> {
     #[derive(Debug, serde::Deserialize)]
     struct Manifest {
