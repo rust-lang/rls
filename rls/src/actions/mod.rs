@@ -23,12 +23,12 @@ use crate::project_model::{ProjectModel, RacerFallbackModel, RacerProjectModel};
 use crate::server::Output;
 
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::convert::TryFrom;
 
 // TODO: Support non-`file` URI schemes in VFS. We're currently ignoring them because
 // we don't want to crash the RLS in case a client opens a file under different URI scheme
@@ -700,10 +700,13 @@ mod test {
         let manifest_path = {
             let path = dir.path().join("Cargo.toml");
             let mut m = File::create(&path)?;
-            writeln!(m, "[package]\n\
-                         name = \"foo\"\n\
-                         version = \"1.0.0\"\n\
-                         edition = \"2018\"")?;
+            writeln!(
+                m,
+                "[package]\n\
+                 name = \"foo\"\n\
+                 version = \"1.0.0\"\n\
+                 edition = \"2018\""
+            )?;
             path
         };
 
