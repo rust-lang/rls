@@ -1,5 +1,11 @@
-trigger: ["master"]
-pr: ["master"]
+trigger:
+  branches:
+    include:
+    - '*'
+    exclude:
+    - master
+pr:
+- master
 
 variables:
   CARGO_INCREMENTAL: 0
