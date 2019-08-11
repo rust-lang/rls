@@ -1272,6 +1272,11 @@ fn is_notification_for_unknown_config(msg: &serde_json::Value) -> bool {
         && msg["params"]["message"].as_str().unwrap().contains("Unknown")
 }
 
+fn is_notification_for_deprecated_config(msg: &serde_json::Value) -> bool {
+    msg["method"] == ShowMessage::METHOD
+        && msg["params"]["message"].as_str().unwrap().contains("is deprecated")
+}
+
 fn is_notification_for_duplicated_config(msg: &serde_json::Value) -> bool {
     msg["method"] == ShowMessage::METHOD
         && msg["params"]["message"].as_str().unwrap().contains("Duplicate")
@@ -1305,7 +1310,9 @@ fn client_init_duplicated_and_unknown_settings() {
                 "dup_val": false,
                 "dup_licated": "dup_lacated",
                 "DupLicated": "DupLicated",
-                "dup-licated": "dup-licated"
+                "dup-licated": "dup-licated",
+                // Deprecated
+                "use_crate_blacklist": true
             }
         }
     });
@@ -1313,6 +1320,10 @@ fn client_init_duplicated_and_unknown_settings() {
     rls.request::<Initialize>(0, initialize_params_with_opts(root_path, opts));
 
     assert!(rls.messages().iter().any(is_notification_for_unknown_config));
+    assert!(
+        rls.messages().iter().any(is_notification_for_deprecated_config),
+        "`use_crate_blacklist` should be marked as deprecated"
+    );
     assert!(rls.messages().iter().any(is_notification_for_duplicated_config));
 }
 

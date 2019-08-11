@@ -234,6 +234,7 @@ impl ChangeConfigSettings {
         val: &serde_json::value::Value,
         dups: &mut std::collections::HashMap<String, Vec<String>>,
         unknowns: &mut Vec<String>,
+        deprecated: &mut Vec<String>,
     ) -> Result<ChangeConfigSettings, ()> {
         let mut ret = Err(());
         if let serde_json::Value::Object(map) = val {
@@ -243,7 +244,8 @@ impl ChangeConfigSettings {
                     continue;
                 }
                 if let serde_json::Value::Object(_) = v {
-                    if let Ok(rust) = config::Config::try_deserialize(v, dups, unknowns) {
+                    if let Ok(rust) = config::Config::try_deserialize(v, dups, unknowns, deprecated)
+                    {
                         ret = Ok(ChangeConfigSettings { rust });
                     }
                 } else {
@@ -275,25 +277,16 @@ impl InitializationOptions {
     /// "rust", all first level keys of rust's value are converted to
     /// snake_case, duplicated and unknown keys are reported
     pub fn try_deserialize(
-        val: &serde_json::value::Value,
+        mut val: serde_json::value::Value,
         dups: &mut std::collections::HashMap<String, Vec<String>>,
         unknowns: &mut Vec<String>,
+        deprecated: &mut Vec<String>,
     ) -> Result<InitializationOptions, ()> {
-        let mut val = val.to_owned();
-        let mut set = None;
-        if let Some(set1) = val.get_mut("settings") {
-            set = Some(set1.take());
-        }
-        let mut ret: InitializationOptions = match serde_json::from_value(val) {
-            Ok(ret) => ret,
-            _ => return Err(()),
-        };
-        if let Some(set) = set {
-            if let Ok(set) = ChangeConfigSettings::try_deserialize(&set, dups, unknowns) {
-                ret.settings = Some(set);
-            }
-        }
-        Ok(ret)
+        let settings = val.get_mut("settings").map(|x| x.take()).and_then(|set| {
+            ChangeConfigSettings::try_deserialize(&set, dups, unknowns, deprecated).ok()
+        });
+
+        Ok(InitializationOptions { settings, ..serde_json::from_value(val).map_err(|_| ())? })
     }
 }
 
@@ -326,8 +319,8 @@ impl ClientCapabilities {
             .and_then(|doc| doc.completion.as_ref())
             .and_then(|comp| comp.completion_item.as_ref())
             .and_then(|item| item.snippet_support.as_ref())
-            .unwrap_or(&false)
-            .to_owned();
+            .copied()
+            .unwrap_or(false);
 
         let related_information_support = params
             .capabilities
@@ -335,8 +328,8 @@ impl ClientCapabilities {
             .as_ref()
             .and_then(|doc| doc.publish_diagnostics.as_ref())
             .and_then(|diag| diag.related_information.as_ref())
-            .unwrap_or(&false)
-            .to_owned();
+            .copied()
+            .unwrap_or(false);
 
         ClientCapabilities { code_completion_has_snippet_support, related_information_support }
     }

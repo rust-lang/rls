@@ -140,9 +140,15 @@ impl BlockingNotificationAction for DidChangeConfiguration {
         use std::collections::HashMap;
         let mut dups = HashMap::new();
         let mut unknowns = vec![];
-        let settings =
-            ChangeConfigSettings::try_deserialize(&params.settings, &mut dups, &mut unknowns);
+        let mut deprecated = vec![];
+        let settings = ChangeConfigSettings::try_deserialize(
+            &params.settings,
+            &mut dups,
+            &mut unknowns,
+            &mut deprecated,
+        );
         crate::server::maybe_notify_unknown_configs(&out, &unknowns);
+        crate::server::maybe_notify_deprecated_configs(&out, &deprecated);
         crate::server::maybe_notify_duplicated_configs(&out, &dups);
 
         let new_config = match settings {

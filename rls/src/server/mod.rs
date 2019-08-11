@@ -3,7 +3,7 @@
 //! requests).
 
 use crate::actions::{notifications, requests, ActionContext};
-use crate::config::Config;
+use crate::config::{Config, DEPRECATED_OPTIONS};
 use crate::lsp_data;
 use crate::lsp_data::{
     InitializationOptions, LSPNotification, LSPRequest, MessageType, ShowMessageParams,
@@ -94,6 +94,24 @@ pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &[Strin
     }));
 }
 
+/// For each deprecated configuration key an appropriate warning is emitted via
+/// LSP, along with a deprecation notice (if there is one).
+pub(crate) fn maybe_notify_deprecated_configs<O: Output>(out: &O, keys: &[String]) {
+    for key in keys {
+        let notice = DEPRECATED_OPTIONS.get(key.as_str()).and_then(|x| *x);
+        let message = format!(
+            "RLS configuration option `{}` is deprecated{}",
+            key,
+            notice.map(|notice| format!(": {}", notice)).unwrap_or_default()
+        );
+
+        out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+            typ: MessageType::Warning,
+            message,
+        }));
+    }
+}
+
 pub(crate) fn maybe_notify_duplicated_configs<O: Output>(
     out: &O,
     dups: &std::collections::HashMap<String, Vec<String>>,
@@ -129,11 +147,18 @@ impl BlockingRequestAction for InitializeRequest {
     ) -> Result<NoResponse, ResponseError> {
         let mut dups = std::collections::HashMap::new();
         let mut unknowns = Vec::new();
+        let mut deprecated = Vec::new();
         let init_options = params
             .initialization_options
             .take()
             .and_then(|opt| {
-                InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()
+                InitializationOptions::try_deserialize(
+                    opt,
+                    &mut dups,
+                    &mut unknowns,
+                    &mut deprecated,
+                )
+                .ok()
             })
             .unwrap_or_default();
 
@@ -148,6 +173,7 @@ impl BlockingRequestAction for InitializeRequest {
         }
 
         maybe_notify_unknown_configs(&out, &unknowns);
+        maybe_notify_deprecated_configs(&out, &deprecated);
         maybe_notify_duplicated_configs(&out, &dups);
 
         let result = InitializeResult { capabilities: server_caps(ctx) };
