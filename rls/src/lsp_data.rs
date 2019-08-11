@@ -234,6 +234,7 @@ impl ChangeConfigSettings {
         val: &serde_json::value::Value,
         dups: &mut std::collections::HashMap<String, Vec<String>>,
         unknowns: &mut Vec<String>,
+        deprecated: &mut Vec<String>,
     ) -> Result<ChangeConfigSettings, ()> {
         let mut ret = Err(());
         if let serde_json::Value::Object(map) = val {
@@ -243,7 +244,8 @@ impl ChangeConfigSettings {
                     continue;
                 }
                 if let serde_json::Value::Object(_) = v {
-                    if let Ok(rust) = config::Config::try_deserialize(v, dups, unknowns) {
+                    if let Ok(rust) = config::Config::try_deserialize(v, dups, unknowns, deprecated)
+                    {
                         ret = Ok(ChangeConfigSettings { rust });
                     }
                 } else {
@@ -278,11 +280,11 @@ impl InitializationOptions {
         mut val: serde_json::value::Value,
         dups: &mut std::collections::HashMap<String, Vec<String>>,
         unknowns: &mut Vec<String>,
+        deprecated: &mut Vec<String>,
     ) -> Result<InitializationOptions, ()> {
-        let settings = val
-            .get_mut("settings")
-            .map(|x| x.take())
-            .and_then(|set| ChangeConfigSettings::try_deserialize(&set, dups, unknowns).ok());
+        let settings = val.get_mut("settings").map(|x| x.take()).and_then(|set| {
+            ChangeConfigSettings::try_deserialize(&set, dups, unknowns, deprecated).ok()
+        });
 
         Ok(InitializationOptions { settings, ..serde_json::from_value(val).map_err(|_| ())? })
     }

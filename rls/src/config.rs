@@ -1,6 +1,7 @@
 //! Configuration for the workspace that RLS is operating within and options for
 //! tweaking the RLS's behavior itself.
 
+use std::collections::HashMap;
 use std::env;
 use std::fmt;
 use std::fmt::Debug;
@@ -172,6 +173,8 @@ pub struct Config {
     /// to be loaded by the RLS. The program given should output a list of
     /// resulting JSON files on stdout.
     pub build_command: Option<String>,
+    /// DEPRECATED: Use `crate_blacklist` instead.
+    pub use_crate_blacklist: Option<bool>,
 }
 
 impl Default for Config {
@@ -201,10 +204,21 @@ impl Default for Config {
             show_hover_context: true,
             rustfmt_path: None,
             build_command: None,
+            use_crate_blacklist: None,
         };
         result.normalise();
         result
     }
+}
+
+lazy_static::lazy_static! {
+    #[derive(Debug)]
+    pub static ref DEPRECATED_OPTIONS: HashMap<&'static str, Option<&'static str>> = {
+        [("use_crate_blacklist", Some("use `crate_blacklist` instead"))]
+            .iter()
+            .map(ToOwned::to_owned)
+            .collect()
+    };
 }
 
 impl Config {
@@ -214,7 +228,8 @@ impl Config {
     pub fn try_deserialize(
         val: &serde_json::value::Value,
         dups: &mut std::collections::HashMap<String, Vec<String>>,
-        unknowns: &mut Vec<(String)>,
+        unknowns: &mut Vec<String>,
+        deprecated: &mut Vec<String>,
     ) -> Result<Config, ()> {
         #[derive(Clone)]
         struct JsonValue(serde_json::value::Value);
@@ -234,6 +249,10 @@ impl Config {
                 vec.push(k.to_string());
 
                 if vec.len() == 1 {
+                    if DEPRECATED_OPTIONS.contains_key(snake_case.as_str()) {
+                        deprecated.push(snake_case.clone());
+                    }
+
                     Some((snake_case, JsonValue(v.to_owned().clone())))
                 } else {
                     None
@@ -486,14 +505,17 @@ fn clippy_preference_from_str() {
 #[test]
 fn blacklist_default() {
     let value = serde_json::json!({});
-    let config = Config::try_deserialize(&value, &mut Default::default(), &mut vec![]).unwrap();
+    let config =
+        Config::try_deserialize(&value, &mut Default::default(), &mut vec![], &mut vec![]).unwrap();
     assert_eq!(config.crate_blacklist.as_ref(), &CrateBlacklist::default());
     let value = serde_json::json!({"crate_blacklist": []});
 
-    let config = Config::try_deserialize(&value, &mut Default::default(), &mut vec![]).unwrap();
+    let config =
+        Config::try_deserialize(&value, &mut Default::default(), &mut vec![], &mut vec![]).unwrap();
     assert_eq!(&*config.crate_blacklist.as_ref().0, &[] as &[String]);
 
     let value = serde_json::json!({"crate_blacklist": ["serde"]});
-    let config = Config::try_deserialize(&value, &mut Default::default(), &mut vec![]).unwrap();
+    let config =
+        Config::try_deserialize(&value, &mut Default::default(), &mut vec![], &mut vec![]).unwrap();
     assert_eq!(&*config.crate_blacklist.as_ref().0, &["serde".to_string()]);
 }
