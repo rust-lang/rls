@@ -19,7 +19,7 @@ mod test;
 mod util;
 
 use analysis::Analysis;
-pub use analysis::{Def, Ref};
+pub use analysis::{Def, Ident, IdentKind, Ref};
 pub use loader::{AnalysisLoader, CargoAnalysisLoader, SearchDirectory, Target};
 pub use raw::{name_space_for_def_kind, read_analysis_from_files, Crate, CrateId, DefKind};
 pub use symbol_query::SymbolQuery;
@@ -31,7 +31,6 @@ use std::sync::Mutex;
 use std::time::{Instant, SystemTime};
 use std::u64;
 
-#[derive(Debug)]
 pub struct AnalysisHost<L: AnalysisLoader = CargoAnalysisLoader> {
     analysis: Mutex<Option<Analysis>>,
     master_crate_map: Mutex<HashMap<CrateId, u32>>,
@@ -425,6 +424,12 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
     /// Search for a symbol name, returning a list of def_ids for that name.
     pub fn search_for_id(&self, name: &str) -> AResult<Vec<Id>> {
         self.with_analysis(|a| Some(a.with_def_names(name, Clone::clone)))
+    }
+
+    /// Returns all identifiers which overlap the given span.
+    #[cfg(feature = "idents")]
+    pub fn idents(&self, span: &Span) -> AResult<Vec<Ident>> {
+        self.with_analysis(|a| Some(a.idents(span)))
     }
 
     pub fn symbols(&self, file_name: &Path) -> AResult<Vec<SymbolResult>> {
