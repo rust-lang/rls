@@ -326,8 +326,8 @@ impl ClientCapabilities {
             .and_then(|doc| doc.completion.as_ref())
             .and_then(|comp| comp.completion_item.as_ref())
             .and_then(|item| item.snippet_support.as_ref())
-            .unwrap_or(&false)
-            .to_owned();
+            .copied()
+            .unwrap_or(false);
 
         let related_information_support = params
             .capabilities
@@ -335,8 +335,8 @@ impl ClientCapabilities {
             .as_ref()
             .and_then(|doc| doc.publish_diagnostics.as_ref())
             .and_then(|diag| diag.related_information.as_ref())
-            .unwrap_or(&false)
-            .to_owned();
+            .copied()
+            .unwrap_or(false);
 
         ClientCapabilities { code_completion_has_snippet_support, related_information_support }
     }
