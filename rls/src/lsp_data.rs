@@ -275,25 +275,16 @@ impl InitializationOptions {
     /// "rust", all first level keys of rust's value are converted to
     /// snake_case, duplicated and unknown keys are reported
     pub fn try_deserialize(
-        val: &serde_json::value::Value,
+        mut val: serde_json::value::Value,
         dups: &mut std::collections::HashMap<String, Vec<String>>,
         unknowns: &mut Vec<String>,
     ) -> Result<InitializationOptions, ()> {
-        let mut val = val.to_owned();
-        let mut set = None;
-        if let Some(set1) = val.get_mut("settings") {
-            set = Some(set1.take());
-        }
-        let mut ret: InitializationOptions = match serde_json::from_value(val) {
-            Ok(ret) => ret,
-            _ => return Err(()),
-        };
-        if let Some(set) = set {
-            if let Ok(set) = ChangeConfigSettings::try_deserialize(&set, dups, unknowns) {
-                ret.settings = Some(set);
-            }
-        }
-        Ok(ret)
+        let settings = val
+            .get_mut("settings")
+            .map(|x| x.take())
+            .and_then(|set| ChangeConfigSettings::try_deserialize(&set, dups, unknowns).ok());
+
+        Ok(InitializationOptions { settings, ..serde_json::from_value(val).map_err(|_| ())? })
     }
 }
 

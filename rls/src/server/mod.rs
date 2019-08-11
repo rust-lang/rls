@@ -133,7 +133,7 @@ impl BlockingRequestAction for InitializeRequest {
             .initialization_options
             .take()
             .and_then(|opt| {
-                InitializationOptions::try_deserialize(&opt, &mut dups, &mut unknowns).ok()
+                InitializationOptions::try_deserialize(opt, &mut dups, &mut unknowns).ok()
             })
             .unwrap_or_default();
 
