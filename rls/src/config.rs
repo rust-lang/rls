@@ -273,14 +273,18 @@ impl Config {
 
     /// Join this configuration with the new config.
     pub fn update(&mut self, mut new: Config) {
-        new.normalise();
-        new.target_dir = self.target_dir.combine_with_default(&new.target_dir, None);
-        new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
-        new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
-        new.full_docs = self.full_docs.combine_with_default(&new.full_docs, false);
-        new.crate_blacklist =
-            self.crate_blacklist.combine_with_default(&new.crate_blacklist, Default::default());
+        macro_rules! combine_option_with_default {
+            ($ident: ident, $val: expr) => {
+                new.$ident = self.$ident.combine_with_default(&new.$ident, $val);
+            };
+        }
 
+        new.normalise();
+        combine_option_with_default!(target_dir, None);
+        combine_option_with_default!(build_lib, false);
+        combine_option_with_default!(build_bin, None);
+        combine_option_with_default!(full_docs, false);
+        combine_option_with_default!(crate_blacklist, CrateBlacklist::default());
         *self = new;
     }
 
