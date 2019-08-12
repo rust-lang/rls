@@ -278,6 +278,8 @@ impl Config {
         new.build_lib = self.build_lib.combine_with_default(&new.build_lib, false);
         new.build_bin = self.build_bin.combine_with_default(&new.build_bin, None);
         new.full_docs = self.full_docs.combine_with_default(&new.full_docs, false);
+        new.crate_blacklist =
+            self.crate_blacklist.combine_with_default(&new.crate_blacklist, Default::default());
 
         *self = new;
     }
