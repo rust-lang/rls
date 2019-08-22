@@ -15,8 +15,6 @@ extern crate rustc_interface;
 #[allow(unused_extern_crates)]
 extern crate rustc_metadata;
 #[allow(unused_extern_crates)]
-extern crate rustc_plugin;
-#[allow(unused_extern_crates)]
 extern crate rustc_resolve;
 #[allow(unused_extern_crates)]
 extern crate rustc_save_analysis;
@@ -241,7 +239,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
 
 #[cfg(feature = "clippy")]
 fn clippy_after_parse_callback(compiler: &interface::Compiler) {
-    use self::rustc_plugin::registry::Registry;
+    use self::rustc_driver::plugin::registry::Registry;
 
     let sess = compiler.session();
     let mut registry = Registry::new(
