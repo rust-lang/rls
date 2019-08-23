@@ -329,7 +329,7 @@ impl CargoPlan {
         ) {
             if !visited.contains(unit) {
                 visited.insert(unit.clone());
-                for neighbour in graph.get(unit).into_iter().flat_map(|nodes| nodes) {
+                for neighbour in graph.get(unit).into_iter().flatten() {
                     dfs(neighbour, graph, visited, output);
                 }
                 output.push(unit.clone());
