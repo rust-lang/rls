@@ -185,11 +185,13 @@ fn def(file_name: &str, row: &str, col: &str) -> Request<requests::Definition> {
 
 fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requests::Rename> {
     let params = RenameParams {
-        text_document: TextDocumentIdentifier::new(url(file_name)),
-        position: Position::new(
-            u64::from_str(row).expect("Bad line number"),
-            u64::from_str(col).expect("Bad column number"),
-        ),
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url(file_name)),
+            position: Position::new(
+                u64::from_str(row).expect("Bad line number"),
+                u64::from_str(col).expect("Bad column number"),
+            ),
+        },
         new_name: new_name.to_owned(),
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }

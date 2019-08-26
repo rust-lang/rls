@@ -223,8 +223,9 @@ impl RequestAction for References {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        let file_path = parse_file_path!(&params.text_document.uri, "find_all_refs")?;
-        let span = ctx.convert_pos_to_span(file_path, params.position);
+        let file_path =
+            parse_file_path!(&params.text_document_position.text_document.uri, "find_all_refs")?;
+        let span = ctx.convert_pos_to_span(file_path, params.text_document_position.position);
 
         let result =
             match ctx.analysis.find_all_refs(&span, params.context.include_declaration, false) {
@@ -251,12 +252,13 @@ impl RequestAction for Completion {
             return Self::fallback_response();
         }
 
-        let file_path = parse_file_path!(&params.text_document.uri, "complete")?;
+        let file_path =
+            parse_file_path!(&params.text_document_position.text_document.uri, "complete")?;
 
         let cache = ctx.racer_cache();
         let session = ctx.racer_session(&cache);
 
-        let location = pos_to_racer_location(params.position);
+        let location = pos_to_racer_location(params.text_document_position.position);
         let results = racer::complete_from_file(&file_path, location, &session);
         let is_use_stmt = racer::is_use_stmt(&file_path, location, &session);
 
@@ -329,8 +331,9 @@ impl RequestAction for Rename {
         // data is ready.
         ctx.block_on_build();
 
-        let file_path = parse_file_path!(&params.text_document.uri, "rename")?;
-        let span = ctx.convert_pos_to_span(file_path, params.position);
+        let file_path =
+            parse_file_path!(&params.text_document_position.text_document.uri, "rename")?;
+        let span = ctx.convert_pos_to_span(file_path, params.text_document_position.position);
 
         let analysis = ctx.analysis;
 

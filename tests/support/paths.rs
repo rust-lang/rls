@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Once;
 
-static RLS_INTEGRATION_TEST_DIR: &'static str = "rlsit";
+static RLS_INTEGRATION_TEST_DIR: &str = "rlsit";
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
 thread_local!(static TASK_ID: usize = NEXT_ID.fetch_add(1, Ordering::SeqCst));

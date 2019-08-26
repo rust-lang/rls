@@ -439,9 +439,11 @@ fn client_test_complete_self_crate_name() {
                 trigger_character: Some(":".to_string()),
                 trigger_kind: CompletionTriggerKind::TriggerCharacter,
             }),
-            position: Position::new(2, 32),
-            text_document: TextDocumentIdentifier {
-                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            text_document_position: TextDocumentPositionParams {
+                position: Position::new(2, 32),
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+                },
             },
         },
     );
@@ -537,9 +539,11 @@ fn client_completion_suggests_arguments_in_statements() {
                 trigger_character: Some("f".to_string()),
                 trigger_kind: CompletionTriggerKind::TriggerCharacter,
             }),
-            position: Position::new(3, 41),
-            text_document: TextDocumentIdentifier {
-                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            text_document_position: TextDocumentPositionParams {
+                position: Position::new(3, 41),
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+                },
             },
         },
     );
@@ -603,9 +607,11 @@ fn client_use_statement_completion_doesnt_suggest_arguments() {
                 trigger_character: Some(":".to_string()),
                 trigger_kind: CompletionTriggerKind::TriggerCharacter,
             }),
-            position: Position::new(2, 32),
-            text_document: TextDocumentIdentifier {
-                uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+            text_document_position: TextDocumentPositionParams {
+                position: Position::new(2, 32),
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
+                },
             },
         },
     );
@@ -1153,13 +1159,10 @@ fn client_deglob() {
     // Right now we only support deglobbing via commands. Please update this
     // test if we move to making text edits via CodeAction (which we should for
     // deglobbing);
-    let Command { title, command, arguments, .. } = match commands {
-        CodeActionResponse::Commands(commands) => commands,
-        CodeActionResponse::Actions(_) => unimplemented!(),
-    }
-    .into_iter()
-    .nth(0)
-    .unwrap();
+    let Command { title, command, arguments, .. } = match commands.into_iter().nth(0).unwrap() {
+        CodeActionOrCommand::Command(commands) => commands,
+        CodeActionOrCommand::CodeAction(_) => unimplemented!(),
+    };
 
     let arguments = arguments.expect("Missing command arguments");
 
@@ -1214,13 +1217,10 @@ fn client_deglob() {
     // Right now we only support deglobbing via commands. Please update this
     // test if we move to making text edits via CodeAction (which we should for
     // deglobbing);
-    let Command { title, command, arguments, .. } = match commands {
-        CodeActionResponse::Commands(commands) => commands,
-        CodeActionResponse::Actions(_) => unimplemented!(),
-    }
-    .into_iter()
-    .nth(0)
-    .unwrap();
+    let Command { title, command, arguments, .. } = match commands.into_iter().nth(0).unwrap() {
+        CodeActionOrCommand::Command(commands) => commands,
+        CodeActionOrCommand::CodeAction(_) => unimplemented!(),
+    };
 
     let arguments = arguments.expect("Missing command arguments");
 
@@ -1605,10 +1605,12 @@ fn client_find_all_refs_test() {
         .request::<References>(
             42,
             ReferenceParams {
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                text_document_position: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
+                    position: Position { line: 0, character: 7 },
                 },
-                position: Position { line: 0, character: 7 },
                 context: ReferenceContext { include_declaration: true },
             },
         )
@@ -1643,10 +1645,12 @@ fn client_find_all_refs_no_cfg_test() {
         .request::<References>(
             42,
             ReferenceParams {
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                text_document_position: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
+                    position: Position { line: 0, character: 7 },
                 },
-                position: Position { line: 0, character: 7 },
                 context: ReferenceContext { include_declaration: true },
             },
         )
@@ -1730,9 +1734,11 @@ fn client_rename() {
         .request::<Rename>(
             42,
             RenameParams {
-                position: Position { line: 12, character: 27 },
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                text_document_position: TextDocumentPositionParams {
+                    position: Position { line: 12, character: 27 },
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
                 },
                 new_name: "foo".to_owned(),
             },
@@ -1895,8 +1901,10 @@ fn client_completion() {
     let result = rls.request::<Completion>(
         11,
         CompletionParams {
-            text_document: text_document.clone(),
-            position: Position { line: 12, character: 30 },
+            text_document_position: TextDocumentPositionParams {
+                text_document: text_document.clone(),
+                position: Position { line: 12, character: 30 },
+            },
             context: None,
         },
     );
@@ -1905,8 +1913,10 @@ fn client_completion() {
     let result = rls.request::<Completion>(
         11,
         CompletionParams {
-            text_document: text_document.clone(),
-            position: Position { line: 15, character: 30 },
+            text_document_position: TextDocumentPositionParams {
+                text_document: text_document.clone(),
+                position: Position { line: 15, character: 30 },
+            },
             context: None,
         },
     );
