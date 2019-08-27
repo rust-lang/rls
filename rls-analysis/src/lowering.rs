@@ -244,12 +244,12 @@ impl<'a> CrateReader<'a> {
                     ve.insert(Ref::Id(def_id));
                 }
             }
-            analysis.ref_spans.entry(def_id).or_insert_with(Vec::new).push(span.clone());
 
             #[cfg(feature = "idents")]
             {
                 Self::record_ident(analysis, &span, def_id, IdentKind::Ref);
             }
+            analysis.ref_spans.entry(def_id).or_insert_with(Vec::new).push(span);
         }
     }
 

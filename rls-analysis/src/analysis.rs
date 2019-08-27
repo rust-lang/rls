@@ -48,7 +48,7 @@ pub struct PerCrateAnalysis {
     pub ref_spans: HashMap<Id, Vec<Span>>,
     pub globs: HashMap<Span, Glob>,
     pub impls: HashMap<Id, Vec<Span>>,
-    pub idents: Idents,
+    pub idents: HashMap<PathBuf, IdentsByLine>,
 
     pub root_id: Option<Id>,
     pub timestamp: SystemTime,
@@ -107,6 +107,12 @@ pub type Idents = HashMap<PathBuf, IdentsByLine>;
 pub type IdentsByLine = BTreeMap<Row<ZeroIndexed>, IdentsByColumn>;
 pub type IdentsByColumn = BTreeMap<Column<ZeroIndexed>, IdentBound>;
 
+/// We store the identifiers for a file in a BTreeMap ordered by starting index.
+/// This struct contains the rest of the information we need to create an `Ident`.
+///
+/// We're optimising for space, rather than speed (of getting an Ident), because
+/// we have to build the whole index for every file (which is a lot for a large
+/// project), whereas we only get idents a few at a time and not very often.
 #[derive(new, Clone, Debug)]
 pub struct IdentBound {
     pub column_end: Column<ZeroIndexed>,
@@ -167,7 +173,7 @@ impl PerCrateAnalysis {
             ref_spans: HashMap::new(),
             globs: HashMap::new(),
             impls: HashMap::new(),
-            idents: Idents::new(),
+            idents: HashMap::new(),
             root_id: None,
             timestamp,
             path,
@@ -224,7 +230,7 @@ impl PerCrateAnalysis {
                     })
                     .collect::<Vec<Ident>>()
             })
-            .unwrap_or_else(|| Vec::new())
+            .unwrap_or_else(Vec::new)
     }
 }
 
