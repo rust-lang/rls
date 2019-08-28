@@ -103,7 +103,6 @@ pub struct Def {
     // pub sig: Option<Signature>,
 }
 
-pub type Idents = HashMap<PathBuf, IdentsByLine>;
 pub type IdentsByLine = BTreeMap<Row<ZeroIndexed>, IdentsByColumn>;
 pub type IdentsByColumn = BTreeMap<Column<ZeroIndexed>, IdentBound>;
 
