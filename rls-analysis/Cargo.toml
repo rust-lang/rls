@@ -11,10 +11,15 @@ exclude = [
     "test_data/*",
 ]
 
+[features]
+default = []
+idents = ["rls-span/nightly"]
+derive = ["rls-data/derive", "rls-span/derive"]
+
 [dependencies]
 log = "0.4"
 rls-data = "= 0.19"
-rls-span = "0.5"
+rls-span = "0.5.2"
 derive-new = "0.5"
 fst = { version = "0.3", default-features = false }
 itertools = "0.8"
@@ -25,7 +30,3 @@ serde_json = "1.0"
 [dev-dependencies]
 lazy_static = "1"
 env_logger = "0.5"
-
-[features]
-default = []
-derive = ["rls-data/derive", "rls-span/derive"]

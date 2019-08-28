@@ -2,6 +2,8 @@
 //! in-memory representation.
 
 use crate::analysis::{Def, Glob, PerCrateAnalysis, Ref};
+#[cfg(feature = "idents")]
+use crate::analysis::{IdentBound, IdentKind, IdentsByColumn, IdentsByLine};
 use crate::loader::AnalysisLoader;
 use crate::raw::{self, CrateId, DefKind, RelationKind};
 use crate::util;
@@ -186,7 +188,7 @@ impl<'a> CrateReader<'a> {
                 .unwrap()
                 .crate_names
                 .entry(krate.id.name.clone())
-                .or_insert_with(|| vec![])
+                .or_insert_with(Vec::new)
                 .push(krate.id.clone());
         }
 
@@ -242,8 +244,28 @@ impl<'a> CrateReader<'a> {
                     ve.insert(Ref::Id(def_id));
                 }
             }
-            analysis.ref_spans.entry(def_id).or_insert_with(|| vec![]).push(span);
+
+            #[cfg(feature = "idents")]
+            {
+                Self::record_ident(analysis, &span, def_id, IdentKind::Ref);
+            }
+            analysis.ref_spans.entry(def_id).or_insert_with(Vec::new).push(span);
         }
+    }
+
+    #[cfg(feature = "idents")]
+    fn record_ident(analysis: &mut PerCrateAnalysis, span: &Span, id: Id, kind: IdentKind) {
+        let row_start = span.range.row_start;
+        let col_start = span.range.col_start;
+        let col_end = span.range.col_end;
+        analysis
+            .idents
+            .entry(span.file.clone())
+            .or_insert_with(IdentsByLine::new)
+            .entry(row_start)
+            .or_insert_with(IdentsByColumn::new)
+            .entry(col_start)
+            .or_insert_with(|| IdentBound::new(col_end, id, kind));
     }
 
     // We are sometimes asked to analyze the same crate twice. This can happen due to duplicate data,
@@ -314,14 +336,14 @@ impl<'a> CrateReader<'a> {
             let id = self.id_from_compiler_id(d.id);
             if id != NULL && !analysis.defs.contains_key(&id) {
                 let file_name = span.file.clone();
-                analysis.defs_per_file.entry(file_name).or_insert_with(|| vec![]).push(id);
+                analysis.defs_per_file.entry(file_name).or_insert_with(Vec::new).push(id);
                 let decl_id = match d.decl_id {
                     Some(ref decl_id) => {
                         let def_id = self.id_from_compiler_id(*decl_id);
                         analysis
                             .ref_spans
                             .entry(def_id)
-                            .or_insert_with(|| vec![])
+                            .or_insert_with(Vec::new)
                             .push(span.clone());
                         Ref::Id(def_id)
                     }
@@ -336,7 +358,7 @@ impl<'a> CrateReader<'a> {
                     }
                 }
 
-                analysis.def_names.entry(d.name.clone()).or_insert_with(|| vec![]).push(id);
+                analysis.def_names.entry(d.name.clone()).or_insert_with(Vec::new).push(id);
 
                 // NOTE not every Def will have a name, e.g. test_data/hello/src/main is analyzed with an implicit module
                 // that's fine, but no need to index in def_trie
@@ -353,6 +375,11 @@ impl<'a> CrateReader<'a> {
                     let children_for_id = analysis.children.entry(id).or_insert_with(HashSet::new);
                     children_for_id
                         .extend(d.children.iter().map(|id| self.id_from_compiler_id(*id)));
+                }
+
+                #[cfg(feature = "idents")]
+                {
+                    Self::record_ident(analysis, &span, id, IdentKind::Def);
                 }
 
                 let def = Def {
@@ -431,13 +458,13 @@ impl<'a> CrateReader<'a> {
             if self_id != NULL {
                 if let Some(self_id) = abs_ref_id(self_id, analysis, project_analysis) {
                     trace!("record impl for self type {:?} {}", span, self_id);
-                    analysis.impls.entry(self_id).or_insert_with(|| vec![]).push(span.clone());
+                    analysis.impls.entry(self_id).or_insert_with(Vec::new).push(span.clone());
                 }
             }
             if trait_id != NULL {
                 if let Some(trait_id) = abs_ref_id(trait_id, analysis, project_analysis) {
                     trace!("record impl for trait {:?} {}", span, trait_id);
-                    analysis.impls.entry(trait_id).or_insert_with(|| vec![]).push(span);
+                    analysis.impls.entry(trait_id).or_insert_with(Vec::new).push(span);
                 }
             }
         }

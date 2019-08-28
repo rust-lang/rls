@@ -1,16 +1,16 @@
 use fst;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::raw::{CrateId, DefKind};
 use crate::{Id, Span, SymbolQuery};
+use span::{Column, Row, ZeroIndexed};
 
 /// This is the main database that contains all the collected symbol information,
 /// such as definitions, their mapping between spans, hierarchy and so on,
 /// organized in a per-crate fashion.
-#[derive(Debug)]
 pub(crate) struct Analysis {
     /// Contains lowered data with global inter-crate `Id`s per each crate.
     pub per_crate: HashMap<CrateId, PerCrateAnalysis>,
@@ -31,7 +31,6 @@ pub(crate) struct Analysis {
     pub src_url_base: String,
 }
 
-#[derive(Debug)]
 pub struct PerCrateAnalysis {
     // Map span to id of def (either because it is the span of the def, or of
     // the def for the ref).
@@ -49,6 +48,7 @@ pub struct PerCrateAnalysis {
     pub ref_spans: HashMap<Id, Vec<Span>>,
     pub globs: HashMap<Span, Glob>,
     pub impls: HashMap<Id, Vec<Span>>,
+    pub idents: HashMap<PathBuf, IdentsByLine>,
 
     pub root_id: Option<Id>,
     pub timestamp: SystemTime,
@@ -103,6 +103,40 @@ pub struct Def {
     // pub sig: Option<Signature>,
 }
 
+pub type Idents = HashMap<PathBuf, IdentsByLine>;
+pub type IdentsByLine = BTreeMap<Row<ZeroIndexed>, IdentsByColumn>;
+pub type IdentsByColumn = BTreeMap<Column<ZeroIndexed>, IdentBound>;
+
+/// We store the identifiers for a file in a BTreeMap ordered by starting index.
+/// This struct contains the rest of the information we need to create an `Ident`.
+///
+/// We're optimising for space, rather than speed (of getting an Ident), because
+/// we have to build the whole index for every file (which is a lot for a large
+/// project), whereas we only get idents a few at a time and not very often.
+#[derive(new, Clone, Debug)]
+pub struct IdentBound {
+    pub column_end: Column<ZeroIndexed>,
+    pub id: Id,
+    pub kind: IdentKind,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum IdentKind {
+    Def,
+    Ref,
+}
+
+/// An identifier (either a reference or definition).
+///
+/// This struct represents the syntactic name, use the `id` to look up semantic
+/// information.
+#[derive(new, Clone, Debug)]
+pub struct Ident {
+    pub span: Span,
+    pub id: Id,
+    pub kind: IdentKind,
+}
+
 #[derive(Debug, Clone)]
 pub struct Signature {
     pub span: Span,
@@ -139,6 +173,7 @@ impl PerCrateAnalysis {
             ref_spans: HashMap::new(),
             globs: HashMap::new(),
             impls: HashMap::new(),
+            idents: HashMap::new(),
             root_id: None,
             timestamp,
             path,
@@ -154,6 +189,48 @@ impl PerCrateAnalysis {
             Some(existing) => span == &existing.span,
             None => false,
         }
+    }
+
+    // Returns all identifiers which overlap with `span`. There is no guarantee about
+    // the ordering of identifiers in the result, but they will probably be roughly
+    // in order of appearance.
+    #[cfg(feature = "idents")]
+    fn idents(&self, span: &Span) -> Vec<Ident> {
+        self.idents
+            .get(&span.file)
+            .map(|by_line| {
+                (span.range.row_start..=span.range.row_end)
+                    .flat_map(|line| {
+                        let vec = by_line
+                            .get(&line)
+                            .iter()
+                            .flat_map(|by_col| {
+                                by_col.into_iter().filter_map(|(col_start, id)| {
+                                    if col_start <= &span.range.col_end
+                                        && id.column_end >= span.range.col_start
+                                    {
+                                        Some(Ident::new(
+                                            Span::new(
+                                                line,
+                                                line,
+                                                *col_start,
+                                                id.column_end,
+                                                span.file.clone(),
+                                            ),
+                                            id.id,
+                                            id.kind,
+                                        ))
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect::<Vec<Ident>>();
+                        vec.into_iter()
+                    })
+                    .collect::<Vec<Ident>>()
+            })
+            .unwrap_or_else(Vec::new)
     }
 }
 
@@ -300,6 +377,19 @@ impl Analysis {
         F: Fn(&Vec<Id>) -> T,
     {
         self.for_each_crate(|c| c.defs_per_file.get(file).map(&f))
+    }
+
+    #[cfg(feature = "idents")]
+    pub fn idents(&self, span: &Span) -> Vec<Ident> {
+        self.for_each_crate(|c| {
+            let result = c.idents(span);
+            if result.is_empty() {
+                None
+            } else {
+                Some(result)
+            }
+        })
+        .unwrap_or_else(Vec::new)
     }
 
     pub fn query_defs(&self, query: SymbolQuery) -> Vec<Def> {
