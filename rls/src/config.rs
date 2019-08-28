@@ -383,6 +383,17 @@ impl FromStr for ClippyPreference {
     }
 }
 
+impl ToString for ClippyPreference {
+    fn to_string(&self) -> String {
+        match self {
+            ClippyPreference::Off => "off",
+            ClippyPreference::OptIn => "optin",
+            ClippyPreference::On => "on",
+        }
+        .to_string()
+    }
+}
+
 /// Permissive custom deserialization for `ClippyPreference` using `FromStr`.
 fn deserialize_clippy_preference<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where

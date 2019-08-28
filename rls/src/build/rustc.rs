@@ -25,6 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::io;
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -46,7 +47,7 @@ use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
 
-// Runs a single instance of Rustc (in-process).
+// Runs a single instance of Rustc.
 pub(crate) fn rustc(
     vfs: &Vfs,
     args: &[String],
@@ -66,22 +67,114 @@ pub(crate) fn rustc(
 
     let changed = vfs.get_cached_files();
 
-    let mut local_envs = envs.clone();
+    let mut envs = envs.clone();
 
     let clippy_preference = {
         let config = rls_config.lock().unwrap();
         if config.clear_env_rust_log {
-            local_envs.insert(String::from("RUST_LOG"), None);
+            envs.insert(String::from("RUST_LOG"), None);
         }
 
         config.clippy_preference
     };
 
-    let (guard, _) = env_lock.lock();
-    let restore_env = Environment::push_with_lock(&local_envs, cwd, guard);
+    let lock_environment = |envs, cwd| {
+        let (guard, _) = env_lock.lock();
+        Environment::push_with_lock(envs, cwd, guard)
+    };
 
-    let buf = Arc::new(Mutex::new(vec![]));
-    let err_buf = Arc::clone(&buf);
+    let CompilationResult { result, stderr, analysis, input_files } = match std::env::var(
+        "RLS_OUT_OF_PROCESS",
+    ) {
+        #[cfg(feature = "ipc")]
+        Ok(..) => run_out_of_process(changed.clone(), &args, &envs, clippy_preference)
+            .unwrap_or_else(|_| {
+                run_in_process(changed, &args, clippy_preference, lock_environment(&envs, cwd))
+            }),
+        #[cfg(not(feature = "ipc"))]
+        Ok(..) => {
+            log::warn!("Support for out-of-process compilation was not compiled. Rebuild with 'ipc' feature enabled");
+            run_in_process(changed, &args, clippy_preference, lock_environment(&envs, cwd))
+        }
+        Err(..) => run_in_process(changed, &args, clippy_preference, lock_environment(&envs, cwd)),
+    };
+
+    let stderr = String::from_utf8(stderr).unwrap();
+    log::debug!("rustc - stderr: {}", &stderr);
+    let stderr_json_msgs: Vec<_> = stderr.lines().map(String::from).collect();
+
+    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or_else(Vec::new);
+    log::debug!("rustc: analysis read successfully?: {}", !analysis.is_empty());
+
+    let cwd = cwd.unwrap_or_else(|| Path::new(".")).to_path_buf();
+
+    BuildResult::Success(cwd, stderr_json_msgs, analysis, input_files, result.is_ok())
+}
+
+/// Resulting data from compiling a crate (in the rustc sense)
+pub struct CompilationResult {
+    /// Whether compilation was succesful
+    result: Result<(), ()>,
+    stderr: Vec<u8>,
+    analysis: Option<Analysis>,
+    // TODO: Move to Vec<PathBuf>
+    input_files: HashMap<PathBuf, HashSet<Crate>>,
+}
+
+#[cfg(feature = "ipc")]
+fn run_out_of_process(
+    changed: HashMap<PathBuf, String>,
+    args: &[String],
+    envs: &HashMap<String, Option<OsString>>,
+    clippy_preference: ClippyPreference,
+) -> Result<CompilationResult, ()> {
+    let analysis = Arc::default();
+    let input_files = Arc::default();
+
+    let ipc_server =
+        super::ipc::start_with_all(changed, Arc::clone(&analysis), Arc::clone(&input_files))?;
+
+    // Compiling out of process is only supported by our own shim
+    let rustc_shim = env::current_exe()
+        .ok()
+        .and_then(|x| x.to_str().map(String::from))
+        .expect("Couldn't set executable for RLS rustc shim");
+
+    let output = Command::new(rustc_shim)
+        .env(crate::RUSTC_SHIM_ENV_VAR_NAME, "1")
+        .env("RLS_IPC_ENDPOINT", ipc_server.endpoint())
+        .env("RLS_CLIPPY_PREFERENCE", clippy_preference.to_string())
+        .args(args.iter().skip(1))
+        .envs(envs.iter().filter_map(|(k, v)| v.as_ref().map(|v| (k, v))))
+        .output()
+        .map_err(|_| ());
+
+    let result = match &output {
+        Ok(output) if output.status.code() == Some(0) => Ok(()),
+        _ => Err(()),
+    };
+    // NOTE: Make sure that we pass JSON error format
+    let stderr = output.map(|out| out.stderr).unwrap_or_default();
+
+    ipc_server.close();
+
+    let input_files = unwrap_shared(input_files, "Other ref dropped by closed IPC server");
+    let analysis = unwrap_shared(analysis, "Other ref dropped by closed IPC server");
+    // FIXME(#25): given that we are running the compiler directly, there is no need
+    // to serialize the error messages -- we should pass them in memory.
+    Ok(CompilationResult { result, stderr, analysis, input_files })
+}
+
+fn run_in_process(
+    changed: HashMap<PathBuf, String>,
+    args: &[String],
+    clippy_preference: ClippyPreference,
+    environment_lock: Environment<'_>,
+) -> CompilationResult {
+    let mut callbacks = RlsRustcCalls { clippy_preference, ..Default::default() };
+    let input_files = Arc::clone(&callbacks.input_files);
+    let analysis = Arc::clone(&callbacks.analysis);
+
     let args: Vec<_> = if cfg!(feature = "clippy") && clippy_preference != ClippyPreference::Off {
         // Allow feature gating in the same way as `cargo clippy`
         let mut clippy_args = vec!["--cfg".to_owned(), r#"feature="cargo-clippy""#.to_owned()];
@@ -97,41 +190,35 @@ pub(crate) fn rustc(
         args.to_owned()
     };
 
-    let mut callbacks = RlsRustcCalls { clippy_preference, ..Default::default() };
-    let analysis = Arc::clone(&callbacks.analysis);
-    let input_files = Arc::clone(&callbacks.input_files);
-
     // rustc explicitly panics in `run_compiler()` on compile failure, regardless
     // of whether it encounters an ICE (internal compiler error) or not.
     // TODO: Change librustc_driver behaviour to distinguish between ICEs and
     // regular compilation failure with errors?
-    let result = ::std::panic::catch_unwind(|| {
-        rustc_driver::report_ices_to_stderr_if_any(move || {
-            // Replace stderr so we catch most errors.
-            run_compiler(
-                &args,
-                &mut callbacks,
-                Some(Box::new(ReplacedFileLoader::new(changed))),
-                Some(Box::new(BufWriter(buf))),
-            )
-        })
-    });
+    let stderr = Arc::default();
+    let result = std::panic::catch_unwind({
+        let stderr = Arc::clone(&stderr);
+        || {
+            rustc_driver::report_ices_to_stderr_if_any(move || {
+                // Replace stderr so we catch most errors.
+                run_compiler(
+                    &args,
+                    &mut callbacks,
+                    Some(Box::new(ReplacedFileLoader::new(changed))),
+                    Some(Box::new(BufWriter(stderr))),
+                )
+            })
+        }
+    })
+    .map(|_| ())
+    .map_err(|_| ());
+    // Explicitly drop the global environment lock
+    mem::drop(environment_lock);
 
-    // FIXME(#25): given that we are running the compiler directly, there is no need
-    // to serialize the error messages -- we should pass them in memory.
-    let err_buf = Arc::try_unwrap(err_buf).unwrap().into_inner().unwrap();
-    let err_buf = String::from_utf8(err_buf).unwrap();
-    let stderr_json_msgs: Vec<_> = err_buf.lines().map(String::from).collect();
+    let stderr = unwrap_shared(stderr, "Other ref dropped by scoped compilation");
+    let input_files = unwrap_shared(input_files, "Other ref dropped by scoped compilation");
+    let analysis = unwrap_shared(analysis, "Other ref dropped by scoped compilation");
 
-    let analysis = analysis.lock().unwrap().clone();
-    let analysis = analysis.map(|analysis| vec![analysis]).unwrap_or_else(Vec::new);
-    log::debug!("rustc: analysis read successfully?: {}", !analysis.is_empty());
-
-    let input_files = Arc::try_unwrap(input_files).unwrap().into_inner().unwrap();
-
-    let cwd = cwd.unwrap_or_else(|| restore_env.get_old_cwd()).to_path_buf();
-
-    BuildResult::Success(cwd, stderr_json_msgs, analysis, input_files, result.is_ok())
+    CompilationResult { result, stderr, analysis, input_files }
 }
 
 // Our compiler controller. We mostly delegate to the default rustc
@@ -226,7 +313,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                 CallbackHandler {
                     callback: &mut |a| {
                         let mut analysis = self.analysis.lock().unwrap();
-                        let a = unsafe { ::std::mem::transmute(a.clone()) };
+                        let a = unsafe { mem::transmute(a.clone()) };
                         *analysis = Some(a);
                     },
                 },
@@ -351,4 +438,8 @@ pub fn src_path(cwd: Option<&Path>, path: impl AsRef<Path>) -> Option<PathBuf> {
         (Some(cwd), _) => cwd.join(path),
         (None, _) => std::env::current_dir().ok()?.join(path),
     })
+}
+
+fn unwrap_shared<T: std::fmt::Debug>(shared: Arc<Mutex<T>>, msg: &'static str) -> T {
+    Arc::try_unwrap(shared).expect(msg).into_inner().unwrap()
 }

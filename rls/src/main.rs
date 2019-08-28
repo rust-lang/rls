@@ -39,8 +39,10 @@ fn main_inner() -> i32 {
     }
 
     if env::var(rls::RUSTC_SHIM_ENV_VAR_NAME).ok().map_or(false, |v| v != "0") {
-        rustc_shim::run();
-        return 0;
+        match rustc_shim::run() {
+            Ok(..) => return 0,
+            Err(..) => return 101,
+        }
     }
 
     if let Some(first_arg) = env::args().nth(1) {
