@@ -42,11 +42,11 @@ lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "2.1.25", default-features = false }
+racer = { version = "2.1.26", default-features = false }
 rand = "0.6"
 rayon = "1"
 rustc_tools_util = "0.2"
-rustfmt-nightly = "1.4.3"
+rustfmt-nightly = "1.4.7"
 rustc-serialize = "0.3"
 serde = "1.0"
 serde_json = "1.0"
