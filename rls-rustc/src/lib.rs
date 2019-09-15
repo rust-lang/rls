@@ -4,7 +4,6 @@ extern crate env_logger;
 extern crate rustc;
 extern crate rustc_driver;
 extern crate rustc_interface;
-extern crate rustc_plugin;
 extern crate rustc_save_analysis;
 extern crate syntax;
 
