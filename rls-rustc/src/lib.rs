@@ -72,11 +72,10 @@ pub fn run() -> Result<(), ()> {
         None => args,
     };
 
-    rustc_driver::report_ices_to_stderr_if_any(|| {
-        run_compiler(&args, &mut shim_calls, file_loader, None)
-    })
-    .map(|_| ())
-    .map_err(|_| ())
+    rustc_driver::install_ice_hook();
+    rustc_driver::catch_fatal_errors(|| run_compiler(&args, &mut shim_calls, file_loader, None))
+        .map(|_| ())
+        .map_err(|_| ())
 }
 
 #[derive(Default)]
