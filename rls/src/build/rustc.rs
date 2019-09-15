@@ -198,7 +198,7 @@ fn run_in_process(
     let result = std::panic::catch_unwind({
         let stderr = Arc::clone(&stderr);
         || {
-            rustc_driver::report_ices_to_stderr_if_any(move || {
+            rustc_driver::catch_fatal_errors(move || {
                 // Replace stderr so we catch most errors.
                 run_compiler(
                     &args,
