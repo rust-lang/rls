@@ -2160,9 +2160,11 @@ fn client_init_impl(convert_case: fn(&str) -> String) {
         .file(
             "src/main.rs",
             r#"
+                #![allow(dead_code)]
                 struct NonCfg;
                 #[cfg(test)]
                 struct CfgTest { inner: PathBuf }
+                fn main() {}
             "#,
         )
         .build();
