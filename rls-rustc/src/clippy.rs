@@ -49,7 +49,7 @@ pub fn adjust_args(args: Vec<String>, preference: ClippyPreference) -> Vec<Strin
 
 #[cfg(feature = "clippy")]
 pub fn after_parse_callback(compiler: &rustc_interface::interface::Compiler) {
-    use self::rustc_driver::plugin::registry::Registry;
+    use rustc_driver::plugin::registry::Registry;
 
     let sess = compiler.session();
     let mut registry = Registry::new(
