@@ -9,11 +9,11 @@ repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]
-env_logger = "0.6"
+env_logger = "0.7"
 log = "0.4"
 failure = "0.1"
-rand = "0.6"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "72da1015d6d918fe1b29170acbf486d30e0c2695", optional = true }
+rand = "0.7"
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "68ff8b19bc6705724d1e77a8dc17ffb8dfbbe26b", optional = true }
 tokio = { version = "0.1", optional = true }
 futures = { version = "0.1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
