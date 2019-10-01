@@ -19,7 +19,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use cargo::core::compiler::{CompileMode, Context, Kind, Unit};
+use cargo::core::compiler::{CompileKind, CompileMode, Context, Unit};
 use cargo::core::profiles::Profile;
 use cargo::core::{PackageId, Target, TargetKind};
 use cargo::util::ProcessBuilder;
@@ -477,7 +477,7 @@ pub(crate) struct OwnedUnit {
     pub(crate) id: PackageId,
     pub(crate) target: Target,
     pub(crate) profile: Profile,
-    pub(crate) kind: Kind,
+    pub(crate) kind: CompileKind,
     pub(crate) mode: CompileMode,
 }
 
