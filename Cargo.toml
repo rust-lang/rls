@@ -31,23 +31,22 @@ rls-ipc = { version = "0.1.0", path = "rls-ipc", optional = true }
 
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "8b0561d68f12eeb1d72e07ceef464ebf6032a1bc" }
 cargo_metadata = "0.8"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "72da1015d6d918fe1b29170acbf486d30e0c2695", optional = true }
-env_logger = "0.6"
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "68ff8b19bc6705724d1e77a8dc17ffb8dfbbe26b", optional = true }
+env_logger = "0.7"
 failure = "0.1.1"
 futures = { version = "0.1", optional = true }
-home = "0.5"
+home = "0.5.1"
 itertools = "0.8"
-jsonrpc-core = "13"
+jsonrpc-core = "13.2"
 lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
 racer = { version = "2.1.28", default-features = false }
-rand = "0.6"
+rand = "0.7"
 rayon = "1"
 rustc_tools_util = "0.2"
-rustfmt-nightly = "1.4.9"
-rustc-serialize = "0.3"
+rustfmt-nightly = "1.4.8"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
