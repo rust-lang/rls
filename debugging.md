@@ -64,13 +64,6 @@ multiple binaries, you can specify one to work with using `rust.build_bin`.
 Auto-detection for some of this should be in the next release.
 
 
-### Cargo workspaces
-
-Currently there is only experimental, work-in-progress support for Cargo
-workspaces. We recommend you don't use the RLS with such projects for now, and
-stay tuned for updates.
-
-
 ### Opening a Rust file outside of a project
 
 Before opening a Rust file, the RLS needs to be aware of the whole crate. That
