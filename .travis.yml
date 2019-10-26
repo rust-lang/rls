@@ -11,6 +11,7 @@ install:
   # Required for Racer autoconfiguration
   - rustup component add rust-src
   - rustup component add rust-analysis
+  - rustup component add rustc-dev
 matrix:
   fast_finish: true
   include:
