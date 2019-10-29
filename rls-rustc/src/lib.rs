@@ -9,7 +9,7 @@ extern crate syntax;
 
 use rustc::session::config::ErrorOutputType;
 use rustc::session::early_error;
-#[cfg(any(feature = "clippy", feature = "ipc"))]
+#[cfg(feature = "ipc")]
 use rustc_driver::Compilation;
 use rustc_driver::{run_compiler, Callbacks};
 use rustc_interface::interface;
