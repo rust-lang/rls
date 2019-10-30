@@ -2084,10 +2084,12 @@ fn client_no_default_features() {
 
     let diag = rls.wait_for_diagnostics();
 
-    assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    let diagnostics: Vec<_> =
+        diag.diagnostics.iter().filter(|d| d.severity == Some(DiagnosticSeverity::Error)).collect();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Some(DiagnosticSeverity::Error));
     let msg = "cannot find struct, variant or union type `Baz` in this scope";
-    assert!(diag.diagnostics[0].message.contains(msg));
+    assert!(diagnostics[0].message.contains(msg));
 }
 
 #[test]
