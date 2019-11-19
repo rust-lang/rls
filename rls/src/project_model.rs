@@ -57,7 +57,7 @@ impl ProjectModel {
                 Ok(FileContents::Text(lockfile)) => {
                     let resolve = toml::parse(&lockfile, &lock_path, ws.config())?;
                     let v: EncodableResolve = resolve.try_into()?;
-                    Some(v.into_resolve(&ws)?)
+                    Some(v.into_resolve(&lockfile, &ws)?)
                 }
                 _ => None,
             }
