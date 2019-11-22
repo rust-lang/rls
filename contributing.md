@@ -333,11 +333,8 @@ the RLS.
 ### Extensions to the Language Server Protocol
 
 The RLS uses some custom extensions to the Language Server Protocol.
-
-#### RLS to LSP Client
-
-These are all sent from the RLS to an LSP client and are only used to improve
-the user experience by showing progress indicators.
+These are all sent from the RLS to an LSP client and are only used to
+improve the user experience by showing progress indicators.
 
 * `window/progress`: notification, `title: "Building"`. Sent before build starts.
 * `window/progress`: notification with `title: "Building"`, repeated for each compile target.
@@ -347,17 +344,3 @@ the user experience by showing progress indicators.
 * `window/progress`: notification, `title: "Indexing"`. Sent before analysis of build starts.
 * ... standard LSP `publishDiagnostics`
 * `window/progress`: notification, `title: "Indexing"`, `"done": true`. Sent when analysis ends.
-
-#### LSP Client to RLS
-
-The following request is to support Rust specific features.
-
-* `rustDocument/implementations`: request
-  params: [`TextDocumentPositionParams`]
-  result: [`Location`]`[]`
-
-  List all implementation blocks for a trait, struct, or enum denoted by the
-  given text document position.
-
-[`TextDocumentPositionParams`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#textdocumentpositionparams)
-[`Location`]: (https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md#location)
