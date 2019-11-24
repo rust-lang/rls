@@ -271,9 +271,9 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     // lib unit tests have compile errors
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
-    assert!(lib.diagnostics.iter().any(|m| m.message.contains("expected u32, found u64")));
+    assert!(lib.diagnostics.iter().any(|m| m.message.contains("expected `u32`, found `u64`")));
     // bin depending on lib picks up type mismatch
-    assert!(bin.diagnostics[0].message.contains("mismatched types\n\nexpected u32, found u64"));
+    assert!(bin.diagnostics[0].message.contains("mismatched types\n\nexpected `u32`, found `u64`"));
 
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
         content_changes: vec![TextDocumentContentChangeEvent {
