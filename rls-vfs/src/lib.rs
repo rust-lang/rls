@@ -754,14 +754,7 @@ impl TextFile {
     }
 
     fn load_line(&self, line: span::Row<span::ZeroIndexed>) -> Result<&str, Error> {
-        let start = *try_opt_loc!(self.line_indices.get(line.0 as usize));
-        let end = *try_opt_loc!(self.line_indices.get(line.0 as usize + 1));
-
-        if (end as usize) <= self.text.len() && start <= end {
-            Ok(&self.text[start as usize..end as usize])
-        } else {
-            Err(Error::BadLocation)
-        }
+        self.load_lines(line, line)
     }
 
     fn load_lines(
