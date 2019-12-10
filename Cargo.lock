@@ -156,14 +156,14 @@ dependencies = [
 [[package]]
 name = "cargo"
 version = "0.42.0"
-source = "git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d#dba478b4f069d8433a715fe73f15f310f21b801d"
+source = "git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba#626f0f40efd32e6b3dbade50cd53fdfaa08446ba"
 dependencies = [
  "atty 0.2.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytesize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "cargo-platform 0.1.0 (git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d)",
+ "cargo-platform 0.1.0 (git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "core-foundation 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "crates-io 0.30.0 (git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d)",
+ "crates-io 0.30.0 (git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba)",
  "crossbeam-utils 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "crypto-hash 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "curl 0.4.24 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -216,7 +216,7 @@ dependencies = [
 [[package]]
 name = "cargo-platform"
 version = "0.1.0"
-source = "git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d#dba478b4f069d8433a715fe73f15f310f21b801d"
+source = "git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba#626f0f40efd32e6b3dbade50cd53fdfaa08446ba"
 dependencies = [
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -334,7 +334,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "crates-io"
 version = "0.30.0"
-source = "git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d#dba478b4f069d8433a715fe73f15f310f21b801d"
+source = "git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba#626f0f40efd32e6b3dbade50cd53fdfaa08446ba"
 dependencies = [
  "curl 0.4.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1599,7 +1599,7 @@ dependencies = [
 name = "rls"
 version = "1.41.0"
 dependencies = [
- "cargo 0.42.0 (git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d)",
+ "cargo 0.42.0 (git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba)",
  "cargo_metadata 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "clippy_lints 0.0.212 (git+https://github.com/rust-lang/rust-clippy?rev=b245fbd0f2bdbd002611a45d0758f9be44eaf66b)",
  "crossbeam-channel 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2691,8 +2691,8 @@ dependencies = [
 "checksum bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)" = "206fdffcfa2df7cbe15601ef46c813fce0965eb3286db6b56c583b814b51c81c"
 "checksum bytesize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "716960a18f978640f25101b5cbf1c6f6b0d3192fab36a2d98ca96f0ecbe41010"
 "checksum c2-chacha 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7d64d04786e0f528460fc884753cf8dddcc466be308f6026f8e355c41a0e4101"
-"checksum cargo 0.42.0 (git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d)" = "<none>"
-"checksum cargo-platform 0.1.0 (git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d)" = "<none>"
+"checksum cargo 0.42.0 (git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba)" = "<none>"
+"checksum cargo-platform 0.1.0 (git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba)" = "<none>"
 "checksum cargo_metadata 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "700b3731fd7d357223d0000f4dbf1808401b694609035c3c411fbc0cd375c426"
 "checksum cargo_metadata 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8d2d1617e838936c0d2323a65cc151e03ae19a7678dd24f72bccf27119b90a5d"
 "checksum cc 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)" = "b548a4ee81fccb95919d4e22cfea83c7693ebfd78f0495493178db20b3139da7"
@@ -2705,7 +2705,7 @@ dependencies = [
 "checksum constant_time_eq 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "995a44c877f9212528ccc74b21a232f66ad69001e40ede5bcee2ac9ef2657120"
 "checksum core-foundation 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "57d24c7a13c43e870e37c1556b74555437870a04514f7685f5b354e090567171"
 "checksum core-foundation-sys 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
-"checksum crates-io 0.30.0 (git+https://github.com/rust-lang/cargo?rev=dba478b4f069d8433a715fe73f15f310f21b801d)" = "<none>"
+"checksum crates-io 0.30.0 (git+https://github.com/rust-lang/cargo?rev=626f0f40efd32e6b3dbade50cd53fdfaa08446ba)" = "<none>"
 "checksum crc32fast 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ba125de2af0df55319f41944744ad91c71113bf74a4646efff39afe1f6842db1"
 "checksum crossbeam-channel 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "c8ec7fcd21571dc78f96cc96243cab8d8f035247c3efd16c687be154c3fa9efa"
 "checksum crossbeam-deque 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "05e44b8cf3e1a625844d1750e1f7820da46044ff6d28f4d43e455ba3e5bb2c13"

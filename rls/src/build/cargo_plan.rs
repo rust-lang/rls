@@ -151,10 +151,10 @@ impl CargoPlan {
         self.units.insert(key.clone(), unit.into());
 
         // Fetch and insert relevant unit dependencies to the forward dep graph.
-        let units = cx.dep_targets(&unit);
-        let dep_keys: HashSet<UnitKey> = units
+        let deps = cx.unit_deps(&unit);
+        let dep_keys: HashSet<UnitKey> = deps
             .iter()
-            .copied()
+            .map(|dep| dep.unit)
             // We might not want certain deps to be added transitively (e.g.
             // when creating only a sub-dep-graph, limiting the scope).
             .filter(|unit| filter(*unit))
@@ -175,8 +175,8 @@ impl CargoPlan {
         }
 
         // Recursively process other remaining forward dependencies.
-        for unit in units {
-            self.emplace_dep_with_filter(unit, cx, filter);
+        for dep in deps {
+            self.emplace_dep_with_filter(dep.unit, cx, filter);
         }
     }
 
