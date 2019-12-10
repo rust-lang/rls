@@ -38,6 +38,7 @@ use self::rustc::session::config::Input;
 use self::rustc::session::Session;
 use self::rustc_driver::{run_compiler, Compilation};
 use self::rustc_interface::interface;
+use self::rustc_interface::Queries;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::syntax::edition::Edition as RustcEdition;
@@ -245,10 +246,14 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         }
     }
 
-    fn after_expansion(&mut self, compiler: &interface::Compiler) -> Compilation {
+    fn after_expansion<'tcx>(
+        &mut self,
+        compiler: &interface::Compiler,
+        queries: &'tcx Queries<'tcx>,
+    ) -> Compilation {
         let sess = compiler.session();
         let input = compiler.input();
-        let crate_name = compiler.crate_name().unwrap().peek().clone();
+        let crate_name = queries.crate_name().unwrap().peek().clone();
 
         let cwd = &sess.working_dir.0;
 
@@ -278,14 +283,18 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         Compilation::Continue
     }
 
-    fn after_analysis(&mut self, compiler: &interface::Compiler) -> Compilation {
+    fn after_analysis<'tcx>(
+        &mut self,
+        compiler: &interface::Compiler,
+        queries: &'tcx Queries<'tcx>,
+    ) -> Compilation {
         let input = compiler.input();
-        let crate_name = compiler.crate_name().unwrap().peek().clone();
+        let crate_name = queries.crate_name().unwrap().peek().clone();
 
         // Guaranteed to not be dropped yet in the pipeline thanks to the
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
-        let expanded_crate = &compiler.expansion().unwrap().peek().0;
-        compiler.global_ctxt().unwrap().peek_mut().enter(|tcx| {
+        let expanded_crate = &queries.expansion().unwrap().peek().0;
+        queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             // There are two ways to move the data from rustc to the RLS, either
             // directly or by serialising and deserialising. We only want to do
             // the latter when there are compatibility issues between crates.

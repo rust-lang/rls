@@ -13,6 +13,8 @@ use rustc::session::early_error;
 use rustc_driver::Compilation;
 use rustc_driver::{run_compiler, Callbacks};
 use rustc_interface::interface;
+#[cfg(feature = "ipc")]
+use rustc_interface::Queries;
 
 use std::env;
 #[allow(unused_imports)]
@@ -101,7 +103,11 @@ impl Callbacks for ShimCalls {
     }
 
     #[cfg(feature = "ipc")]
-    fn after_expansion(&mut self, compiler: &interface::Compiler) -> Compilation {
+    fn after_expansion<'tcx>(
+        &mut self,
+        compiler: &interface::Compiler,
+        queries: &'tcx Queries<'tcx>,
+    ) -> Compilation {
         use rustc::session::config::Input;
 
         use futures::future::Future;
@@ -115,7 +121,7 @@ impl Callbacks for ShimCalls {
 
         let sess = compiler.session();
         let input = compiler.input();
-        let crate_name = compiler.crate_name().unwrap().peek().clone();
+        let crate_name = queries.crate_name().unwrap().peek().clone();
 
         let cwd = &sess.working_dir.0;
 
@@ -148,7 +154,11 @@ impl Callbacks for ShimCalls {
     }
 
     #[cfg(feature = "ipc")]
-    fn after_analysis(&mut self, compiler: &interface::Compiler) -> Compilation {
+    fn after_analysis<'tcx>(
+        &mut self,
+        compiler: &interface::Compiler,
+        queries: &'tcx Queries<'tcx>,
+    ) -> Compilation {
         use futures::future::Future;
 
         let callbacks = match self.callbacks.as_ref() {
@@ -159,12 +169,12 @@ impl Callbacks for ShimCalls {
         use rustc_save_analysis::CallbackHandler;
 
         let input = compiler.input();
-        let crate_name = compiler.crate_name().unwrap().peek().clone();
+        let crate_name = queries.crate_name().unwrap().peek().clone();
 
         // Guaranteed to not be dropped yet in the pipeline thanks to the
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
-        let expanded_crate = &compiler.expansion().unwrap().peek().0;
-        compiler.global_ctxt().unwrap().peek_mut().enter(|tcx| {
+        let expanded_crate = &queries.expansion().unwrap().peek().0;
+        queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             // There are two ways to move the data from rustc to the RLS, either
             // directly or by serialising and deserialising. We only want to do
             // the latter when there are compatibility issues between crates.
