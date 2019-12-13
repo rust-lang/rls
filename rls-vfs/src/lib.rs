@@ -127,7 +127,7 @@ pub enum Error {
     InternalError(&'static str),
 }
 
-impl ::std::error::Error for Error {
+impl Error {
     fn description(&self) -> &str {
         match *self {
             Error::OutOfSync(ref _path_buf) => "file out of sync with filesystem",
@@ -148,7 +148,7 @@ impl ::std::error::Error for Error {
 
 impl Into<String> for Error {
     fn into(self) -> String {
-        ::std::error::Error::description(&self).to_owned()
+        self.description().to_owned()
     }
 }
 
@@ -166,7 +166,7 @@ impl fmt::Display for Error {
             | Error::FileNotCached
             | Error::NoUserDataForFile
             | Error::Io(..)
-            | Error::BadFileKind => f.write_str(::std::error::Error::description(self)),
+            | Error::BadFileKind => f.write_str(self.description()),
         }
     }
 }

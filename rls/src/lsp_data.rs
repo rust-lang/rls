@@ -25,21 +25,18 @@ pub enum UrlFileParseError {
     InvalidFilePath,
 }
 
-impl Error for UrlFileParseError {
-    fn description(&self) -> &str {
-        match *self {
-            UrlFileParseError::InvalidScheme => "URI scheme is not `file`",
-            UrlFileParseError::InvalidFilePath => "Invalid file path in URI",
-        }
-    }
-}
+impl Error for UrlFileParseError {}
 
 impl fmt::Display for UrlFileParseError
 where
     UrlFileParseError: Error,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description())
+        let description = match self {
+            UrlFileParseError::InvalidScheme => "URI scheme is not `file`",
+            UrlFileParseError::InvalidFilePath => "Invalid file path in URI",
+        };
+        write!(f, "{}", description)
     }
 }
 

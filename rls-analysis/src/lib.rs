@@ -550,18 +550,15 @@ impl ::std::fmt::Display for Id {
     }
 }
 
-impl ::std::error::Error for AError {
-    fn description(&self) -> &str {
-        match *self {
-            AError::MutexPoison => "poison error in a mutex (usually a secondary error)",
-            AError::Unclassified => "unknown error",
-        }
-    }
-}
+impl ::std::error::Error for AError {}
 
 impl ::std::fmt::Display for AError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        write!(f, "{}", ::std::error::Error::description(self))
+        let description = match self {
+            AError::MutexPoison => "poison error in a mutex (usually a secondary error)",
+            AError::Unclassified => "unknown error",
+        };
+        write!(f, "{}", description)
     }
 }
 
