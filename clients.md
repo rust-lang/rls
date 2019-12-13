@@ -126,7 +126,7 @@ The RLS also uses some [custom messages](https://github.com/rust-lang/rls/blob/m
 
 ## Resources
 
-* [LSP spec](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md)
+* [LSP spec](https://microsoft.github.io/language-server-protocol/specification)
 * [contributing.md](contributing.md) - overview of the RLS and how to build, test, etc.
 * [VSCode reference implementation](https://github.com/rust-lang/rls-vscode) - an example of what client support looks like
 * [Tracking issue](https://github.com/rust-lang/rls/issues/87)
