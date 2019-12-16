@@ -2,7 +2,7 @@
 //!
 //! Data definitions for diagnostics can be found in the Rust compiler for:
 //! 1. Internal diagnostics at `src/librustc_errors/diagnostic.rs`.
-//! 2. Emitted JSON format at `src/libsyntax/json.rs`.
+//! 2. Emitted JSON format at `src/librustc_errors/json.rs`.
 
 use std::collections::HashMap;
 use std::iter;
