@@ -17,7 +17,7 @@ use cargo::core::{
 };
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{
-    errors::ManifestError, homedir, important_paths, CargoResult, Config as CargoConfig,
+    config as cargo_config, errors::ManifestError, homedir, important_paths, CargoResult,
     ConfigValue, ProcessBuilder,
 };
 use failure::{self, format_err, Fail};
@@ -166,7 +166,7 @@ fn run_cargo_ws(
     inner_lock: environment::InnerLock,
     mut restore_env: Environment<'_>,
     manifest_path: &PathBuf,
-    config: &CargoConfig,
+    config: &cargo_config::Config,
     ws: &Workspace<'_>,
 ) -> CargoResult<PathBuf> {
     let (all, packages) = match package_arg {
@@ -649,8 +649,8 @@ pub fn make_cargo_config(
     target_dir: Option<&Path>,
     cwd: &Path,
     shell: Shell,
-) -> CargoConfig {
-    let config = CargoConfig::new(shell, cwd.to_path_buf(), homedir(build_dir).unwrap());
+) -> cargo_config::Config {
+    let config = cargo_config::Config::new(shell, cwd.to_path_buf(), homedir(build_dir).unwrap());
 
     // Cargo is expecting the config to come from a config file and keeps
     // track of the path to that file. We'll make one up, it shouldn't be
@@ -662,9 +662,10 @@ pub fn make_cargo_config(
 
     let mut config_value_map = config.load_values().unwrap();
     {
-        let build_value = config_value_map
-            .entry("build".to_owned())
-            .or_insert_with(|| ConfigValue::Table(HashMap::new(), config_path.clone()));
+        let build_value = config_value_map.entry("build".to_owned()).or_insert_with(|| {
+            let def = cargo_config::Definition::Path(config_path.clone());
+            ConfigValue::Table(HashMap::new(), def)
+        });
 
         let target_dir = target_dir.map(|d| d.to_str().unwrap().to_owned()).unwrap_or_else(|| {
             // Try to use .cargo/config build.target-dir + "/rls"
@@ -686,7 +687,8 @@ pub fn make_cargo_config(
             cargo_target.join("rls").to_str().unwrap().to_owned()
         });
 
-        let td_value = ConfigValue::String(target_dir, config_path);
+        let def = cargo_config::Definition::Path(config_path);
+        let td_value = ConfigValue::String(target_dir, def);
         if let ConfigValue::Table(ref mut build_table, _) = *build_value {
             build_table.insert("target-dir".to_owned(), td_value);
         } else {
