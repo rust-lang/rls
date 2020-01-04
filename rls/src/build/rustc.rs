@@ -19,7 +19,7 @@ extern crate rustc_resolve;
 #[allow(unused_extern_crates)]
 extern crate rustc_save_analysis;
 #[allow(unused_extern_crates)]
-extern crate syntax;
+extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -41,8 +41,8 @@ use self::rustc_interface::interface;
 use self::rustc_interface::Queries;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
-use self::syntax::edition::Edition as RustcEdition;
-use self::syntax::source_map::{FileLoader, RealFileLoader};
+use self::rustc_span::edition::Edition as RustcEdition;
+use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
