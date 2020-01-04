@@ -5,7 +5,7 @@ extern crate rustc;
 extern crate rustc_driver;
 extern crate rustc_interface;
 extern crate rustc_save_analysis;
-extern crate syntax;
+extern crate rustc_span;
 
 use rustc::session::config::ErrorOutputType;
 use rustc::session::early_error;
