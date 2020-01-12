@@ -2,6 +2,7 @@
 //! possibly running Rustfmt binary specified by the user.
 
 use std::env::temp_dir;
+use std::fmt;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -24,19 +25,32 @@ pub enum Rustfmt {
 }
 
 /// Defines a formatting-related error.
-#[derive(Fail, Debug)]
+#[derive(Debug)]
 pub enum Error {
     /// Generic variant of `Error::Rustfmt` error.
-    #[fail(display = "Formatting could not be completed.")]
     Failed,
-    #[fail(display = "Could not format source code: {}", _0)]
     Rustfmt(rustfmt_nightly::ErrorKind),
-    #[fail(display = "Encountered I/O error: {}", _0)]
     Io(std::io::Error),
-    #[fail(display = "Config couldn't be converted to TOML for Rustfmt purposes: {}", _0)]
     ConfigTomlOutput(String),
-    #[fail(display = "Formatted output is not valid UTF-8 source: {}", _0)]
     OutputNotUtf8(FromUtf8Error),
+}
+
+impl std::error::Error for Error {}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Failed => write!(f, "Formatting could not be completed."),
+            Error::Rustfmt(err) => write!(f, "Could not format source code: {}", err),
+            Error::Io(err) => write!(f, "Encountered I/O error: {}", err),
+            Error::ConfigTomlOutput(err) => {
+                write!(f, "Config couldn't be converted to TOML for Rustfmt purposes: {}", err)
+            }
+            Error::OutputNotUtf8(err) => {
+                write!(f, "Formatted output is not valid UTF-8 source: {}", err)
+            }
+        }
+    }
 }
 
 impl From<std::io::Error> for Error {

@@ -10,9 +10,6 @@
 #![warn(clippy::all, clippy::clone_on_ref_ptr)]
 #![allow(clippy::cognitive_complexity, clippy::too_many_arguments, clippy::redundant_closure)]
 
-#[macro_use]
-extern crate failure;
-
 pub use rls_analysis::{AnalysisHost, Target};
 pub use rls_vfs::Vfs;
 

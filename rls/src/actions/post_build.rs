@@ -19,7 +19,6 @@ use crate::concurrency::JobToken;
 use crate::config::CrateBlacklist;
 use crate::lsp_data::{PublishDiagnosticsParams, Range};
 
-use failure;
 use itertools::Itertools;
 use log::{trace, warn};
 use lsp_types::DiagnosticSeverity;
@@ -108,7 +107,7 @@ impl PostBuildHandler {
         &self,
         manifest: PathBuf,
         manifest_error_range: Option<Range>,
-        error: &failure::Error,
+        error: &anyhow::Error,
         stdout: &str,
     ) {
         use crate::lsp_data::Position;
@@ -125,7 +124,7 @@ impl PostBuildHandler {
             .unwrap_or_else(|| Range { start: Position::new(0, 0), end: Position::new(9999, 0) });
 
         let mut message = format!("{}", error);
-        for cause in error.iter_causes() {
+        for cause in error.chain().skip(1) {
             write!(message, "\n{}", cause).unwrap();
         }
         if !stdout.trim().is_empty() {

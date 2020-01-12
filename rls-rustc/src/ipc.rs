@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use failure::Fail;
 use futures::Future;
 
 use rls_ipc::client::{Client as JointClient, RpcChannel, RpcError};
