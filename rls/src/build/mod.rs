@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use failure;
 use log::{debug, info, trace};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
@@ -105,7 +104,7 @@ pub enum BuildResult {
     Err(String, Option<String>),
     /// Cargo failed.
     CargoError {
-        error: failure::Error,
+        error: anyhow::Error,
         stdout: String,
         manifest_path: Option<PathBuf>,
         manifest_error_range: Option<Range>,

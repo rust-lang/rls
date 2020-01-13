@@ -219,7 +219,7 @@ impl InitActionContext {
         *self.project_model.lock().unwrap() = None;
     }
 
-    pub fn project_model(&self) -> Result<Arc<ProjectModel>, failure::Error> {
+    pub fn project_model(&self) -> Result<Arc<ProjectModel>, anyhow::Error> {
         let cached: Option<Arc<ProjectModel>> = self.project_model.lock().unwrap().clone();
         match cached {
             Some(pm) => Ok(pm),

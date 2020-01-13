@@ -42,7 +42,7 @@ pub struct Dep {
 }
 
 impl ProjectModel {
-    pub fn load(ws_manifest: &Path, vfs: &Vfs) -> Result<ProjectModel, failure::Error> {
+    pub fn load(ws_manifest: &Path, vfs: &Vfs) -> Result<ProjectModel, anyhow::Error> {
         assert!(ws_manifest.ends_with("Cargo.toml"));
         let mut config = Config::default()?;
         // Enable nightly flag for cargo(see #1043)
