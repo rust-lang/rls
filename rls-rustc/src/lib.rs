@@ -90,7 +90,6 @@ struct ShimCalls {
 
 impl Callbacks for ShimCalls {
     fn config(&mut self, config: &mut interface::Config) {
-        config.opts.debugging_opts.continue_parse_after_error = true;
         config.opts.debugging_opts.save_analysis = true;
 
         #[cfg(feature = "clippy")]
