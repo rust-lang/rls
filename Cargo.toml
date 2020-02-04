@@ -56,7 +56,7 @@ url = "2"
 walkdir = "2"
 regex = "1"
 ordslice = "0.3"
-crossbeam-channel = "0.3"
+crossbeam-channel = "0.4"
 toml = "0.5"
 heck = "0.3"
 
