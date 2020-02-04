@@ -335,8 +335,7 @@ mod diagnostic_message_test {
         }
 
         fn to_messages(&self) -> Vec<(String, Vec<String>)> {
-            (self
-                .single_file_results()
+            self.single_file_results()
                 .iter()
                 .map(|(diagnostic, _)| {
                     (
@@ -350,7 +349,7 @@ mod diagnostic_message_test {
                             .collect(),
                     )
                 })
-                .collect())
+                .collect()
         }
 
         fn to_primary_messages(&self) -> Vec<String> {
