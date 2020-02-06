@@ -161,6 +161,7 @@ pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKin
     match m {
         racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::Module,
         racer::MatchType::Struct(_) => CompletionItemKind::Class,
+        racer::MatchType::Union(_) => CompletionItemKind::Struct,
         racer::MatchType::Enum(_) => CompletionItemKind::Enum,
         racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => {
             CompletionItemKind::Field

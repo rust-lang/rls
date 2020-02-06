@@ -546,6 +546,7 @@ fn racer_match_to_def(ctx: &InitActionContext, m: &racer::Match) -> Option<Def> 
     fn to_def_kind(kind: &MatchType) -> DefKind {
         match kind {
             MatchType::Struct(_) => DefKind::Struct,
+            MatchType::Union(_) => DefKind::Union,
             MatchType::Module => DefKind::Mod,
             MatchType::MatchArm => DefKind::Local,
             MatchType::Function | MatchType::Method(_) => DefKind::Function,
