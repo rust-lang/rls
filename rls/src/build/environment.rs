@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -14,19 +14,19 @@ lazy_static! {
 /// An RAII helper to set and reset the env vars.
 /// Requires supplying an external lock guard to guarantee env var consistency across multiple threads.
 pub struct Environment<'a> {
-    old_vars: HashMap<String, Option<OsString>>,
+    old_vars: BTreeMap<String, Option<OsString>>,
     old_cwd: PathBuf,
     _guard: MutexGuard<'a, ()>,
 }
 
 impl<'a> Environment<'a> {
     pub fn push_with_lock(
-        envs: &HashMap<String, Option<OsString>>,
+        envs: &BTreeMap<String, Option<OsString>>,
         cwd: Option<&Path>,
         lock: MutexGuard<'a, ()>,
     ) -> Environment<'a> {
         let mut result = Environment {
-            old_vars: HashMap::new(),
+            old_vars: BTreeMap::new(),
             old_cwd: env::current_dir().expect("failed to read cwd"),
             _guard: lock,
         };

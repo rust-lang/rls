@@ -110,7 +110,7 @@ fn run_cargo(
     // during `exec()` callback when calling linked compiler in parallel, for which we need to
     // guarantee consistent environment variables.
     let (lock_guard, inner_lock) = env_lock.lock();
-    let restore_env = Environment::push_with_lock(&HashMap::new(), None, lock_guard);
+    let restore_env = Environment::push_with_lock(&BTreeMap::new(), None, lock_guard);
 
     let build_dir = compilation_cx.lock().unwrap().build_dir.clone().unwrap();
 
