@@ -177,7 +177,7 @@ dependencies = [
 [[package]]
 name = "cargo"
 version = "0.44.0"
-source = "git+https://github.com/rust-lang/cargo?rev=972b9f55a72e3eae21c826b2f806c753696ef2ec#972b9f55a72e3eae21c826b2f806c753696ef2ec"
+source = "git+https://github.com/rust-lang/cargo?rev=369991b9a09c9f49deebe81fa05d6e104c59ea11#369991b9a09c9f49deebe81fa05d6e104c59ea11"
 dependencies = [
  "anyhow",
  "atty",
@@ -238,7 +238,7 @@ dependencies = [
 [[package]]
 name = "cargo-platform"
 version = "0.1.1"
-source = "git+https://github.com/rust-lang/cargo?rev=972b9f55a72e3eae21c826b2f806c753696ef2ec#972b9f55a72e3eae21c826b2f806c753696ef2ec"
+source = "git+https://github.com/rust-lang/cargo?rev=369991b9a09c9f49deebe81fa05d6e104c59ea11#369991b9a09c9f49deebe81fa05d6e104c59ea11"
 dependencies = [
  "serde",
 ]
@@ -371,7 +371,7 @@ checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
 [[package]]
 name = "crates-io"
 version = "0.31.0"
-source = "git+https://github.com/rust-lang/cargo?rev=972b9f55a72e3eae21c826b2f806c753696ef2ec#972b9f55a72e3eae21c826b2f806c753696ef2ec"
+source = "git+https://github.com/rust-lang/cargo?rev=369991b9a09c9f49deebe81fa05d6e104c59ea11#369991b9a09c9f49deebe81fa05d6e104c59ea11"
 dependencies = [
  "anyhow",
  "curl",
@@ -918,13 +918,11 @@ checksum = "501266b7edd0174f8530248f87f99c88fbe60ca4ef3dd486835b8d8d53136f7f"
 
 [[package]]
 name = "jobserver"
-version = "0.1.16"
+version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f74e73053eaf95399bf926e48fc7a2a3ce50bd0eaaa2357d391e95b2dcdd4f10"
+checksum = "5c71313ebb9439f74b00d9d2dcec36440beaf57a6aa0623068441dd7cd81a7f2"
 dependencies = [
  "libc",
- "log",
- "rand",
 ]
 
 [[package]]

@@ -172,10 +172,12 @@ impl JobQueue {
                 progress_sender.send(update).expect("Failed to send progress update");
             }
 
+            let envs: HashMap<_, _> =
+                job.get_envs().into_iter().map(|(k, v)| (k.to_owned(), v.to_owned())).collect();
             match super::rustc::rustc(
                 &internals.vfs,
                 &args,
-                job.get_envs(),
+                &envs,
                 job.get_cwd().or_else(|| cwd.as_ref().map(|p| &**p)),
                 &build_dir,
                 Arc::clone(&internals.config),

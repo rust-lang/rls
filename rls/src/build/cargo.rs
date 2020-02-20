@@ -466,7 +466,8 @@ impl Executor for RlsExecutor {
         // Add args and envs to cmd.
         let mut args: Vec<_> =
             cargo_args.iter().map(|a| a.clone().into_string().unwrap()).collect();
-        let envs = cargo_cmd.get_envs().clone();
+        let envs: HashMap<_, _> =
+            cargo_cmd.get_envs().iter().map(|(k, v)| (k.to_owned(), v.to_owned())).collect();
 
         let sysroot = super::rustc::current_sysroot()
             .expect("need to specify `SYSROOT` env var or use rustup or multirust");
@@ -521,7 +522,7 @@ impl Executor for RlsExecutor {
             return cmd.exec();
         }
 
-        trace!("rustc intercepted - args: {:?} envs: {:?}", args, envs,);
+        trace!("rustc intercepted - args: {:?} envs: {:?}", args, envs);
 
         self.reached_primary.store(true, Ordering::SeqCst);
 
