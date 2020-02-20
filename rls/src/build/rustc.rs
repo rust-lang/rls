@@ -21,7 +21,7 @@ extern crate rustc_save_analysis;
 #[allow(unused_extern_crates)]
 extern crate rustc_span;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::io;
@@ -52,7 +52,7 @@ use crate::config::{ClippyPreference, Config};
 pub(crate) fn rustc(
     vfs: &Vfs,
     args: &[String],
-    envs: &HashMap<String, Option<OsString>>,
+    envs: &BTreeMap<String, Option<OsString>>,
     cwd: Option<&Path>,
     build_dir: &Path,
     rls_config: Arc<Mutex<Config>>,
