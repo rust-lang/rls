@@ -1361,9 +1361,7 @@ fn client_did_change_configuration_duplicated_and_unknown_settings() {
             "dup-licated": "dup-licated"
         }
     });
-    rls.notify::<DidChangeConfiguration>(DidChangeConfigurationParams {
-        settings: settings.clone(),
-    });
+    rls.notify::<DidChangeConfiguration>(DidChangeConfigurationParams { settings });
 
     rls.wait_for_message(is_notification_for_unknown_config);
     if !rls.messages().iter().any(is_notification_for_duplicated_config) {
@@ -1477,7 +1475,7 @@ fn client_hover_after_src_line_change() {
     let contents = ["&str", "let world = \"world\";"];
     let contents: Vec<_> = contents
         .iter()
-        .map(|value| LanguageString { language: "rust".to_string(), value: value.to_string() })
+        .map(|value| LanguageString { language: "rust".to_string(), value: (*value).to_string() })
         .map(MarkedString::LanguageString)
         .collect();
 
@@ -1914,7 +1912,7 @@ fn client_completion() {
         11,
         CompletionParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: text_document.clone(),
+                text_document,
                 position: Position { line: 15, character: 30 },
             },
             context: None,

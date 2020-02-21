@@ -13,7 +13,6 @@ use log::debug;
 use lsp_types::{Position, Range, TextEdit};
 use rand::{distributions, thread_rng, Rng};
 use rustfmt_nightly::{Config, Input, ModifiedLines, NewlineStyle, Session};
-use serde_json;
 
 /// Specifies which `rustfmt` to use.
 #[derive(Clone)]

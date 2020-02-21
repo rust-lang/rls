@@ -8,13 +8,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use env_logger;
-use lsp_types;
 use rls::config::{Config, Inferrable};
 use rls::server as ls_server;
 use rls_analysis::{AnalysisHost, Target};
 use rls_vfs::Vfs;
-use serde_json;
 use walkdir::WalkDir;
 
 use super::fixtures_dir;

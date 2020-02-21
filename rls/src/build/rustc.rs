@@ -264,7 +264,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         .and_then(|path| src_path(Some(cwd), path));
 
         let krate = Crate {
-            name: crate_name.to_owned(),
+            name: crate_name,
             src_path,
             disambiguator: sess.local_crate_disambiguator().to_fingerprint().as_value(),
             edition: match sess.edition() {

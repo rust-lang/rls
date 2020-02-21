@@ -7,11 +7,9 @@ use std::time::Instant;
 use jsonrpc_core::{self as jsonrpc, Id};
 use log::debug;
 use lsp_types::notification::ShowMessage;
-use serde;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
 use serde_derive::Serialize;
-use serde_json;
 
 use crate::actions::{ActionContext, InitActionContext};
 use crate::lsp_data::{LSPNotification, LSPRequest, MessageType, ShowMessageParams, WorkspaceEdit};

@@ -11,7 +11,6 @@ use cargo::{
     Config,
 };
 use log::warn;
-use racer;
 use rls_vfs::{FileContents, Vfs};
 use std::{
     collections::HashMap,

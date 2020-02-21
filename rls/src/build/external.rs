@@ -229,7 +229,7 @@ impl Invocation {
         Invocation {
             deps: raw.deps.to_owned(),
             outputs: raw.outputs.to_owned(),
-            links: raw.links.to_owned(),
+            links: raw.links,
             src_path: guess_rustc_src_path(build_dir, &command),
             command,
         }

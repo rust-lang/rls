@@ -15,7 +15,6 @@ use lsp_types::{
 };
 use rls_span::compiler::DiagnosticSpan;
 use serde_derive::Deserialize;
-use serde_json;
 use url::Url;
 
 pub use lsp_types::Diagnostic;
@@ -598,12 +597,6 @@ help: consider borrowing here: `&string`"#,
         assert!(messages[0].1.is_empty(), "{:?}", messages[0].1);
     }
 
-    /// ```
-    /// fn main() {
-    ///     let mut out = String::new();
-    ///     write!(out, "{}", 123);
-    /// }
-    /// ```
     #[test]
     fn macro_error_no_trait() {
         let diag = parse_compiler_message(

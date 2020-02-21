@@ -7,14 +7,12 @@ use std::sync::atomic::Ordering;
 use itertools::Itertools;
 use jsonrpc_core::types::ErrorCode;
 use log::{debug, trace, warn};
-use racer;
 use rls_analysis::SymbolQuery;
 use rls_data as data;
 use rls_span as span;
 use rls_vfs::FileContents;
 use rustfmt_nightly::{Edition as RustfmtEdition, FileLines, FileName, Range as RustfmtRange};
 use serde_derive::{Deserialize, Serialize};
-use serde_json;
 use url::Url;
 
 use crate::actions::hover;
@@ -269,7 +267,7 @@ impl RequestAction for Completion {
             .map(|comp| {
                 let mut item = completion_item_from_racer_match(&comp);
                 if is_use_stmt && comp.mtype.is_function() {
-                    item.insert_text = Some(comp.matchstr.to_string());
+                    item.insert_text = Some(comp.matchstr);
                 } else if code_completion_has_snippet_support {
                     let snippet = racer::snippet_for_match(&comp, &session);
                     if !snippet.is_empty() {
