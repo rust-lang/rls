@@ -7,7 +7,7 @@ use crate::Span;
 use log::{debug, error, info, trace};
 use rls_analysis::AnalysisHost;
 use rls_span as span;
-use rls_vfs::{FileContents, Vfs};
+use rls_vfs::{FileContents, Vfs, Error};
 use serde_json::{self, json};
 use url::Url;
 use walkdir::WalkDir;
@@ -240,7 +240,7 @@ impl InitActionContext {
                 match self.0.load_file(path) {
                     Ok(FileContents::Text(t)) => Ok(t),
                     Ok(FileContents::Binary(_)) => {
-                        Err(io::Error::new(io::ErrorKind::Other, rls_vfs::Error::BadFileKind))
+                        Err(io::Error::new(io::ErrorKind::Other, Error::BadFileKind))
                     }
                     Err(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
                 }
@@ -418,14 +418,17 @@ impl InitActionContext {
     }
 
     fn convert_pos_to_span(&self, file_path: PathBuf, pos: Position) -> Span {
-        trace!("convert_pos_to_span: {:?} {:?}", file_path, pos);
+        // trace!("convert_pos_to_span: {:?} {:?}", file_path, pos);
+        println!("convert_pos_to_span: {:?} {:?}", file_path, pos);
 
         let pos = ls_util::position_to_rls(pos);
         let line = self.vfs.load_line(&file_path, pos.row).unwrap();
-        trace!("line: `{}`", line);
+        // trace!("line: `{}`", line);
+        println!("line: `{}`", line);
 
         let (start, end) = find_word_at_pos(&line, pos.col);
-        trace!("start: {}, end: {}", start.0, end.0);
+        // trace!("start: {}, end: {}", start.0, end.0);
+        println!("start: {}, end: {}", start.0, end.0);
 
         Span::from_positions(
             span::Position::new(pos.row, start),

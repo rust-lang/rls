@@ -903,9 +903,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.8.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b8467d9c1cebe26feb08c640139247fac215782d35371ade9a2136ed6085358"
+checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
 dependencies = [
  "either",
 ]
@@ -927,9 +927,9 @@ dependencies = [
 
 [[package]]
 name = "json"
-version = "0.11.15"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92c245af8786f6ac35f95ca14feca9119e71339aaab41e878e7cdd655c97e9e5"
+checksum = "9a38661a28126f8621fb246611288ae28935ddf180f5e21f2d0fbfe5e4131dbe"
 
 [[package]]
 name = "jsonrpc-client-transports"
@@ -1651,8 +1651,6 @@ dependencies = [
 [[package]]
 name = "rls-analysis"
 version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "534032993e1b60e5db934eab2dde54da7afd1e46c3465fddb2b29eb47cb1ed3a"
 dependencies = [
  "derive-new",
  "fst",
@@ -1668,8 +1666,6 @@ dependencies = [
 [[package]]
 name = "rls-data"
 version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76c72ea97e045be5f6290bb157ebdc5ee9f2b093831ff72adfaf59025cf5c491"
 dependencies = [
  "rls-span",
  "serde",

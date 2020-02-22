@@ -813,20 +813,27 @@ pub fn tooltip(
     let hover_span_typ = analysis.show_type(&hover_span).unwrap_or_else(|_| String::new());
     let hover_span_def = analysis.id(&hover_span).and_then(|id| analysis.get_def(id));
 
-    trace!("tooltip: span: {:?}", hover_span);
-    trace!("tooltip: span_doc: {:?}", hover_span_doc);
-    trace!("tooltip: span_typ: {:?}", hover_span_typ);
-    trace!("tooltip: span_def: {:?}", hover_span_def);
+    // trace!("tooltip: span: {:?}", hover_span);
+    println!("tooltip: span: {:?}", hover_span);
+    // trace!("tooltip: span_doc: {:?}", hover_span_doc);
+    println!("tooltip: span_doc: {:?}", hover_span_doc);
+    // trace!("tooltip: span_typ: {:?}", hover_span_typ);
+    println!("tooltip: span_typ: {:?}", hover_span_typ);
+    // trace!("tooltip: span_def: {:?}", hover_span_def);
+    println!("tooltip: span_def: {:?}", hover_span_def);
 
     let racer_fallback_enabled = ctx.config.lock().unwrap().racer_completion;
 
     // Fallback to racer if the def was not available and racer is enabled.
     let hover_span_def = hover_span_def.or_else(|e| {
-        debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
+        // debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
+        println!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
         if racer_fallback_enabled {
-            debug!("tooltip: span_def is empty, attempting with racer");
+            // debug!("tooltip: span_def is empty, attempting with racer");
+            println!("tooltip: span_def is empty, attempting with racer");
             racer_def(&ctx, &hover_span).ok_or_else(|| {
-                debug!("tooltip: racer returned an empty result");
+                // debug!("tooltip: racer returned an empty result");
+                println!("tooltip: racer returned an empty result");
                 e
             })
         } else {
@@ -866,7 +873,16 @@ pub fn tooltip(
                 }
                 DefKind::Type => tooltip_type(&ctx, &def, doc_url),
                 _ => {
-                    debug!(
+                    // debug!(
+                    //     "tooltip: ignoring def: \
+                    //      name: {:?}, \
+                    //      kind: {:?}, \
+                    //      value: {:?}, \
+                    //      qualname: {:?}, \
+                    //      parent: {:?}",
+                    //     def.name, def.kind, def.value, def.qualname, def.parent
+                    // );
+                    println!(
                         "tooltip: ignoring def: \
                          name: {:?}, \
                          kind: {:?}, \
@@ -881,10 +897,12 @@ pub fn tooltip(
             }
         }
     } else {
-        debug!("tooltip: def is empty");
+        // debug!("tooltip: def is empty");
+        println!("tooltip: def is empty");
         Vec::default()
     };
-    debug!("tooltip: contents.len: {}", contents.len());
+    // debug!("tooltip: contents.len: {}", contents.len());
+    println!("tooltip: contents.len: {}", contents.len());
     Ok(Tooltip { contents, range: hover_span.range })
 }
 
@@ -1607,6 +1625,21 @@ pub mod test {
 
         let expected = "First line comment";
 
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_extract_docs_comment_macro() {
+        let vfs = Vfs::new();
+        let file = fixtures_dir().join("hover/src/test_extract_docs_comment_macro.rs");
+
+        let row_start = Row::new_zero_indexed(1);
+        let actual = extract_docs(&vfs, &file, row_start)
+            .expect(&format!("failed to extract docs: {:?}", file))
+            .join("\n");
+
+        let expected = "This is a macro";
+        println!("{}", actual);
         assert_eq!(expected, actual);
     }
 }

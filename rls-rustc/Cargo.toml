@@ -16,7 +16,7 @@ clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "05b460
 tokio = { version = "0.1", optional = true }
 futures = { version = "0.1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
-rls-data = { version = "0.19", optional = true }
+rls-data = { path = "../rls-data", optional = true }
 rls-ipc = { path = "../rls-ipc", optional = true }
 
 [features]

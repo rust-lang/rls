@@ -44,25 +44,25 @@ where
         invalidated_crates.retain(|elem| *elem != id);
 
         let time = t_start.elapsed();
-        info!(
+        trace!(
             "Lowering {} in {:.2}s",
             format!("{} ({:?})", id.name, id.disambiguator),
             time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0
         );
-        info!("    defs:  {}", per_crate.defs.len());
-        info!("    refs:  {}", per_crate.ref_spans.len());
-        info!("    globs: {}", per_crate.globs.len());
+        trace!("    defs:  {}", per_crate.defs.len());
+        trace!("    refs:  {}", per_crate.ref_spans.len());
+        trace!("    globs: {}", per_crate.globs.len());
 
         f(analysis, per_crate, id)?;
     }
 
     let time = t_start.elapsed();
     let rss = util::get_resident().unwrap_or(0) as isize - rss as isize;
-    info!(
+    trace!(
         "Total lowering time: {:.2}s",
         time.as_secs() as f64 + f64::from(time.subsec_nanos()) / 1_000_000_000.0
     );
-    info!("Diff in rss: {:.2}KB", rss as f64 / 1000.0);
+    trace!("Diff in rss: {:.2}KB", rss as f64 / 1000.0);
 
     Ok(())
 }

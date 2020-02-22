@@ -338,6 +338,7 @@ impl CargoPlan {
     }
 
     pub(crate) fn prepare_work<T: AsRef<Path> + fmt::Debug>(&self, modified: &[T]) -> WorkStatus {
+        println!("MODIFIED {:?}", modified);
         if !self.is_ready() || self.package_map.is_none() {
             return WorkStatus::NeedsCargo(PackageArg::Default);
         }
@@ -355,20 +356,20 @@ impl CargoPlan {
         }
 
         let dirties = self.fetch_dirty_units(modified);
-        trace!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties,);
+        println!("fetch_dirty_units: for files {:?}, these units are dirty: {:?}", modified, dirties,);
 
         if dirties.iter().any(|UnitKey { target, .. }| *target.kind() == TargetKind::CustomBuild) {
             WorkStatus::NeedsCargo(PackageArg::Packages(needed_packages))
         } else {
             let graph = self.dirty_rev_dep_graph(&dirties);
-            trace!("Constructed dirty rev dep graph: {:?}", graph);
+            println!("Constructed dirty rev dep graph: {:?}", graph);
 
             if graph.is_empty() {
                 return WorkStatus::NeedsCargo(PackageArg::Default);
             }
 
             let queue = self.topological_sort(&graph);
-            trace!("Topologically sorted dirty graph: {:?} {}", queue, self.is_ready());
+            println!("Topologically sorted dirty graph: {:?} {}", queue, self.is_ready());
             let jobs: Option<Vec<_>> =
                 queue.iter().map(|x| self.compiler_jobs.get(x).cloned()).collect();
 

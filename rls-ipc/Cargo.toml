@@ -14,7 +14,7 @@ jsonrpc-core-client = "14"
 jsonrpc-derive = "14"
 # Pin 14.0.3 to use single parity-tokio-ipc version (0.2)
 jsonrpc-ipc-server = { version = "=14.0.3", optional = true }
-rls-data = "0.19"
+rls-data = { path = "../rls-data" }
 serde = { version = "1.0", features = ["derive"] }
 
 [features]

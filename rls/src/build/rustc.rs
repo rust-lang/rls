@@ -44,6 +44,7 @@ use self::rustc_save_analysis::CallbackHandler;
 use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
+use crate::build::macro_lint::{MacroDoc, MACRO_DOCS};
 use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
@@ -58,7 +59,7 @@ pub(crate) fn rustc(
     rls_config: Arc<Mutex<Config>>,
     env_lock: &EnvironmentLockFacade,
 ) -> BuildResult {
-    trace!(
+    println!(
         "rustc - args: `{:?}`, envs: {:?}, cwd: {:?}, build dir: {:?}",
         args,
         envs,
@@ -94,7 +95,7 @@ pub(crate) fn rustc(
             }),
         #[cfg(not(feature = "ipc"))]
         Ok(..) => {
-            log::warn!("Support for out-of-process compilation was not compiled. Rebuild with 'ipc' feature enabled");
+            println!("Support for out-of-process compilation was not compiled. Rebuild with 'ipc' feature enabled");
             run_in_process(changed, &args, clippy_preference, lock_environment(&envs, cwd))
         }
         Err(..) => run_in_process(changed, &args, clippy_preference, lock_environment(&envs, cwd)),
@@ -229,6 +230,7 @@ struct RlsRustcCalls {
     analysis: Arc<Mutex<Option<Analysis>>>,
     input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
+    mac_defs: Arc<Mutex<Vec<rls_data::Def>>>,
 }
 
 impl rustc_driver::Callbacks for RlsRustcCalls {
@@ -244,6 +246,21 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                 clippy_config(config);
             }
         }
+
+        // TODO I'm sure there is a better way to do the registering such as above
+        let previous = config.register_lints.take();
+        let macro_defs = Arc::clone(&self.mac_defs);
+        config.register_lints = Some(Box::new(move |sess, lint_store| {
+            // technically we're ~guaranteed that this is none but might as well call anything that
+            // is there already. Certainly it can't hurt.
+            if let Some(previous) = &previous {
+                (previous)(sess, lint_store);
+            }
+
+            let macro_defs = Arc::clone(&macro_defs);
+            lint_store.register_lints(&[&MACRO_DOCS]);
+            lint_store.register_early_pass(move || Box::new(MacroDoc::new(Arc::clone(&macro_defs))));
+        }));
     }
 
     fn after_expansion<'tcx>(
@@ -324,7 +341,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                 },
             );
         });
-
+        // println!("{:#?}", self.analysis);
         Compilation::Continue
     }
 }

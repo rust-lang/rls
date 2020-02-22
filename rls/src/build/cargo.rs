@@ -116,7 +116,7 @@ fn run_cargo(
 
     // Note that this may not be equal build_dir when inside a workspace member
     let manifest_path = important_paths::find_root_manifest_for_wd(&build_dir)?;
-    trace!("root manifest_path: {:?}", &manifest_path);
+    println!("root manifest_path: {:?}", &manifest_path);
 
     // Cargo constructs relative paths from the manifest dir, so we have to pop "Cargo.toml"
     let manifest_dir = manifest_path.parent().unwrap();
@@ -180,7 +180,7 @@ fn run_cargo_ws(
         let rls_config = rls_config.lock().unwrap();
 
         let opts = CargoOptions::new(&rls_config);
-        trace!("Cargo compilation options:\n{:?}", opts);
+        println!("Cargo compilation options:\n{:?}", opts);
         let rustflags = prepare_cargo_rustflags(&rls_config);
 
         for package in &packages {
@@ -203,7 +203,7 @@ fn run_cargo_ws(
         .iter()
         .map(|pkg_spec| pkg_spec.name().as_str().to_owned())
         .collect();
-    trace!("specified packages to be built by Cargo: {:#?}", pkg_names);
+    println!("specified packages to be built by Cargo: {:#?}", pkg_names);
 
     // Since the Cargo build routine will try to regenerate the unit dep graph,
     // we need to clear the existing dep graph.

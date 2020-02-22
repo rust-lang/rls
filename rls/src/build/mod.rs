@@ -30,6 +30,7 @@ mod external;
 mod ipc;
 mod plan;
 mod rustc;
+mod macro_lint;
 
 /// Manages builds.
 ///
@@ -493,7 +494,7 @@ impl Internals {
 
     // Build the project.
     fn build(&self, progress_sender: Sender<ProgressUpdate>) -> BuildResult {
-        trace!("running build");
+        println!("RUNNING BUILD");
         let start = Instant::now();
         // When we change build directory (presumably because the IDE is
         // changing project), we must do a cargo build of the whole project.
@@ -522,6 +523,7 @@ impl Internals {
 
             // Check if an external build command was provided and execute that, instead.
             if let Some(cmd) = self.config.lock().unwrap().build_command.clone() {
+                println!("CMD {:?}", cmd);
                 match (needs_rebuild, &cx.build_plan) {
                     (false, BuildPlan::External(ref plan)) => plan.prepare_work(&modified),
                     // We need to rebuild; regenerate the build plan if possible.
@@ -539,6 +541,8 @@ impl Internals {
                 }
             // Fall back to Cargo.
             } else {
+                println!("CARGO {:?}", cx.build_plan);
+                
                 // Cargo plan is recreated and `needs_rebuild` reset if we run `cargo::cargo()`.
                 match cx.build_plan {
                     BuildPlan::External(_) => WorkStatus::NeedsCargo(PackageArg::Default),
@@ -554,7 +558,7 @@ impl Internals {
                 }
             }
         };
-        trace!("specified work: {:#?}", work);
+        println!("specified work: {:#?}", work);
 
         let result = match work {
             WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
@@ -564,7 +568,7 @@ impl Internals {
         if let BuildResult::Success(.., true) = result {
             let elapsed = start.elapsed();
             *self.last_build_duration.write().unwrap() = Some(elapsed);
-            info!("build finished in {:.1?}", elapsed);
+            println!("build finished in {:.1?}", elapsed);
         }
 
         result
