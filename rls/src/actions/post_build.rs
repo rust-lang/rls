@@ -178,7 +178,6 @@ impl PostBuildHandler {
     }
 
     fn reload_analysis_from_memory(&self, cwd: &Path, analysis: Vec<Analysis>) {
-        println!("MEMORY {:?}", self.crate_blacklist.0);
         self.analysis
             .reload_from_analysis(analysis, &self.project_path, cwd, &self.crate_blacklist.0[..])
             .unwrap();
@@ -244,7 +243,7 @@ impl AnalysisQueue {
     }
 
     fn enqueue(&self, job: Job) {
-        println!("enqueue job");
+        trace!("enqueue job");
 
         {
             let mut queue = self.queue.lock().unwrap();
@@ -252,7 +251,7 @@ impl AnalysisQueue {
             *cur_cwd = Some(job.cwd.clone());
 
             // Remove any analysis jobs which this job obsoletes.
-            println!("Pre-prune queue len: {}", queue.len());
+            trace!("Pre-prune queue len: {}", queue.len());
             if let Some(hash) = job.hash {
                 queue
                     .drain_filter(|j| match *j {
@@ -261,7 +260,7 @@ impl AnalysisQueue {
                     })
                     .for_each(|j| j.unwrap_job().handler.finalize())
             }
-            println!("Post-prune queue len: {}", queue.len());
+            trace!("Post-prune queue len: {}", queue.len());
 
             queue.push(QueuedJob::Job(job));
         }
@@ -337,17 +336,17 @@ impl Job {
 
     fn process(self) {
         // Reload the analysis data.
-        println!(
+        trace!(
             "reload analysis: {:?} {:?} {}",
             self.handler.project_path,
             self.cwd,
             self.analysis.len(),
         );
         if self.analysis.is_empty() {
-            println!("reloading from disk: {:?}", self.cwd);
+            trace!("reloading from disk: {:?}", self.cwd);
             self.handler.reload_analysis_from_disk(&self.cwd);
         } else {
-            println!("reloading from memory: {:?}", self.cwd);
+            trace!("reloading from memory: {:?}", self.cwd);
             self.handler.reload_analysis_from_memory(&self.cwd, self.analysis);
         }
 

@@ -21,6 +21,9 @@ extern crate rustc_save_analysis;
 #[allow(unused_extern_crates)]
 extern crate rustc_span;
 
+extern crate syntax;
+
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
@@ -43,6 +46,7 @@ use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
 use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
+use self::syntax::{ast, visit};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::macro_lint::{MacroDoc, MACRO_DOCS};
 use crate::build::plan::{Crate, Edition};
@@ -59,7 +63,7 @@ pub(crate) fn rustc(
     rls_config: Arc<Mutex<Config>>,
     env_lock: &EnvironmentLockFacade,
 ) -> BuildResult {
-    println!(
+    trace!(
         "rustc - args: `{:?}`, envs: {:?}, cwd: {:?}, build dir: {:?}",
         args,
         envs,
@@ -95,7 +99,7 @@ pub(crate) fn rustc(
             }),
         #[cfg(not(feature = "ipc"))]
         Ok(..) => {
-            println!("Support for out-of-process compilation was not compiled. Rebuild with 'ipc' feature enabled");
+            trace!("Support for out-of-process compilation was not compiled. Rebuild with 'ipc' feature enabled");
             run_in_process(changed, &args, clippy_preference, lock_environment(&envs, cwd))
         }
         Err(..) => run_in_process(changed, &args, clippy_preference, lock_environment(&envs, cwd)),
@@ -308,6 +312,11 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         let input = compiler.input();
         let crate_name = queries.crate_name().unwrap().peek().clone();
 
+        let krate = queries.parse().expect("no Result<Query<Crate>> found").take();
+        // ...and walks the AST, collecting stats.
+        let mut visitor = MacroDoc::new(Arc::clone(&self.mac_defs));
+        visit::walk_crate(&mut visitor, &krate);
+
         // Guaranteed to not be dropped yet in the pipeline thanks to the
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
         let expanded_crate = &queries.expansion().unwrap().peek().0;
@@ -341,7 +350,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                 },
             );
         });
-        // println!("{:#?}", self.analysis);
+        // println!("{:#?}", self.mac_defs);
         Compilation::Continue
     }
 }

@@ -494,7 +494,6 @@ impl Internals {
 
     // Build the project.
     fn build(&self, progress_sender: Sender<ProgressUpdate>) -> BuildResult {
-        println!("RUNNING BUILD");
         let start = Instant::now();
         // When we change build directory (presumably because the IDE is
         // changing project), we must do a cargo build of the whole project.
@@ -523,7 +522,6 @@ impl Internals {
 
             // Check if an external build command was provided and execute that, instead.
             if let Some(cmd) = self.config.lock().unwrap().build_command.clone() {
-                println!("CMD {:?}", cmd);
                 match (needs_rebuild, &cx.build_plan) {
                     (false, BuildPlan::External(ref plan)) => plan.prepare_work(&modified),
                     // We need to rebuild; regenerate the build plan if possible.
@@ -541,7 +539,6 @@ impl Internals {
                 }
             // Fall back to Cargo.
             } else {
-                println!("CARGO {:?}", cx.build_plan);
                 
                 // Cargo plan is recreated and `needs_rebuild` reset if we run `cargo::cargo()`.
                 match cx.build_plan {

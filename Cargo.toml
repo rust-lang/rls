@@ -25,9 +25,12 @@ rls-analysis = { path = "rls-analysis" }
 rls-data = { path = "rls-data" }
 # FIXME: Release rls-rustc 0.6.0 to crates.io
 rls-rustc = { path = "rls-rustc" }
-rls-span = { version =  "0.5 "}
+rls-span = "0.5"
 rls-vfs = "0.8"
 rls-ipc = { path = "rls-ipc", optional = true }
+
+# save = { path = "save" }
+# syntax = { path = "syntax" }
 
 anyhow = "1.0.26"
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "e57bd02999c9f40d52116e0beca7d1dccb0643de" }

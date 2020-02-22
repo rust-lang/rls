@@ -2,3 +2,6 @@
 .idea
 
 target
+
+/save
+/syntax

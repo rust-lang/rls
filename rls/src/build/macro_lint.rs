@@ -18,7 +18,7 @@ use rustc_lint::{
 use rustc_span::hygiene::{SyntaxContext};
 use rustc_span::Span;
 use rustc_session::{declare_lint, impl_lint_pass};
-use syntax::ast;
+use syntax::{ast, visit};
 
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
@@ -65,7 +65,6 @@ impl_lint_pass!(MacroDoc => [MACRO_DOCS]);
 impl EarlyLintPass for MacroDoc {
     fn check_item(&mut self, ecx: &EarlyContext, it: &ast::Item) {
         if let ast::ItemKind::MacroDef(_) = &it.kind {
-            println!("macro `{:#?}`", it);
             let mut width = 0;
             let docs = it.attrs
                 .iter()
@@ -83,69 +82,93 @@ impl EarlyLintPass for MacroDoc {
                 .collect::<Vec<_>>()
                 .join("\n");
             
-            println!("{}", std::iter::repeat('-').take(width).collect::<String>());
-            println!("{}", docs);
+            let name = it.ident.to_string();
+            let file_name = ecx.sess.local_crate_source_file.clone().unwrap_or_default();
 
-            // let id = Id { krate: 0, index: 0, };
-            // let name = it.ident.to_string();
-            // let file_name = ecx.sess.local_crate_source_file.unwrap_or_default();
-            // let span = SpanData {
-            //     file_name,
-            //     byte_start: it.span.lo().0,
-            //     byte_end: it.span.hi().0,
-            //     line_start: span::Row::new_one_indexed(0),
-            //     line_end: span::Row::new_one_indexed(0),
-            //     // Character offset.
-            //     column_start: span::Column::new_one_indexed(0),
-            //     column_end: span::Column::new_one_indexed(0),
-            // };
-            // self.defs.lock().unwrap().push(Def {
-            //     kind: DefKind::Macro,
-            //     id,
-            //     span,
-            //     name,
-            //     qualname: format!("{}", file_name.to_str().unwrap()),
-            //     value: name,
-            //     parent: None,
-            //     children: Vec::default(),
-            //     decl_id: None,
-            //     docs,
-            //     sig: Some(Signature {
-            //         text: format!("macro_rules! {}", name),
-            //         defs: Vec::default(),
-            //         refs: Vec::default(),
-            //     }),
-            //     attributes: vec![
-            //         Attribute {}
-            //     ],
-            // })
+            let mut attributes = Vec::default();
+            for attr in &it.attrs {
+                let span = SpanData {
+                    file_name: file_name.clone(),
+                    byte_start: attr.span.lo().0,
+                    byte_end: attr.span.hi().0,
+                    line_start: span::Row::new_one_indexed(0),
+                    line_end: span::Row::new_one_indexed(0),
+                    // Character offset.
+                    column_start: span::Column::new_one_indexed(0),
+                    column_end: span::Column::new_one_indexed(0),
+                };
+                match &attr.kind {
+                    ast::AttrKind::DocComment(_) => {
+                        attributes.push(Attribute {
+                            value: attr.doc_str().unwrap().to_string(),
+                            span,
+                        })
+                    },
+                    ast::AttrKind::Normal(item) => {
+                        attributes.push(Attribute {
+                            value: format!("{:?}", item),
+                            span,
+                        })
+                    },
+                }
+            }
+
+            let id = Id { krate: 0, index: 0, };
+            let span = SpanData {
+                file_name: file_name.clone(),
+                byte_start: it.span.lo().0,
+                byte_end: it.span.hi().0,
+                line_start: span::Row::new_one_indexed(0),
+                line_end: span::Row::new_one_indexed(0),
+                // Character offset.
+                column_start: span::Column::new_one_indexed(0),
+                column_end: span::Column::new_one_indexed(0),
+            };
+            self.defs.lock().unwrap().push(Def {
+                kind: DefKind::Macro,
+                id,
+                span,
+                name: name.clone(),
+                qualname: format!("{}", file_name.to_str().unwrap()),
+                value: name.clone(),
+                parent: None,
+                children: Vec::default(),
+                decl_id: None,
+                docs,
+                sig: Some(Signature {
+                    text: format!("macro_rules! {} (args...)", name),
+                    defs: Vec::default(),
+                    refs: Vec::default(),
+                }),
+                attributes,
+            });
+
+            // println!("{:#?}", self.defs)
         }
     }
 }
 
-// struct RegisterMacDocs;
+// visit::Visitor is the generic trait for walking an AST.
+impl<'a> visit::Visitor<'a> for MacroDoc {
+    // We found an item, could be a function.
+    fn visit_item(&mut self, i: &ast::Item) {
+        println!("VISIT ITEM");
+        if let ast::ItemKind::Fn(ref decl, ref gen, ref blk) = i.kind {
+            // record the number of args
+        }
+        if let ast::ItemKind::MacroDef(ref mac) = i.kind {
+            println!("{:#?}", mac);
+        }
+        // Keep walking.
+        visit::walk_item(self, i)
+    }
 
-// impl Callbacks for RegisterMacDocs {
-//     fn config(&mut self, config: &mut Config) {
-//         // this prevents the compiler from dropping the expanded AST
-//         // although it still works without it?
-//         config.opts.debugging_opts.save_analysis = true;
-//         // no output files saved
-//         config.opts.debugging_opts.no_analysis = true;
+    fn visit_mac(&mut self, mac: &'a ast::Mac) {
+        println!("MACRO {:#?}", mac);
+        visit::walk_mac(self, mac);
+    }
+    fn visit_mac_def(&mut self, mac: &'a ast::MacroDef, _id: ast::NodeId) {
+        println!("MACRO DEF {:#?}", mac);
 
-//         // config.opts.describe_lints = true;
-
-        
-//         let previous = config.register_lints.take();
-//         config.register_lints = Some(Box::new(move |sess, lint_store| {
-//             // technically we're ~guaranteed that this is none but might as well call anything that
-//             // is there already. Certainly it can't hurt.
-//             if let Some(previous) = &previous {
-//                 (previous)(sess, lint_store);
-//             }
-
-//             lint_store.register_lints(&[&MACRO_DOCS]);
-//             lint_store.register_early_pass(|| Box::new(MacroDoc));
-//         }));
-//     }
-// }
+    }
+}
