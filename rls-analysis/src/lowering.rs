@@ -130,17 +130,17 @@ impl<'a> CrateReader<'a> {
         // It's worth noting, that we assume that local crate id is 0, whereas
         // the external crates will have num in 1..count contiguous range.
         let crate_id = prelude.crate_id;
-        trace!("building crate map for {:?}", crate_id);
+        // println!("building crate map for {:?}", crate_id);
         let index = fetch_crate_index(master_crate_map, crate_id.clone());
         let mut crate_map = vec![index];
-        trace!("  {} -> {}", crate_id.name, master_crate_map[&crate_id]);
+        // println!("  {} -> {}", crate_id.name, master_crate_map[&crate_id]);
 
         prelude.external_crates.sort_by(|a, b| a.num.cmp(&b.num));
         for c in prelude.external_crates {
             assert!(c.num == crate_map.len() as u32);
             let index = fetch_crate_index(master_crate_map, c.id.clone());
             crate_map.push(index);
-            trace!("  {} -> {}", c.id.name, master_crate_map[&c.id]);
+            // println!("  {} -> {}", c.id.name, master_crate_map[&c.id]);
         }
 
         CrateReader {
@@ -394,7 +394,7 @@ impl<'a> CrateReader<'a> {
                     // sig: d.sig.map(|ref s| self.lower_sig(s, &self.base_dir)),
                 };
                 trace!(
-                    "record def: {:?}/{:?} ({}): {:?}",
+                    "record def: {:?}/{:?} ({}): {:#?}",
                     id,
                     d.id,
                     self.crate_map[d.id.krate as usize],

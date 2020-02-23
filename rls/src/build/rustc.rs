@@ -20,9 +20,7 @@ extern crate rustc_resolve;
 extern crate rustc_save_analysis;
 #[allow(unused_extern_crates)]
 extern crate rustc_span;
-
 extern crate syntax;
-
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
@@ -48,7 +46,7 @@ use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use self::syntax::{ast, visit};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::macro_lint::{MacroDoc, MACRO_DOCS};
+use crate::build::macro_lint::{Macro, MacroDoc, MacroDocCtxt, MACRO_DOCS};
 use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
@@ -234,7 +232,8 @@ struct RlsRustcCalls {
     analysis: Arc<Mutex<Option<Analysis>>>,
     input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
-    mac_defs: Arc<Mutex<Vec<rls_data::Def>>>,
+    mac_defs: Arc<Mutex<Vec<Macro>>>,
+    mac_refs: Arc<Mutex<Vec<Macro>>>,
 }
 
 impl rustc_driver::Callbacks for RlsRustcCalls {
@@ -254,6 +253,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         // TODO I'm sure there is a better way to do the registering such as above
         let previous = config.register_lints.take();
         let macro_defs = Arc::clone(&self.mac_defs);
+        let macro_refs = Arc::clone(&self.mac_refs);
         config.register_lints = Some(Box::new(move |sess, lint_store| {
             // technically we're ~guaranteed that this is none but might as well call anything that
             // is there already. Certainly it can't hurt.
@@ -262,8 +262,10 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             }
 
             let macro_defs = Arc::clone(&macro_defs);
+            let macro_refs = Arc::clone(&macro_refs);
             lint_store.register_lints(&[&MACRO_DOCS]);
-            lint_store.register_early_pass(move || Box::new(MacroDoc::new(Arc::clone(&macro_defs))));
+            lint_store
+                .register_early_pass(move || Box::new(MacroDoc::new(Arc::clone(&macro_defs), Arc::clone(&macro_refs))));
         }));
     }
 
@@ -314,13 +316,21 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
 
         let krate = queries.parse().expect("no Result<Query<Crate>> found").take();
         // ...and walks the AST, collecting stats.
-        let mut visitor = MacroDoc::new(Arc::clone(&self.mac_defs));
-        visit::walk_crate(&mut visitor, &krate);
 
         // Guaranteed to not be dropped yet in the pipeline thanks to the
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
         let expanded_crate = &queries.expansion().unwrap().peek().0;
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
+            let mut visitor = MacroDocCtxt::new(Arc::clone(&self.mac_defs), Arc::clone(&self.mac_refs), &tcx);
+            visitor.dump_crate_info(&crate_name, &krate);
+            visitor.dump_compilation_opts(input, &crate_name);
+            visit::walk_crate(&mut visitor, &krate);
+            // println!("{:#?}", visitor.dumper);
+
+            // println!("IN QUERIES {:#?}", self.mac_defs);
+            // let mut visitor = MacroDocCtxt::new(Arc::clone(&self.mac_defs), &tcx);
+            // visit::walk_crate(&mut visitor, &krate);
+
             // There are two ways to move the data from rustc to the RLS, either
             // directly or by serialising and deserialising. We only want to do
             // the latter when there are compatibility issues between crates.
@@ -349,8 +359,11 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                     },
                 },
             );
+            self.analysis.lock().unwrap().as_mut().unwrap().defs.extend(visitor.dumper.result.defs);
+            self.analysis.lock().unwrap().as_mut().unwrap().refs.extend(visitor.dumper.result.refs);
+            println!("{:#?}", self.analysis.lock().unwrap().as_mut().unwrap().macro_refs);
         });
-        // println!("{:#?}", self.mac_defs);
+        println!("{:#?}", self.mac_refs);
         Compilation::Continue
     }
 }

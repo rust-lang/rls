@@ -254,6 +254,7 @@ impl Analysis {
     }
 
     pub fn update(&mut self, crate_id: CrateId, per_crate: PerCrateAnalysis) {
+        println!("UPDATE {}", crate_id.name);
         self.per_crate.insert(crate_id, per_crate);
     }
 
@@ -268,6 +269,7 @@ impl Analysis {
         let mut result = vec![];
         for per_crate in self.per_crate.values() {
             if let Some(t) = f(per_crate) {
+                println!("FOUND");
                 result.push(t);
             }
         }
@@ -302,7 +304,9 @@ impl Analysis {
     }
 
     pub fn ref_for_span(&self, span: &Span) -> Option<Ref> {
-        self.for_each_crate(|c| c.def_id_for_span.get(span).cloned())
+        self.for_each_crate(|c| {
+            c.def_id_for_span.get(span).cloned()
+        })
     }
 
     // Like def_id_for_span, but will only return a def_id if it is in the same

@@ -30,6 +30,8 @@ mod external;
 mod ipc;
 mod plan;
 mod rustc;
+
+mod dumper;
 mod macro_lint;
 
 /// Manages builds.
@@ -539,7 +541,6 @@ impl Internals {
                 }
             // Fall back to Cargo.
             } else {
-                
                 // Cargo plan is recreated and `needs_rebuild` reset if we run `cargo::cargo()`.
                 match cx.build_plan {
                     BuildPlan::External(_) => WorkStatus::NeedsCargo(PackageArg::Default),

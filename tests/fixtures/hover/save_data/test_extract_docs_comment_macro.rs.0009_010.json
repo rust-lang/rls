@@ -2,7 +2,7 @@
     "test": {
       "file": "test_extract_docs_comment_macro.rs",
       "line": 9,
-      "col": 6
+      "col": 10
     },
     "data": {
       "Ok": [

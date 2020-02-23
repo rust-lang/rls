@@ -339,7 +339,11 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
 
     pub fn docs(&self, span: &Span) -> AResult<String> {
         self.with_analysis(|a| {
-            a.def_id_for_span(span).and_then(|id| a.with_defs(id, clone_field!(docs)))
+            println!("PRE DOCS {:?}", span);
+            a.def_id_for_span(span).and_then(|id| {
+                println!("DOCS {:?} {:?}", span, id);
+                a.with_defs(id, clone_field!(docs))
+            })
         })
     }
 
@@ -471,6 +475,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
     {
         let a = self.analysis.lock()?;
         if let Some(ref a) = *a {
+            println!("WITH ANALYSIS");
             f(a).ok_or(AError::Unclassified)
         } else {
             Err(AError::Unclassified)

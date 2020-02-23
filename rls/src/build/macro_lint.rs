@@ -1,30 +1,48 @@
-
-#[allow(unused_extern_crates)]
+extern crate rustc;
+extern crate rustc_ast_pretty;
+extern crate rustc_codegen_utils;
+extern crate rustc_data_structures;
 extern crate rustc_driver;
-extern crate rustc_lint;
-extern crate rustc_span;
+extern crate rustc_hir;
 extern crate rustc_interface;
+extern crate rustc_lint;
+extern crate rustc_save_analysis;
 extern crate rustc_session;
+extern crate rustc_span;
 extern crate syntax;
 
-// use rustc_driver::{Callbacks, Compilation};
+use rustc::middle::cstore::ExternCrate;
+use rustc::middle::privacy::AccessLevels;
+use rustc::ty::{self, DefIdTree, TyCtxt};
+use rustc_ast_pretty::pprust::{self, param_to_string, ty_to_string};
+use rustc_codegen_utils::link::{filename_for_metadata, out_filename};
+use rustc_data_structures::fx::FxHashSet;
 use rustc_driver::Callbacks;
+use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 // use rustc_interface::{Config, interface::Compiler, Queries};
 use rustc_interface::Config;
-use rustc_lint::{
-    EarlyContext,
-    EarlyLintPass,
+use rustc_lint::{EarlyContext, EarlyLintPass};
+use rustc_save_analysis::SaveContext;
+use rustc_session::{
+    config::{CrateType, Input, OutputType},
+    declare_lint, impl_lint_pass,
 };
-use rustc_span::hygiene::{SyntaxContext};
-use rustc_span::Span;
-use rustc_session::{declare_lint, impl_lint_pass};
-use syntax::{ast, visit};
+use rustc_span::hygiene::SyntaxContext;
+use rustc_span::{sym, FileName, SourceFile, Span, ExpnKind, MacroKind,};
+use syntax::{ast, util::comments::strip_doc_comment_decoration, visit};
 
+use std::fmt;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::path::PathBuf;
+use std::collections::hash_map::DefaultHasher;
 
-use rls_data::{Analysis, Def, DefKind, SpanData, Id, Signature, Attribute};
+use rls_data::{
+    Analysis, Attribute, CompilationOptions, CratePreludeData, Def, DefKind, ExternalCrateData,
+    GlobalCrateId, Id, Signature, SpanData, MacroRef, Ref,
+};
 use rls_span as span;
+
+use super::dumper::{Access, Dumper};
 
 declare_lint! {
     pub MACRO_DOCS,
@@ -34,141 +52,525 @@ declare_lint! {
 }
 
 #[derive(Debug)]
-pub struct Comments {
-    span: (u32, u32, SyntaxContext),
-    text: String,
+pub struct Macro {
+    pub docs: String,
+    pub name: String,
+    file_name: String,
+    pub id: ast::NodeId,
+    pub span: Span,
 }
+unsafe impl Send for Macro {}
 
-impl Comments {
-    pub fn new(span: Span, text: String) -> Self {
-        let data = span.data();
-        Self {
-            span: (data.lo.0, data.hi.0, data.ctxt),
-            text,
-        }
-    }
-}
-
-#[derive(Debug, Default)]
+#[derive(Default, Debug)]
 pub struct MacroDoc {
-    pub defs: Arc<Mutex<Vec<Def>>>,
+    pub defs: Arc<Mutex<Vec<Macro>>>,
+    pub refs: Arc<Mutex<Vec<Macro>>>,
 }
 
 impl MacroDoc {
-    pub(crate) fn new(defs: Arc<Mutex<Vec<Def>>>) -> Self {
-        Self { defs, }
+    pub(crate) fn new(defs: Arc<Mutex<Vec<Macro>>>, refs: Arc<Mutex<Vec<Macro>>>) -> Self {
+        println!("NEW MACRO DOC");
+        Self { defs, refs }
     }
 }
 
 impl_lint_pass!(MacroDoc => [MACRO_DOCS]);
 
 impl EarlyLintPass for MacroDoc {
-    fn check_item(&mut self, ecx: &EarlyContext, it: &ast::Item) {
+    fn check_item(&mut self, ectx: &EarlyContext<'_>, it: &ast::Item) {
         if let ast::ItemKind::MacroDef(_) = &it.kind {
-            let mut width = 0;
-            let docs = it.attrs
+            let docs = it
+                .attrs
                 .iter()
                 .filter(|attr| attr.is_doc_comment())
-                .flat_map(|attr| attr.doc_str())
-                .map(|sym| {
-                    let doc = sym.as_str().chars()
-                        .filter(|c| c != &'/')
-                        .collect::<String>();
-                    if doc.len() > width {
-                        width = doc.len();
-                    }
-                    doc
-                })
+                .map(|attr| attr.doc_str().unwrap().to_string())
                 .collect::<Vec<_>>()
                 .join("\n");
-            
+
+            let sm = ectx.sess.source_map();
+            let filename = sm.span_to_filename(it.span);
             let name = it.ident.to_string();
-            let file_name = ecx.sess.local_crate_source_file.clone().unwrap_or_default();
-
-            let mut attributes = Vec::default();
-            for attr in &it.attrs {
-                let span = SpanData {
-                    file_name: file_name.clone(),
-                    byte_start: attr.span.lo().0,
-                    byte_end: attr.span.hi().0,
-                    line_start: span::Row::new_one_indexed(0),
-                    line_end: span::Row::new_one_indexed(0),
-                    // Character offset.
-                    column_start: span::Column::new_one_indexed(0),
-                    column_end: span::Column::new_one_indexed(0),
-                };
-                match &attr.kind {
-                    ast::AttrKind::DocComment(_) => {
-                        attributes.push(Attribute {
-                            value: attr.doc_str().unwrap().to_string(),
-                            span,
-                        })
-                    },
-                    ast::AttrKind::Normal(item) => {
-                        attributes.push(Attribute {
-                            value: format!("{:?}", item),
-                            span,
-                        })
-                    },
-                }
-            }
-
-            let id = Id { krate: 0, index: 0, };
-            let span = SpanData {
-                file_name: file_name.clone(),
-                byte_start: it.span.lo().0,
-                byte_end: it.span.hi().0,
-                line_start: span::Row::new_one_indexed(0),
-                line_end: span::Row::new_one_indexed(0),
-                // Character offset.
-                column_start: span::Column::new_one_indexed(0),
-                column_end: span::Column::new_one_indexed(0),
-            };
-            self.defs.lock().unwrap().push(Def {
-                kind: DefKind::Macro,
-                id,
-                span,
-                name: name.clone(),
-                qualname: format!("{}", file_name.to_str().unwrap()),
-                value: name.clone(),
-                parent: None,
-                children: Vec::default(),
-                decl_id: None,
+            let id = it.id;
+            self.defs.lock().unwrap().push(Macro {
                 docs,
-                sig: Some(Signature {
-                    text: format!("macro_rules! {} (args...)", name),
-                    defs: Vec::default(),
-                    refs: Vec::default(),
-                }),
-                attributes,
+                name,
+                file_name: filename.to_string(),
+                id,
+                span: it.span,
             });
-
-            // println!("{:#?}", self.defs)
         }
+        if let ast::ItemKind::Mac(_) = &it.kind {
+            let docs = it
+                .attrs
+                .iter()
+                .filter(|attr| attr.is_doc_comment())
+                .map(|attr| attr.doc_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            let sm = ectx.sess.source_map();
+            let filename = sm.span_to_filename(it.span);
+            let name = it.ident.to_string();
+            let id = it.id;
+            self.refs.lock().unwrap().push(Macro {
+                docs,
+                name,
+                file_name: filename.to_string(),
+                id,
+                span: it.span,
+            });
+        }
+    }
+
+    fn check_mac(&mut self, _: &EarlyContext<'_>, mac: &ast::Mac) {
+        println!("CHECK MAC {:?}", mac);
     }
 }
 
-// visit::Visitor is the generic trait for walking an AST.
-impl<'a> visit::Visitor<'a> for MacroDoc {
-    // We found an item, could be a function.
-    fn visit_item(&mut self, i: &ast::Item) {
-        println!("VISIT ITEM");
-        if let ast::ItemKind::Fn(ref decl, ref gen, ref blk) = i.kind {
-            // record the number of args
+pub struct MacroDocCtxt<'l, 'tcx> {
+    pub defs: Arc<Mutex<Vec<Macro>>>,
+    pub refs: Arc<Mutex<Vec<Macro>>>,
+    pub dumper: Dumper,
+    pub tcx: &'l TyCtxt<'tcx>,
+    pub macro_calls: FxHashSet<Span>,
+    pub macro_defs: FxHashSet<Span>,
+}
+
+impl<'l, 'tcx> fmt::Debug for MacroDocCtxt<'l, 'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MacroDocCtx")
+            .field("defs", &self.defs)
+            .field("dumper", &self.dumper)
+            .field("context", &self.tcx.def_path_hash_to_def_id)
+            .finish()
+    }
+}
+
+impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
+    pub(crate) fn new(defs: Arc<Mutex<Vec<Macro>>>, refs: Arc<Mutex<Vec<Macro>>>, tcx: &'l TyCtxt<'tcx>) -> Self {
+        println!("NEW MACRO DOC CTX");
+        Self {
+            defs,
+            refs,
+            dumper: Dumper::new(rls_data::Config::default()),
+            tcx,
+            macro_calls: FxHashSet::default(),
+            macro_defs: FxHashSet::default(),
         }
+    }
+
+    pub fn dump_crate_info(&mut self, name: &str, krate: &ast::Crate) {
+        let source_file = self.tcx.sess.local_crate_source_file.as_ref();
+        let crate_root = source_file.map(|source_file| {
+            let source_file = Path::new(source_file);
+            match source_file.file_name() {
+                Some(_) => source_file.parent().unwrap().display(),
+                None => source_file.display(),
+            }
+            .to_string()
+        });
+
+        let data = CratePreludeData {
+            crate_id: GlobalCrateId {
+                name: name.into(),
+                disambiguator: self
+                    .tcx
+                    .sess
+                    .local_crate_disambiguator()
+                    .to_fingerprint()
+                    .as_value(),
+            },
+            crate_root: crate_root.unwrap_or_else(|| "<no source>".to_owned()),
+            external_crates: get_external_crates(self.tcx),
+            span: span_from_span(&self.tcx, krate.span),
+        };
+
+        self.dumper.crate_prelude(data);
+    }
+
+    pub fn dump_compilation_opts(&mut self, input: &Input, crate_name: &str) {
+        // Apply possible `remap-path-prefix` remapping to the input source file
+        // (and don't include remapping args anymore)
+        let (program, arguments) = {
+            let remap_arg_indices = {
+                let mut indices = FxHashSet::default();
+                // Args are guaranteed to be valid UTF-8 (checked early)
+                for (i, e) in std::env::args().enumerate() {
+                    if e.starts_with("--remap-path-prefix=") {
+                        indices.insert(i);
+                    } else if e == "--remap-path-prefix" {
+                        indices.insert(i);
+                        indices.insert(i + 1);
+                    }
+                }
+                indices
+            };
+
+            let mut args = std::env::args()
+                .enumerate()
+                .filter(|(i, _)| !remap_arg_indices.contains(i))
+                .map(|(_, arg)| match input {
+                    Input::File(ref path) if path == Path::new(&arg) => {
+                        let mapped = &self.tcx.sess.local_crate_source_file;
+                        mapped.as_ref().unwrap().to_string_lossy().into()
+                    }
+                    _ => arg,
+                });
+
+            (args.next().unwrap(), args.collect())
+        };
+
+        let data = CompilationOptions {
+            directory: self.tcx.sess.working_dir.0.clone(),
+            program,
+            arguments,
+            output: compilation_output(self.tcx, crate_name),
+        };
+
+        self.dumper.compilation_opts(data);
+    }
+
+    pub fn get_macro_use_data(&self, span: Span) -> Option<MacroRef> {
+        // if !generated_code(span) {
+        //     println!("LEAVING GEN code");
+        //     return None;
+        // }
+        // Note we take care to use the source callsite/callee, to handle
+        // nested expansions and ensure we only generate data for source-visible
+        // macro uses.
+        let callsite = span.source_callsite();
+        let callsite_span = span_from_span(self.tcx, callsite);
+        println!("LEAVING GEN code {:?}", callsite_span);
+
+        // let callee = span.source_callee()?;
+        // println!("LEAVING GEN code {:?}", callee.kind);
+        // let mac_name = match callee.kind {
+        //     ExpnKind::Macro(mac_kind, name) => match mac_kind {
+        //         MacroKind::Bang => name,
+
+        //         // Ignore attribute macros, their spans are usually mangled
+        //         // FIXME(eddyb) is this really the case anymore?
+        //         MacroKind::Attr | MacroKind::Derive => return None,
+        //     },
+
+        //     // These are not macros.
+        //     // FIXME(eddyb) maybe there is a way to handle them usefully?
+        //     ExpnKind::Root | ExpnKind::AstPass(_) | ExpnKind::Desugaring(_) => return None,
+        // };
+
+        // If the callee is an imported macro from an external crate, need to get
+        // the source span and name from the session, as their spans are localized
+        // when read in, and no longer correspond to the source.
+        if let Some(mac) = self.tcx.sess.imported_macro_spans.borrow().get(&callsite) {
+            let &(ref mac_name, mac_span) = mac;
+            let mac_span = span_from_span(self.tcx, mac_span);
+            return Some(MacroRef {
+                span: callsite_span,
+                qualname: mac_name.clone(), // FIXME: generate the real qualname
+                callee_span: mac_span,
+            });
+        }
+
+        let callee_span = span_from_span(self.tcx, callsite);
+        Some(MacroRef {
+            span: callsite_span,
+            qualname: "".to_string(), // FIXME: generate the real qualname
+            callee_span,
+        })
+    }
+
+    /// Extracts macro use and definition information from the AST node defined
+    /// by the given NodeId, using the expansion information from the node's
+    /// span.
+    ///
+    /// If the span is not macro-generated, do nothing, else use callee and
+    /// callsite spans to record macro definition and use data, using the
+    /// mac_uses and mac_defs sets to prevent multiples.
+    fn process_macro_use(&mut self, span: Span) {
+        use std::hash::Hasher;
+        use std::hash::Hash;
+        // FIXME if we're not dumping the defs (see below), there is no point
+        // dumping refs either.
+        let source_span = span.source_callsite();
+        if !self.macro_calls.insert(source_span) {
+            println!("BAIL OUT");
+            return;
+        }
+
+        let data = match self.get_macro_use_data(span) {
+            None => {
+                println!("NO USE DAtA");
+                return;
+            },
+            Some(data) => data,
+        };
+        // FIXME write the macro def
+        let mut hasher = DefaultHasher::new();
+        (data.span.byte_end, data.callee_span.byte_start).hash(&mut hasher);
+        let hash = hasher.finish();
+        let qualname = format!("{}::{}", data.qualname, hash);
+        println!("NAME {:?}", qualname);
+        // Don't write macro definition for imported macros
+        if !self.macro_defs.contains(&span.source_callsite()) {
+            println!("INSERT {:?}", span.source_callsite());
+            self.macro_defs.insert(span.source_callsite());
+        }
+        self.dumper.macro_use(data);
+
+        let sm = self.tcx.sess.source_map();
+        let filename = sm.span_to_filename(span);
+        self.refs.lock().unwrap().push(Macro {
+            docs: String::default(),
+            name: String::default(),
+            file_name: filename.to_string(),
+            id: ast::NodeId::from_u32(12),
+            span,
+        });
+    }
+}
+
+impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
+    fn visit_item(&mut self, i: &'a ast::Item) {
         if let ast::ItemKind::MacroDef(ref mac) = i.kind {
-            println!("{:#?}", mac);
+            let qualname = String::default();
+            // format!("::{}", self.tcx.def_path_str(self.tcx.hir().local_def_id_from_node_id(i.id)));
+
+            let sig = Some(Signature {
+                text: format!("macro_rules! {} (args...)", i.ident.to_string()),
+                defs: Vec::default(),
+                refs: Vec::default(),
+            });
+            // let qualname = 
+                // format!("::{}", self.tcx.def_path_str(self.tcx.hir().local_def_id_from_node_id(i.id)));
+
+            let sm = self.tcx.sess.source_map();
+            let filename = sm.span_to_filename(i.span);
+            let qualname = filename.to_string()
+                .split('/')
+                .last()
+                .map(|s| format!(
+                    "::{}",
+                    s.split('.').map(|s| s.to_string()).collect::<Vec<String>>().first().cloned().unwrap_or_default()
+                ))
+                .unwrap_or_else(|| String::from("::"));
+
+            let data_id = id_from_node_id(i.id, &self.tcx);
+            let span = span_from_span(&self.tcx, i.span);
+            let docs = self.defs.lock().unwrap()
+                .iter()
+                .find(|mac| mac.span == i.span)
+                .map(|mac| mac.docs.clone())
+                .unwrap_or_default();
+
+            self.dumper.dump_def(
+                &Access { public: true, reachable: true },
+                Def {
+                    kind: DefKind::Macro,
+                    id: data_id,
+                    name: i.ident.to_string(),
+                    qualname,
+                    span,
+                    value: filename.to_string(),
+                    children: Vec::default(),
+                    parent: None,
+                    decl_id: None,
+                    docs,
+                    sig,
+                    attributes: lower_attributes(i.attrs.to_owned(), &self.tcx),
+                },
+            );
+            self.macro_defs.insert(i.span);
+            // println!("{:#?}", self.defs);
+        }
+        if let ast::ItemKind::Mac(ref mac) = i.kind {
+            println!("MAC IDENT {:?}", i.ident);
+            visit::walk_mac(self, mac);
         }
         // Keep walking.
         visit::walk_item(self, i)
     }
 
     fn visit_mac(&mut self, mac: &'a ast::Mac) {
-        println!("MACRO {:#?}", mac);
+        println!("MAC");
+        self.process_macro_use(mac.span());
         visit::walk_mac(self, mac);
     }
-    fn visit_mac_def(&mut self, mac: &'a ast::MacroDef, _id: ast::NodeId) {
-        println!("MACRO DEF {:#?}", mac);
+    fn visit_mac_def(&mut self, mac: &'a ast::MacroDef, id: ast::NodeId) {}
+}
 
+// Taken directly from `librustc_save_analysis`
+//
+//
+
+/// Helper function to escape quotes in a string
+fn escape(s: String) -> String {
+    s.replace("\"", "\"\"")
+}
+
+/// Helper function to determine if a span came from a
+/// macro expansion or syntax extension.
+fn generated_code(span: Span) -> bool {
+    span.from_expansion() || span.is_dummy()
+}
+/// DefId::index is a newtype and so the JSON serialisation is ugly. Therefore
+/// we use our own Id which is the same, but without the newtype.
+fn id_from_def_id(id: DefId) -> rls_data::Id {
+    rls_data::Id { krate: id.krate.as_u32(), index: id.index.as_u32() }
+}
+
+fn id_from_node_id(id: ast::NodeId, tcx: &TyCtxt<'_>) -> rls_data::Id {
+    let def_id = tcx.hir().opt_local_def_id_from_node_id(id);
+    def_id.map(|id| id_from_def_id(id)).unwrap_or_else(|| {
+        // Create a *fake* `DefId` out of a `NodeId` by subtracting the `NodeId`
+        // out of the maximum u32 value. This will work unless you have *billions*
+        // of definitions in a single crate (very unlikely to actually happen).
+        rls_data::Id { krate: LOCAL_CRATE.as_u32(), index: !id.as_u32() }
+    })
+}
+
+fn null_id() -> rls_data::Id {
+    rls_data::Id { krate: u32::max_value(), index: u32::max_value() }
+}
+
+fn lower_attributes(attrs: Vec<ast::Attribute>, tcx: &TyCtxt<'_>) -> Vec<rls_data::Attribute> {
+    attrs
+        .into_iter()
+        // Only retain real attributes. Doc comments are lowered separately.
+        .filter(|attr| !attr.has_name(sym::doc))
+        .map(|mut attr| {
+            // Remove the surrounding '#[..]' or '#![..]' of the pretty printed
+            // attribute. First normalize all inner attribute (#![..]) to outer
+            // ones (#[..]), then remove the two leading and the one trailing character.
+            attr.style = ast::AttrStyle::Outer;
+            let value = pprust::attribute_to_string(&attr);
+            // This str slicing works correctly, because the leading and trailing characters
+            // are in the ASCII range and thus exactly one byte each.
+            let value = value[2..value.len() - 1].to_string();
+
+            rls_data::Attribute { value, span: span_from_span(tcx, attr.span) }
+        })
+        .collect()
+}
+
+/// rustc::Span to rls::SpanData
+fn span_from_span(tcx: &TyCtxt<'_>, span: Span) -> SpanData {
+    use rls_span::{Column, Row};
+
+    let cm = tcx.sess.source_map();
+    let start = cm.lookup_char_pos(span.lo());
+    let end = cm.lookup_char_pos(span.hi());
+
+    SpanData {
+        file_name: start.file.name.to_string().into(),
+        byte_start: span.lo().0,
+        byte_end: span.hi().0,
+        line_start: Row::new_one_indexed(start.line as u32),
+        line_end: Row::new_one_indexed(end.line as u32),
+        column_start: Column::new_one_indexed(start.col.0 as u32 + 1),
+        column_end: Column::new_one_indexed(end.col.0 as u32 + 1),
     }
+}
+
+/// Returns path to the compilation output (e.g., libfoo-12345678.rmeta)
+pub fn compilation_output(tcx: &TyCtxt<'_>, crate_name: &str) -> PathBuf {
+    let sess = &tcx.sess;
+    // Save-analysis is emitted per whole session, not per each crate type
+    let crate_type = sess.crate_types.borrow()[0];
+    let outputs = &*tcx.output_filenames(LOCAL_CRATE);
+
+    if outputs.outputs.contains_key(&OutputType::Metadata) {
+        filename_for_metadata(sess, crate_name, outputs)
+    } else if outputs.outputs.should_codegen() {
+        out_filename(sess, crate_type, outputs, crate_name)
+    } else {
+        // Otherwise it's only a DepInfo, in which case we return early and
+        // not even reach the analysis stage.
+        unreachable!()
+    }
+}
+
+/// List external crates used by the current crate.
+pub fn get_external_crates(tcx: &TyCtxt<'_>) -> Vec<ExternalCrateData> {
+    let mut result = Vec::with_capacity(tcx.crates().len());
+
+    for &n in tcx.crates().iter() {
+        let span = match tcx.extern_crate(n.as_def_id()) {
+            Some(&ExternCrate { span, .. }) => span,
+            None => {
+                println!("skipping crate {}, no data", n);
+                continue;
+            }
+        };
+        let lo_loc = tcx.sess.source_map().lookup_char_pos(span.lo());
+        result.push(ExternalCrateData {
+            // FIXME: change file_name field to PathBuf in rls-data
+            // https://github.com/nrc/rls-data/issues/7
+            file_name: make_filename_string(tcx, &lo_loc.file),
+            num: n.as_u32(),
+            id: GlobalCrateId {
+                name: tcx.crate_name(n).to_string(),
+                disambiguator: tcx.crate_disambiguator(n).to_fingerprint().as_value(),
+            },
+        });
+    }
+
+    result
+}
+
+pub fn make_filename_string(tcx: &TyCtxt<'_>, file: &SourceFile) -> String {
+    match &file.name {
+        FileName::Real(path) if !file.name_was_remapped => {
+            if path.is_absolute() {
+                tcx.sess
+                    .source_map()
+                    .path_mapping()
+                    .map_prefix(path.clone())
+                    .0
+                    .display()
+                    .to_string()
+            } else {
+                tcx.sess.working_dir.0.join(&path).display().to_string()
+            }
+        }
+        // If the file name is already remapped, we assume the user
+        // configured it the way they wanted to, so use that directly
+        filename => filename.to_string(),
+    }
+}
+
+fn docs_for_attrs(cfg: &rls_data::Config, attrs: &[ast::Attribute]) -> String {
+    let mut result = String::new();
+
+    for attr in attrs {
+        if let Some(val) = attr.doc_str() {
+            if attr.is_doc_comment() {
+                result.push_str(&strip_doc_comment_decoration(&val.as_str()));
+            } else {
+                result.push_str(&val.as_str());
+            }
+            result.push('\n');
+        } else if attr.check_name(sym::doc) {
+            if let Some(meta_list) = attr.meta_item_list() {
+                meta_list
+                    .into_iter()
+                    .filter(|it| it.check_name(sym::include))
+                    .filter_map(|it| it.meta_item_list().map(|l| l.to_owned()))
+                    .flat_map(|it| it)
+                    .filter(|meta| meta.check_name(sym::contents))
+                    .filter_map(|meta| meta.value_str())
+                    .for_each(|val| {
+                        result.push_str(&val.as_str());
+                        result.push('\n');
+                    });
+            }
+        }
+    }
+
+    if !cfg.full_docs {
+        if let Some(index) = result.find("\n\n") {
+            result.truncate(index);
+        }
+    }
+
+    result
 }
