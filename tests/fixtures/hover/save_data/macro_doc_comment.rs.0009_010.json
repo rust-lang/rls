@@ -8,7 +8,7 @@
       "Ok": [
         {
           "language": "rust",
-          "value": "macro test_hover"
+          "value": "macro_rules! test_hover (args...)"
         },
         "This is a macro"
       ]
