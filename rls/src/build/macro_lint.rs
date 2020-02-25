@@ -27,7 +27,7 @@ use rustc_session::{
     config::{CrateType, Input, OutputType},
     declare_lint, impl_lint_pass,
 };
-use rustc_span::hygiene::{SyntaxContext, ExpnId};
+use rustc_span::hygiene::{ExpnId, SyntaxContext};
 use rustc_span::{sym, ExpnKind, FileName, MacroKind, SourceFile, Span};
 use syntax::{ast, util::comments::strip_doc_comment_decoration, visit};
 
@@ -38,7 +38,7 @@ use std::sync::{Arc, Mutex};
 
 use rls_data::{
     Analysis, Attribute, CompilationOptions, CratePreludeData, Def, DefKind, ExternalCrateData,
-    GlobalCrateId, Id, MacroRef, Ref, Signature, SpanData, RefKind
+    GlobalCrateId, Id, MacroRef, Ref, RefKind, Signature, SpanData,
 };
 use rls_span as span;
 
@@ -62,9 +62,7 @@ pub struct MacroData {
 unsafe impl Send for MacroData {}
 impl MacroData {
     pub fn lower(self, ctxt: &TyCtxt<'_>) -> Ref {
-        let MacroData {
-            docs, name, file_name, id, span,
-        } = self;
+        let MacroData { docs, name, file_name, id, span } = self;
 
         Ref {
             kind: RefKind::Macro,
@@ -226,10 +224,13 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
         let callsite = span.source_callsite();
         let callsite_span = span_from_span(self.tcx, callsite);
         // TODO how to find ExpnId
-        let callee = span.with_def_site_ctxt(ExpnId::from_u32(2)).source_callee().expect(msg).def_site;
+        let callee =
+            span.with_def_site_ctxt(ExpnId::from_u32(2)).source_callee().expect(msg).def_site;
         let callee_span = span_from_span(self.tcx, callsite);
-        
-        let qualname = file_to_qualname(&callee_span.file_name.to_str().map(|s| s.to_string()).unwrap_or_default());
+
+        let qualname = file_to_qualname(
+            &callee_span.file_name.to_str().map(|s| s.to_string()).unwrap_or_default(),
+        );
         // println!(
         //     "parent {}\ncallee {}\ndef site {:#?}",
         //     span.parent().is_some(),
@@ -258,17 +259,12 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
             println!("IMPORT MAC");
             let &(ref mac_name, mac_span) = mac;
             let mac_span = span_from_span(self.tcx, mac_span);
-            return Some((callee, MacroRef {
-                span: callsite_span,
-                qualname,
-                callee_span: mac_span,
-            }));
+            return Some((
+                callee,
+                MacroRef { span: callsite_span, qualname, callee_span: mac_span },
+            ));
         }
-        Some((callee, MacroRef {
-            span: callsite_span,
-            qualname,
-            callee_span,
-        }))
+        Some((callee, MacroRef { span: callsite_span, qualname, callee_span }))
     }
 
     /// Extracts macro use and definition information from the AST node defined
@@ -312,10 +308,12 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
 
         let sm = self.tcx.sess.source_map();
         let filename = sm.span_to_filename(span);
-        let (docs, name) = self.defs.lock().unwrap().iter()
-            .find(|def| {
-                def.span == callee
-            })
+        let (docs, name) = self
+            .defs
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|def| def.span == callee)
             .map(|mac| (mac.docs.to_string(), mac.name.to_string()))
             .unwrap_or_else(|| (String::new(), String::default()));
 
@@ -375,9 +373,7 @@ impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
                 );
                 self.macro_defs.insert(i.span);
             }
-            _ => {
-                visit::walk_item(self, i)
-            },
+            _ => visit::walk_item(self, i),
         }
     }
     // fn visit_expr(&mut self, expr: &'a ast::Expr) {

@@ -798,11 +798,7 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     result.trim().into()
 }
 
-fn tooltip_macro(
-    ctx: &InitActionContext,
-    def: &Def,
-    doc_url: Option<String>,
-) -> Vec<MarkedString> {
+fn tooltip_macro(ctx: &InitActionContext, def: &Def, doc_url: Option<String>) -> Vec<MarkedString> {
     debug!("tooltip_function_method: {}", def.name);
 
     let vfs = &ctx.vfs;
@@ -826,7 +822,8 @@ pub fn macro_hover_fallback(
     println!("{:?}", line);
 
     let id = ctx.analysis.search_for_id(&line)?;
-    ctx.analysis.get_def(*id.last().ok_or(err)?)
+    ctx.analysis
+        .get_def(*id.last().ok_or(err)?)
         .and_then(|def| if def.kind == DefKind::Macro { Ok(def) } else { Err(err) })
         .map(|def| tooltip_macro(ctx, &def, None))
         .map(|contents| Tooltip { contents, range: hover_span.range })

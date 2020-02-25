@@ -264,9 +264,8 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             let macro_defs = Arc::clone(&macro_defs);
             let macro_refs = Arc::clone(&macro_refs);
             lint_store.register_lints(&[&MACRO_DOCS]);
-            lint_store.register_early_pass(move || {
-                Box::new(MacroDoc::new(Arc::clone(&macro_defs)))
-            });
+            lint_store
+                .register_early_pass(move || Box::new(MacroDoc::new(Arc::clone(&macro_defs))));
         }));
     }
 
