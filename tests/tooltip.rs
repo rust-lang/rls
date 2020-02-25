@@ -372,7 +372,7 @@ fn test_tooltip() -> Result<(), Box<dyn std::error::Error>> {
         // Test::new("test_tooltip_mod_use.rs", 2, 14),
         // Test::new("test_tooltip_mod_use.rs", 2, 25),
         // Test::new("test_tooltip_mod_use.rs", 3, 28),
-        Test::new("test_extract_docs_comment_macro.rs", 9, 10),
+        Test::new("macro_doc_comment.rs", 9, 10),
     ];
 
     run_tooltip_tests(&tests, fixtures_dir().join("hover"), RacerFallback::No)

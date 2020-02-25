@@ -126,6 +126,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
         base_dir: &Path,
         blacklist: &[impl AsRef<str> + Debug],
     ) -> AResult<()> {
+        println!("{:#?}", analysis);
         self.reload_with_blacklist(path_prefix, base_dir, blacklist)?;
 
         let crates: Vec<_> = analysis

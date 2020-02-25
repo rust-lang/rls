@@ -46,7 +46,7 @@ use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use self::syntax::{ast, visit};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::macro_lint::{Macro, MacroDoc, MacroDocCtxt, MACRO_DOCS};
+use crate::build::macro_lint::{MacroData, MacroDoc, MacroDocCtxt, MACRO_DOCS};
 use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
@@ -232,8 +232,8 @@ struct RlsRustcCalls {
     analysis: Arc<Mutex<Option<Analysis>>>,
     input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
-    mac_defs: Arc<Mutex<Vec<Macro>>>,
-    mac_refs: Arc<Mutex<Vec<Macro>>>,
+    mac_defs: Arc<Mutex<Vec<MacroData>>>,
+    mac_refs: Arc<Mutex<Vec<MacroData>>>,
 }
 
 impl rustc_driver::Callbacks for RlsRustcCalls {
@@ -264,9 +264,18 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             let macro_defs = Arc::clone(&macro_defs);
             let macro_refs = Arc::clone(&macro_refs);
             lint_store.register_lints(&[&MACRO_DOCS]);
-            lint_store
-                .register_early_pass(move || Box::new(MacroDoc::new(Arc::clone(&macro_defs), Arc::clone(&macro_refs))));
+            lint_store.register_early_pass(move || {
+                Box::new(MacroDoc::new(Arc::clone(&macro_defs)))
+            });
         }));
+    }
+
+    fn after_parsing<'tcx>(
+        &mut self,
+        compiler: &interface::Compiler,
+        queries: &'tcx Queries<'tcx>,
+    ) -> Compilation {
+        Compilation::Continue
     }
 
     fn after_expansion<'tcx>(
@@ -302,7 +311,6 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         for file in fetch_input_files(sess) {
             input_files.entry(file).or_default().insert(krate.clone());
         }
-
         Compilation::Continue
     }
 
@@ -321,30 +329,12 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
         let expanded_crate = &queries.expansion().unwrap().peek().0;
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let mut visitor = MacroDocCtxt::new(Arc::clone(&self.mac_defs), Arc::clone(&self.mac_refs), &tcx);
+            let mut visitor =
+                MacroDocCtxt::new(Arc::clone(&self.mac_defs), Arc::clone(&self.mac_refs), &tcx);
             visitor.dump_crate_info(&crate_name, &krate);
             visitor.dump_compilation_opts(input, &crate_name);
             visit::walk_crate(&mut visitor, &krate);
-            // println!("{:#?}", visitor.dumper);
 
-            // println!("IN QUERIES {:#?}", self.mac_defs);
-            // let mut visitor = MacroDocCtxt::new(Arc::clone(&self.mac_defs), &tcx);
-            // visit::walk_crate(&mut visitor, &krate);
-
-            // There are two ways to move the data from rustc to the RLS, either
-            // directly or by serialising and deserialising. We only want to do
-            // the latter when there are compatibility issues between crates.
-
-            // This version passes via JSON, it is more easily backwards compatible.
-            // save::process_crate(state.tcx.unwrap(),
-            //                     state.expanded_crate.unwrap(),
-            //                     state.analysis.unwrap(),
-            //                     state.crate_name.unwrap(),
-            //                     state.input,
-            //                     None,
-            //                     save::DumpHandler::new(state.out_dir,
-            //                                            state.crate_name.unwrap()));
-            // This version passes directly, it is more efficient.
             save::process_crate(
                 tcx,
                 &expanded_crate,
@@ -361,9 +351,10 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             );
             self.analysis.lock().unwrap().as_mut().unwrap().defs.extend(visitor.dumper.result.defs);
             self.analysis.lock().unwrap().as_mut().unwrap().refs.extend(visitor.dumper.result.refs);
-            println!("{:#?}", self.analysis.lock().unwrap().as_mut().unwrap().macro_refs);
         });
-        println!("{:#?}", self.mac_refs);
+        // println!("MACRO DEFS {:#?}", self.mac_defs);
+        // println!("MACRO REFS {:#?}", self.mac_refs);
+        println!("REFS {:#?}", self.analysis.lock().unwrap().as_ref().unwrap().refs);
         Compilation::Continue
     }
 }

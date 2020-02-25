@@ -38,6 +38,7 @@ impl Dumper {
 
     pub fn macro_use(&mut self, data: MacroRef) {
         if self.config.pub_only || self.config.reachable_only {
+            println!("PUB ONLY");
             return;
         }
         self.result.macro_refs.push(data);

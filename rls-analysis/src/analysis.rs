@@ -31,6 +31,7 @@ pub(crate) struct Analysis {
     pub src_url_base: String,
 }
 
+#[derive(Debug)]
 pub struct PerCrateAnalysis {
     // Map span to id of def (either because it is the span of the def, or of
     // the def for the ref).
@@ -254,7 +255,6 @@ impl Analysis {
     }
 
     pub fn update(&mut self, crate_id: CrateId, per_crate: PerCrateAnalysis) {
-        println!("UPDATE {}", crate_id.name);
         self.per_crate.insert(crate_id, per_crate);
     }
 
@@ -269,7 +269,6 @@ impl Analysis {
         let mut result = vec![];
         for per_crate in self.per_crate.values() {
             if let Some(t) = f(per_crate) {
-                println!("FOUND");
                 result.push(t);
             }
         }
@@ -282,7 +281,7 @@ impl Analysis {
         //     "error in for_each_crate, found {} results, expected 0 or 1",
         //     result.len(),
         // );
-        result.into_iter().nth(0)
+        result.into_iter().next()
     }
 
     pub fn for_all_crates<F, T>(&self, f: F) -> Vec<T>
@@ -305,6 +304,7 @@ impl Analysis {
 
     pub fn ref_for_span(&self, span: &Span) -> Option<Ref> {
         self.for_each_crate(|c| {
+            // /home/devinr/aprog/rust/__forks__/rls/tests/fixtures/hover/src/macro_doc_comment.rs
             c.def_id_for_span.get(span).cloned()
         })
     }

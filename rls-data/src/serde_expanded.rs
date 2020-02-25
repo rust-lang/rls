@@ -7425,6 +7425,12 @@ const _IMPL_SERIALIZE_FOR_RefKind: () = {
                     3u32,
                     "Variable",
                 ),
+                RefKind::Macro => _serde::Serializer::serialize_unit_variant(
+                    __serializer,
+                    "RefKind",
+                    4u32,
+                    "Macro",
+                ),
             }
         }
     }

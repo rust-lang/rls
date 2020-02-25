@@ -1,6 +1,6 @@
 {
     "test": {
-      "file": "test_extract_docs_comment_macro.rs",
+      "file": "macro_doc_comment.rs",
       "line": 9,
       "col": 10
     },

@@ -232,6 +232,7 @@ pub enum RefKind {
     Mod,
     Type,
     Variable,
+    Macro,
 }
 
 #[derive(Debug, Clone)]

@@ -27,18 +27,18 @@ use rustc_session::{
     config::{CrateType, Input, OutputType},
     declare_lint, impl_lint_pass,
 };
-use rustc_span::hygiene::SyntaxContext;
-use rustc_span::{sym, FileName, SourceFile, Span, ExpnKind, MacroKind,};
+use rustc_span::hygiene::{SyntaxContext, ExpnId};
+use rustc_span::{sym, ExpnKind, FileName, MacroKind, SourceFile, Span};
 use syntax::{ast, util::comments::strip_doc_comment_decoration, visit};
 
+use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::collections::hash_map::DefaultHasher;
 
 use rls_data::{
     Analysis, Attribute, CompilationOptions, CratePreludeData, Def, DefKind, ExternalCrateData,
-    GlobalCrateId, Id, Signature, SpanData, MacroRef, Ref,
+    GlobalCrateId, Id, MacroRef, Ref, Signature, SpanData, RefKind
 };
 use rls_span as span;
 
@@ -51,26 +51,37 @@ declare_lint! {
     report_in_external_macro
 }
 
-#[derive(Debug)]
-pub struct Macro {
+#[derive(Debug, Clone)]
+pub struct MacroData {
     pub docs: String,
     pub name: String,
     file_name: String,
     pub id: ast::NodeId,
     pub span: Span,
 }
-unsafe impl Send for Macro {}
+unsafe impl Send for MacroData {}
+impl MacroData {
+    pub fn lower(self, ctxt: &TyCtxt<'_>) -> Ref {
+        let MacroData {
+            docs, name, file_name, id, span,
+        } = self;
+
+        Ref {
+            kind: RefKind::Macro,
+            span: span_from_span(ctxt, span),
+            ref_id: id_from_node_id(id, ctxt),
+        }
+    }
+}
 
 #[derive(Default, Debug)]
 pub struct MacroDoc {
-    pub defs: Arc<Mutex<Vec<Macro>>>,
-    pub refs: Arc<Mutex<Vec<Macro>>>,
+    pub defs: Arc<Mutex<Vec<MacroData>>>,
 }
 
 impl MacroDoc {
-    pub(crate) fn new(defs: Arc<Mutex<Vec<Macro>>>, refs: Arc<Mutex<Vec<Macro>>>) -> Self {
-        println!("NEW MACRO DOC");
-        Self { defs, refs }
+    pub(crate) fn new(defs: Arc<Mutex<Vec<MacroData>>>) -> Self {
+        Self { defs }
     }
 }
 
@@ -79,19 +90,14 @@ impl_lint_pass!(MacroDoc => [MACRO_DOCS]);
 impl EarlyLintPass for MacroDoc {
     fn check_item(&mut self, ectx: &EarlyContext<'_>, it: &ast::Item) {
         if let ast::ItemKind::MacroDef(_) = &it.kind {
-            let docs = it
-                .attrs
-                .iter()
-                .filter(|attr| attr.is_doc_comment())
-                .map(|attr| attr.doc_str().unwrap().to_string())
-                .collect::<Vec<_>>()
-                .join("\n");
+            let docs = docs_for_attrs(true, &it.attrs);
 
             let sm = ectx.sess.source_map();
             let filename = sm.span_to_filename(it.span);
             let name = it.ident.to_string();
             let id = it.id;
-            self.defs.lock().unwrap().push(Macro {
+
+            self.defs.lock().unwrap().push(MacroData {
                 docs,
                 name,
                 file_name: filename.to_string(),
@@ -99,37 +105,12 @@ impl EarlyLintPass for MacroDoc {
                 span: it.span,
             });
         }
-        if let ast::ItemKind::Mac(_) = &it.kind {
-            let docs = it
-                .attrs
-                .iter()
-                .filter(|attr| attr.is_doc_comment())
-                .map(|attr| attr.doc_str().unwrap().to_string())
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            let sm = ectx.sess.source_map();
-            let filename = sm.span_to_filename(it.span);
-            let name = it.ident.to_string();
-            let id = it.id;
-            self.refs.lock().unwrap().push(Macro {
-                docs,
-                name,
-                file_name: filename.to_string(),
-                id,
-                span: it.span,
-            });
-        }
-    }
-
-    fn check_mac(&mut self, _: &EarlyContext<'_>, mac: &ast::Mac) {
-        println!("CHECK MAC {:?}", mac);
     }
 }
 
 pub struct MacroDocCtxt<'l, 'tcx> {
-    pub defs: Arc<Mutex<Vec<Macro>>>,
-    pub refs: Arc<Mutex<Vec<Macro>>>,
+    pub defs: Arc<Mutex<Vec<MacroData>>>,
+    pub refs: Arc<Mutex<Vec<MacroData>>>,
     pub dumper: Dumper,
     pub tcx: &'l TyCtxt<'tcx>,
     pub macro_calls: FxHashSet<Span>,
@@ -147,8 +128,11 @@ impl<'l, 'tcx> fmt::Debug for MacroDocCtxt<'l, 'tcx> {
 }
 
 impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
-    pub(crate) fn new(defs: Arc<Mutex<Vec<Macro>>>, refs: Arc<Mutex<Vec<Macro>>>, tcx: &'l TyCtxt<'tcx>) -> Self {
-        println!("NEW MACRO DOC CTX");
+    pub(crate) fn new(
+        defs: Arc<Mutex<Vec<MacroData>>>,
+        refs: Arc<Mutex<Vec<MacroData>>>,
+        tcx: &'l TyCtxt<'tcx>,
+    ) -> Self {
         Self {
             defs,
             refs,
@@ -230,20 +214,29 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
         self.dumper.compilation_opts(data);
     }
 
-    pub fn get_macro_use_data(&self, span: Span) -> Option<MacroRef> {
+    pub fn get_macro_use_data(&self, span: Span) -> Option<(Span, MacroRef)> {
         // if !generated_code(span) {
-        //     println!("LEAVING GEN code");
+        //     println!("LEAVING GEN CODE");
         //     return None;
         // }
+        let msg = "failed to create ctxt callee span";
         // Note we take care to use the source callsite/callee, to handle
         // nested expansions and ensure we only generate data for source-visible
         // macro uses.
         let callsite = span.source_callsite();
         let callsite_span = span_from_span(self.tcx, callsite);
-        println!("LEAVING GEN code {:?}", callsite_span);
+        // TODO how to find ExpnId
+        let callee = span.with_def_site_ctxt(ExpnId::from_u32(2)).source_callee().expect(msg).def_site;
+        let callee_span = span_from_span(self.tcx, callsite);
+        
+        let qualname = file_to_qualname(&callee_span.file_name.to_str().map(|s| s.to_string()).unwrap_or_default());
+        // println!(
+        //     "parent {}\ncallee {}\ndef site {:#?}",
+        //     span.parent().is_some(),
+        //     span.source_callee().is_some(),
+        //     span.ctxt().remove_mark()
+        // );
 
-        // let callee = span.source_callee()?;
-        // println!("LEAVING GEN code {:?}", callee.kind);
         // let mac_name = match callee.kind {
         //     ExpnKind::Macro(mac_kind, name) => match mac_kind {
         //         MacroKind::Bang => name,
@@ -262,21 +255,20 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
         // the source span and name from the session, as their spans are localized
         // when read in, and no longer correspond to the source.
         if let Some(mac) = self.tcx.sess.imported_macro_spans.borrow().get(&callsite) {
+            println!("IMPORT MAC");
             let &(ref mac_name, mac_span) = mac;
             let mac_span = span_from_span(self.tcx, mac_span);
-            return Some(MacroRef {
+            return Some((callee, MacroRef {
                 span: callsite_span,
-                qualname: mac_name.clone(), // FIXME: generate the real qualname
+                qualname,
                 callee_span: mac_span,
-            });
+            }));
         }
-
-        let callee_span = span_from_span(self.tcx, callsite);
-        Some(MacroRef {
+        Some((callee, MacroRef {
             span: callsite_span,
-            qualname: "".to_string(), // FIXME: generate the real qualname
+            qualname,
             callee_span,
-        })
+        }))
     }
 
     /// Extracts macro use and definition information from the AST node defined
@@ -287,8 +279,8 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
     /// callsite spans to record macro definition and use data, using the
     /// mac_uses and mac_defs sets to prevent multiples.
     fn process_macro_use(&mut self, span: Span) {
-        use std::hash::Hasher;
         use std::hash::Hash;
+        use std::hash::Hasher;
         // FIXME if we're not dumping the defs (see below), there is no point
         // dumping refs either.
         let source_span = span.source_callsite();
@@ -297,105 +289,112 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
             return;
         }
 
-        let data = match self.get_macro_use_data(span) {
+        let (callee, data) = match self.get_macro_use_data(span) {
             None => {
                 println!("NO USE DAtA");
                 return;
-            },
+            }
             Some(data) => data,
         };
-        // FIXME write the macro def
+        // println!("MAC SPAN {:#?}", data);
+
         let mut hasher = DefaultHasher::new();
         (data.span.byte_end, data.callee_span.byte_start).hash(&mut hasher);
         let hash = hasher.finish();
+
         let qualname = format!("{}::{}", data.qualname, hash);
         println!("NAME {:?}", qualname);
         // Don't write macro definition for imported macros
         if !self.macro_defs.contains(&span.source_callsite()) {
-            println!("INSERT {:?}", span.source_callsite());
             self.macro_defs.insert(span.source_callsite());
         }
         self.dumper.macro_use(data);
 
         let sm = self.tcx.sess.source_map();
         let filename = sm.span_to_filename(span);
-        self.refs.lock().unwrap().push(Macro {
-            docs: String::default(),
-            name: String::default(),
+        let (docs, name) = self.defs.lock().unwrap().iter()
+            .find(|def| {
+                def.span == callee
+            })
+            .map(|mac| (mac.docs.to_string(), mac.name.to_string()))
+            .unwrap_or_else(|| (String::new(), String::default()));
+
+        let mac_ref = MacroData {
+            docs,
+            name,
             file_name: filename.to_string(),
-            id: ast::NodeId::from_u32(12),
+            id: ast::NodeId::from_u32(0),
             span,
-        });
+        };
+        self.refs.lock().unwrap().push(mac_ref.clone());
+        self.dumper.dump_ref(mac_ref.lower(self.tcx))
     }
 }
 
 impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
     fn visit_item(&mut self, i: &'a ast::Item) {
-        if let ast::ItemKind::MacroDef(ref mac) = i.kind {
-            let qualname = String::default();
-            // format!("::{}", self.tcx.def_path_str(self.tcx.hir().local_def_id_from_node_id(i.id)));
+        match i.kind {
+            ast::ItemKind::MacroDef(ref mac) => {
+                // TODO local_def_id_from_node_id still panics with crazy i.id
+                // are these stable throughout compilation??
+                //
+                // let qualname =
+                //     format!("::{}", self.tcx.def_path_str(self.tcx.hir().local_def_id_from_node_id(i.id)));
 
-            let sig = Some(Signature {
-                text: format!("macro_rules! {} (args...)", i.ident.to_string()),
-                defs: Vec::default(),
-                refs: Vec::default(),
-            });
-            // let qualname = 
-                // format!("::{}", self.tcx.def_path_str(self.tcx.hir().local_def_id_from_node_id(i.id)));
+                let sm = self.tcx.sess.source_map();
+                let filename = sm.span_to_filename(i.span);
+                let qualname = format!("::{}", file_to_qualname(&filename.to_string()));
 
-            let sm = self.tcx.sess.source_map();
-            let filename = sm.span_to_filename(i.span);
-            let qualname = filename.to_string()
-                .split('/')
-                .last()
-                .map(|s| format!(
-                    "::{}",
-                    s.split('.').map(|s| s.to_string()).collect::<Vec<String>>().first().cloned().unwrap_or_default()
-                ))
-                .unwrap_or_else(|| String::from("::"));
+                let data_id = id_from_node_id(i.id, &self.tcx);
+                let span = span_from_span(&self.tcx, i.span);
+                let docs = self
+                    .defs
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .find(|mac| mac.span == i.span)
+                    .map(|mac| mac.docs.clone())
+                    .unwrap_or_default();
 
-            let data_id = id_from_node_id(i.id, &self.tcx);
-            let span = span_from_span(&self.tcx, i.span);
-            let docs = self.defs.lock().unwrap()
-                .iter()
-                .find(|mac| mac.span == i.span)
-                .map(|mac| mac.docs.clone())
-                .unwrap_or_default();
-
-            self.dumper.dump_def(
-                &Access { public: true, reachable: true },
-                Def {
-                    kind: DefKind::Macro,
-                    id: data_id,
-                    name: i.ident.to_string(),
-                    qualname,
-                    span,
-                    value: filename.to_string(),
-                    children: Vec::default(),
-                    parent: None,
-                    decl_id: None,
-                    docs,
-                    sig,
-                    attributes: lower_attributes(i.attrs.to_owned(), &self.tcx),
-                },
-            );
-            self.macro_defs.insert(i.span);
-            // println!("{:#?}", self.defs);
+                self.dumper.dump_def(
+                    &Access { public: true, reachable: true },
+                    Def {
+                        kind: DefKind::Macro,
+                        id: data_id,
+                        name: i.ident.to_string(),
+                        qualname,
+                        span,
+                        value: format!("macro_rules! {} (args...)", i.ident.to_string()),
+                        children: Vec::default(),
+                        parent: None,
+                        decl_id: None,
+                        docs,
+                        sig: None,
+                        attributes: lower_attributes(i.attrs.to_owned(), &self.tcx),
+                    },
+                );
+                self.macro_defs.insert(i.span);
+            }
+            _ => {
+                visit::walk_item(self, i)
+            },
         }
-        if let ast::ItemKind::Mac(ref mac) = i.kind {
-            println!("MAC IDENT {:?}", i.ident);
-            visit::walk_mac(self, mac);
-        }
-        // Keep walking.
-        visit::walk_item(self, i)
     }
-
+    // fn visit_expr(&mut self, expr: &'a ast::Expr) {
+    //     println!("EXPR");
+    //     self.process_macro_use(expr.span);
+    //     visit::walk_expr(self, expr)
+    // }
+    // fn visit_stmt(&mut self, stmt: &'a ast::Stmt) {
+    //     println!("STMT");
+    //     // self.process_macro_use(stmt.span);
+    //     visit::walk_stmt(self, stmt)
+    // }
     fn visit_mac(&mut self, mac: &'a ast::Mac) {
-        println!("MAC");
+        // println!("VISIT MAC {:?}", mac);
         self.process_macro_use(mac.span());
-        visit::walk_mac(self, mac);
+        // visit::walk_mac(self, mac);
     }
-    fn visit_mac_def(&mut self, mac: &'a ast::MacroDef, id: ast::NodeId) {}
 }
 
 // Taken directly from `librustc_save_analysis`
@@ -517,6 +516,22 @@ pub fn get_external_crates(tcx: &TyCtxt<'_>) -> Vec<ExternalCrateData> {
     result
 }
 
+pub fn file_to_qualname(filename: &str) -> String {
+    filename
+        .to_string()
+        .split('/')
+        .last()
+        .map(|s| {
+            s.split('.')
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
+                .first()
+                .cloned()
+                .unwrap_or_default()
+        })
+        .unwrap_or_else(|| String::new())
+}
+
 pub fn make_filename_string(tcx: &TyCtxt<'_>, file: &SourceFile) -> String {
     match &file.name {
         FileName::Real(path) if !file.name_was_remapped => {
@@ -538,7 +553,7 @@ pub fn make_filename_string(tcx: &TyCtxt<'_>, file: &SourceFile) -> String {
     }
 }
 
-fn docs_for_attrs(cfg: &rls_data::Config, attrs: &[ast::Attribute]) -> String {
+fn docs_for_attrs(full_docs: bool, attrs: &[ast::Attribute]) -> String {
     let mut result = String::new();
 
     for attr in attrs {
@@ -566,7 +581,7 @@ fn docs_for_attrs(cfg: &rls_data::Config, attrs: &[ast::Attribute]) -> String {
         }
     }
 
-    if !cfg.full_docs {
+    if !full_docs {
         if let Some(index) = result.find("\n\n") {
             result.truncate(index);
         }

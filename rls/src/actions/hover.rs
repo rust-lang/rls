@@ -798,6 +798,40 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
     result.trim().into()
 }
 
+fn tooltip_macro(
+    ctx: &InitActionContext,
+    def: &Def,
+    doc_url: Option<String>,
+) -> Vec<MarkedString> {
+    debug!("tooltip_function_method: {}", def.name);
+
+    let vfs = &ctx.vfs;
+    let fmt_config = ctx.fmt_config();
+    // We hover often, so use the in-process one to speed things up.
+    let fmt = Rustfmt::Internal;
+
+    let docs = def_docs(def, &vfs);
+    let context = None;
+
+    create_tooltip(def.value.to_string(), doc_url, context, docs)
+}
+
+pub fn macro_hover_fallback(
+    ctx: &InitActionContext,
+    hover_span: Span<rls_span::ZeroIndexed>,
+) -> rls_analysis::AResult<Tooltip> {
+    let err = rls_analysis::AError::Unclassified;
+    let line = ctx.vfs.load_span(hover_span.clone()).map_err(|_| err)?;
+
+    println!("{:?}", line);
+
+    let id = ctx.analysis.search_for_id(&line)?;
+    ctx.analysis.get_def(*id.last().ok_or(err)?)
+        .and_then(|def| if def.kind == DefKind::Macro { Ok(def) } else { Err(err) })
+        .map(|def| tooltip_macro(ctx, &def, None))
+        .map(|contents| Tooltip { contents, range: hover_span.range })
+}
+
 /// Builds a hover tooltip composed of the function signature or type declaration, doc URL
 /// (if available in the save-analysis), source extracted documentation, and code context
 /// for local variables.
@@ -806,9 +840,9 @@ pub fn tooltip(
     params: &TextDocumentPositionParams,
 ) -> Result<Tooltip, ResponseError> {
     let analysis = &ctx.analysis;
-
     let hover_file_path = parse_file_path!(&params.text_document.uri, "hover")?;
     let hover_span = ctx.convert_pos_to_span(hover_file_path, params.position);
+
     let hover_span_doc = analysis.docs(&hover_span).unwrap_or_else(|_| String::new());
     let hover_span_typ = analysis.show_type(&hover_span).unwrap_or_else(|_| String::new());
     let hover_span_def = analysis.id(&hover_span).and_then(|id| analysis.get_def(id));
@@ -822,8 +856,13 @@ pub fn tooltip(
     // trace!("tooltip: span_def: {:?}", hover_span_def);
     println!("tooltip: span_def: {:?}", hover_span_def);
 
-    let racer_fallback_enabled = ctx.config.lock().unwrap().racer_completion;
+    if hover_span_def.is_err() {
+        if let Ok(tooltip) = macro_hover_fallback(ctx, hover_span.clone()) {
+            return Ok(tooltip);
+        }
+    }
 
+    let racer_fallback_enabled = ctx.config.lock().unwrap().racer_completion;
     // Fallback to racer if the def was not available and racer is enabled.
     let hover_span_def = hover_span_def.or_else(|e| {
         // debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
@@ -903,6 +942,7 @@ pub fn tooltip(
     };
     // debug!("tooltip: contents.len: {}", contents.len());
     println!("tooltip: contents.len: {}", contents.len());
+
     Ok(Tooltip { contents, range: hover_span.range })
 }
 
