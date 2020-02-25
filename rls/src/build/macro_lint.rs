@@ -86,21 +86,23 @@ impl MacroDoc {
 impl_lint_pass!(MacroDoc => [MACRO_DOCS]);
 
 impl EarlyLintPass for MacroDoc {
-    fn check_item(&mut self, ectx: &EarlyContext<'_>, it: &ast::Item) {
-        if let ast::ItemKind::MacroDef(_) = &it.kind {
-            let docs = docs_for_attrs(true, &it.attrs);
+    fn check_item(&mut self, ectx: &EarlyContext<'_>, item: &ast::Item) {
+        if let ast::ItemKind::MacroDef(_) = &item.kind {
+            let docs = docs_for_attrs(true, &item.attrs);
 
             let sm = ectx.sess.source_map();
-            let filename = sm.span_to_filename(it.span);
-            let name = it.ident.to_string();
-            let id = it.id;
+            let filename = sm.span_to_filename(item.span);
+            let name = item.ident.to_string();
+            let id = item.id;
+
+            println!("lint pass id {:?}", item.id);
 
             self.defs.lock().unwrap().push(MacroData {
                 docs,
                 name,
                 file_name: filename.to_string(),
                 id,
-                span: it.span,
+                span: item.span,
             });
         }
     }
@@ -223,10 +225,14 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
         // macro uses.
         let callsite = span.source_callsite();
         let callsite_span = span_from_span(self.tcx, callsite);
+
         // TODO how to find ExpnId
         let callee =
             span.with_def_site_ctxt(ExpnId::from_u32(2)).source_callee().expect(msg).def_site;
         let callee_span = span_from_span(self.tcx, callsite);
+
+        println!("dumper def len {}", self.dumper.result.defs.len());
+        println!("macro data len {}", self.defs.lock().unwrap().len());
 
         let qualname = file_to_qualname(
             &callee_span.file_name.to_str().map(|s| s.to_string()).unwrap_or_default(),
@@ -330,8 +336,8 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
 }
 
 impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
-    fn visit_item(&mut self, i: &'a ast::Item) {
-        match i.kind {
+    fn visit_item(&mut self, item: &'a ast::Item) {
+        match item.kind {
             ast::ItemKind::MacroDef(ref mac) => {
                 // TODO local_def_id_from_node_id still panics with crazy i.id
                 // are these stable throughout compilation??
@@ -340,17 +346,17 @@ impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
                 //     format!("::{}", self.tcx.def_path_str(self.tcx.hir().local_def_id_from_node_id(i.id)));
 
                 let sm = self.tcx.sess.source_map();
-                let filename = sm.span_to_filename(i.span);
+                let filename = sm.span_to_filename(item.span);
                 let qualname = format!("::{}", file_to_qualname(&filename.to_string()));
-
-                let data_id = id_from_node_id(i.id, &self.tcx);
-                let span = span_from_span(&self.tcx, i.span);
+                println!("visit id {:?}", item.id);
+                let data_id = id_from_node_id(item.id, &self.tcx);
+                let span = span_from_span(&self.tcx, item.span);
                 let docs = self
                     .defs
                     .lock()
                     .unwrap()
                     .iter()
-                    .find(|mac| mac.span == i.span)
+                    .find(|mac| mac.span == item.span)
                     .map(|mac| mac.docs.clone())
                     .unwrap_or_default();
 
@@ -359,21 +365,21 @@ impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
                     Def {
                         kind: DefKind::Macro,
                         id: data_id,
-                        name: i.ident.to_string(),
+                        name: item.ident.to_string(),
                         qualname,
                         span,
-                        value: format!("macro_rules! {} (args...)", i.ident.to_string()),
+                        value: format!("macro_rules! {} (args...)", item.ident.to_string()),
                         children: Vec::default(),
                         parent: None,
                         decl_id: None,
                         docs,
                         sig: None,
-                        attributes: lower_attributes(i.attrs.to_owned(), &self.tcx),
+                        attributes: lower_attributes(item.attrs.to_owned(), &self.tcx),
                     },
                 );
-                self.macro_defs.insert(i.span);
+                self.macro_defs.insert(item.span);
             }
-            _ => visit::walk_item(self, i),
+            _ => visit::walk_item(self, item),
         }
     }
     // fn visit_expr(&mut self, expr: &'a ast::Expr) {
