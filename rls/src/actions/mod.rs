@@ -422,8 +422,7 @@ impl InitActionContext {
 
         let pos = ls_util::position_to_rls(pos);
         let line = self.vfs.load_line(&file_path, pos.row).unwrap();
-        // trace!("line: `{}`", line);
-        println!("line: `{}`", line);
+        trace!("line: `{}`", line);
 
         let (start, end) = find_word_at_pos(&line, pos.col);
         trace!("start: {}, end: {}", start.0, end.0);

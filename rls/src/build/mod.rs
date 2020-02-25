@@ -556,7 +556,7 @@ impl Internals {
                 }
             }
         };
-        println!("specified work: {:#?}", work);
+        trace!("specified work: {:#?}", work);
 
         let result = match work {
             WorkStatus::NeedsCargo(package_arg) => cargo::cargo(self, package_arg, progress_sender),
@@ -566,7 +566,7 @@ impl Internals {
         if let BuildResult::Success(.., true) = result {
             let elapsed = start.elapsed();
             *self.last_build_duration.write().unwrap() = Some(elapsed);
-            println!("build finished in {:.1?}", elapsed);
+            trace!("build finished in {:.1?}", elapsed);
         }
 
         result

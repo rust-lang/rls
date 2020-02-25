@@ -108,7 +108,7 @@ impl EarlyLintPass for MacroDoc {
 
 pub struct MacroDocCtxt<'l, 'tcx> {
     pub defs: Arc<Mutex<Vec<MacroData>>>,
-    pub refs: Arc<Mutex<Vec<MacroData>>>,
+    // pub refs: Arc<Mutex<Vec<MacroData>>>,
     pub dumper: Dumper,
     pub tcx: &'l TyCtxt<'tcx>,
     pub macro_calls: FxHashSet<Span>,
@@ -128,12 +128,12 @@ impl<'l, 'tcx> fmt::Debug for MacroDocCtxt<'l, 'tcx> {
 impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
     pub(crate) fn new(
         defs: Arc<Mutex<Vec<MacroData>>>,
-        refs: Arc<Mutex<Vec<MacroData>>>,
+        // refs: Arc<Mutex<Vec<MacroData>>>,
         tcx: &'l TyCtxt<'tcx>,
     ) -> Self {
         Self {
             defs,
-            refs,
+            // refs,
             dumper: Dumper::new(rls_data::Config::default()),
             tcx,
             macro_calls: FxHashSet::default(),
@@ -324,7 +324,7 @@ impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
             id: ast::NodeId::from_u32(0),
             span,
         };
-        self.refs.lock().unwrap().push(mac_ref.clone());
+        // self.refs.lock().unwrap().push(mac_ref.clone());
         self.dumper.dump_ref(mac_ref.lower(self.tcx))
     }
 }

@@ -329,7 +329,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         let expanded_crate = &queries.expansion().unwrap().peek().0;
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             let mut visitor =
-                MacroDocCtxt::new(Arc::clone(&self.mac_defs), Arc::clone(&self.mac_refs), &tcx);
+                MacroDocCtxt::new(Arc::clone(&self.mac_defs), &tcx);
             visitor.dump_crate_info(&crate_name, &krate);
             visitor.dump_compilation_opts(input, &crate_name);
             visit::walk_crate(&mut visitor, &krate);
@@ -353,7 +353,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         });
         // println!("MACRO DEFS {:#?}", self.mac_defs);
         // println!("MACRO REFS {:#?}", self.mac_refs);
-        println!("REFS {:#?}", self.analysis.lock().unwrap().as_ref().unwrap().refs);
+        // println!("REFS {:#?}", self.analysis.lock().unwrap().as_ref().unwrap().refs);
         Compilation::Continue
     }
 }

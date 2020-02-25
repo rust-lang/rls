@@ -799,13 +799,8 @@ fn format_method(rustfmt: Rustfmt, fmt_config: &FmtConfig, the_type: String) -> 
 }
 
 fn tooltip_macro(ctx: &InitActionContext, def: &Def, doc_url: Option<String>) -> Vec<MarkedString> {
-    debug!("tooltip_function_method: {}", def.name);
-
+    debug!("tooltip_macro: {}", def.name);
     let vfs = &ctx.vfs;
-    let fmt_config = ctx.fmt_config();
-    // We hover often, so use the in-process one to speed things up.
-    let fmt = Rustfmt::Internal;
-
     let docs = def_docs(def, &vfs);
     let context = None;
 
