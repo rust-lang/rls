@@ -16,25 +16,32 @@ use rustc::middle::privacy::AccessLevels;
 use rustc::ty::{self, DefIdTree, TyCtxt};
 use rustc_ast_pretty::pprust::{self, param_to_string, ty_to_string};
 use rustc_codegen_utils::link::{filename_for_metadata, out_filename};
-use rustc_data_structures::fx::FxHashSet;
+use rustc_data_structures::fx::{FxHashSet, FxHashMap};
 use rustc_driver::Callbacks;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 // use rustc_interface::{Config, interface::Compiler, Queries};
 use rustc_interface::Config;
-use rustc_lint::{EarlyContext, EarlyLintPass};
+use rustc_lint::{EarlyContext, EarlyLintPass, LateContext, LateLintPass, Level, Lint, LintContext};
 use rustc_save_analysis::SaveContext;
 use rustc_session::{
     config::{CrateType, Input, OutputType},
     declare_lint, impl_lint_pass,
 };
 use rustc_span::hygiene::{ExpnId, SyntaxContext};
-use rustc_span::{sym, ExpnKind, FileName, MacroKind, SourceFile, Span};
+use rustc_span::{sym, ExpnKind, FileName, MacroKind, SourceFile, Span, ExpnData};
 use syntax::{ast, util::comments::strip_doc_comment_decoration, visit};
+use rustc_hir::{
+    def_id::DefIndex,
+    BodyId, FnDecl, GenericArg, GenericBound, GenericParam, GenericParamKind, Generics, ImplItem, ImplItemKind, Item,
+    ItemKind, Lifetime, LifetimeName, ParamName, QPath, TraitBoundModifier, TraitItem, TraitItemKind, TraitMethod, Ty,
+    TyKind, WhereClause, WherePredicate, Expr, Stmt, HirId, Crate,
+};
 
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::borrow::Cow;
 
 use rls_data::{
     Analysis, Attribute, CompilationOptions, CratePreludeData, Def, DefKind, ExternalCrateData,
@@ -52,17 +59,17 @@ declare_lint! {
 }
 
 #[derive(Debug, Clone)]
-pub struct MacroData {
-    pub docs: String,
+pub struct MacroDocRef {
     pub name: String,
-    file_name: String,
     pub id: ast::NodeId,
     pub span: Span,
 }
-unsafe impl Send for MacroData {}
-impl MacroData {
+
+unsafe impl Send for MacroDocRef {}
+
+impl MacroDocRef {
     pub fn lower(self, ctxt: &TyCtxt<'_>) -> Ref {
-        let MacroData { docs, name, file_name, id, span } = self;
+        let MacroDocRef { name, id, span } = self;
 
         Ref {
             kind: RefKind::Macro,
@@ -74,11 +81,11 @@ impl MacroData {
 
 #[derive(Default, Debug)]
 pub struct MacroDoc {
-    pub defs: Arc<Mutex<Vec<MacroData>>>,
+    pub defs: Arc<Mutex<Vec<Def>>>,
 }
 
 impl MacroDoc {
-    pub(crate) fn new(defs: Arc<Mutex<Vec<MacroData>>>) -> Self {
+    pub(crate) fn new(defs: Arc<Mutex<Vec<Def>>>) -> Self {
         Self { defs }
     }
 }
@@ -97,305 +104,111 @@ impl EarlyLintPass for MacroDoc {
 
             println!("lint pass id {:?}", item.id);
 
-            self.defs.lock().unwrap().push(MacroData {
-                docs,
-                name,
-                file_name: filename.to_string(),
-                id,
-                span: item.span,
+            self.defs.lock().unwrap().push(Def {
+                kind: DefKind::Macro,
+                id: Id,
+                span: span_from_span(ctxt, span),
+                name: name,
+                qualname: String,
+                value: String,
+                parent: Option<Id>,
+                children: Vec<Id>,
+                decl_id: Option<Id>,
+                docs: String,
+                sig: Option<Signature>,
+                attributes: Vec<Attribute>,
             });
         }
     }
 }
 
-pub struct MacroDocCtxt<'l, 'tcx> {
-    pub defs: Arc<Mutex<Vec<MacroData>>>,
-    // pub refs: Arc<Mutex<Vec<MacroData>>>,
-    pub dumper: Dumper,
-    pub tcx: &'l TyCtxt<'tcx>,
-    pub macro_calls: FxHashSet<Span>,
-    pub macro_defs: FxHashSet<Span>,
+declare_lint! {
+    pub LATE_MACRO_DOCS,
+    Allow,
+    "gathers documentation for macros",
+    report_in_external_macro
 }
 
-impl<'l, 'tcx> fmt::Debug for MacroDocCtxt<'l, 'tcx> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MacroDocCtx")
-            .field("defs", &self.defs)
-            .field("dumper", &self.dumper)
-            .field("context", &self.tcx.def_path_hash_to_def_id)
-            .finish()
-    }
+#[derive(Clone, Debug, Default)]
+pub struct LateMacroDocs {
+    pub macro_map: FxHashMap<DefIndex, (HirId, String)>,
+    pub defs: Arc<Mutex<Vec<Def>>>,
+    pub refs: Arc<Mutex<Vec<MacroDocRef>>>,
 }
 
-impl<'l, 'tcx> MacroDocCtxt<'l, 'tcx> {
-    pub(crate) fn new(
-        defs: Arc<Mutex<Vec<MacroData>>>,
-        // refs: Arc<Mutex<Vec<MacroData>>>,
-        tcx: &'l TyCtxt<'tcx>,
-    ) -> Self {
+impl LateMacroDocs {
+    pub fn new(defs: Arc<Mutex<Vec<Def>>>, refs: Arc<Mutex<Vec<MacroDocRef>>>) -> Self {
         Self {
+            macro_map: FxHashMap::default(),
             defs,
-            // refs,
-            dumper: Dumper::new(rls_data::Config::default()),
-            tcx,
-            macro_calls: FxHashSet::default(),
-            macro_defs: FxHashSet::default(),
+            refs,
         }
-    }
-
-    pub fn dump_crate_info(&mut self, name: &str, krate: &ast::Crate) {
-        let source_file = self.tcx.sess.local_crate_source_file.as_ref();
-        let crate_root = source_file.map(|source_file| {
-            let source_file = Path::new(source_file);
-            match source_file.file_name() {
-                Some(_) => source_file.parent().unwrap().display(),
-                None => source_file.display(),
-            }
-            .to_string()
-        });
-
-        let data = CratePreludeData {
-            crate_id: GlobalCrateId {
-                name: name.into(),
-                disambiguator: self
-                    .tcx
-                    .sess
-                    .local_crate_disambiguator()
-                    .to_fingerprint()
-                    .as_value(),
-            },
-            crate_root: crate_root.unwrap_or_else(|| "<no source>".to_owned()),
-            external_crates: get_external_crates(self.tcx),
-            span: span_from_span(&self.tcx, krate.span),
-        };
-
-        self.dumper.crate_prelude(data);
-    }
-
-    pub fn dump_compilation_opts(&mut self, input: &Input, crate_name: &str) {
-        // Apply possible `remap-path-prefix` remapping to the input source file
-        // (and don't include remapping args anymore)
-        let (program, arguments) = {
-            let remap_arg_indices = {
-                let mut indices = FxHashSet::default();
-                // Args are guaranteed to be valid UTF-8 (checked early)
-                for (i, e) in std::env::args().enumerate() {
-                    if e.starts_with("--remap-path-prefix=") {
-                        indices.insert(i);
-                    } else if e == "--remap-path-prefix" {
-                        indices.insert(i);
-                        indices.insert(i + 1);
-                    }
-                }
-                indices
-            };
-
-            let mut args = std::env::args()
-                .enumerate()
-                .filter(|(i, _)| !remap_arg_indices.contains(i))
-                .map(|(_, arg)| match input {
-                    Input::File(ref path) if path == Path::new(&arg) => {
-                        let mapped = &self.tcx.sess.local_crate_source_file;
-                        mapped.as_ref().unwrap().to_string_lossy().into()
-                    }
-                    _ => arg,
-                });
-
-            (args.next().unwrap(), args.collect())
-        };
-
-        let data = CompilationOptions {
-            directory: self.tcx.sess.working_dir.0.clone(),
-            program,
-            arguments,
-            output: compilation_output(self.tcx, crate_name),
-        };
-
-        self.dumper.compilation_opts(data);
-    }
-
-    pub fn get_macro_use_data(&self, span: Span) -> Option<(Span, MacroRef)> {
-        // if !generated_code(span) {
-        //     println!("LEAVING GEN CODE");
-        //     return None;
-        // }
-        let msg = "failed to create ctxt callee span";
-        // Note we take care to use the source callsite/callee, to handle
-        // nested expansions and ensure we only generate data for source-visible
-        // macro uses.
-        let callsite = span.source_callsite();
-        let callsite_span = span_from_span(self.tcx, callsite);
-
-        // TODO how to find ExpnId
-        let callee =
-            span.with_def_site_ctxt(ExpnId::from_u32(2)).source_callee().expect(msg).def_site;
-        let callee_span = span_from_span(self.tcx, callsite);
-
-        println!("dumper def len {}", self.dumper.result.defs.len());
-        println!("macro data len {}", self.defs.lock().unwrap().len());
-
-        let qualname = file_to_qualname(
-            &callee_span.file_name.to_str().map(|s| s.to_string()).unwrap_or_default(),
-        );
-        // println!(
-        //     "parent {}\ncallee {}\ndef site {:#?}",
-        //     span.parent().is_some(),
-        //     span.source_callee().is_some(),
-        //     span.ctxt().remove_mark()
-        // );
-
-        // let mac_name = match callee.kind {
-        //     ExpnKind::Macro(mac_kind, name) => match mac_kind {
-        //         MacroKind::Bang => name,
-
-        //         // Ignore attribute macros, their spans are usually mangled
-        //         // FIXME(eddyb) is this really the case anymore?
-        //         MacroKind::Attr | MacroKind::Derive => return None,
-        //     },
-
-        //     // These are not macros.
-        //     // FIXME(eddyb) maybe there is a way to handle them usefully?
-        //     ExpnKind::Root | ExpnKind::AstPass(_) | ExpnKind::Desugaring(_) => return None,
-        // };
-
-        // If the callee is an imported macro from an external crate, need to get
-        // the source span and name from the session, as their spans are localized
-        // when read in, and no longer correspond to the source.
-        if let Some(mac) = self.tcx.sess.imported_macro_spans.borrow().get(&callsite) {
-            println!("IMPORT MAC");
-            let &(ref mac_name, mac_span) = mac;
-            let mac_span = span_from_span(self.tcx, mac_span);
-            return Some((
-                callee,
-                MacroRef { span: callsite_span, qualname, callee_span: mac_span },
-            ));
-        }
-        Some((callee, MacroRef { span: callsite_span, qualname, callee_span }))
-    }
-
-    /// Extracts macro use and definition information from the AST node defined
-    /// by the given NodeId, using the expansion information from the node's
-    /// span.
-    ///
-    /// If the span is not macro-generated, do nothing, else use callee and
-    /// callsite spans to record macro definition and use data, using the
-    /// mac_uses and mac_defs sets to prevent multiples.
-    fn process_macro_use(&mut self, span: Span) {
-        use std::hash::Hash;
-        use std::hash::Hasher;
-        // FIXME if we're not dumping the defs (see below), there is no point
-        // dumping refs either.
-        let source_span = span.source_callsite();
-        if !self.macro_calls.insert(source_span) {
-            println!("BAIL OUT");
-            return;
-        }
-
-        let (callee, data) = match self.get_macro_use_data(span) {
-            None => {
-                println!("NO USE DAtA");
-                return;
-            }
-            Some(data) => data,
-        };
-        // println!("MAC SPAN {:#?}", data);
-
-        let mut hasher = DefaultHasher::new();
-        (data.span.byte_end, data.callee_span.byte_start).hash(&mut hasher);
-        let hash = hasher.finish();
-
-        let qualname = format!("{}::{}", data.qualname, hash);
-        println!("NAME {:?}", qualname);
-        // Don't write macro definition for imported macros
-        if !self.macro_defs.contains(&span.source_callsite()) {
-            self.macro_defs.insert(span.source_callsite());
-        }
-        self.dumper.macro_use(data);
-
-        let sm = self.tcx.sess.source_map();
-        let filename = sm.span_to_filename(span);
-        let (docs, name) = self
-            .defs
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|def| def.span == callee)
-            .map(|mac| (mac.docs.to_string(), mac.name.to_string()))
-            .unwrap_or_else(|| (String::new(), String::default()));
-
-        let mac_ref = MacroData {
-            docs,
-            name,
-            file_name: filename.to_string(),
-            id: ast::NodeId::from_u32(0),
-            span,
-        };
-        // self.refs.lock().unwrap().push(mac_ref.clone());
-        self.dumper.dump_ref(mac_ref.lower(self.tcx))
     }
 }
+impl_lint_pass!(LateMacroDocs => [LATE_MACRO_DOCS]);
 
-impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
-    fn visit_item(&mut self, item: &'a ast::Item) {
-        match item.kind {
-            ast::ItemKind::MacroDef(ref mac) => {
-                // TODO local_def_id_from_node_id still panics with crazy i.id
-                // are these stable throughout compilation??
-                //
-                // let qualname =
-                //     format!("::{}", self.tcx.def_path_str(self.tcx.hir().local_def_id_from_node_id(i.id)));
+impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LateMacroDocs {
+    // fn check_item(&mut self, ecx: &LateContext<'a, 'tcx>, item: &'tcx Item<'tcx>) {
+    //     if in_macro(item.span) {
+    //         println!("LATE PASS ITEM {:#?}", item);
+    //     }
+    // }
 
-                let sm = self.tcx.sess.source_map();
-                let filename = sm.span_to_filename(item.span);
-                let qualname = format!("::{}", file_to_qualname(&filename.to_string()));
-                println!("visit id {:?}", item.id);
-                let data_id = id_from_node_id(item.id, &self.tcx);
-                let span = span_from_span(&self.tcx, item.span);
-                let docs = self
-                    .defs
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .find(|mac| mac.span == item.span)
-                    .map(|mac| mac.docs.clone())
-                    .unwrap_or_default();
-
-                self.dumper.dump_def(
-                    &Access { public: true, reachable: true },
-                    Def {
-                        kind: DefKind::Macro,
-                        id: data_id,
-                        name: item.ident.to_string(),
-                        qualname,
-                        span,
-                        value: format!("macro_rules! {} (args...)", item.ident.to_string()),
-                        children: Vec::default(),
-                        parent: None,
-                        decl_id: None,
-                        docs,
-                        sig: None,
-                        attributes: lower_attributes(item.attrs.to_owned(), &self.tcx),
-                    },
-                );
-                self.macro_defs.insert(item.span);
+    fn check_expr(&mut self, lcx: &LateContext<'a, 'tcx>, expr: &'tcx Expr<'_>) {
+        if in_macro(expr.span) && !self.macro_map.contains_key(&expr.hir_id.owner) {
+            let mac_ref = MacroDocRef {
+                name,
+                span,
+                id,
+            };
+            self.refs.lock().unwrap().push();
+            println!("SOURCE {:#?}", expr.span.source_callee());
+            println!("PARENT {:#?}", lcx.tcx.hir().get_parent_item(expr.hir_id));
+            println!("SNIP {:#?}", snippet_with_macro_callsite(lcx, expr.span, "oops"));
+            println!("GLOB {:#?}", lcx.tcx.names_imported_by_glob_use(expr.hir_id.owner_def_id()));
+            println!("DEF PATH {:?}", lcx.get_def_path(expr.hir_id.owner_def_id()));
+            let parent = lcx.tcx.hir().get_parent_item(expr.hir_id);
+            // println!(
+            //     "{:?}",
+            //     snippet_with_macro_callsite(
+            //         lcx,
+            //         expr.span.with_def_site_ctxt(expr.span.source_callee().unwrap().parent),
+            //         "oops",
+            //     )
+            // );
+            if let Some(expnd) = expr.span.source_callee() {
+                if let ExpnKind::Macro(kind, sym) = expnd.kind {
+                    self.macro_map.insert(expr.hir_id.owner, (expr.hir_id, sym.to_string()));
+                } else {
+                    self.macro_map.insert(expr.hir_id.owner, (expr.hir_id, String::from("<unknown macro>")));
+                }
+            } else {
+                self.macro_map.insert(expr.hir_id.owner, (expr.hir_id, String::from("<unknown macro>")));
             }
-            _ => visit::walk_item(self, item),
         }
     }
-    // fn visit_expr(&mut self, expr: &'a ast::Expr) {
-    //     println!("EXPR");
-    //     self.process_macro_use(expr.span);
-    //     visit::walk_expr(self, expr)
+    // fn check_stmt(&mut self, lcx: &LateContext<'a, 'tcx>, stmt: &'tcx Stmt<'_>) {
+    //     if in_macro(stmt.span) {
+    //         println!("{:#?}", stmt);
+    //     }
     // }
-    // fn visit_stmt(&mut self, stmt: &'a ast::Stmt) {
-    //     println!("STMT");
-    //     // self.process_macro_use(stmt.span);
-    //     visit::walk_stmt(self, stmt)
-    // }
-    fn visit_mac(&mut self, mac: &'a ast::Mac) {
-        // println!("VISIT MAC {:?}", mac);
-        self.process_macro_use(mac.span());
-        // visit::walk_mac(self, mac);
+
+    fn check_crate_post(&mut self, lcx: &LateContext<'a, 'tcx>, k: &'tcx Crate<'tcx>) {
+        let lkd_defs = self.defs.lock().unwrap();
+        if !lkd_defs.is_empty() {
+            for (hir_index, (hirid, name)) in self.macro_map.iter() {
+                // println!("{:?}", lcx.tcx.hir().def_path_from_hir_id(*hirid));
+                // println!("{:?}", snippet_with_macro_callsite(lcx, lcx.tcx.hir().span(*hirid), "oops"));
+                // println!(
+                //     "{:#?}",
+                //     lcx.tcx.hir().span(*hirid).source_callee().unwrap()
+                // );
+            }
+            for mac_def in lkd_defs.iter() {
+                println!("MAC DEFS {:#?}", mac_def);
+            }
+            // println!("{:#?}", lcx.tcx.names_imported_by_glob_use(k.hir_id.owner_def_id()));
+        }
     }
 }
 
@@ -406,6 +219,42 @@ impl<'a, 'tcx> visit::Visitor<'a> for MacroDocCtxt<'a, 'tcx> {
 /// Helper function to escape quotes in a string
 fn escape(s: String) -> String {
     s.replace("\"", "\"\"")
+}
+
+pub fn in_macro(span: Span) -> bool {
+    if span.from_expansion() {
+        if let ExpnKind::Desugaring(..) = span.ctxt().outer_expn_data().kind {
+            false
+        } else {
+            true
+        }
+    } else {
+        false
+    }
+}
+
+/// Converts a span to a code snippet if available, otherwise use default.
+///
+/// This is useful if you want to provide suggestions for your lint or more generally, if you want
+/// to convert a given `Span` to a `str`.
+///
+/// # Example
+/// ```rust,ignore
+/// snippet(cx, expr.span, "..")
+/// ```
+pub fn snippet<'a, T: LintContext>(cx: &T, span: Span, default: &'a str) -> Cow<'a, str> {
+    snippet_opt(cx, span).map_or_else(|| Cow::Borrowed(default), From::from)
+}
+
+/// Same as `snippet`, but should only be used when it's clear that the input span is
+/// not a macro argument.
+pub fn snippet_with_macro_callsite<'a, T: LintContext>(cx: &T, span: Span, default: &'a str) -> Cow<'a, str> {
+    snippet(cx, span.source_callsite(), default)
+}
+
+/// Converts a span to a code snippet. Returns `None` if not available.
+pub fn snippet_opt<T: LintContext>(cx: &T, span: Span) -> Option<String> {
+    cx.sess().source_map().span_to_snippet(span).ok()
 }
 
 /// Helper function to determine if a span came from a

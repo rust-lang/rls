@@ -46,7 +46,7 @@ use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use self::syntax::{ast, visit};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::macro_lint::{MacroData, MacroDoc, MacroDocCtxt, MACRO_DOCS};
+use crate::build::macro_lint::{MacroData, MacroDoc, MACRO_DOCS, LATE_MACRO_DOCS, LateMacroDocs};
 use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
@@ -262,10 +262,13 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             }
 
             let macro_defs = Arc::clone(&macro_defs);
+            let macro_defs2 = Arc::clone(&macro_defs);
             let macro_refs = Arc::clone(&macro_refs);
-            lint_store.register_lints(&[&MACRO_DOCS]);
+            lint_store.register_lints(&[&MACRO_DOCS, LATE_MACRO_DOCS]);
             lint_store
                 .register_early_pass(move || Box::new(MacroDoc::new(Arc::clone(&macro_defs))));
+            lint_store
+                .register_late_pass(move || Box::new(LateMacroDocs::new(Arc::clone(&macro_defs2), Arc::clone(&macro_refs))));
         }));
     }
 
@@ -328,12 +331,6 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
         let expanded_crate = &queries.expansion().unwrap().peek().0;
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
-            let mut visitor =
-                MacroDocCtxt::new(Arc::clone(&self.mac_defs), &tcx);
-            visitor.dump_crate_info(&crate_name, &krate);
-            visitor.dump_compilation_opts(input, &crate_name);
-            visit::walk_crate(&mut visitor, &krate);
-
             save::process_crate(
                 tcx,
                 &expanded_crate,
@@ -348,8 +345,6 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                     },
                 },
             );
-            self.analysis.lock().unwrap().as_mut().unwrap().defs.extend(visitor.dumper.result.defs);
-            self.analysis.lock().unwrap().as_mut().unwrap().refs.extend(visitor.dumper.result.refs);
         });
         // println!("MACRO DEFS {:#?}", self.mac_defs);
         // println!("MACRO REFS {:#?}", self.mac_refs);
