@@ -1,0 +1,16 @@
+{
+    "test": {
+      "file": "macro_doc_comment.rs",
+      "line": 23,
+      "col": 10
+    },
+    "data": {
+      "Ok": [
+        {
+          "language": "rust",
+          "value": "macro_rules! test_hover (args...)"
+        },
+        "This is a macro"
+      ]
+    }
+  }

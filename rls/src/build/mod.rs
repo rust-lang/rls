@@ -28,9 +28,9 @@ pub mod environment;
 mod external;
 #[cfg(feature = "ipc")]
 mod ipc;
+mod macro_docs;
 mod plan;
 mod rustc;
-mod macro_docs;
 
 /// Manages builds.
 ///

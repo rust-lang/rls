@@ -42,12 +42,12 @@ use self::rustc_interface::interface;
 use self::rustc_interface::Queries;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
-use self::rustc_span::{BytePos, Span};
 use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
+use self::rustc_span::{BytePos, Span};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
 use crate::build::macro_docs::{
-    LateMacroDocs, MacroDef, MacroDoc, MacroDocRef, LATE_MACRO_DOCS, MACRO_DOCS, id_from_node_id,
+    id_from_node_id, LateMacroDocs, MacroDef, MacroDoc, MacroDocRef, LATE_MACRO_DOCS, MACRO_DOCS,
 };
 use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
@@ -240,7 +240,7 @@ struct RlsRustcCalls {
 
 impl RlsRustcCalls {
     /// Sets valid `Id`s on each `Ref` otherwise they are `NULL`.
-    /// 
+    ///
     /// This matches each `RlsRustCalls.mac_ref` to the corresponding `mac_def` id
     /// when the ref is found by span it returns its definition's `rls_data::Id`.
     pub fn add_def_id(&mut self, ctxt: TyCtxt<'_>) {
@@ -250,12 +250,15 @@ impl RlsRustcCalls {
         for ref_ in lkd_refs.iter_mut() {
             if let Some(def) = lkd_defs.iter().find(|d| d.span == ref_.def_span) {
                 ref_.id = id_from_node_id(def.id, ctxt);
+
                 let data = ref_.span.data();
-                // println!("{:?} {:?}", data.lo, data.hi);
                 let end = BytePos(data.lo.0 + def.name.chars().count() as u32);
                 ref_.span = Span::new(data.lo, end, data.ctxt);
+
+                if ref_.name == "println" {
+                    panic!("{:#?}", def);
+                }
             }
-            // println!("ADD DEFS {:#?}", ref_);
         }
     }
 }

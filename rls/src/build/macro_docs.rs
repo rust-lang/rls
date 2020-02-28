@@ -12,13 +12,11 @@ use rustc_ast_pretty::pprust;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 // use rustc_interface::{Config, interface::Compiler, Queries};
+use rustc_hir::{Expr, Item, Stmt};
 use rustc_lint::{EarlyContext, EarlyLintPass, LateContext, LateLintPass};
-use rustc_session::{
-    declare_lint, impl_lint_pass,
-};
+use rustc_session::{declare_lint, impl_lint_pass};
 use rustc_span::{sym, ExpnKind, Span};
 use syntax::{ast, util::comments::strip_doc_comment_decoration};
-use rustc_hir::{Expr, Stmt, Item};
 
 use std::sync::{Arc, Mutex};
 
@@ -82,11 +80,7 @@ impl MacroDocRef {
     pub fn lower(self, ctxt: TyCtxt<'_>) -> Ref {
         let MacroDocRef { id, span, .. } = self;
 
-        Ref {
-            kind: RefKind::Macro,
-            span: span_from_span(ctxt, span),
-            ref_id: id,
-        }
+        Ref { kind: RefKind::Macro, span: span_from_span(ctxt, span), ref_id: id }
     }
 }
 
@@ -141,11 +135,7 @@ pub struct LateMacroDocs {
 
 impl LateMacroDocs {
     pub fn new(defs: Arc<Mutex<Vec<MacroDef>>>, refs: Arc<Mutex<Vec<MacroDocRef>>>) -> Self {
-        Self {
-            macro_map: FxHashSet::default(),
-            defs,
-            refs,
-        }
+        Self { macro_map: FxHashSet::default(), defs, refs }
     }
 }
 impl_lint_pass!(LateMacroDocs => [LATE_MACRO_DOCS]);
