@@ -30,9 +30,7 @@ mod external;
 mod ipc;
 mod plan;
 mod rustc;
-
-mod dumper;
-mod macro_lint;
+mod macro_docs;
 
 /// Manages builds.
 ///

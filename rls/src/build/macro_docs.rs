@@ -1,55 +1,28 @@
 extern crate rustc;
 extern crate rustc_ast_pretty;
-extern crate rustc_codegen_utils;
 extern crate rustc_data_structures;
-extern crate rustc_driver;
 extern crate rustc_hir;
-extern crate rustc_interface;
 extern crate rustc_lint;
-extern crate rustc_save_analysis;
 extern crate rustc_session;
 extern crate rustc_span;
 extern crate syntax;
 
-use rustc::middle::cstore::ExternCrate;
-use rustc::middle::privacy::AccessLevels;
-use rustc::ty::{self, DefIdTree, TyCtxt};
-use rustc_ast_pretty::pprust::{self, param_to_string, ty_to_string};
-use rustc_codegen_utils::link::{filename_for_metadata, out_filename};
-use rustc_data_structures::fx::{FxHashSet, FxHashMap};
-use rustc_driver::Callbacks;
+use rustc::ty::TyCtxt;
+use rustc_ast_pretty::pprust;
+use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 // use rustc_interface::{Config, interface::Compiler, Queries};
-use rustc_interface::Config;
-use rustc_lint::{EarlyContext, EarlyLintPass, LateContext, LateLintPass, Level, Lint, LintContext};
-use rustc_save_analysis::SaveContext;
+use rustc_lint::{EarlyContext, EarlyLintPass, LateContext, LateLintPass};
 use rustc_session::{
-    config::{CrateType, Input, OutputType},
     declare_lint, impl_lint_pass,
 };
-use rustc_span::hygiene::{ExpnId, SyntaxContext};
-use rustc_span::{sym, ExpnKind, FileName, MacroKind, SourceFile, Span, ExpnData};
-use syntax::{ast, util::comments::strip_doc_comment_decoration, visit};
-use rustc_hir::{
-    def_id::DefIndex,
-    BodyId, FnDecl, GenericArg, GenericBound, GenericParam, GenericParamKind, Generics, ImplItem, ImplItemKind, Item,
-    ItemKind, Lifetime, LifetimeName, ParamName, QPath, TraitBoundModifier, TraitItem, TraitItemKind, TraitMethod, Ty,
-    TyKind, WhereClause, WherePredicate, Expr, Stmt, HirId, Crate,
-};
+use rustc_span::{sym, ExpnKind, Span};
+use syntax::{ast, util::comments::strip_doc_comment_decoration};
+use rustc_hir::{Expr, Stmt, Item};
 
-use std::collections::hash_map::DefaultHasher;
-use std::fmt;
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::borrow::Cow;
 
-use rls_data::{
-    Analysis, Attribute, CompilationOptions, CratePreludeData, Def, DefKind, ExternalCrateData,
-    GlobalCrateId, Id, MacroRef, Ref, RefKind, Signature, SpanData,
-};
-use rls_span as span;
-
-use super::dumper::{Access, Dumper};
+use rls_data::{Def, DefKind, Ref, RefKind, SpanData};
 
 declare_lint! {
     pub MACRO_DOCS,
@@ -71,11 +44,10 @@ pub struct MacroDef {
 unsafe impl Send for MacroDef {}
 
 impl MacroDef {
-    pub fn lower(self, ctxt: &TyCtxt<'_>) -> Def {
+    pub fn lower(self, ctxt: TyCtxt<'_>) -> Def {
         let MacroDef { docs, name, file_name, id, span, attrs } = self;
 
-        let sm = ctxt.sess.source_map();
-        let qualname = format!("::{}", file_to_qualname(&file_name.to_string()));
+        let qualname = format!("::{}", file_to_qualname(&file_name));
         let span = span_from_span(ctxt, span);
         let data_id = id_from_node_id(id, ctxt);
 
@@ -85,7 +57,7 @@ impl MacroDef {
             name: name.to_string(),
             qualname,
             span,
-            value: format!("macro_rules! {} (args...)", name.to_string()),
+            value: format!("macro_rules! {} (args...)", name),
             children: Vec::default(),
             parent: None,
             decl_id: None,
@@ -107,8 +79,8 @@ pub struct MacroDocRef {
 unsafe impl Send for MacroDocRef {}
 
 impl MacroDocRef {
-    pub fn lower(self, ctxt: &TyCtxt<'_>) -> Ref {
-        let MacroDocRef { name, id, span, def_span } = self;
+    pub fn lower(self, ctxt: TyCtxt<'_>) -> Ref {
+        let MacroDocRef { id, span, .. } = self;
 
         Ref {
             kind: RefKind::Macro,
@@ -179,12 +151,11 @@ impl LateMacroDocs {
 impl_lint_pass!(LateMacroDocs => [LATE_MACRO_DOCS]);
 
 impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LateMacroDocs {
-    fn check_item(&mut self, lcx: &LateContext<'a, 'tcx>, item: &'tcx Item<'tcx>) {
+    fn check_item(&mut self, _lcx: &LateContext<'a, 'tcx>, item: &'tcx Item<'tcx>) {
         if let Some(expn_data) = item.span.source_callee() {
             if in_macro(item.span) && !self.macro_map.contains(&expn_data.call_site) {
-                println!("item     item");
                 self.macro_map.insert(expn_data.call_site);
-                if let ExpnKind::Macro(delim, name) = expn_data.kind {
+                if let ExpnKind::Macro(_delim, name) = expn_data.kind {
                     let mac_ref = MacroDocRef {
                         name: name.to_string(),
                         span: expn_data.call_site,
@@ -197,12 +168,11 @@ impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LateMacroDocs {
         }
     }
 
-    fn check_expr(&mut self, lcx: &LateContext<'a, 'tcx>, expr: &'tcx Expr<'_>) {
+    fn check_expr(&mut self, _lcx: &LateContext<'a, 'tcx>, expr: &'tcx Expr<'_>) {
         if let Some(expn_data) = expr.span.source_callee() {
             if in_macro(expr.span) && !self.macro_map.contains(&expn_data.call_site) {
-                println!("EXPR     EXPR");
                 self.macro_map.insert(expn_data.call_site);
-                if let ExpnKind::Macro(delim, name) = expn_data.kind {
+                if let ExpnKind::Macro(_delim, name) = expn_data.kind {
                     let mac_ref = MacroDocRef {
                         name: name.to_string(),
                         span: expn_data.call_site,
@@ -214,19 +184,17 @@ impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LateMacroDocs {
             }
         }
     }
-    fn check_stmt(&mut self, lcx: &LateContext<'a, 'tcx>, stmt: &'tcx Stmt<'_>) {
+    fn check_stmt(&mut self, _lcx: &LateContext<'a, 'tcx>, stmt: &'tcx Stmt<'_>) {
         if let Some(expn_data) = stmt.span.source_callee() {
             if in_macro(stmt.span) && !self.macro_map.contains(&expn_data.call_site) {
-                println!("STMT  {:?}   STMT", expn_data.call_site);
                 self.macro_map.insert(expn_data.call_site);
-                if let ExpnKind::Macro(delim, name) = expn_data.kind {
+                if let ExpnKind::Macro(_delim, name) = expn_data.kind {
                     let mac_ref = MacroDocRef {
                         name: name.to_string(),
                         span: expn_data.call_site,
                         id: null_id(),
                         def_span: expn_data.def_site,
                     };
-                    println!("{:#?}", mac_ref);
                     self.refs.lock().unwrap().push(mac_ref);
                 }
             }
@@ -234,14 +202,9 @@ impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LateMacroDocs {
     }
 }
 
-// Taken directly from `librustc_save_analysis`
+// Taken directly from `librustc_save_analysis` and `clippy_lints::utils`
 //
 //
-
-/// Helper function to escape quotes in a string
-fn escape(s: String) -> String {
-    s.replace("\"", "\"\"")
-}
 
 pub fn in_macro(span: Span) -> bool {
     if span.from_expansion() {
@@ -255,42 +218,13 @@ pub fn in_macro(span: Span) -> bool {
     }
 }
 
-/// Converts a span to a code snippet if available, otherwise use default.
-///
-/// This is useful if you want to provide suggestions for your lint or more generally, if you want
-/// to convert a given `Span` to a `str`.
-///
-/// # Example
-/// ```rust,ignore
-/// snippet(cx, expr.span, "..")
-/// ```
-pub fn snippet<'a, T: LintContext>(cx: &T, span: Span, default: &'a str) -> Cow<'a, str> {
-    snippet_opt(cx, span).map_or_else(|| Cow::Borrowed(default), From::from)
-}
-
-/// Same as `snippet`, but should only be used when it's clear that the input span is
-/// not a macro argument.
-pub fn snippet_with_macro_callsite<'a, T: LintContext>(cx: &T, span: Span, default: &'a str) -> Cow<'a, str> {
-    snippet(cx, span.source_callsite(), default)
-}
-
-/// Converts a span to a code snippet. Returns `None` if not available.
-pub fn snippet_opt<T: LintContext>(cx: &T, span: Span) -> Option<String> {
-    cx.sess().source_map().span_to_snippet(span).ok()
-}
-
-/// Helper function to determine if a span came from a
-/// macro expansion or syntax extension.
-pub fn generated_code(span: Span) -> bool {
-    span.from_expansion() || span.is_dummy()
-}
 /// DefId::index is a newtype and so the JSON serialisation is ugly. Therefore
 /// we use our own Id which is the same, but without the newtype.
 pub fn id_from_def_id(id: DefId) -> rls_data::Id {
     rls_data::Id { krate: id.krate.as_u32(), index: id.index.as_u32() }
 }
 
-pub fn id_from_node_id(id: ast::NodeId, tcx: &TyCtxt<'_>) -> rls_data::Id {
+pub fn id_from_node_id(id: ast::NodeId, tcx: TyCtxt<'_>) -> rls_data::Id {
     let def_id = tcx.hir().opt_local_def_id_from_node_id(id);
     def_id.map(|id| id_from_def_id(id)).unwrap_or_else(|| {
         // Create a *fake* `DefId` out of a `NodeId` by subtracting the `NodeId`
@@ -304,7 +238,7 @@ pub fn null_id() -> rls_data::Id {
     rls_data::Id { krate: u32::max_value(), index: u32::max_value() }
 }
 
-pub fn lower_attributes(attrs: Vec<ast::Attribute>, tcx: &TyCtxt<'_>) -> Vec<rls_data::Attribute> {
+pub fn lower_attributes(attrs: Vec<ast::Attribute>, tcx: TyCtxt<'_>) -> Vec<rls_data::Attribute> {
     attrs
         .into_iter()
         // Only retain real attributes. Doc comments are lowered separately.
@@ -325,7 +259,7 @@ pub fn lower_attributes(attrs: Vec<ast::Attribute>, tcx: &TyCtxt<'_>) -> Vec<rls
 }
 
 /// rustc::Span to rls::SpanData
-pub fn span_from_span(tcx: &TyCtxt<'_>, span: Span) -> SpanData {
+pub fn span_from_span(tcx: TyCtxt<'_>, span: Span) -> SpanData {
     use rls_span::{Column, Row};
 
     let cm = tcx.sess.source_map();
@@ -343,52 +277,6 @@ pub fn span_from_span(tcx: &TyCtxt<'_>, span: Span) -> SpanData {
     }
 }
 
-/// Returns path to the compilation output (e.g., libfoo-12345678.rmeta)
-pub fn compilation_output(tcx: &TyCtxt<'_>, crate_name: &str) -> PathBuf {
-    let sess = &tcx.sess;
-    // Save-analysis is emitted per whole session, not per each crate type
-    let crate_type = sess.crate_types.borrow()[0];
-    let outputs = &*tcx.output_filenames(LOCAL_CRATE);
-
-    if outputs.outputs.contains_key(&OutputType::Metadata) {
-        filename_for_metadata(sess, crate_name, outputs)
-    } else if outputs.outputs.should_codegen() {
-        out_filename(sess, crate_type, outputs, crate_name)
-    } else {
-        // Otherwise it's only a DepInfo, in which case we return early and
-        // not even reach the analysis stage.
-        unreachable!()
-    }
-}
-
-/// List external crates used by the current crate.
-pub fn get_external_crates(tcx: &TyCtxt<'_>) -> Vec<ExternalCrateData> {
-    let mut result = Vec::with_capacity(tcx.crates().len());
-
-    for &n in tcx.crates().iter() {
-        let span = match tcx.extern_crate(n.as_def_id()) {
-            Some(&ExternCrate { span, .. }) => span,
-            None => {
-                println!("skipping crate {}, no data", n);
-                continue;
-            }
-        };
-        let lo_loc = tcx.sess.source_map().lookup_char_pos(span.lo());
-        result.push(ExternalCrateData {
-            // FIXME: change file_name field to PathBuf in rls-data
-            // https://github.com/nrc/rls-data/issues/7
-            file_name: make_filename_string(tcx, &lo_loc.file),
-            num: n.as_u32(),
-            id: GlobalCrateId {
-                name: tcx.crate_name(n).to_string(),
-                disambiguator: tcx.crate_disambiguator(n).to_fingerprint().as_value(),
-            },
-        });
-    }
-
-    result
-}
-
 pub fn file_to_qualname(filename: &str) -> String {
     filename
         .to_string()
@@ -403,27 +291,6 @@ pub fn file_to_qualname(filename: &str) -> String {
                 .unwrap_or_default()
         })
         .unwrap_or_else(|| String::new())
-}
-
-pub fn make_filename_string(tcx: &TyCtxt<'_>, file: &SourceFile) -> String {
-    match &file.name {
-        FileName::Real(path) if !file.name_was_remapped => {
-            if path.is_absolute() {
-                tcx.sess
-                    .source_map()
-                    .path_mapping()
-                    .map_prefix(path.clone())
-                    .0
-                    .display()
-                    .to_string()
-            } else {
-                tcx.sess.working_dir.0.join(&path).display().to_string()
-            }
-        }
-        // If the file name is already remapped, we assume the user
-        // configured it the way they wanted to, so use that directly
-        filename => filename.to_string(),
-    }
 }
 
 fn docs_for_attrs(full_docs: bool, attrs: &[ast::Attribute]) -> String {

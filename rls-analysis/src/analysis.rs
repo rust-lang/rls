@@ -272,7 +272,6 @@ impl Analysis {
                 result.push(t);
             }
         }
-        println!("RESULTS {}", result.len());
         // This assertion is sometimes helpful for debugging, but also can cause
         // problems where otherwise there are none.
         // FIXME - might be worth investigating some common causes.

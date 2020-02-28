@@ -813,9 +813,6 @@ pub fn macro_hover_fallback(
 ) -> rls_analysis::AResult<Tooltip> {
     let err = rls_analysis::AError::Unclassified;
     let line = ctx.vfs.load_span(hover_span.clone()).map_err(|_| err)?;
-
-    println!("{:?}", line);
-
     let id = ctx.analysis.search_for_id(&line)?;
     ctx.analysis
         .get_def(*id.last().ok_or(err)?)
@@ -823,26 +820,6 @@ pub fn macro_hover_fallback(
         .map(|def| tooltip_macro(ctx, &def, None))
         .map(|contents| Tooltip { contents, range: hover_span.range })
 }
-
-// file: "/home/devinr/aprog/rust/__forks__/rls/tests/fixtures/hover/src/macro_doc_comment.rs",
-//         range: Range {
-//             row_start: Row(
-//                 8,
-//                 PhantomData,
-//             ),
-//             row_end: Row(
-//                 8,
-//                 PhantomData,
-//             ),
-//             col_start: Column(
-//                 4,
-//                 PhantomData,
-//             ),
-//             col_end: Column(
-//                 18,
-//                 PhantomData,
-//             ),
-//         }
 
 /// Builds a hover tooltip composed of the function signature or type declaration, doc URL
 /// (if available in the save-analysis), source extracted documentation, and code context
@@ -859,14 +836,10 @@ pub fn tooltip(
     let hover_span_typ = analysis.show_type(&hover_span).unwrap_or_else(|_| String::new());
     let hover_span_def = analysis.id(&hover_span).and_then(|id| analysis.get_def(id));
 
-    // trace!("tooltip: span: {:?}", hover_span);
-    println!("tooltip: span: {:#?}", hover_span);
-    // trace!("tooltip: span_doc: {:?}", hover_span_doc);
-    println!("tooltip: span_doc: {:?}", hover_span_doc);
-    // trace!("tooltip: span_typ: {:?}", hover_span_typ);
-    println!("tooltip: span_typ: {:?}", hover_span_typ);
-    // trace!("tooltip: span_def: {:?}", hover_span_def);
-    println!("tooltip: span_def: {:?}", hover_span_def);
+    trace!("tooltip: span: {:?}", hover_span);
+    trace!("tooltip: span_doc: {:?}", hover_span_doc);
+    trace!("tooltip: span_typ: {:?}", hover_span_typ);
+    trace!("tooltip: span_def: {:?}", hover_span_def);
 
     if hover_span_def.is_err() {
         if let Ok(tooltip) = macro_hover_fallback(ctx, hover_span.clone()) {
@@ -877,14 +850,11 @@ pub fn tooltip(
     let racer_fallback_enabled = ctx.config.lock().unwrap().racer_completion;
     // Fallback to racer if the def was not available and racer is enabled.
     let hover_span_def = hover_span_def.or_else(|e| {
-        // debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
-        println!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
+        debug!("tooltip: racer_fallback_enabled: {}", racer_fallback_enabled);
         if racer_fallback_enabled {
-            // debug!("tooltip: span_def is empty, attempting with racer");
-            println!("tooltip: span_def is empty, attempting with racer");
+            debug!("tooltip: span_def is empty, attempting with racer");
             racer_def(&ctx, &hover_span).ok_or_else(|| {
-                // debug!("tooltip: racer returned an empty result");
-                println!("tooltip: racer returned an empty result");
+                debug!("tooltip: racer returned an empty result");
                 e
             })
         } else {
@@ -925,16 +895,7 @@ pub fn tooltip(
                 DefKind::Type => tooltip_type(&ctx, &def, doc_url),
                 DefKind::Macro => tooltip_macro(&ctx, &def, doc_url),
                 _ => {
-                    // debug!(
-                    //     "tooltip: ignoring def: \
-                    //      name: {:?}, \
-                    //      kind: {:?}, \
-                    //      value: {:?}, \
-                    //      qualname: {:?}, \
-                    //      parent: {:?}",
-                    //     def.name, def.kind, def.value, def.qualname, def.parent
-                    // );
-                    println!(
+                    debug!(
                         "tooltip: ignoring def: \
                          name: {:?}, \
                          kind: {:?}, \
@@ -943,19 +904,15 @@ pub fn tooltip(
                          parent: {:?}",
                         def.name, def.kind, def.value, def.qualname, def.parent
                     );
-
                     Vec::default()
                 }
             }
         }
     } else {
-        // debug!("tooltip: def is empty");
-        println!("tooltip: def is empty");
+        debug!("tooltip: def is empty");
         Vec::default()
     };
-    // debug!("tooltip: contents.len: {}", contents.len());
-    println!("tooltip: contents.len: {}", contents.len());
-
+    debug!("tooltip: contents.len: {}", contents.len());
     Ok(Tooltip { contents, range: hover_span.range })
 }
 

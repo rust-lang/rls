@@ -20,7 +20,6 @@ extern crate rustc_resolve;
 extern crate rustc_save_analysis;
 #[allow(unused_extern_crates)]
 extern crate rustc_span;
-extern crate syntax;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
@@ -46,9 +45,8 @@ use self::rustc_save_analysis::CallbackHandler;
 use self::rustc_span::{BytePos, Span};
 use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
-use self::syntax::{ast, visit};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::macro_lint::{
+use crate::build::macro_docs::{
     LateMacroDocs, MacroDef, MacroDoc, MacroDocRef, LATE_MACRO_DOCS, MACRO_DOCS, id_from_node_id,
 };
 use crate::build::plan::{Crate, Edition};
@@ -248,17 +246,16 @@ impl RlsRustcCalls {
     pub fn add_def_id(&mut self, ctxt: TyCtxt<'_>) {
         let lkd_defs = self.mac_defs.lock().unwrap();
         let mut lkd_refs = self.mac_refs.lock().unwrap();
-        
+
         for ref_ in lkd_refs.iter_mut() {
             if let Some(def) = lkd_defs.iter().find(|d| d.span == ref_.def_span) {
-                println!("FOUND MATCHING DEF SPAN");
-                ref_.id = id_from_node_id(def.id, &ctxt);
+                ref_.id = id_from_node_id(def.id, ctxt);
                 let data = ref_.span.data();
-                println!("{:?} {:?}", data.lo, data.hi);
+                // println!("{:?} {:?}", data.lo, data.hi);
                 let end = BytePos(data.lo.0 + def.name.chars().count() as u32);
                 ref_.span = Span::new(data.lo, end, data.ctxt);
             }
-            println!("ADD DEFS {:#?}", ref_);
+            // println!("ADD DEFS {:#?}", ref_);
         }
     }
 }
@@ -302,8 +299,8 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
 
     fn after_parsing<'tcx>(
         &mut self,
-        compiler: &interface::Compiler,
-        queries: &'tcx Queries<'tcx>,
+        _compiler: &interface::Compiler,
+        _queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
         Compilation::Continue
     }
@@ -326,7 +323,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         .and_then(|path| src_path(Some(cwd), path));
 
         let krate = Crate {
-            name: crate_name.to_owned(),
+            name: crate_name,
             src_path,
             disambiguator: sess.local_crate_disambiguator().to_fingerprint().as_value(),
             edition: match sess.edition() {
@@ -351,9 +348,6 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
     ) -> Compilation {
         let input = compiler.input();
         let crate_name = queries.crate_name().unwrap().peek().clone();
-
-        let krate = queries.parse().expect("no Result<Query<Crate>> found").take();
-        // ...and walks the AST, collecting stats.
 
         // Guaranteed to not be dropped yet in the pipeline thanks to the
         // `config.opts.debugging_opts.save_analysis` value being set to `true`.
@@ -384,14 +378,14 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                 .as_mut()
                 .unwrap()
                 .defs
-                .extend(self.mac_defs.lock().unwrap().drain(..).map(|mac| mac.lower(&tcx)));
+                .extend(self.mac_defs.lock().unwrap().drain(..).map(|mac| mac.lower(tcx)));
             self.analysis
                 .lock()
                 .unwrap()
                 .as_mut()
                 .unwrap()
                 .refs
-                .extend(self.mac_refs.lock().unwrap().drain(..).map(|rmac| rmac.lower(&tcx)));
+                .extend(self.mac_refs.lock().unwrap().drain(..).map(|rmac| rmac.lower(tcx)));
         });
         Compilation::Continue
     }
