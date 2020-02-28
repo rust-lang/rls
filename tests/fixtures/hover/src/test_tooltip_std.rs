@@ -13,4 +13,5 @@ fn test() {
     let _one = slice[0];
     let _one_ref = &slice[0];
     use std::string::ToString;
+    println!();
 }
