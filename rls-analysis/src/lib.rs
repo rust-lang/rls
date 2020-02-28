@@ -340,6 +340,7 @@ impl<L: AnalysisLoader> AnalysisHost<L> {
     pub fn docs(&self, span: &Span) -> AResult<String> {
         self.with_analysis(|a| {
             a.def_id_for_span(span).and_then(|id| {
+                println!("ID {:?}", id);
                 a.with_defs(id, clone_field!(docs))
             })
         })

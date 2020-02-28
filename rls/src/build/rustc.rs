@@ -37,16 +37,20 @@ use rls_vfs::Vfs;
 
 use self::rustc::session::config::Input;
 use self::rustc::session::Session;
+use self::rustc::ty::TyCtxt;
 use self::rustc_driver::{run_compiler, Compilation};
 use self::rustc_interface::interface;
 use self::rustc_interface::Queries;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
+use self::rustc_span::{BytePos, Span};
 use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use self::syntax::{ast, visit};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
-use crate::build::macro_lint::{MacroData, MacroDoc, MACRO_DOCS, LATE_MACRO_DOCS, LateMacroDocs};
+use crate::build::macro_lint::{
+    LateMacroDocs, MacroDef, MacroDoc, MacroDocRef, LATE_MACRO_DOCS, MACRO_DOCS, id_from_node_id,
+};
 use crate::build::plan::{Crate, Edition};
 use crate::build::{BufWriter, BuildResult};
 use crate::config::{ClippyPreference, Config};
@@ -232,8 +236,31 @@ struct RlsRustcCalls {
     analysis: Arc<Mutex<Option<Analysis>>>,
     input_files: Arc<Mutex<HashMap<PathBuf, HashSet<Crate>>>>,
     clippy_preference: ClippyPreference,
-    mac_defs: Arc<Mutex<Vec<MacroData>>>,
-    mac_refs: Arc<Mutex<Vec<MacroData>>>,
+    mac_defs: Arc<Mutex<Vec<MacroDef>>>,
+    mac_refs: Arc<Mutex<Vec<MacroDocRef>>>,
+}
+
+impl RlsRustcCalls {
+    /// Sets valid `Id`s on each `Ref` otherwise they are `NULL`.
+    /// 
+    /// This matches each `RlsRustCalls.mac_ref` to the corresponding `mac_def` id
+    /// when the ref is found by span it returns its definition's `rls_data::Id`.
+    pub fn add_def_id(&mut self, ctxt: TyCtxt<'_>) {
+        let lkd_defs = self.mac_defs.lock().unwrap();
+        let mut lkd_refs = self.mac_refs.lock().unwrap();
+        
+        for ref_ in lkd_refs.iter_mut() {
+            if let Some(def) = lkd_defs.iter().find(|d| d.span == ref_.def_span) {
+                println!("FOUND MATCHING DEF SPAN");
+                ref_.id = id_from_node_id(def.id, &ctxt);
+                let data = ref_.span.data();
+                println!("{:?} {:?}", data.lo, data.hi);
+                let end = BytePos(data.lo.0 + def.name.chars().count() as u32);
+                ref_.span = Span::new(data.lo, end, data.ctxt);
+            }
+            println!("ADD DEFS {:#?}", ref_);
+        }
+    }
 }
 
 impl rustc_driver::Callbacks for RlsRustcCalls {
@@ -267,8 +294,9 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             lint_store.register_lints(&[&MACRO_DOCS, LATE_MACRO_DOCS]);
             lint_store
                 .register_early_pass(move || Box::new(MacroDoc::new(Arc::clone(&macro_defs))));
-            lint_store
-                .register_late_pass(move || Box::new(LateMacroDocs::new(Arc::clone(&macro_defs2), Arc::clone(&macro_refs))));
+            lint_store.register_late_pass(move || {
+                Box::new(LateMacroDocs::new(Arc::clone(&macro_defs2), Arc::clone(&macro_refs)))
+            });
         }));
     }
 
@@ -345,10 +373,26 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                     },
                 },
             );
+
+            // This must be called to attach the correct rls_data::Id to
+            // the macro refs
+            self.add_def_id(tcx);
+
+            self.analysis
+                .lock()
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .defs
+                .extend(self.mac_defs.lock().unwrap().drain(..).map(|mac| mac.lower(&tcx)));
+            self.analysis
+                .lock()
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .refs
+                .extend(self.mac_refs.lock().unwrap().drain(..).map(|rmac| rmac.lower(&tcx)));
         });
-        // println!("MACRO DEFS {:#?}", self.mac_defs);
-        // println!("MACRO REFS {:#?}", self.mac_refs);
-        // println!("REFS {:#?}", self.analysis.lock().unwrap().as_ref().unwrap().refs);
         Compilation::Continue
     }
 }

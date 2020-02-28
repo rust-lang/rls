@@ -824,6 +824,26 @@ pub fn macro_hover_fallback(
         .map(|contents| Tooltip { contents, range: hover_span.range })
 }
 
+// file: "/home/devinr/aprog/rust/__forks__/rls/tests/fixtures/hover/src/macro_doc_comment.rs",
+//         range: Range {
+//             row_start: Row(
+//                 8,
+//                 PhantomData,
+//             ),
+//             row_end: Row(
+//                 8,
+//                 PhantomData,
+//             ),
+//             col_start: Column(
+//                 4,
+//                 PhantomData,
+//             ),
+//             col_end: Column(
+//                 18,
+//                 PhantomData,
+//             ),
+//         }
+
 /// Builds a hover tooltip composed of the function signature or type declaration, doc URL
 /// (if available in the save-analysis), source extracted documentation, and code context
 /// for local variables.
@@ -840,7 +860,7 @@ pub fn tooltip(
     let hover_span_def = analysis.id(&hover_span).and_then(|id| analysis.get_def(id));
 
     // trace!("tooltip: span: {:?}", hover_span);
-    println!("tooltip: span: {:?}", hover_span);
+    println!("tooltip: span: {:#?}", hover_span);
     // trace!("tooltip: span_doc: {:?}", hover_span_doc);
     println!("tooltip: span_doc: {:?}", hover_span_doc);
     // trace!("tooltip: span_typ: {:?}", hover_span_typ);
@@ -903,6 +923,7 @@ pub fn tooltip(
                     tooltip_static_const_decl(&ctx, &def, doc_url)
                 }
                 DefKind::Type => tooltip_type(&ctx, &def, doc_url),
+                DefKind::Macro => tooltip_macro(&ctx, &def, doc_url),
                 _ => {
                     // debug!(
                     //     "tooltip: ignoring def: \

@@ -272,7 +272,7 @@ impl Analysis {
                 result.push(t);
             }
         }
-
+        println!("RESULTS {}", result.len());
         // This assertion is sometimes helpful for debugging, but also can cause
         // problems where otherwise there are none.
         // FIXME - might be worth investigating some common causes.
@@ -304,7 +304,6 @@ impl Analysis {
 
     pub fn ref_for_span(&self, span: &Span) -> Option<Ref> {
         self.for_each_crate(|c| {
-            // /home/devinr/aprog/rust/__forks__/rls/tests/fixtures/hover/src/macro_doc_comment.rs
             c.def_id_for_span.get(span).cloned()
         })
     }

@@ -59,33 +59,72 @@ declare_lint! {
 }
 
 #[derive(Debug, Clone)]
-pub struct MacroDocRef {
+pub struct MacroDef {
+    pub docs: String,
     pub name: String,
+    file_name: String,
     pub id: ast::NodeId,
     pub span: Span,
+    pub attrs: Vec<ast::Attribute>,
+}
+
+unsafe impl Send for MacroDef {}
+
+impl MacroDef {
+    pub fn lower(self, ctxt: &TyCtxt<'_>) -> Def {
+        let MacroDef { docs, name, file_name, id, span, attrs } = self;
+
+        let sm = ctxt.sess.source_map();
+        let qualname = format!("::{}", file_to_qualname(&file_name.to_string()));
+        let span = span_from_span(ctxt, span);
+        let data_id = id_from_node_id(id, ctxt);
+
+        Def {
+            kind: DefKind::Macro,
+            id: data_id,
+            name: name.to_string(),
+            qualname,
+            span,
+            value: format!("macro_rules! {} (args...)", name.to_string()),
+            children: Vec::default(),
+            parent: None,
+            decl_id: None,
+            docs,
+            sig: None,
+            attributes: lower_attributes(attrs, ctxt),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MacroDocRef {
+    pub name: String,
+    pub id: rls_data::Id,
+    pub span: Span,
+    pub def_span: Span,
 }
 
 unsafe impl Send for MacroDocRef {}
 
 impl MacroDocRef {
     pub fn lower(self, ctxt: &TyCtxt<'_>) -> Ref {
-        let MacroDocRef { name, id, span } = self;
+        let MacroDocRef { name, id, span, def_span } = self;
 
         Ref {
             kind: RefKind::Macro,
             span: span_from_span(ctxt, span),
-            ref_id: id_from_node_id(id, ctxt),
+            ref_id: id,
         }
     }
 }
 
 #[derive(Default, Debug)]
 pub struct MacroDoc {
-    pub defs: Arc<Mutex<Vec<Def>>>,
+    pub defs: Arc<Mutex<Vec<MacroDef>>>,
 }
 
 impl MacroDoc {
-    pub(crate) fn new(defs: Arc<Mutex<Vec<Def>>>) -> Self {
+    pub(crate) fn new(defs: Arc<Mutex<Vec<MacroDef>>>) -> Self {
         Self { defs }
     }
 }
@@ -102,21 +141,13 @@ impl EarlyLintPass for MacroDoc {
             let name = item.ident.to_string();
             let id = item.id;
 
-            println!("lint pass id {:?}", item.id);
-
-            self.defs.lock().unwrap().push(Def {
-                kind: DefKind::Macro,
-                id: Id,
-                span: span_from_span(ctxt, span),
-                name: name,
-                qualname: String,
-                value: String,
-                parent: Option<Id>,
-                children: Vec<Id>,
-                decl_id: Option<Id>,
-                docs: String,
-                sig: Option<Signature>,
-                attributes: Vec<Attribute>,
+            self.defs.lock().unwrap().push(MacroDef {
+                docs,
+                name,
+                file_name: filename.to_string(),
+                id,
+                span: item.span,
+                attrs: item.attrs.clone(),
             });
         }
     }
@@ -131,15 +162,15 @@ declare_lint! {
 
 #[derive(Clone, Debug, Default)]
 pub struct LateMacroDocs {
-    pub macro_map: FxHashMap<DefIndex, (HirId, String)>,
-    pub defs: Arc<Mutex<Vec<Def>>>,
+    pub macro_map: FxHashSet<Span>,
+    pub defs: Arc<Mutex<Vec<MacroDef>>>,
     pub refs: Arc<Mutex<Vec<MacroDocRef>>>,
 }
 
 impl LateMacroDocs {
-    pub fn new(defs: Arc<Mutex<Vec<Def>>>, refs: Arc<Mutex<Vec<MacroDocRef>>>) -> Self {
+    pub fn new(defs: Arc<Mutex<Vec<MacroDef>>>, refs: Arc<Mutex<Vec<MacroDocRef>>>) -> Self {
         Self {
-            macro_map: FxHashMap::default(),
+            macro_map: FxHashSet::default(),
             defs,
             refs,
         }
@@ -148,66 +179,57 @@ impl LateMacroDocs {
 impl_lint_pass!(LateMacroDocs => [LATE_MACRO_DOCS]);
 
 impl<'a, 'tcx> LateLintPass<'a, 'tcx> for LateMacroDocs {
-    // fn check_item(&mut self, ecx: &LateContext<'a, 'tcx>, item: &'tcx Item<'tcx>) {
-    //     if in_macro(item.span) {
-    //         println!("LATE PASS ITEM {:#?}", item);
-    //     }
-    // }
-
-    fn check_expr(&mut self, lcx: &LateContext<'a, 'tcx>, expr: &'tcx Expr<'_>) {
-        if in_macro(expr.span) && !self.macro_map.contains_key(&expr.hir_id.owner) {
-            let mac_ref = MacroDocRef {
-                name,
-                span,
-                id,
-            };
-            self.refs.lock().unwrap().push();
-            println!("SOURCE {:#?}", expr.span.source_callee());
-            println!("PARENT {:#?}", lcx.tcx.hir().get_parent_item(expr.hir_id));
-            println!("SNIP {:#?}", snippet_with_macro_callsite(lcx, expr.span, "oops"));
-            println!("GLOB {:#?}", lcx.tcx.names_imported_by_glob_use(expr.hir_id.owner_def_id()));
-            println!("DEF PATH {:?}", lcx.get_def_path(expr.hir_id.owner_def_id()));
-            let parent = lcx.tcx.hir().get_parent_item(expr.hir_id);
-            // println!(
-            //     "{:?}",
-            //     snippet_with_macro_callsite(
-            //         lcx,
-            //         expr.span.with_def_site_ctxt(expr.span.source_callee().unwrap().parent),
-            //         "oops",
-            //     )
-            // );
-            if let Some(expnd) = expr.span.source_callee() {
-                if let ExpnKind::Macro(kind, sym) = expnd.kind {
-                    self.macro_map.insert(expr.hir_id.owner, (expr.hir_id, sym.to_string()));
-                } else {
-                    self.macro_map.insert(expr.hir_id.owner, (expr.hir_id, String::from("<unknown macro>")));
+    fn check_item(&mut self, lcx: &LateContext<'a, 'tcx>, item: &'tcx Item<'tcx>) {
+        if let Some(expn_data) = item.span.source_callee() {
+            if in_macro(item.span) && !self.macro_map.contains(&expn_data.call_site) {
+                println!("item     item");
+                self.macro_map.insert(expn_data.call_site);
+                if let ExpnKind::Macro(delim, name) = expn_data.kind {
+                    let mac_ref = MacroDocRef {
+                        name: name.to_string(),
+                        span: expn_data.call_site,
+                        id: null_id(),
+                        def_span: expn_data.def_site,
+                    };
+                    self.refs.lock().unwrap().push(mac_ref);
                 }
-            } else {
-                self.macro_map.insert(expr.hir_id.owner, (expr.hir_id, String::from("<unknown macro>")));
             }
         }
     }
-    // fn check_stmt(&mut self, lcx: &LateContext<'a, 'tcx>, stmt: &'tcx Stmt<'_>) {
-    //     if in_macro(stmt.span) {
-    //         println!("{:#?}", stmt);
-    //     }
-    // }
 
-    fn check_crate_post(&mut self, lcx: &LateContext<'a, 'tcx>, k: &'tcx Crate<'tcx>) {
-        let lkd_defs = self.defs.lock().unwrap();
-        if !lkd_defs.is_empty() {
-            for (hir_index, (hirid, name)) in self.macro_map.iter() {
-                // println!("{:?}", lcx.tcx.hir().def_path_from_hir_id(*hirid));
-                // println!("{:?}", snippet_with_macro_callsite(lcx, lcx.tcx.hir().span(*hirid), "oops"));
-                // println!(
-                //     "{:#?}",
-                //     lcx.tcx.hir().span(*hirid).source_callee().unwrap()
-                // );
+    fn check_expr(&mut self, lcx: &LateContext<'a, 'tcx>, expr: &'tcx Expr<'_>) {
+        if let Some(expn_data) = expr.span.source_callee() {
+            if in_macro(expr.span) && !self.macro_map.contains(&expn_data.call_site) {
+                println!("EXPR     EXPR");
+                self.macro_map.insert(expn_data.call_site);
+                if let ExpnKind::Macro(delim, name) = expn_data.kind {
+                    let mac_ref = MacroDocRef {
+                        name: name.to_string(),
+                        span: expn_data.call_site,
+                        id: null_id(),
+                        def_span: expn_data.def_site,
+                    };
+                    self.refs.lock().unwrap().push(mac_ref);
+                }
             }
-            for mac_def in lkd_defs.iter() {
-                println!("MAC DEFS {:#?}", mac_def);
+        }
+    }
+    fn check_stmt(&mut self, lcx: &LateContext<'a, 'tcx>, stmt: &'tcx Stmt<'_>) {
+        if let Some(expn_data) = stmt.span.source_callee() {
+            if in_macro(stmt.span) && !self.macro_map.contains(&expn_data.call_site) {
+                println!("STMT  {:?}   STMT", expn_data.call_site);
+                self.macro_map.insert(expn_data.call_site);
+                if let ExpnKind::Macro(delim, name) = expn_data.kind {
+                    let mac_ref = MacroDocRef {
+                        name: name.to_string(),
+                        span: expn_data.call_site,
+                        id: null_id(),
+                        def_span: expn_data.def_site,
+                    };
+                    println!("{:#?}", mac_ref);
+                    self.refs.lock().unwrap().push(mac_ref);
+                }
             }
-            // println!("{:#?}", lcx.tcx.names_imported_by_glob_use(k.hir_id.owner_def_id()));
         }
     }
 }
@@ -259,16 +281,16 @@ pub fn snippet_opt<T: LintContext>(cx: &T, span: Span) -> Option<String> {
 
 /// Helper function to determine if a span came from a
 /// macro expansion or syntax extension.
-fn generated_code(span: Span) -> bool {
+pub fn generated_code(span: Span) -> bool {
     span.from_expansion() || span.is_dummy()
 }
 /// DefId::index is a newtype and so the JSON serialisation is ugly. Therefore
 /// we use our own Id which is the same, but without the newtype.
-fn id_from_def_id(id: DefId) -> rls_data::Id {
+pub fn id_from_def_id(id: DefId) -> rls_data::Id {
     rls_data::Id { krate: id.krate.as_u32(), index: id.index.as_u32() }
 }
 
-fn id_from_node_id(id: ast::NodeId, tcx: &TyCtxt<'_>) -> rls_data::Id {
+pub fn id_from_node_id(id: ast::NodeId, tcx: &TyCtxt<'_>) -> rls_data::Id {
     let def_id = tcx.hir().opt_local_def_id_from_node_id(id);
     def_id.map(|id| id_from_def_id(id)).unwrap_or_else(|| {
         // Create a *fake* `DefId` out of a `NodeId` by subtracting the `NodeId`
@@ -278,11 +300,11 @@ fn id_from_node_id(id: ast::NodeId, tcx: &TyCtxt<'_>) -> rls_data::Id {
     })
 }
 
-fn null_id() -> rls_data::Id {
+pub fn null_id() -> rls_data::Id {
     rls_data::Id { krate: u32::max_value(), index: u32::max_value() }
 }
 
-fn lower_attributes(attrs: Vec<ast::Attribute>, tcx: &TyCtxt<'_>) -> Vec<rls_data::Attribute> {
+pub fn lower_attributes(attrs: Vec<ast::Attribute>, tcx: &TyCtxt<'_>) -> Vec<rls_data::Attribute> {
     attrs
         .into_iter()
         // Only retain real attributes. Doc comments are lowered separately.
@@ -303,7 +325,7 @@ fn lower_attributes(attrs: Vec<ast::Attribute>, tcx: &TyCtxt<'_>) -> Vec<rls_dat
 }
 
 /// rustc::Span to rls::SpanData
-fn span_from_span(tcx: &TyCtxt<'_>, span: Span) -> SpanData {
+pub fn span_from_span(tcx: &TyCtxt<'_>, span: Span) -> SpanData {
     use rls_span::{Column, Row};
 
     let cm = tcx.sess.source_map();
