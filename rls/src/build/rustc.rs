@@ -126,7 +126,7 @@ pub struct CompilationResult {
 fn run_out_of_process(
     changed: HashMap<PathBuf, String>,
     args: &[String],
-    envs: &HashMap<String, Option<OsString>>,
+    envs: &BTreeMap<String, Option<OsString>>,
     clippy_preference: ClippyPreference,
 ) -> Result<CompilationResult, ()> {
     let analysis = Arc::default();

@@ -39,4 +39,6 @@ jobs:
       rls-vfs: []
       ".":
         - test_name: test_tooltip_std
-          args: --ignored
+          test_args: --ignored
+      # Test also the IPC feature build
+        - args: --features ipc

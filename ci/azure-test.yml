@@ -24,6 +24,6 @@ jobs:
         displayName: Run tests - ${{ crate.key }}
         workingDirectory: $(Build.SourcesDirectory)/${{ crate.key }}
       - ${{ each extra in crate.value }}:
-        - script: cargo test -v ${{ extra.test_name }} -- ${{ extra.args }}
+        - script: cargo test -v ${{ extra.args }} ${{ extra.test_name }} -- ${{ extra.test_args }}
           displayName: Run tests - ${{ crate.key }} - ${{ extra.test_name }}
           workingDirectory: $(Build.SourcesDirectory)/${{ crate.key }}
