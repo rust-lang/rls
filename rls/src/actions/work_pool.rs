@@ -1,7 +1,6 @@
 use crate::server::DEFAULT_REQUEST_TIMEOUT;
 use lazy_static::lazy_static;
 use log::{info, warn};
-use rayon;
 use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant};
 use std::{fmt, panic};

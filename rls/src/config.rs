@@ -253,7 +253,7 @@ impl Config {
                         deprecated.push(snake_case.clone());
                     }
 
-                    Some((snake_case, JsonValue(v.to_owned().clone())))
+                    Some((snake_case, JsonValue(v.to_owned())))
                 } else {
                     None
                 }

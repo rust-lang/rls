@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use home;
 use log::*;
-use racer;
 use rls_analysis::{Def, DefKind};
 use rls_span::{Column, Range, Row, Span, ZeroIndexed};
 use rls_vfs::{self as vfs, Vfs};

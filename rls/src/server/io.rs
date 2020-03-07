@@ -1,6 +1,4 @@
 use log::{debug, trace};
-use serde;
-use serde_json;
 
 use super::{Notification, Request, RequestId};
 use crate::lsp_data::{LSPNotification, LSPRequest};

@@ -135,8 +135,8 @@ impl Callbacks for ShimCalls {
             src_path,
             disambiguator: sess.local_crate_disambiguator().to_fingerprint().as_value(),
             edition: match sess.edition() {
-                syntax::edition::Edition::Edition2015 => Edition::Edition2015,
-                syntax::edition::Edition::Edition2018 => Edition::Edition2018,
+                rustc_span::edition::Edition::Edition2015 => Edition::Edition2015,
+                rustc_span::edition::Edition::Edition2018 => Edition::Edition2018,
             },
         };
 

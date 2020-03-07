@@ -23,7 +23,6 @@ use cargo::util::{
 use log::{debug, trace, warn};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
-use serde_json;
 
 use crate::actions::progress::ProgressUpdate;
 use crate::build::cargo_plan::CargoPlan;

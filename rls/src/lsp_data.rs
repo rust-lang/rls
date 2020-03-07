@@ -7,7 +7,6 @@ use std::path::PathBuf;
 pub use lsp_types::notification::Notification as LSPNotification;
 pub use lsp_types::request::Request as LSPRequest;
 pub use lsp_types::*;
-use racer;
 use rls_analysis::DefKind;
 use rls_span as span;
 use serde_derive::{Deserialize, Serialize};

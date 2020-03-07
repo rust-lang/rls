@@ -132,7 +132,7 @@ pub(crate) fn maybe_notify_duplicated_configs<O: Output>(
     }
     out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
         typ: MessageType::Warning,
-        message: format!("Duplicated RLS configuration: {}", msg.clone()),
+        message: format!("Duplicated RLS configuration: {}", msg),
     }));
 }
 
