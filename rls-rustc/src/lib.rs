@@ -1,14 +1,14 @@
 #![feature(rustc_private)]
 
 extern crate env_logger;
-extern crate rustc;
+extern crate rustc_session;
 extern crate rustc_driver;
 extern crate rustc_interface;
 extern crate rustc_save_analysis;
 extern crate rustc_span;
 
-use rustc::session::config::ErrorOutputType;
-use rustc::session::early_error;
+use rustc_session::config::ErrorOutputType;
+use rustc_session::early_error;
 #[cfg(feature = "ipc")]
 use rustc_driver::Compilation;
 use rustc_driver::{run_compiler, Callbacks};
@@ -107,7 +107,7 @@ impl Callbacks for ShimCalls {
         compiler: &interface::Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        use rustc::session::config::Input;
+        use rustc_session::config::Input;
 
         use futures::future::Future;
         use rls_ipc::rpc::{Crate, Edition};
@@ -213,7 +213,7 @@ impl Callbacks for ShimCalls {
 }
 
 #[cfg(feature = "ipc")]
-fn fetch_input_files(sess: &rustc::session::Session) -> Vec<PathBuf> {
+fn fetch_input_files(sess: &rustc_session::Session) -> Vec<PathBuf> {
     let cwd = &sess.working_dir.0;
 
     sess.source_map()

@@ -3,7 +3,7 @@
 #[allow(unused_extern_crates)]
 extern crate getopts;
 #[allow(unused_extern_crates)]
-extern crate rustc;
+extern crate rustc_session;
 #[allow(unused_extern_crates)]
 extern crate rustc_codegen_utils;
 #[allow(unused_extern_crates)]
@@ -34,8 +34,8 @@ use log::trace;
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 
-use self::rustc::session::config::Input;
-use self::rustc::session::Session;
+use self::rustc_session::config::Input;
+use self::rustc_session::Session;
 use self::rustc_driver::{run_compiler, Compilation};
 use self::rustc_interface::interface;
 use self::rustc_interface::Queries;
