@@ -1,20 +1,20 @@
 #![feature(rustc_private)]
 
 extern crate env_logger;
-extern crate rustc_session;
 extern crate rustc_driver;
 extern crate rustc_interface;
 extern crate rustc_save_analysis;
+extern crate rustc_session;
 extern crate rustc_span;
 
-use rustc_session::config::ErrorOutputType;
-use rustc_session::early_error;
 #[cfg(feature = "ipc")]
 use rustc_driver::Compilation;
 use rustc_driver::{run_compiler, Callbacks};
 use rustc_interface::interface;
 #[cfg(feature = "ipc")]
 use rustc_interface::Queries;
+use rustc_session::config::ErrorOutputType;
+use rustc_session::early_error;
 
 use std::env;
 #[allow(unused_imports)]

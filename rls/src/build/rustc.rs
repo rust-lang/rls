@@ -34,13 +34,13 @@ use log::trace;
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 
-use self::rustc_session::config::Input;
-use self::rustc_session::Session;
 use self::rustc_driver::{run_compiler, Compilation};
 use self::rustc_interface::interface;
 use self::rustc_interface::Queries;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
+use self::rustc_session::config::Input;
+use self::rustc_session::Session;
 use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
