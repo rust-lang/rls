@@ -1,23 +1,13 @@
 // FIXME: switch to something more ergonomic here, once available.
 // (Currently, there is no way to opt into sysroot crates without `extern crate`.)
 #[allow(unused_extern_crates)]
-extern crate getopts;
-#[allow(unused_extern_crates)]
-extern crate rustc_session;
-#[allow(unused_extern_crates)]
-extern crate rustc_codegen_utils;
-#[allow(unused_extern_crates)]
 extern crate rustc_driver;
-#[allow(unused_extern_crates)]
-extern crate rustc_errors;
 #[allow(unused_extern_crates)]
 extern crate rustc_interface;
 #[allow(unused_extern_crates)]
-extern crate rustc_metadata;
-#[allow(unused_extern_crates)]
-extern crate rustc_resolve;
-#[allow(unused_extern_crates)]
 extern crate rustc_save_analysis;
+#[allow(unused_extern_crates)]
+extern crate rustc_session;
 #[allow(unused_extern_crates)]
 extern crate rustc_span;
 
@@ -34,13 +24,13 @@ use log::trace;
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 
-use self::rustc_session::config::Input;
-use self::rustc_session::Session;
 use self::rustc_driver::{run_compiler, Compilation};
 use self::rustc_interface::interface;
 use self::rustc_interface::Queries;
 use self::rustc_save_analysis as save;
 use self::rustc_save_analysis::CallbackHandler;
+use self::rustc_session::config::Input;
+use self::rustc_session::Session;
 use self::rustc_span::edition::Edition as RustcEdition;
 use self::rustc_span::source_map::{FileLoader, RealFileLoader};
 use crate::build::environment::{Environment, EnvironmentLockFacade};
