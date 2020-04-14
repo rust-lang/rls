@@ -32,7 +32,7 @@ rls-ipc = { version = "0.1.0", path = "rls-ipc", optional = true }
 anyhow = "1.0.26"
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "bda50510d1daf6e9c53ad6ccf603da6e0fa8103f" }
 cargo_metadata = "0.8"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "8b7f7e667268921c278af94ae30a61e87a22b22b", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "d236b30a1d638340aad8345fa2946cfe9543dcf0", optional = true }
 env_logger = "0.7"
 futures = { version = "0.1", optional = true }
 home = "0.5.1"
