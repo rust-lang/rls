@@ -33,7 +33,7 @@ pub trait DiagnosticsNotifier: Send {
 fn new_progress_params(title: String) -> ProgressParams {
     // Counter to generate unique IDs for each chain-of-progress notification.
     lazy_static! {
-        static ref PROGRESS_ID_COUNTER: AtomicUsize = { AtomicUsize::new(0) };
+        static ref PROGRESS_ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
     }
 
     ProgressParams {
