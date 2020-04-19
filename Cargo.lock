@@ -203,8 +203,8 @@ dependencies = [
 
 [[package]]
 name = "cargo"
-version = "0.44.0"
-source = "git+https://github.com/rust-lang/cargo?rev=bda50510d1daf6e9c53ad6ccf603da6e0fa8103f#bda50510d1daf6e9c53ad6ccf603da6e0fa8103f"
+version = "0.45.0"
+source = "git+https://github.com/rust-lang/cargo?rev=5b620dc044e8999e6bc0193f9e037c4618519547#5b620dc044e8999e6bc0193f9e037c4618519547"
 dependencies = [
  "anyhow",
  "atty",
@@ -213,7 +213,6 @@ dependencies = [
  "clap",
  "core-foundation",
  "crates-io",
- "crossbeam-channel",
  "crossbeam-utils 0.7.0",
  "crypto-hash",
  "curl",
@@ -221,7 +220,6 @@ dependencies = [
  "env_logger 0.7.1",
  "filetime",
  "flate2",
- "fs2",
  "fwdansi",
  "git2",
  "git2-curl",
@@ -257,6 +255,7 @@ dependencies = [
  "termcolor",
  "toml",
  "unicode-width",
+ "unicode-xid",
  "url 2.1.0",
  "walkdir",
  "winapi 0.3.8",
@@ -265,7 +264,7 @@ dependencies = [
 [[package]]
 name = "cargo-platform"
 version = "0.1.1"
-source = "git+https://github.com/rust-lang/cargo?rev=bda50510d1daf6e9c53ad6ccf603da6e0fa8103f#bda50510d1daf6e9c53ad6ccf603da6e0fa8103f"
+source = "git+https://github.com/rust-lang/cargo?rev=5b620dc044e8999e6bc0193f9e037c4618519547#5b620dc044e8999e6bc0193f9e037c4618519547"
 dependencies = [
  "serde",
 ]
@@ -397,7 +396,7 @@ checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
 [[package]]
 name = "crates-io"
 version = "0.31.0"
-source = "git+https://github.com/rust-lang/cargo?rev=bda50510d1daf6e9c53ad6ccf603da6e0fa8103f#bda50510d1daf6e9c53ad6ccf603da6e0fa8103f"
+source = "git+https://github.com/rust-lang/cargo?rev=5b620dc044e8999e6bc0193f9e037c4618519547#5b620dc044e8999e6bc0193f9e037c4618519547"
 dependencies = [
  "anyhow",
  "curl",
@@ -669,9 +668,9 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
 name = "filetime"
-version = "0.2.7"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bd7380b54ced79dda72ecc35cc4fbbd1da6bba54afaa37e96fd1c2a308cd469"
+checksum = "f59efc38004c988e4201d11d263b8171f49a2e7ec0bdbb71773433f271504a5e"
 dependencies = [
  "cfg-if",
  "libc",
@@ -712,16 +711,6 @@ name = "foreign-types-shared"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
-
-[[package]]
-name = "fs2"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
-dependencies = [
- "libc",
- "winapi 0.3.8",
-]
 
 [[package]]
 name = "fst"
@@ -795,9 +784,9 @@ dependencies = [
 
 [[package]]
 name = "git2"
-version = "0.12.0"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26e07ef27260a78f7e8d218ebac2c72f2c4db50493741b190b6e8eade1da7c68"
+checksum = "2cfb93ca10f2934069c3aaafb753fbe0663f08ee009a01b6d62e062391447b15"
 dependencies = [
  "bitflags",
  "libc",
@@ -810,9 +799,9 @@ dependencies = [
 
 [[package]]
 name = "git2-curl"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af1754ec4170e7dcaf9bb43743bb16eddb8d827b2e0291deb6f220a6e16fe46a"
+checksum = "502d532a2d06184beb3bc869d4d90236e60934e3382c921b203fa3c33e212bd7"
 dependencies = [
  "curl",
  "git2",
@@ -1125,9 +1114,9 @@ checksum = "d515b1f41455adea1313a4a2ac8a8a477634fbae63cc6100e3aebb207ce61558"
 
 [[package]]
 name = "libgit2-sys"
-version = "0.11.0+0.99.0"
+version = "0.12.3+1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d5d1459353d397a029fb18862166338de938e6be976606bd056cf8f1a912ecf"
+checksum = "7637dc15e7f05a16011723e0448655081fc01a374bcd368e2c9b9c7f5c5ab3ea"
 dependencies = [
  "cc",
  "libc",

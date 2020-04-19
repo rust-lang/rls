@@ -356,19 +356,19 @@ impl Executor for RlsExecutor {
     /// unit of work (may still be modified for runtime-known dependencies, when
     /// the work is actually executed). This is called even for a target that
     /// is fresh and won't be compiled.
-    fn init<'a>(&self, cx: &Context<'a, '_>, unit: &Unit<'a>) {
+    fn init<'a>(&self, cx: &Context<'a, '_>, unit: &Unit) {
         let mut compilation_cx = self.compilation_cx.lock().unwrap();
         let plan = compilation_cx
             .build_plan
             .as_cargo_mut()
             .expect("build plan should be properly initialized before running Cargo");
 
-        let only_primary = |unit: Unit<'_>| self.is_primary_package(unit.pkg.package_id());
+        let only_primary = |unit: &Unit| self.is_primary_package(unit.pkg.package_id());
 
-        plan.emplace_dep_with_filter(*unit, cx, &only_primary);
+        plan.emplace_dep_with_filter(unit, cx, &only_primary);
     }
 
-    fn force_rebuild(&self, unit: &Unit<'_>) -> bool {
+    fn force_rebuild(&self, unit: &Unit) -> bool {
         // We need to force rebuild every package in the
         // workspace, even if it's not dirty at a time, to cache compiler
         // invocations in the build plan.
