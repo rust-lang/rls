@@ -127,11 +127,11 @@ impl CargoPlan {
     /// out by the `filter` closure.
     pub(crate) fn emplace_dep_with_filter<'a, Filter>(
         &mut self,
-        unit: Unit<'a>,
+        unit: &Unit,
         cx: &Context<'a, '_>,
         filter: &Filter,
     ) where
-        Filter: Fn(Unit<'a>) -> bool,
+        Filter: Fn(&Unit) -> bool,
     {
         if !filter(unit) {
             return;
@@ -150,13 +150,13 @@ impl CargoPlan {
         self.units.insert(key.clone(), unit.into());
 
         // Fetch and insert relevant unit dependencies to the forward dep graph.
-        let deps = cx.unit_deps(&unit);
+        let deps = cx.unit_deps(unit);
         let dep_keys: HashSet<UnitKey> = deps
             .iter()
-            .map(|dep| dep.unit)
+            .map(|dep| &dep.unit)
             // We might not want certain deps to be added transitively (e.g.
             // when creating only a sub-dep-graph, limiting the scope).
-            .filter(|unit| filter(*unit))
+            .filter(|unit| filter(unit))
             .map(UnitKey::from)
             // Units can depend on others with different Targets or Profiles
             // (e.g. different `run_custom_build`) despite having the same UnitKey.
@@ -175,7 +175,7 @@ impl CargoPlan {
 
         // Recursively process other remaining forward dependencies.
         for dep in deps {
-            self.emplace_dep_with_filter(dep.unit, cx, filter);
+            self.emplace_dep_with_filter(&dep.unit, cx, filter);
         }
     }
 
@@ -464,8 +464,8 @@ impl PackageMap {
     }
 }
 
-impl From<Unit<'_>> for UnitKey {
-    fn from(unit: Unit<'_>) -> UnitKey {
+impl From<&Unit> for UnitKey {
+    fn from(unit: &Unit) -> UnitKey {
         UnitKey { pkg_id: unit.pkg.package_id(), target: unit.target.clone(), mode: unit.mode }
     }
 }
@@ -480,8 +480,8 @@ pub(crate) struct OwnedUnit {
     pub(crate) mode: CompileMode,
 }
 
-impl From<Unit<'_>> for OwnedUnit {
-    fn from(unit: Unit<'_>) -> OwnedUnit {
+impl From<&Unit> for OwnedUnit {
+    fn from(unit: &Unit) -> OwnedUnit {
         OwnedUnit {
             id: unit.pkg.package_id().to_owned(),
             target: unit.target.clone(),
