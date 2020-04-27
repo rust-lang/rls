@@ -34,10 +34,6 @@ impl rustc_span::source_map::FileLoader for IpcFileLoader {
         self.0.file_exists(path.to_owned()).wait().unwrap()
     }
 
-    fn abs_path(&self, path: &Path) -> Option<PathBuf> {
-        self.0.abs_path(path.to_owned()).wait().ok()?
-    }
-
     fn read_file(&self, path: &Path) -> io::Result<String> {
         self.0
             .read_file(path.to_owned())

@@ -140,24 +140,22 @@ pub struct ChangedFiles(HashMap<PathBuf, String>);
 
 impl rpc::file_loader::Rpc for ChangedFiles {
     fn file_exists(&self, path: PathBuf) -> RpcResult<bool> {
-        // Copied from syntax::source_map::RealFileLoader
         Ok(fs::metadata(path).is_ok())
     }
-    fn abs_path(&self, path: PathBuf) -> RpcResult<Option<PathBuf>> {
-        // Copied from syntax::source_map::RealFileLoader
-        Ok(if path.is_absolute() {
-            Some(path.to_path_buf())
-        } else {
-            env::current_dir().ok().map(|cwd| cwd.join(path))
-        })
-    }
+
     fn read_file(&self, path: PathBuf) -> RpcResult<String> {
-        if let Some(abs_path) = self.abs_path(path.clone()).ok().and_then(|x| x) {
-            if self.0.contains_key(&abs_path) {
-                return Ok(self.0[&abs_path].clone());
-            }
+        if let Some(contents) = abs_path(&path).and_then(|x| self.0.get(&x)) {
+            return Ok(contents.clone());
         }
 
         fs::read_to_string(path).map_err(|e| rpc_error(&e.to_string()))
+    }
+}
+
+fn abs_path(path: &Path) -> Option<PathBuf> {
+    if path.is_absolute() {
+        Some(path.to_path_buf())
+    } else {
+        env::current_dir().ok().map(|cwd| cwd.join(path))
     }
 }
