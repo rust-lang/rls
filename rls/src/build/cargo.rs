@@ -228,7 +228,7 @@ fn run_cargo_ws(
         build_config: BuildConfig::new(
             &config,
             opts.jobs,
-            &opts.target,
+            opts.target.iter().map(|x| x.into()).collect::<Vec<String>>().as_slice(),
             CompileMode::Check { test: cfg_test },
         )?,
         features: opts.features,
