@@ -367,17 +367,20 @@ impl FileLoader for ReplacedFileLoader {
         self.real_file_loader.file_exists(path)
     }
 
-    fn abs_path(&self, path: &Path) -> Option<PathBuf> {
-        self.real_file_loader.abs_path(path)
-    }
-
     fn read_file(&self, path: &Path) -> io::Result<String> {
-        if let Some(abs_path) = self.abs_path(path) {
-            if self.replacements.contains_key(&abs_path) {
-                return Ok(self.replacements[&abs_path].clone());
-            }
+        if let Some(contents) = abs_path(path).and_then(|x| self.replacements.get(&x)) {
+            return Ok(contents.clone());
         }
+
         self.real_file_loader.read_file(path)
+    }
+}
+
+fn abs_path(path: &Path) -> Option<PathBuf> {
+    if path.is_absolute() {
+        Some(path.to_path_buf())
+    } else {
+        env::current_dir().ok().map(|cwd| cwd.join(path))
     }
 }
 

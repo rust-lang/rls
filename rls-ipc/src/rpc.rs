@@ -24,10 +24,6 @@ pub mod file_loader {
         #[rpc(name = "file_exists")]
         fn file_exists(&self, path: PathBuf) -> Result<bool>;
 
-        /// Returns an absolute path to a file, if possible.
-        #[rpc(name = "abs_path")]
-        fn abs_path(&self, path: PathBuf) -> Result<Option<PathBuf>>;
-
         /// Read the contents of an UTF-8 file into memory.
         #[rpc(name = "read_file")]
         fn read_file(&self, path: PathBuf) -> Result<String>;
