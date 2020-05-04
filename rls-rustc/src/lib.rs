@@ -120,7 +120,6 @@ impl Callbacks for ShimCalls {
 
         let sess = compiler.session();
         let input = compiler.input();
-        let crate_name = queries.crate_name().unwrap().peek().clone();
 
         let cwd = &sess.working_dir.0;
 
@@ -131,7 +130,7 @@ impl Callbacks for ShimCalls {
         .and_then(|path| src_path(Some(cwd), path));
 
         let krate = Crate {
-            name: crate_name.to_owned(),
+            name: queries.crate_name().unwrap().peek().to_owned(),
             src_path,
             disambiguator: sess.local_crate_disambiguator().to_fingerprint().as_value(),
             edition: match sess.edition() {
