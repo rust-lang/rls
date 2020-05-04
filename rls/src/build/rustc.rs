@@ -1,14 +1,9 @@
 // FIXME: switch to something more ergonomic here, once available.
 // (Currently, there is no way to opt into sysroot crates without `extern crate`.)
-#[allow(unused_extern_crates)]
 extern crate rustc_driver;
-#[allow(unused_extern_crates)]
 extern crate rustc_interface;
-#[allow(unused_extern_crates)]
 extern crate rustc_save_analysis;
-#[allow(unused_extern_crates)]
 extern crate rustc_session;
-#[allow(unused_extern_crates)]
 extern crate rustc_span;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
