@@ -80,4 +80,4 @@ rustc_tools_util = "0.2"
 [features]
 clippy = ["clippy_lints", "rls-rustc/clippy"]
 ipc = ["tokio", "futures", "rls-rustc/ipc", "rls-ipc/server"]
-default = []
+default = ["ipc"]

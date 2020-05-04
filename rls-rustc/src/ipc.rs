@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use failure::Fail;
 use futures::Future;
 
 use rls_ipc::client::{Client as JointClient, RpcChannel, RpcError};
@@ -38,7 +37,7 @@ impl rustc_span::source_map::FileLoader for IpcFileLoader {
         self.0
             .read_file(path.to_owned())
             .wait()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.compat()))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e)))
     }
 }
 

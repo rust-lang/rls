@@ -1838,7 +1838,6 @@ version = "0.6.0"
 dependencies = [
  "clippy_lints 0.0.212 (git+https://github.com/rust-lang/rust-clippy?rev=d236b30a1d638340aad8345fa2946cfe9543dcf0)",
  "env_logger 0.7.1",
- "failure",
  "futures",
  "log",
  "rand",
