@@ -40,5 +40,5 @@ jobs:
       ".":
         - test_name: test_tooltip_std
           test_args: --ignored
-      # Test also the IPC feature build
-        - args: --features ipc
+      # Test that we don't regress in-process compilation build
+        - args: --no-default-features
