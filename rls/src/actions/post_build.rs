@@ -291,7 +291,9 @@ impl RefUnwindSafe for AnalysisQueue {}
 
 impl Drop for AnalysisQueue {
     fn drop(&mut self) {
-        let _ = self.queue.lock().map(|mut q| q.push(QueuedJob::Terminate));
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.push(QueuedJob::Terminate);
+        }
     }
 }
 

@@ -491,12 +491,13 @@ fn find_word_at_pos(line: &str, pos: Column) -> (Column, Column) {
         .map(|(i, _)| i + 1)
         .unwrap_or(0) as u32;
 
+    #[allow(clippy::filter_next)]
     let end = line
         .chars()
         .enumerate()
         .skip(col)
         .filter(|&(_, c)| !is_ident_char(c))
-        .nth(0)
+        .next()
         .map(|(i, _)| i)
         .unwrap_or(col) as u32;
 
