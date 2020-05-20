@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "nightly", feature(step_trait))]
+#![cfg_attr(feature = "nightly", feature(step_trait, step_trait_ext))]
 
 #[cfg(feature = "derive")]
 #[macro_use]
@@ -9,8 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-#[cfg(feature = "nightly")]
-use std::convert::TryFrom;
 #[cfg(feature = "nightly")]
 use std::iter::Step;
 
@@ -86,62 +84,30 @@ impl Column<ZeroIndexed> {
 }
 
 #[cfg(feature = "nightly")]
-impl Step for Column<ZeroIndexed> {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        <u32 as Step>::steps_between(&start.0, &end.0)
-    }
-
-    fn replace_one(&mut self) -> Self {
-        self.0 = 1;
-        self.clone()
-    }
-
-    fn replace_zero(&mut self) -> Self {
-        self.0 = 0;
-        self.clone()
-    }
-
-    fn add_one(&self) -> Self {
-        Self::new(self.0 + 1)
-    }
-
-    fn sub_one(&self) -> Self {
-        Self::new(self.0 - 1)
-    }
-
-    fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
-    }
+macro_rules! impl_step {
+    ($target: ty) => {
+        unsafe impl Step for $target {
+            fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+                Step::steps_between(&start.0, &end.0)
+            }
+            fn forward_checked(arg: Self, count: usize) -> Option<Self> {
+                Step::forward_checked(arg.0, count).map(|x| Self(x, PhantomData))
+            }
+            fn backward_checked(arg: Self, count: usize) -> Option<Self> {
+                Step::backward_checked(arg.0, count).map(|x| Self(x, PhantomData))
+            }
+        }
+    };
 }
 
 #[cfg(feature = "nightly")]
-impl Step for Column<OneIndexed> {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        <u32 as Step>::steps_between(&start.0, &end.0)
-    }
-
-    fn replace_one(&mut self) -> Self {
-        self.0 = 2;
-        self.clone()
-    }
-
-    fn replace_zero(&mut self) -> Self {
-        self.0 = 1;
-        self.clone()
-    }
-
-    fn add_one(&self) -> Self {
-        Self::new(self.0 + 1)
-    }
-
-    fn sub_one(&self) -> Self {
-        Self::new(self.0 - 1)
-    }
-
-    fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
-    }
-}
+impl_step!(Column<ZeroIndexed>);
+#[cfg(feature = "nightly")]
+impl_step!(Column<OneIndexed>);
+#[cfg(feature = "nightly")]
+impl_step!(Row<ZeroIndexed>);
+#[cfg(feature = "nightly")]
+impl_step!(Row<OneIndexed>);
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Row<I: Indexed>(pub u32, PhantomData<I>);
@@ -203,64 +169,6 @@ impl Row<ZeroIndexed> {
 
     pub fn one_indexed(self) -> Row<OneIndexed> {
         Row(self.0 + 1, PhantomData)
-    }
-}
-
-#[cfg(feature = "nightly")]
-impl Step for Row<ZeroIndexed> {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        <u32 as Step>::steps_between(&start.0, &end.0)
-    }
-
-    fn replace_one(&mut self) -> Self {
-        self.0 = 1;
-        self.clone()
-    }
-
-    fn replace_zero(&mut self) -> Self {
-        self.0 = 0;
-        self.clone()
-    }
-
-    fn add_one(&self) -> Self {
-        Self::new(self.0 + 1)
-    }
-
-    fn sub_one(&self) -> Self {
-        Self::new(self.0 - 1)
-    }
-
-    fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
-    }
-}
-
-#[cfg(feature = "nightly")]
-impl Step for Row<OneIndexed> {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        <u32 as Step>::steps_between(&start.0, &end.0)
-    }
-
-    fn replace_one(&mut self) -> Self {
-        self.0 = 2;
-        self.clone()
-    }
-
-    fn replace_zero(&mut self) -> Self {
-        self.0 = 1;
-        self.clone()
-    }
-
-    fn add_one(&self) -> Self {
-        Self::new(self.0 + 1)
-    }
-
-    fn sub_one(&self) -> Self {
-        Self::new(self.0 - 1)
-    }
-
-    fn add_usize(&self, n: usize) -> Option<Self> {
-        (self.0 as usize).checked_add(n).and_then(|n| u32::try_from(n).ok()).map(Self::new)
     }
 }
 
