@@ -276,9 +276,6 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         let input = compiler.input();
         let crate_name = queries.crate_name().unwrap().peek().clone();
 
-        // Guaranteed to not be dropped yet in the pipeline thanks to the
-        // `config.opts.debugging_opts.save_analysis` value being set to `true`.
-        let expanded_crate = &queries.expansion().unwrap().peek().0;
         queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
             // There are two ways to move the data from rustc to the RLS, either
             // directly or by serialising and deserialising. We only want to do
@@ -286,7 +283,6 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
 
             // This version passes via JSON, it is more easily backwards compatible.
             // save::process_crate(state.tcx.unwrap(),
-            //                     state.expanded_crate.unwrap(),
             //                     state.analysis.unwrap(),
             //                     state.crate_name.unwrap(),
             //                     state.input,
@@ -296,7 +292,6 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             // This version passes directly, it is more efficient.
             save::process_crate(
                 tcx,
-                &expanded_crate,
                 &crate_name,
                 &input,
                 None,
