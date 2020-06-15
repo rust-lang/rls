@@ -17,7 +17,7 @@ jobs:
       parameters:
         rust_version: ${{ parameters.rust }}
     - script: |
-        rustup component add rust-src rust-analysis rustc-dev
+        rustup component add rust-src rust-analysis rustc-dev llvm-tools-preview
       displayName: Install distributed Rust source code for Racer autocompletion
     - ${{ each crate in parameters.crates }}:
       - script: cargo test -v
