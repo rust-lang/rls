@@ -193,7 +193,8 @@ fn random_file() -> Result<(File, PathBuf), Error> {
 
 fn gen_config_file(config: &Config) -> Result<(File, PathBuf), Error> {
     let (mut file, path) = random_file()?;
-    let toml = config.all_options().to_toml().map_err(Error::ConfigTomlOutput)?;
+    let toml =
+        config.all_options().to_toml().map_err(|e| Error::ConfigTomlOutput(e.to_string()))?;
     file.write_all(toml.as_bytes())?;
 
     Ok((file, path))
