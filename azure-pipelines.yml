@@ -8,6 +8,9 @@ pr:
 - master
 
 variables:
+  # https://github.com/rust-lang/rust/commit/489b7e4123f9f85d45335d81f21625d08aa87e1f
+  CFG_RELEASE_CHANNEL: nightly
+  CFG_RELEASE: nightly
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
   RLS_TEST_WAIT_FOR_AGES: 1
