@@ -1,6 +1,9 @@
 jobs:
 # Check formatting
 - job: ${{ parameters.name }}
+  variables:
+    cfgRelease: ''
+    cfgReleaseChannel: ${{ parameters.rust }}
   displayName: Run tests on
   strategy:
     matrix:
@@ -19,11 +22,39 @@ jobs:
     - script: |
         rustup component add rust-src rust-analysis rustc-dev llvm-tools-preview
       displayName: Install distributed Rust source code for Racer autocompletion
+    - script: |
+        CFG_RELEASE=$(rustc --version | cut -d ' ' -f 2 | cut -d '-' -f 1)
+        echo "##vso[task.setvariable variable=cfgRelease]$CFG_RELEASE"
+      displayName: Set CFG_RELEASE variable
+      condition: not(eq(variables['Agent.OS'], 'Windows_NT'))
+    - powershell: |
+        $rustVersion = rustc --version
+        $rustVersionParts = $rustVersion -split " " -split "-"
+        $cfgRelease = $rustVersionParts[1]
+        Write-Host "##vso[task.setvariable variable=cfgRelease]$cfgRelease"
+      displayName: Set CFG_RELEASE variables
+      condition: eq(variables['Agent.OS'], 'Windows_NT')
     - ${{ each crate in parameters.crates }}:
-      - script: cargo test -v
+      - script: CFG_RELEASE_CHANNEL=$(cfgReleaseChannel) CFG_RELEASE=$(cfgRelease) cargo test -v
         displayName: Run tests - ${{ crate.key }}
         workingDirectory: $(Build.SourcesDirectory)/${{ crate.key }}
+        condition: not(eq(variables['Agent.OS'], 'Windows_NT'))
+      - script: |
+          set CFG_RELEASE_CHANNEL=$(cfgReleaseChannel)
+          set CFG_RELEASE=$(cfgRelease)
+          cargo test -v
+        displayName: Run tests - ${{ crate.key }}
+        workingDirectory: $(Build.SourcesDirectory)/${{ crate.key }}
+        condition: eq(variables['Agent.OS'], 'Windows_NT')
       - ${{ each extra in crate.value }}:
-        - script: cargo test -v ${{ extra.args }} ${{ extra.test_name }} -- ${{ extra.test_args }}
-          displayName: Run tests - ${{ crate.key }} - ${{ extra.test_name }}
-          workingDirectory: $(Build.SourcesDirectory)/${{ crate.key }}
+        - ${{ if not(eq(variables['Agent.OS'], 'Windows_NT')) }}:
+          - script: CFG_RELEASE_CHANNEL=$(cfgReleaseChannel) CFG_RELEASE=$(cfgRelease) cargo test -v ${{ extra.args }} ${{ extra.test_name }} -- ${{ extra.test_args }}
+            displayName: Run tests - ${{ crate.key }} - ${{ extra.test_name }}
+            workingDirectory: $(Build.SourcesDirectory)/${{ crate.key }}
+        - ${{ if eq(variables['Agent.OS'], 'Windows_NT') }}:
+          - script: |
+              set CFG_RELEASE_CHANNEL=$(cfgReleaseChannel)
+              set CFG_RELEASE=$(cfgRelease)
+              cargo test -v ${{ extra.args }} ${{ extra.test_name }} -- ${{ extra.test_args }}
+            displayName: Run tests - ${{ crate.key }} - ${{ extra.test_name }}
+            workingDirectory: $(Build.SourcesDirectory)/${{ crate.key }}
