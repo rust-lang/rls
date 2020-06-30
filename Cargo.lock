@@ -200,8 +200,8 @@ checksum = "716960a18f978640f25101b5cbf1c6f6b0d3192fab36a2d98ca96f0ecbe41010"
 
 [[package]]
 name = "cargo"
-version = "0.46.0"
-source = "git+https://github.com/rust-lang/cargo?rev=258c89644c4587273a3ed3ee9522d2640facba43#258c89644c4587273a3ed3ee9522d2640facba43"
+version = "0.47.0"
+source = "git+https://github.com/rust-lang/cargo?rev=305eaf0dc5f5a38d6e8041319c2da95b71cf6a4a#305eaf0dc5f5a38d6e8041319c2da95b71cf6a4a"
 dependencies = [
  "anyhow",
  "atty",
@@ -237,11 +237,10 @@ dependencies = [
  "num_cpus",
  "opener",
  "percent-encoding 2.1.0",
- "remove_dir_all",
  "rustc-workspace-hack",
  "rustfix",
  "same-file",
- "semver",
+ "semver 0.10.0",
  "serde",
  "serde_ignored",
  "serde_json",
@@ -261,7 +260,7 @@ dependencies = [
 [[package]]
 name = "cargo-platform"
 version = "0.1.1"
-source = "git+https://github.com/rust-lang/cargo?rev=258c89644c4587273a3ed3ee9522d2640facba43#258c89644c4587273a3ed3ee9522d2640facba43"
+source = "git+https://github.com/rust-lang/cargo?rev=305eaf0dc5f5a38d6e8041319c2da95b71cf6a4a#305eaf0dc5f5a38d6e8041319c2da95b71cf6a4a"
 dependencies = [
  "serde",
 ]
@@ -272,7 +271,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "700b3731fd7d357223d0000f4dbf1808401b694609035c3c411fbc0cd375c426"
 dependencies = [
- "semver",
+ "semver 0.9.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -284,7 +283,7 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46e3374c604fb39d1a2f35ed5e4a4e30e60d01fab49446e08f1b3e9a90aef202"
 dependencies = [
- "semver",
+ "semver 0.9.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -333,7 +332,7 @@ dependencies = [
  "quine-mc_cluskey",
  "quote",
  "regex-syntax",
- "semver",
+ "semver 0.9.0",
  "serde",
  "smallvec 1.4.0",
  "syn",
@@ -354,7 +353,7 @@ dependencies = [
  "pulldown-cmark",
  "quine-mc_cluskey",
  "regex-syntax",
- "semver",
+ "semver 0.9.0",
  "serde",
  "smallvec 1.4.0",
  "toml",
@@ -397,9 +396,9 @@ checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
 name = "core-foundation"
-version = "0.7.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d24c7a13c43e870e37c1556b74555437870a04514f7685f5b354e090567171"
+checksum = "3b5ed8e7e76c45974e15e41bfa8d5b0483cd90191639e01d8f5f1e606299d3fb"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -407,20 +406,19 @@ dependencies = [
 
 [[package]]
 name = "core-foundation-sys"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
+checksum = "9a21fa21941700a3cd8fcb4091f361a6a712fac632f85d9f487cc892045d55c6"
 
 [[package]]
 name = "crates-io"
 version = "0.31.1"
-source = "git+https://github.com/rust-lang/cargo?rev=258c89644c4587273a3ed3ee9522d2640facba43#258c89644c4587273a3ed3ee9522d2640facba43"
+source = "git+https://github.com/rust-lang/cargo?rev=305eaf0dc5f5a38d6e8041319c2da95b71cf6a4a#305eaf0dc5f5a38d6e8041319c2da95b71cf6a4a"
 dependencies = [
  "anyhow",
  "curl",
  "percent-encoding 2.1.0",
  "serde",
- "serde_derive",
  "serde_json",
  "url 2.1.1",
 ]
@@ -952,9 +950,9 @@ dependencies = [
 
 [[package]]
 name = "im-rc"
-version = "14.3.0"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "303f7e6256d546e01979071417432425f15c1891fb309a5f2d724ee908fabd6e"
+checksum = "3ca8957e71f04a205cb162508f9326aea04676c8dfd0711220190d6b83664f3f"
 dependencies = [
  "bitmaps",
  "rand_core",
@@ -1146,9 +1144,9 @@ checksum = "99e85c08494b21a9054e7fe1374a732aeadaff3980b6990b94bfd3a70f690005"
 
 [[package]]
 name = "libgit2-sys"
-version = "0.12.5+1.0.0"
+version = "0.12.7+1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3eadeec65514971355bf7134967a543f71372f35b53ac6c7143e7bd157f07535"
+checksum = "bcd07968649bcb7b9351ecfde53ca4d27673cccfdf57c84255ec18710f3153e0"
 dependencies = [
  "cc",
  "libc",
@@ -2241,7 +2239,7 @@ version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
 dependencies = [
- "semver",
+ "semver 0.9.0",
 ]
 
 [[package]]
@@ -2357,6 +2355,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "semver"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "394cec28fa623e00903caf7ba4fa6fb9a0e260280bb8cdbbba029611108a0190"
+dependencies = [
+ "semver-parser",
+ "serde",
+]
+
+[[package]]
 name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2443,9 +2451,9 @@ dependencies = [
 
 [[package]]
 name = "sized-chunks"
-version = "0.5.3"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59044ea371ad781ff976f7b06480b9f0180e834eda94114f2afb4afc12b7718"
+checksum = "1ec31ceca5644fa6d444cc77548b88b67f46db6f7c71683b0f9336e671830d2f"
 dependencies = [
  "bitmaps",
  "typenum",

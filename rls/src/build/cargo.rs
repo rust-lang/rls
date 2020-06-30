@@ -384,13 +384,14 @@ impl Executor for RlsExecutor {
 
     fn exec(
         &self,
-        mut cargo_cmd: ProcessBuilder,
+        cargo_cmd: &ProcessBuilder,
         id: PackageId,
         target: &Target,
         mode: CompileMode,
         _on_stdout_line: &mut dyn FnMut(&str) -> CargoResult<()>,
         _on_stderr_line: &mut dyn FnMut(&str) -> CargoResult<()>,
     ) -> CargoResult<()> {
+        let mut cargo_cmd = cargo_cmd.clone();
         // Enforce JSON output so that we can parse the rustc output by
         // stripping --error-format if it was specified (e.g. Cargo pipelined
         // build)
