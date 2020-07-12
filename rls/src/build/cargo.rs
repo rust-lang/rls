@@ -260,6 +260,17 @@ fn run_cargo_ws(
         Arc::clone(&reached_primary),
     );
 
+    // Cargo excludes target/ from backups since rust-lang/cargo@cf3bfc9/rust-lang/cargo#8378 but
+    // it does so if and only if the directory does not exist and it's about to create it.
+    // rls runs cargo internally with target directory set to target/rls/ so, if target/ doesn't
+    // exist yet and rls runs, target/ and target/rls/ will be created. While target/rls/ will be
+    // excluded from backups target/ won't be (as from our perspective it's not the target
+    // directory but its parent) and, when user runs "cargo build" themselves cargo will see
+    // target/ existing already and won't exclude it from backups. We can work around that by
+    // attempting to create a backup-excluded target/ ourelves using cargo paths:: machinery.
+    cargo::util::paths::create_dir_all_excluded_from_backups_atomic(
+        config.target_dir().unwrap().unwrap().as_path_unlocked().parent().unwrap(),
+    )?;
     let exec = Arc::new(exec) as Arc<dyn Executor>;
     match compile_with_exec(&ws, &compile_opts, &exec) {
         Ok(_) => {

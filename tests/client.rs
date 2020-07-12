@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -2226,4 +2227,31 @@ fn client_parse_error_on_malformed_input() {
     // Right now parse errors shutdown the RLS, which we might want to revisit
     // to provide better fault tolerance.
     cmd.wait().unwrap();
+}
+
+#[test]
+fn client_cargo_target_directory_is_excluded_from_backups() {
+    // This is to make sure that if it's rls that crates target/ directory the directory is
+    // excluded from backups just as if it was created by cargo itself. See a comment in
+    // run_cargo_ws() or rust-lang/cargo@cf3bfc9/rust-lang/cargo#8378 for more information.
+    let p = project("backup_exclusion_workspace")
+        .file("Cargo.toml", &basic_bin_manifest("foo"))
+        .file(
+            "src/main.rs",
+            r#"
+                fn main() {
+                    println!("Hello world!");
+                }
+            "#,
+        )
+        .build();
+    let root_path = p.root();
+    let mut rls = p.spawn_rls_async();
+    rls.request::<Initialize>(0, initialize_params(root_path));
+    let _ = rls.wait_for_indexing();
+    let cachedir_tag = p.root().join("target").join("CACHEDIR.TAG");
+    assert!(cachedir_tag.is_file());
+    assert!(fs::read_to_string(&cachedir_tag)
+        .unwrap()
+        .starts_with("Signature: 8a477f597d28d172789f06886806bc55"));
 }
