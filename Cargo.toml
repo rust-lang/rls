@@ -20,6 +20,9 @@ name = "rls"
 test = false
 path = "rls/src/main.rs"
 
+[patch.crates-io]
+rustfmt-nightly = { version = "1.4.20", git = "https://github.com/rust-lang/rustfmt", branch = "rustfmt-1.4.20" }
+
 [dependencies]
 rls-analysis = "0.18.0"
 rls-data = "0.19"
@@ -42,11 +45,11 @@ lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "2.1.36", default-features = false }
+racer = { version = "2.1.37", default-features = false }
 rand = "0.7"
 rayon = "1"
 rustc_tools_util = "0.2"
-rustfmt-nightly = "1.4.19"
+rustfmt-nightly = "1.4.20"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
