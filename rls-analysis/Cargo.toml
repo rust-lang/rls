@@ -17,7 +17,7 @@ idents = ["rls-span/nightly"]
 derive = ["rls-data/derive", "rls-span/derive"]
 
 [dependencies]
-log = "0.4"
+log = "~0.4.11"
 rls-data = "= 0.19"
 rls-span = "0.5.2"
 derive-new = "0.5"

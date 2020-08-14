@@ -37,13 +37,13 @@ cargo = { git = "https://github.com/rust-lang/cargo", rev = "43cf77395cad5b79887
 cargo_metadata = "0.8"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "7ea7cd165ad6705603852771bf82cc2fd6560db5", optional = true }
 env_logger = "0.7"
-futures = { version = "0.1", optional = true }
+futures = { version = "0.3", optional = true }
 home = "0.5.1"
 itertools = "0.8"
 jsonrpc-core = "14"
 lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"
-log = "0.4"
+log = "~0.4.11"
 num_cpus = "1"
 racer = { version = "2.1.37", default-features = false }
 rand = "0.7"
@@ -54,7 +54,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
 serde_ignored = "0.1"
-tokio = { version = "0.1", optional = true }
+tokio = { version = "~0.2.8", optional = true }
 url = "2"
 walkdir = "2"
 regex = "1"
@@ -72,8 +72,8 @@ rustc-workspace-hack = "1.0.0"
 difference = "2"
 tempfile = "3"
 lsp-codec = "0.1.2"
-tokio = "0.1"
-futures = "0.1"
+tokio = "~0.2.8"
+futures = "0.3"
 tokio-process = "0.2"
 tokio-timer = "0.2"
 
