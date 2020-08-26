@@ -631,11 +631,11 @@ fn client_use_statement_completion_doesnt_suggest_arguments() {
 ///
 /// ```
 /// [dependencies]
-/// version-check = "0.5555"
+/// auto-cfg = "0.5555"
 /// ```
 ///
-/// * Firstly "version-check" doesn't exist, it should be "version_check"
-/// * Secondly version 0.5555 of "version_check" doesn't exist.
+/// * Firstly "auto-cfg" doesn't exist, it should be "autocfg"
+/// * Secondly version 0.5555 of "autocfg" doesn't exist.
 #[test]
 fn client_dependency_typo_and_fix() {
     let manifest_with_dependency = |dep: &str| {
@@ -654,7 +654,7 @@ fn client_dependency_typo_and_fix() {
     };
 
     let p = project("dependency_typo")
-        .file("Cargo.toml", &manifest_with_dependency(r#"version-check = "0.5555""#))
+        .file("Cargo.toml", &manifest_with_dependency(r#"auto-cfg = "0.5555""#))
         .file(
             "src/main.rs",
             r#"
@@ -672,14 +672,14 @@ fn client_dependency_typo_and_fix() {
     let diag = rls.wait_for_diagnostics();
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
-    assert!(diag.diagnostics[0].message.contains("no matching package named `version-check`"));
+    assert!(diag.diagnostics[0].message.contains("no matching package named `auto-cfg`"));
 
     let change_manifest = |contents: &str| {
         std::fs::write(root_path.join("Cargo.toml"), contents).unwrap();
     };
 
     // fix naming typo, we now expect a version error diagnostic
-    change_manifest(&manifest_with_dependency(r#"version_check = "0.5555""#));
+    change_manifest(&manifest_with_dependency(r#"autocfg = "0.5555""#));
     rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
         changes: vec![FileEvent {
             uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
@@ -694,8 +694,8 @@ fn client_dependency_typo_and_fix() {
 
     // Fix version issue so no error diagnostics occur.
     // This is kinda slow as cargo will compile the dependency, though I
-    // chose version_check to minimise this as it is a very small dependency.
-    change_manifest(&manifest_with_dependency(r#"version_check = "0.1""#));
+    // chose autocfg to minimise this as it is a very small dependency.
+    change_manifest(&manifest_with_dependency(r#"autocfg = "1""#));
     rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
         changes: vec![FileEvent {
             uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
