@@ -10,7 +10,7 @@
         "language": "rust",
         "value": "pub fn push(&mut self, value: T)"
       },
-      "Appends an element to the back of a collection.\n\n# Panics\n\nPanics if the number of elements in the vector overflows a `usize`.\n\n# Examples\n\n```rust\nlet mut vec = vec![1, 2];\nvec.push(3);\nassert_eq!(vec, [1, 2, 3]);\n```"
+      "Appends an element to the back of a collection.\n\n# Panics\n\nPanics if the new capacity exceeds `isize::MAX` bytes.\n\n# Examples\n\n```rust\nlet mut vec = vec![1, 2];\nvec.push(3);\nassert_eq!(vec, [1, 2, 3]);\n```"
     ]
   }
 }

@@ -11,7 +11,7 @@
         "value": "pub trait ToString"
       },
       "https://doc.rust-lang.org/nightly/alloc/string/ToString.t.html",
-      "A trait for converting a value to a `String`.\n\nThis trait is automatically implemented for any type which implements the\n[`Display`] trait. As such, `ToString` shouldn't be implemented directly:\n[`Display`] should be implemented instead, and you get the `ToString`\nimplementation for free.\n\n[`Display`]: ../../std/fmt/trait.Display.html"
+      "A trait for converting a value to a `String`.\n\nThis trait is automatically implemented for any type which implements the\n[`Display`] trait. As such, `ToString` shouldn't be implemented directly:\n[`Display`] should be implemented instead, and you get the `ToString`\nimplementation for free.\n\n[`Display`]: fmt::Display"
     ]
   }
 }
