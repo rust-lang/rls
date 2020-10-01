@@ -75,9 +75,11 @@ pub fn run() -> Result<(), ()> {
     };
 
     rustc_driver::install_ice_hook();
-    rustc_driver::catch_fatal_errors(|| run_compiler(&args, &mut shim_calls, file_loader, None))
-        .map(|_| ())
-        .map_err(|_| ())
+    rustc_driver::catch_fatal_errors(|| {
+        run_compiler(&args, &mut shim_calls, file_loader, None, None)
+    })
+    .map(|_| ())
+    .map_err(|_| ())
 }
 
 #[derive(Default)]
