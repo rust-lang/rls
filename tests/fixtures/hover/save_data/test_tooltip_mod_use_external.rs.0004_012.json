@@ -5,11 +5,6 @@
     "col": 12
   },
   "data": {
-    "Ok": [{
-        "language": "rust",
-        "value": "std/src/sync/mod.rs"
-      },
-      "Useful synchronization primitives.\n\n## The need for synchronization\n\nConceptually, a Rust program is a series of operations which will\nbe executed on a computer. The timeline of events happening in the\nprogram is consistent with the order of the operations in the code.\n\nConsider the following code, operating on some global static variables:\n\n```rust\nstatic mut A: u32 = 0;"
-    ]
+    "Ok": []
   }
 }

@@ -191,6 +191,7 @@ fn run_in_process(
                     &mut callbacks,
                     Some(Box::new(ReplacedFileLoader::new(changed))),
                     Some(Box::new(BufWriter(stderr))),
+                    None,
                 )
             })
         }
