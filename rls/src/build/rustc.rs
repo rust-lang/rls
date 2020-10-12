@@ -19,7 +19,7 @@ use log::trace;
 use rls_data::Analysis;
 use rls_vfs::Vfs;
 
-use self::rustc_driver::{run_compiler, Compilation};
+use self::rustc_driver::{Compilation, RunCompiler};
 use self::rustc_interface::interface;
 use self::rustc_interface::Queries;
 use self::rustc_save_analysis as save;
@@ -185,14 +185,12 @@ fn run_in_process(
         let stderr = Arc::clone(&stderr);
         || {
             rustc_driver::catch_fatal_errors(move || {
-                // Replace stderr so we catch most errors.
-                run_compiler(
-                    &args,
-                    &mut callbacks,
-                    Some(Box::new(ReplacedFileLoader::new(changed))),
-                    Some(Box::new(BufWriter(stderr))),
-                    None,
-                )
+                let mut compiler = RunCompiler::new(&args, &mut callbacks);
+                compiler
+                    .set_file_loader(Some(Box::new(ReplacedFileLoader::new(changed))))
+                    // Replace stderr so we catch most errors.
+                    .set_emitter(Some(Box::new(BufWriter(stderr))));
+                compiler.run()
             })
         }
     })
