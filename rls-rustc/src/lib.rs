@@ -9,7 +9,7 @@ extern crate rustc_span;
 
 #[cfg(feature = "ipc")]
 use rustc_driver::Compilation;
-use rustc_driver::{run_compiler, Callbacks};
+use rustc_driver::{Callbacks, RunCompiler};
 use rustc_interface::interface;
 #[cfg(feature = "ipc")]
 use rustc_interface::Queries;
@@ -75,8 +75,10 @@ pub fn run() -> Result<(), ()> {
     };
 
     rustc_driver::install_ice_hook();
-    rustc_driver::catch_fatal_errors(|| {
-        run_compiler(&args, &mut shim_calls, file_loader, None, None)
+    rustc_driver::catch_fatal_errors(move || {
+        let mut compiler = RunCompiler::new(&args, &mut shim_calls);
+        compiler.set_file_loader(file_loader);
+        compiler.run()
     })
     .map(|_| ())
     .map_err(|_| ())
