@@ -60,6 +60,19 @@ jobs:
       - run: cargo test -v --manifest-path=rls-span/Cargo.toml
       - run: cargo test -v --manifest-path=rls-vfs/Cargo.toml
 
+  style:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: cargo +stable fmt --manifest-path=Cargo.toml -- --check
+      - run: cargo +stable fmt --manifest-path=rls-analysis/Cargo.toml -- --check
+      - run: cargo +stable fmt --manifest-path=rls-data/Cargo.toml -- --check
+      - run: cargo +stable fmt --manifest-path=rls-ipc/Cargo.toml -- --check
+      - run: cargo +stable fmt --manifest-path=rls-rustc/Cargo.toml -- --check
+      - run: cargo +stable fmt --manifest-path=rls-span/Cargo.toml -- --check
+      - run: cargo +stable fmt --manifest-path=rls-vfs/Cargo.toml -- --check
+
   # https://forge.rust-lang.org/infra/docs/bors.html#adding-a-new-repository-to-bors
   build_result:
     name: bors build finished
