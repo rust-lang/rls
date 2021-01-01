@@ -140,6 +140,7 @@ impl Callbacks for ShimCalls {
             edition: match sess.edition() {
                 rustc_span::edition::Edition::Edition2015 => Edition::Edition2015,
                 rustc_span::edition::Edition::Edition2018 => Edition::Edition2018,
+                rustc_span::edition::Edition::Edition2021 => Edition::Edition2021,
             },
         };
 

@@ -236,6 +236,7 @@ pub struct Crate {
 pub enum Edition {
     Edition2015,
     Edition2018,
+    Edition2021,
 }
 
 impl Default for Edition {
@@ -251,6 +252,7 @@ impl std::convert::TryFrom<&str> for Edition {
         Ok(match val {
             "2015" => Edition::Edition2015,
             "2018" => Edition::Edition2018,
+            "2021" => Edition::Edition2021,
             _ => return Err("unknown"),
         })
     }

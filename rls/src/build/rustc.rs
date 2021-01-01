@@ -254,6 +254,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
             edition: match sess.edition() {
                 RustcEdition::Edition2015 => Edition::Edition2015,
                 RustcEdition::Edition2018 => Edition::Edition2018,
+                RustcEdition::Edition2021 => Edition::Edition2021,
             },
         };
 

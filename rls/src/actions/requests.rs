@@ -696,6 +696,7 @@ fn reformat(
                 let edition = match edition {
                     Edition::Edition2015 => RustfmtEdition::Edition2015,
                     Edition::Edition2018 => RustfmtEdition::Edition2018,
+                    Edition::Edition2021 => RustfmtEdition::Edition2018, // FIXME: Update to 2021 when rustfmt supports that.
                 };
                 config.set().edition(edition);
                 trace!("Detected edition {:?} for file `{}`", edition, path.display());

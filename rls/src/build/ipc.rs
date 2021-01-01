@@ -106,6 +106,7 @@ mod callbacks {
                 edition: match krate.edition {
                     rls_ipc::rpc::Edition::Edition2015 => crate::build::plan::Edition::Edition2015,
                     rls_ipc::rpc::Edition::Edition2018 => crate::build::plan::Edition::Edition2018,
+                    rls_ipc::rpc::Edition::Edition2021 => crate::build::plan::Edition::Edition2021,
                 },
                 disambiguator: krate.disambiguator,
             }

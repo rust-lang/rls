@@ -73,4 +73,6 @@ pub enum Edition {
     Edition2015,
     /// Rust 2018
     Edition2018,
+    /// Rust 2021
+    Edition2021,
 }
