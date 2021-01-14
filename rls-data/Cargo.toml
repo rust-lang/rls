@@ -1,6 +1,6 @@
 [package]
 name = "rls-data"
-version = "0.19.0"
+version = "0.19.1"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Data structures used by the RLS and Rust compiler"
@@ -11,8 +11,7 @@ categories = ["development-tools"]
 [dependencies]
 rls-span = "0.5.0"
 serde = "1.0"
-serde_derive = { version = "1.0", optional = true }
 
 [features]
-default = []
-derive = ["serde_derive",  "rls-span/derive"]
+default = ["derive"]
+derive = ["serde/derive",  "rls-span/derive"]

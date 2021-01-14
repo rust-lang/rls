@@ -1,6 +1,6 @@
 [package]
 name = "rls-span"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Types for identifying code spans/ranges"
@@ -12,10 +12,9 @@ categories = ["development-tools"]
 [dependencies]
 rustc-serialize = { version = "0.3.24", optional = true }
 serde = "1.0"
-serde_derive = { version = "1.0", optional = true }
 
 [features]
 default = []
 nightly = []
 serialize-rustc = ["rustc-serialize"]
-derive = ["serde_derive"]
+derive = ["serde/derive"]

@@ -3,6 +3,9 @@
 ///! https://github.com/rust-lang/rust/blob/master/src/librustc_errors/json.rs
 use std::path::PathBuf;
 
+#[cfg(feature = "derive")]
+use serde::Deserialize;
+
 use crate::{Column, OneIndexed, Row, Span};
 
 #[cfg_attr(feature = "derive", derive(Deserialize))]

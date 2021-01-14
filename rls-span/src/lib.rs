@@ -1,19 +1,14 @@
 #![cfg_attr(feature = "nightly", feature(step_trait, step_trait_ext))]
 
-#[cfg(feature = "derive")]
-#[macro_use]
-extern crate serde_derive;
-
-use serde::{Deserialize, Serialize};
-
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
 #[cfg(feature = "nightly")]
 use std::iter::Step;
 
+use serde::{Deserialize, Serialize};
+
 pub mod compiler;
-mod serde_expanded;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Column<I: Indexed>(pub u32, PhantomData<I>);

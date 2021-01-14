@@ -1,3 +1,6 @@
+#[cfg(feature = "derive")]
+use serde::{Deserialize, Serialize};
+
 /// Used to configure save-analysis.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "derive", derive(Serialize, Deserialize))]

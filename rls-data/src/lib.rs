@@ -1,14 +1,11 @@
 use rls_span as span;
 
-#[cfg(feature = "derive")]
-#[macro_use]
-extern crate serde_derive;
-
-pub mod config;
-mod serde_expanded;
-
 use std::path::PathBuf;
 
+#[cfg(feature = "derive")]
+use serde::{Deserialize, Serialize};
+
+pub mod config;
 pub use config::Config;
 
 #[derive(Debug, Clone, Default)]
@@ -272,74 +269,4 @@ pub struct SigElement {
     pub id: Id,
     pub start: usize,
     pub end: usize,
-}
-
-// Following macros are copied from the `static-assertions` library:
-// https://github.com/nvzqz/static-assertions-rs/blob/9f0f8aa871390f74f2afcdba53c1e02db90b2d17/src/assert_impl.rs
-#[macro_export(local_inner_macros)]
-macro_rules! assert_impl {
-    ($($xs:tt)+) => { _assert_impl!($($xs)+); };
-}
-
-#[doc(hidden)]
-#[macro_export(local_inner_macros)]
-macro_rules! _assert_impl {
-    ($x:ty, $($t:path),+ $(,)*) => {
-        {
-            fn assert_impl<'hidden, T>() where T: ?Sized $(+ $t)+ {}
-            assert_impl::<$x>();
-        }
-    };
-    ($label:ident; $($xs:tt)+) => {
-        #[allow(dead_code, non_snake_case)]
-        fn $label() { assert_impl!($($xs)+); }
-    };
-}
-
-#[doc(hidden)]
-macro_rules! assert_serde {
-    ($($typ:path),* $(,)*) => {
-        $( assert_impl!($typ, Serialize, Deserialize<'hidden>); )*
-    };
-}
-
-/// Since we manually provide impls in `cfg(not(feature = "derive"))`, it's good
-/// to ensure that the types actually implement all the required traits.
-#[doc(hidden)]
-fn _assertions() {
-    use serde::{Deserialize, Serialize};
-
-    assert_serde!(
-        // rls-data
-        Analysis,
-        Id,
-        GlobalCrateId,
-        SpanData,
-        CompilationOptions,
-        CratePreludeData,
-        ExternalCrateData,
-        Import,
-        Def,
-        Impl,
-        Attribute,
-        Ref,
-        MacroRef,
-        Relation,
-        Signature,
-        SigElement,
-        Config,
-        // rls-span
-        span::Column<span::ZeroIndexed>,
-        span::Location<span::ZeroIndexed>,
-        span::Position<span::ZeroIndexed>,
-        span::Range<span::ZeroIndexed>,
-        span::Row<span::ZeroIndexed>,
-        span::Span<span::ZeroIndexed>,
-        span::Column<span::OneIndexed>,
-        span::Location<span::OneIndexed>,
-        span::Position<span::OneIndexed>,
-        span::Range<span::OneIndexed>,
-        span::Row<span::OneIndexed>,
-        span::Span<span::OneIndexed>,
-    );
 }
