@@ -1868,9 +1868,9 @@ dependencies = [
 
 [[package]]
 name = "rls-data"
-version = "0.19.0"
+version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76c72ea97e045be5f6290bb157ebdc5ee9f2b093831ff72adfaf59025cf5c491"
+checksum = "a58135eb039f3a3279a33779192f0ee78b56f57ae636e25cec83530e41debb99"
 dependencies = [
  "rls-span",
  "serde",
@@ -1905,9 +1905,9 @@ dependencies = [
 
 [[package]]
 name = "rls-span"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2e9bed56f6272bd85d9d06d1aaeef80c5fddc78a82199eb36dceb5f94e7d934"
+checksum = "f0eea58478fc06e15f71b03236612173a1b81e9770314edecfa664375e3e4c86"
 dependencies = [
  "serde",
 ]
