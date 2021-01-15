@@ -91,6 +91,9 @@ impl ProjectModel {
                 edition: match cargo_pkg.manifest().edition() {
                     cargo::core::Edition::Edition2015 => racer::Edition::Ed2015,
                     cargo::core::Edition::Edition2018 => racer::Edition::Ed2018,
+                    // FIXME: Use Racer's Ed2021 once
+                    // https://github.com/racer-rust/racer/pull/1152 is published.
+                    cargo::core::Edition::Edition2021 => racer::Edition::Ed2018,
                 },
             });
             manifest_to_id.insert(manifest, pkg);
