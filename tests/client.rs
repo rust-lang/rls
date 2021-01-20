@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use futures::future::Future;
+use futures::future;
 use lsp_types::{notification::*, request::*, *};
 use serde::de::Deserialize;
 use serde_json::json;
@@ -245,7 +245,8 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
     let bin = rls.future_diagnostics("binary/src/main.rs");
-    let (lib, bin) = rls.block_on(lib.join(bin)).unwrap();
+    let (lib, bin) = rls.block_on(future::join(lib, bin)).unwrap();
+    let (lib, bin) = (lib.unwrap(), bin.unwrap());
 
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `test_val`")));
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
@@ -268,7 +269,8 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
     let bin = rls.future_diagnostics("binary/src/main.rs");
-    let (lib, bin) = rls.block_on(lib.join(bin)).unwrap();
+    let (lib, bin) = rls.block_on(future::join(lib, bin)).unwrap();
+    let (lib, bin) = (lib.unwrap(), bin.unwrap());
 
     // lib unit tests have compile errors
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
@@ -293,7 +295,8 @@ fn client_changing_workspace_lib_retains_diagnostics() {
 
     let lib = rls.future_diagnostics("library/src/lib.rs");
     let bin = rls.future_diagnostics("binary/src/main.rs");
-    let (lib, bin) = rls.block_on(lib.join(bin)).unwrap();
+    let (lib, bin) = rls.block_on(future::join(lib, bin)).unwrap();
+    let (lib, bin) = (lib.unwrap(), bin.unwrap());
 
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `test_val`")));
     assert!(lib.diagnostics.iter().any(|m| m.message.contains("unused variable: `unused`")));
@@ -349,6 +352,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
 
     let bin = rls.future_diagnostics("src/main.rs");
     let bin = rls.block_on(bin).unwrap();
+    let bin = bin.unwrap();
     assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
 
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
@@ -369,6 +373,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
     // bin depending on lib picks up type mismatch
     let bin = rls.future_diagnostics("src/main.rs");
     let bin = rls.block_on(bin).unwrap();
+    let bin = bin.unwrap();
     assert!(bin.diagnostics[0].message.contains("cannot find function `foo`"));
 
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
@@ -388,6 +393,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
 
     let bin = rls.future_diagnostics("src/main.rs");
     let bin = rls.block_on(bin).unwrap();
+    let bin = bin.unwrap();
     assert!(bin.diagnostics[0].message.contains("unused variable: `val`"));
 }
 
@@ -1971,7 +1977,7 @@ fn client_omit_init_build() {
     // We need to assert that no other messages are received after a short
     // period of time (e.g. no build progress messages).
     std::thread::sleep(std::time::Duration::from_secs(1));
-    rls.block_on(response).unwrap();
+    rls.block_on(response).unwrap().unwrap();
 
     assert_eq!(rls.messages().iter().count(), 1);
 }
@@ -2141,8 +2147,7 @@ fn client_fail_uninitialized_request() {
         },
     );
 
-    let delay = tokio_timer::Delay::new(Instant::now() + Duration::from_secs(1));
-    rls.block_on(delay).unwrap();
+    rls.block_on(async { tokio::time::delay_for(Duration::from_secs(1)).await }).unwrap();
 
     let err = jsonrpc_core::Failure::deserialize(rls.messages().last().unwrap()).unwrap();
     assert_eq!(err.id, jsonrpc_core::Id::Num(ID));
