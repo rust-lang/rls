@@ -57,13 +57,7 @@ pub fn start_with_handler(io: IoHandler) -> Result<Server, ()> {
         let endpoint_path = endpoint_path.clone();
         move || {
             log::trace!("Attempting to spin up IPC server at {}", endpoint_path);
-            let runtime = tokio::runtime::Builder::new().core_threads(1).build().unwrap();
-            #[allow(deprecated)] // Windows won't work with lazily bound reactor
-            let (reactor, executor) = (runtime.reactor(), runtime.executor());
-
             let server = ServerBuilder::new(io)
-                .event_loop_executor(executor)
-                .event_loop_reactor(reactor.clone())
                 .start(&endpoint_path)
                 .map_err(|_| log::warn!("Couldn't open socket"))
                 .unwrap();

@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::io;
 use std::path::{Path, PathBuf};
-
-use futures::Future;
 
 use rls_ipc::client::{Client as JointClient, RpcChannel, RpcError};
 use rls_ipc::rpc::callbacks::Client as CallbacksClient;
@@ -30,13 +29,11 @@ impl IpcFileLoader {
 
 impl rustc_span::source_map::FileLoader for IpcFileLoader {
     fn file_exists(&self, path: &Path) -> bool {
-        self.0.file_exists(path.to_owned()).wait().unwrap()
+        futures::executor::block_on(self.0.file_exists(path.to_owned())).unwrap()
     }
 
     fn read_file(&self, path: &Path) -> io::Result<String> {
-        self.0
-            .read_file(path.to_owned())
-            .wait()
+        futures::executor::block_on(self.0.read_file(path.to_owned()))
             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e)))
     }
 }
@@ -48,14 +45,14 @@ impl IpcCallbacks {
     pub fn complete_analysis(
         &self,
         analysis: rls_data::Analysis,
-    ) -> impl Future<Item = (), Error = RpcError> {
+    ) -> impl Future<Output = Result<(), RpcError>> {
         self.0.complete_analysis(analysis)
     }
 
     pub fn input_files(
         &self,
         input_files: HashMap<PathBuf, HashSet<rls_ipc::rpc::Crate>>,
-    ) -> impl Future<Item = (), Error = RpcError> {
+    ) -> impl Future<Output = Result<(), RpcError>> {
         self.0.input_files(input_files)
     }
 }

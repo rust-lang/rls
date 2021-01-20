@@ -34,12 +34,9 @@ pub fn run() -> Result<(), ()> {
     #[cfg(feature = "ipc")]
     let (mut shim_calls, file_loader) = match std::env::var("RLS_IPC_ENDPOINT").ok() {
         Some(endpoint) => {
-            #[allow(deprecated)] // Windows doesn't work with lazily-bound reactors
-            let reactor = rt.reactor().clone();
-            let connection =
-                ipc::connect(endpoint, &reactor).expect("Couldn't connect to IPC endpoint");
-            let client: ipc::Client =
-                rt.block_on(connection).expect("Couldn't connect to IPC endpoint");
+            let client: ipc::Client = rt
+                .block_on(async { ipc::connect(endpoint).await })
+                .expect("Couldn't connect to IPC endpoint");
             let (file_loader, callbacks) = client.split();
 
             (
@@ -113,7 +110,6 @@ impl Callbacks for ShimCalls {
     ) -> Compilation {
         use rustc_session::config::Input;
 
-        use futures::future::Future;
         use rls_ipc::rpc::{Crate, Edition};
         use std::collections::{HashMap, HashSet};
 
@@ -149,7 +145,7 @@ impl Callbacks for ShimCalls {
             input_files.entry(file).or_default().insert(krate.clone());
         }
 
-        if let Err(e) = callbacks.input_files(input_files).wait() {
+        if let Err(e) = futures::executor::block_on(callbacks.input_files(input_files)) {
             log::error!("Can't send input files as part of a compilation callback: {:?}", e);
         }
 
@@ -162,8 +158,6 @@ impl Callbacks for ShimCalls {
         compiler: &interface::Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        use futures::future::Future;
-
         let callbacks = match self.callbacks.as_ref() {
             Some(callbacks) => callbacks,
             None => return Compilation::Continue,
@@ -196,7 +190,9 @@ impl Callbacks for ShimCalls {
                 CallbackHandler {
                     callback: &mut |a| {
                         let analysis = unsafe { ::std::mem::transmute(a.clone()) };
-                        if let Err(e) = callbacks.complete_analysis(analysis).wait() {
+                        if let Err(e) =
+                            futures::executor::block_on(callbacks.complete_analysis(analysis))
+                        {
                             log::error!(
                                 "Can't send analysis as part of a compilation callback: {:?}",
                                 e

@@ -11,28 +11,26 @@
 //! receiver (thus, implementing the Future<Item = Value> model).
 
 use std::cell::{Ref, RefCell};
+use std::future::Future;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
 
-use futures::sink::Sink;
-use futures::stream::{SplitSink, Stream};
-use futures::unsync::oneshot;
-use futures::Future;
+use futures::channel::oneshot;
+use futures::stream::SplitSink;
+use futures::StreamExt;
 use lsp_codec::LspCodec;
 use lsp_types::notification::{Notification, PublishDiagnostics};
 use lsp_types::PublishDiagnosticsParams;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::runtime::current_thread::Runtime;
-use tokio::util::{FutureExt, StreamExt};
+use tokio::runtime::Runtime;
 
 use super::project_builder::Project;
 use super::{rls_exe, rls_timeout};
 
-use child_process::ChildProcess;
-
 mod child_process;
+use child_process::ChildProcess;
 
 // `Rc` because we share those in message reader stream and the RlsHandle.
 // `RefCell` because borrows don't overlap. This is safe, because `process_msg`
@@ -42,7 +40,7 @@ mod child_process;
 type Messages = Rc<RefCell<Vec<Value>>>;
 type Channels = Rc<RefCell<Vec<(Box<dyn Fn(&Value) -> bool>, oneshot::Sender<Value>)>>>;
 
-type LspFramed<T> = tokio::codec::Framed<T, LspCodec>;
+type LspFramed<T> = tokio_util::codec::Framed<T, LspCodec>;
 
 trait LspFramedExt<T: AsyncRead + AsyncWrite> {
     fn from_transport(transport: T) -> Self;
@@ -50,7 +48,7 @@ trait LspFramedExt<T: AsyncRead + AsyncWrite> {
 
 impl<T: AsyncRead + AsyncWrite> LspFramedExt<T> for LspFramed<T> {
     fn from_transport(transport: T) -> Self {
-        tokio::codec::Framed::new(transport, LspCodec::default())
+        tokio_util::codec::Framed::new(transport, LspCodec::default())
     }
 }
 
@@ -68,39 +66,55 @@ impl Project {
     }
 
     pub fn spawn_rls_async(&self) -> RlsHandle<ChildProcess> {
-        let rt = Runtime::new().unwrap();
+        let rt = tokio::runtime::Builder::new()
+            .basic_scheduler()
+            .enable_all()
+            .core_threads(1)
+            .build()
+            .unwrap();
 
         let cmd = self.rls_cmd();
-        let process = ChildProcess::spawn_from_command(cmd).unwrap();
-
+        let process = rt.enter(|| ChildProcess::spawn_from_command(cmd).unwrap());
         self.spawn_rls_with_params(rt, process)
     }
 
-    fn spawn_rls_with_params<T>(&self, mut rt: Runtime, transport: T) -> RlsHandle<T>
+    fn spawn_rls_with_params<T>(&self, runtime: Runtime, transport: T) -> RlsHandle<T>
     where
         T: AsyncRead + AsyncWrite + 'static,
     {
         let (finished_reading, reader_closed) = oneshot::channel();
-        let msgs = Messages::default();
-        let chans = Channels::default();
+        let messages = Messages::default();
+        let channels = Channels::default();
 
-        let (sink, stream) = LspFramed::from_transport(transport).split();
+        let (writer, stream) = LspFramed::from_transport(transport).split();
 
+        let msgs = Rc::clone(&messages);
+        let chans = Rc::clone(&channels);
+
+        let local_set = tokio::task::LocalSet::new();
+        // Our message handler loop is tied to a single thread, so spawn it on
+        // a `LocalSet` and keep it around to progress the message processing
         #[allow(clippy::unit_arg)] // We're interested in the side-effects of `process_msg`.
-        let reader = stream
-            .timeout(rls_timeout())
-            .map_err(|_| ())
-            .for_each({
-                let msgs = Rc::clone(&msgs);
-                let chans = Rc::clone(&chans);
-                move |msg| Ok(process_msg(msg, msgs.clone(), chans.clone()))
-            })
-            .and_then(move |_| finished_reading.send(()));
-        rt.spawn(reader);
+        local_set.spawn_local(async move {
+            use futures::TryStreamExt;
+            use tokio::stream::StreamExt;
 
-        let sink = Some(sink);
+            stream
+                .timeout(rls_timeout())
+                .map_err(drop)
+                .for_each(move |msg| {
+                    futures::future::ready({
+                        if let Ok(Ok(msg)) = msg {
+                            process_msg(msg, msgs.clone(), chans.clone())
+                        }
+                    })
+                })
+                .await;
 
-        RlsHandle { writer: sink, runtime: rt, reader_closed, messages: msgs, channels: chans }
+            let _ = finished_reading.send(());
+        });
+
+        RlsHandle { writer: Some(writer), runtime, local_set, reader_closed, messages, channels }
     }
 }
 
@@ -144,11 +158,12 @@ pub struct RlsHandle<T: AsyncRead + AsyncWrite> {
     /// sanity check, after sending Shutdown request.
     reader_closed: oneshot::Receiver<()>,
     /// Asynchronous LSP writer.
-    writer: Option<SplitSink<LspFramed<T>>>,
+    writer: Option<SplitSink<LspFramed<T>, Value>>,
     /// Tokio single-thread runtime onto which LSP message reading task has
     /// been spawned. Allows to synchronously write messages via `writer` and
     /// block on received messages matching an enqueued predicate in `channels`.
     runtime: Runtime,
+    local_set: tokio::task::LocalSet,
     /// Handle to all of the received LSP messages.
     messages: Messages,
     /// Handle to enqueued channel senders, used to notify when a given message
@@ -163,13 +178,9 @@ impl<T: AsyncRead + AsyncWrite> RlsHandle<T> {
     }
 
     /// Block on returned, associated future with a timeout.
-    pub fn block_on<F: Future>(
-        &mut self,
-        f: F,
-    ) -> Result<F::Item, tokio_timer::timeout::Error<F::Error>> {
-        let future_with_timeout = f.timeout(rls_timeout());
-
-        self.runtime.block_on(future_with_timeout)
+    pub fn block_on<F: Future>(&mut self, f: F) -> Result<F::Output, tokio::time::Elapsed> {
+        self.local_set
+            .block_on(&mut self.runtime, async { tokio::time::timeout(rls_timeout(), f).await })
     }
 
     /// Send a request to the RLS and block until we receive the message.
@@ -210,13 +221,15 @@ impl<T: AsyncRead + AsyncWrite> RlsHandle<T> {
 
     /// Synchronously sends a message to the RLS.
     pub fn send(&mut self, msg: Value) {
+        use futures::SinkExt;
         eprintln!("Sending: {:?}", msg);
 
-        let writer = self.writer.take().unwrap();
+        let mut writer = self.writer.take().unwrap();
 
-        let fut = writer.send(msg);
+        let fut = SinkExt::send(&mut writer, msg);
 
-        self.writer = Some(self.block_on(fut).unwrap());
+        self.block_on(fut).unwrap().unwrap();
+        self.writer = Some(writer);
     }
 
     /// Enqueues a channel that is notified and consumed when a given predicate
@@ -224,7 +237,7 @@ impl<T: AsyncRead + AsyncWrite> RlsHandle<T> {
     pub fn future_msg(
         &mut self,
         f: impl Fn(&Value) -> bool + 'static,
-    ) -> impl Future<Item = Value, Error = oneshot::Canceled> {
+    ) -> impl Future<Output = Result<Value, oneshot::Canceled>> + 'static {
         let (tx, rx) = oneshot::channel();
 
         self.channels.borrow_mut().push((Box::new(f), tx));
@@ -237,19 +250,19 @@ impl<T: AsyncRead + AsyncWrite> RlsHandle<T> {
     pub fn future_diagnostics(
         &mut self,
         path: impl AsRef<str> + 'static,
-    ) -> impl Future<Item = PublishDiagnosticsParams, Error = oneshot::Canceled> {
+    ) -> impl Future<Output = Result<PublishDiagnosticsParams, oneshot::Canceled>> {
+        use futures::TryFutureExt;
         self.future_msg(move |msg|
             msg["method"] == PublishDiagnostics::METHOD &&
             msg["params"]["uri"].as_str().unwrap().ends_with(path.as_ref())
-        )
-        .and_then(|msg| Ok(PublishDiagnosticsParams::deserialize(&msg["params"]).unwrap()))
+        ).and_then(|msg| async move { Ok(PublishDiagnosticsParams::deserialize(&msg["params"]).unwrap())})
     }
 
     /// Blocks until a message, for which predicate `f` returns true, is received.
     pub fn wait_for_message(&mut self, f: impl Fn(&Value) -> bool + 'static) -> Value {
         let fut = self.future_msg(f);
 
-        self.block_on(fut).unwrap()
+        self.block_on(fut).unwrap().unwrap()
     }
 
     /// Blocks until the processing (building + indexing) is done by the RLS.
@@ -277,8 +290,7 @@ impl<T: AsyncRead + AsyncWrite> Drop for RlsHandle<T> {
         // Wait until the underlying connection is closed.
         let (_, dummy) = oneshot::channel();
         let reader_closed = std::mem::replace(&mut self.reader_closed, dummy);
-        let reader_closed = reader_closed.timeout(rls_timeout());
 
-        self.runtime.block_on(reader_closed).unwrap();
+        self.block_on(reader_closed).unwrap().unwrap();
     }
 }
