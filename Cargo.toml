@@ -30,7 +30,7 @@ rls-vfs = "0.8"
 rls-ipc = { version = "0.1.0", path = "rls-ipc", optional = true }
 
 anyhow = "1.0.26"
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "329895f5b52a358e5d9ecb26215708b5cb31d906" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "34170fcd6e0947808a1ac63ac85ffc0da7dace2f" }
 cargo_metadata = "0.8"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "7ea7cd165ad6705603852771bf82cc2fd6560db5", optional = true }
 env_logger = "0.7"
