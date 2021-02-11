@@ -3,8 +3,6 @@
 
 set -e
 
-cd "$(dirname "$0")"
-
 RTIM_PATH=$(command -v rustup-toolchain-install-master) || INSTALLED=false
 CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}
 
