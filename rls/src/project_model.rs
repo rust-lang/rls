@@ -45,7 +45,7 @@ impl ProjectModel {
         assert!(ws_manifest.ends_with("Cargo.toml"));
         let mut config = Config::default()?;
         // Enable nightly flag for cargo(see #1043)
-        cargo::core::enable_nightly_features();
+        config.nightly_features_allowed = true;
         // frozen = false, locked = false, offline = false
         config.configure(0, true, None, false, false, false, &None, &[], &[])?;
         let ws = Workspace::new(&ws_manifest, &config)?;
