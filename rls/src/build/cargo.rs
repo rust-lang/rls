@@ -12,9 +12,7 @@ use std::thread;
 use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
 use cargo::core::resolver::ResolveError;
 use cargo::core::Package;
-use cargo::core::{
-    enable_nightly_features, PackageId, Shell, Target, TargetKind, Verbosity, Workspace,
-};
+use cargo::core::{PackageId, Shell, Target, TargetKind, Verbosity, Workspace};
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{
     config as cargo_config, errors::ManifestError, homedir, important_paths, CargoResult,
@@ -123,14 +121,14 @@ fn run_cargo(
     let mut shell = Shell::from_write(Box::new(BufWriter(Arc::clone(&out))));
     shell.set_verbosity(Verbosity::Quiet);
 
-    let config = {
+    let mut config = {
         let rls_config = rls_config.lock().unwrap();
 
         let target_dir = rls_config.target_dir.as_ref().as_ref().map(|p| p as &Path);
         make_cargo_config(manifest_dir, target_dir, restore_env.get_old_cwd(), shell)
     };
+    config.nightly_features_allowed = true;
 
-    enable_nightly_features();
     let ws = Workspace::new(&manifest_path, &config)
         .map_err(|err| ManifestAwareError::new(err, &manifest_path, None))?;
 
