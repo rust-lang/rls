@@ -153,17 +153,16 @@ checksum = "81a18687293a1546b67c246452202bbbf143d239cb43494cc163da14979082da"
 [[package]]
 name = "cargo"
 version = "0.53.0"
-source = "git+https://github.com/rust-lang/cargo?rev=970bc67c3775781b9708c8a36893576b9459c64a#970bc67c3775781b9708c8a36893576b9459c64a"
+source = "git+https://github.com/rust-lang/cargo?rev=58a961314437258065e23cb6316dfc121d96fb71#58a961314437258065e23cb6316dfc121d96fb71"
 dependencies = [
  "anyhow",
  "atty",
  "bytesize",
  "cargo-platform",
+ "cargo-util",
  "clap",
- "core-foundation",
  "crates-io",
  "crossbeam-utils 0.8.1",
- "crypto-hash",
  "curl",
  "curl-sys",
  "env_logger 0.8.2",
@@ -185,19 +184,16 @@ dependencies = [
  "libgit2-sys",
  "log",
  "memchr",
- "miow 0.3.6",
  "num_cpus",
  "opener",
  "percent-encoding 2.1.0",
  "rand 0.8.3",
  "rustc-workspace-hack",
  "rustfix",
- "same-file",
  "semver 0.10.0",
  "serde",
  "serde_ignored",
  "serde_json",
- "shell-escape",
  "strip-ansi-escapes",
  "tar",
  "tempfile",
@@ -213,9 +209,30 @@ dependencies = [
 [[package]]
 name = "cargo-platform"
 version = "0.1.1"
-source = "git+https://github.com/rust-lang/cargo?rev=970bc67c3775781b9708c8a36893576b9459c64a#970bc67c3775781b9708c8a36893576b9459c64a"
+source = "git+https://github.com/rust-lang/cargo?rev=58a961314437258065e23cb6316dfc121d96fb71#58a961314437258065e23cb6316dfc121d96fb71"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "cargo-util"
+version = "0.1.0"
+source = "git+https://github.com/rust-lang/cargo?rev=58a961314437258065e23cb6316dfc121d96fb71#58a961314437258065e23cb6316dfc121d96fb71"
+dependencies = [
+ "anyhow",
+ "core-foundation",
+ "crypto-hash",
+ "filetime",
+ "hex 0.4.2",
+ "jobserver",
+ "libc",
+ "log",
+ "miow 0.3.6",
+ "same-file",
+ "shell-escape",
+ "tempfile",
+ "walkdir",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -375,7 +392,7 @@ checksum = "8aebca1129a03dc6dc2b127edd729435bbc4a37e1d5f4d7513165089ceb02634"
 [[package]]
 name = "crates-io"
 version = "0.33.0"
-source = "git+https://github.com/rust-lang/cargo?rev=970bc67c3775781b9708c8a36893576b9459c64a#970bc67c3775781b9708c8a36893576b9459c64a"
+source = "git+https://github.com/rust-lang/cargo?rev=58a961314437258065e23cb6316dfc121d96fb71#58a961314437258065e23cb6316dfc121d96fb71"
 dependencies = [
  "anyhow",
  "curl",
@@ -1250,9 +1267,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.85"
+version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ccac4b00700875e6a07c6cde370d44d32fa01c5a65cdd2fca6858c479d28bb3"
+checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
 
 [[package]]
 name = "libgit2-sys"
@@ -1934,6 +1951,7 @@ version = "1.41.0"
 dependencies = [
  "anyhow",
  "cargo",
+ "cargo-util",
  "cargo_metadata 0.8.2",
  "clippy_lints 0.0.212 (git+https://github.com/rust-lang/rust-clippy?rev=7ea7cd165ad6705603852771bf82cc2fd6560db5)",
  "crossbeam-channel",

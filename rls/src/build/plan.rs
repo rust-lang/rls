@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
-use cargo::util::ProcessBuilder;
+use cargo_util::ProcessBuilder;
 use log::trace;
 use serde::{Deserialize, Serialize};
 

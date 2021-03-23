@@ -23,7 +23,7 @@ use crate::build::plan::{BuildGraph, BuildKey, JobQueue, WorkStatus};
 use crate::build::rustc::src_path;
 use crate::build::BuildResult;
 
-use cargo::util::{process, ProcessBuilder};
+use cargo_util::ProcessBuilder;
 use log::trace;
 use rls_data::{Analysis, CompilationOptions};
 use serde_derive::Deserialize;
@@ -217,7 +217,7 @@ impl BuildKey for Invocation {
 
 impl Invocation {
     fn from_raw(build_dir: &Path, raw: RawInvocation) -> Invocation {
-        let mut command = process(&raw.program);
+        let mut command = ProcessBuilder::new(&raw.program);
         command.args(&raw.args);
         for (k, v) in &raw.env {
             command.env(&k, v);
