@@ -3,7 +3,7 @@
 use cargo::{
     core::{
         registry::PackageRegistry,
-        resolver::{EncodableResolve, Resolve, ResolveOpts},
+        resolver::{CliFeatures, EncodableResolve, HasDevUnits, Resolve},
         PackageId, Workspace,
     },
     ops,
@@ -217,5 +217,14 @@ fn resolve_with_prev<'cfg>(
     ws: &Workspace<'cfg>,
     prev: Option<&Resolve>,
 ) -> CargoResult<Resolve> {
-    ops::resolve_with_previous(registry, ws, &ResolveOpts::everything(), prev, None, &[], true)
+    ops::resolve_with_previous(
+        registry,
+        ws,
+        &CliFeatures::new_all(true),
+        HasDevUnits::Yes,
+        prev,
+        None,
+        &[],
+        true,
+    )
 }

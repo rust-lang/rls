@@ -22,7 +22,7 @@ use std::sync::Mutex;
 use cargo::core::compiler::{CompileKind, CompileMode, Context, Unit};
 use cargo::core::profiles::Profile;
 use cargo::core::{PackageId, Target, TargetKind};
-use cargo::util::ProcessBuilder;
+use cargo_util::ProcessBuilder;
 use log::{error, trace};
 
 use crate::build::plan::{BuildGraph, BuildKey, JobQueue, WorkStatus};

@@ -10,14 +10,15 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use cargo::core::compiler::{BuildConfig, CompileMode, Context, Executor, Unit};
-use cargo::core::resolver::ResolveError;
+use cargo::core::resolver::{CliFeatures, ResolveError};
 use cargo::core::Package;
 use cargo::core::{PackageId, Shell, Target, TargetKind, Verbosity, Workspace};
 use cargo::ops::{compile_with_exec, CompileFilter, CompileOptions, Packages};
 use cargo::util::{
     config as cargo_config, errors::ManifestError, homedir, important_paths, CargoResult,
-    ConfigValue, ProcessBuilder,
+    ConfigValue,
 };
+use cargo_util::ProcessBuilder;
 use log::{debug, trace, warn};
 use rls_data::Analysis;
 use rls_vfs::Vfs;
@@ -229,9 +230,11 @@ fn run_cargo_ws(
             opts.target.iter().map(|x| x.into()).collect::<Vec<String>>().as_slice(),
             CompileMode::Check { test: cfg_test },
         )?,
-        features: opts.features,
-        all_features: opts.all_features,
-        no_default_features: opts.no_default_features,
+        cli_features: CliFeatures::from_command_line(
+            &opts.features,
+            opts.all_features,
+            !opts.no_default_features,
+        )?,
         ..CompileOptions::new(&config, CompileMode::Check { test: cfg_test })?
     };
 
@@ -266,7 +269,7 @@ fn run_cargo_ws(
     // directory but its parent) and, when user runs "cargo build" themselves cargo will see
     // target/ existing already and won't exclude it from backups. We can work around that by
     // attempting to create a backup-excluded target/ ourelves using cargo paths:: machinery.
-    cargo::util::paths::create_dir_all_excluded_from_backups_atomic(
+    cargo_util::paths::create_dir_all_excluded_from_backups_atomic(
         config.target_dir().unwrap().unwrap().as_path_unlocked().parent().unwrap(),
     )?;
     let exec = Arc::new(exec) as Arc<dyn Executor>;
