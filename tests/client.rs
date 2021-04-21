@@ -813,7 +813,7 @@ fn client_invalid_member_toml_manifest() {
 
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
-    assert!(diag.diagnostics[0].message.contains("failed to read"));
+    assert!(diag.diagnostics[0].message.contains("failed to load manifest"));
 }
 
 #[test]
