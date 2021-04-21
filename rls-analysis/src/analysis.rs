@@ -42,7 +42,7 @@ pub struct PerCrateAnalysis {
 
     // Index of all symbols that powers the search.
     // See `SymbolQuery`.
-    pub def_fst: fst::Map,
+    pub def_fst: fst::Map<Vec<u8>>,
     pub def_fst_values: Vec<Vec<Id>>,
 
     pub ref_spans: HashMap<Id, Vec<Span>>,

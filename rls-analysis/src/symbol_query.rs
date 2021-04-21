@@ -47,7 +47,7 @@ impl SymbolQuery {
 
     pub(crate) fn build_stream<'a, I>(&'a self, fsts: I) -> fst::map::Union<'a>
     where
-        I: Iterator<Item = &'a fst::Map>,
+        I: Iterator<Item = &'a fst::Map<Vec<u8>>>,
     {
         let mut stream = fst::map::OpBuilder::new();
         let automaton = QueryAutomaton { query: &self.query_string, mode: self.mode };
