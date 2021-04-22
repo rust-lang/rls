@@ -1,6 +1,6 @@
 [package]
 name = "rls-analysis"
-version = "0.18.1"
+version = "0.18.2"
 edition = "2018"
 authors = ["Nick Cameron <ncameron@mozilla.com>"]
 description = "Library for processing rustc's save-analysis data for the RLS"
@@ -21,8 +21,8 @@ log = "0.4"
 rls-data = "= 0.19"
 rls-span = "0.5.2"
 derive-new = "0.5"
-fst = { version = "0.3", default-features = false }
-itertools = "0.8"
+fst = { version = "0.4", default-features = false }
+itertools = "0.9"
 json = "0.12"
 serde = "1.0"
 serde_json = "1.0"

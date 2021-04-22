@@ -21,7 +21,8 @@ test = false
 path = "rls/src/main.rs"
 
 [dependencies]
-rls-analysis = "0.18.1"
+# FIXME: Release rls-analysis 0.18.2 to crates.io
+rls-analysis = { version = "0.18.2", path = "rls-analysis" }
 rls-data = "0.19"
 # FIXME: Release rls-rustc 0.6.0 to crates.io
 rls-rustc = { version = "0.6.0", path = "rls-rustc" }
@@ -36,7 +37,7 @@ cargo_metadata = "0.8"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "7ea7cd165ad6705603852771bf82cc2fd6560db5", optional = true }
 env_logger = "0.7"
 home = "0.5.1"
-itertools = "0.8"
+itertools = "0.9"
 jsonrpc-core = "17"
 lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"

@@ -514,7 +514,7 @@ fn abs_ref_id<L: AnalysisLoader>(
     None
 }
 
-fn build_index(mut defs: Vec<(String, Id)>) -> (fst::Map, Vec<Vec<Id>>) {
+fn build_index(mut defs: Vec<(String, Id)>) -> (fst::Map<Vec<u8>>, Vec<Vec<Id>>) {
     defs.sort_by(|(n1, _), (n2, _)| n1.cmp(n2));
     let by_name = defs.into_iter().group_by(|(n, _)| n.clone());
 
