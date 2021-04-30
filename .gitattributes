@@ -1,0 +1,2 @@
+rls-analysis/test_data/rls-analysis/*.json binary
+rls-analysis/test_data/rust-analysis/*.json binary
