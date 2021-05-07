@@ -12,7 +12,7 @@ categories = ["development-tools"]
 env_logger = "0.7"
 log = "0.4"
 rand = "0.7"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "d236b30a1d638340aad8345fa2946cfe9543dcf0", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "a55912c48e4ac08c0ac39a2d562b44699fa20d4d", optional = true }
 tokio = { version = "0.2", optional = true }
 futures = { version = "0.3", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
