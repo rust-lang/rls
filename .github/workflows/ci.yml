@@ -47,6 +47,7 @@ jobs:
         run: bash ci/setup-toolchain.sh
         if: github.event_name == 'schedule'
       - run: rustup component add rust-src rust-analysis rustc-dev llvm-tools-preview
+        if: github.event_name != 'schedule'
       - run: rustc -vV
       - run: cargo build -v
       - run: cargo test -v
