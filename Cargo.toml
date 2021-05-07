@@ -43,11 +43,11 @@ lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "2.1.45", default-features = false }
+racer = { version = "2.1.46", default-features = false }
 rand = "0.7"
 rayon = "1"
 rustc_tools_util = "0.2"
-rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", branch = "rustfmt-1.4.37" }
+rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "2a3635d5d1218c726ff58af4bc35418836143f69" }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
