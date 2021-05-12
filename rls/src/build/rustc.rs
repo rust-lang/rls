@@ -239,7 +239,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         let input = compiler.input();
         let crate_name = queries.crate_name().unwrap().peek().clone();
 
-        let cwd = &sess.working_dir.0;
+        let cwd = &sess.working_dir.local_path_if_available();
 
         let src_path = match input {
             Input::File(ref name) => Some(name.to_path_buf()),
@@ -327,14 +327,14 @@ fn clippy_config(config: &mut interface::Config) {
 }
 
 fn fetch_input_files(sess: &Session) -> Vec<PathBuf> {
-    let cwd = &sess.working_dir.0;
+    let cwd = &sess.working_dir.local_path_if_available();
 
     sess.source_map()
         .files()
         .iter()
         .filter(|fmap| fmap.is_real_file())
         .filter(|fmap| !fmap.is_imported())
-        .map(|fmap| fmap.name.to_string())
+        .map(|fmap| fmap.name.prefer_local().to_string())
         .map(|fmap| src_path(Some(cwd), fmap).unwrap())
         .collect()
 }

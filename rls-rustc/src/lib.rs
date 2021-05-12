@@ -121,7 +121,7 @@ impl Callbacks for ShimCalls {
         let sess = compiler.session();
         let input = compiler.input();
 
-        let cwd = &sess.working_dir.0;
+        let cwd = &sess.working_dir.local_path_if_available();
 
         let src_path = match input {
             Input::File(ref name) => Some(name.to_path_buf()),
@@ -209,14 +209,14 @@ impl Callbacks for ShimCalls {
 
 #[cfg(feature = "ipc")]
 fn fetch_input_files(sess: &rustc_session::Session) -> Vec<PathBuf> {
-    let cwd = &sess.working_dir.0;
+    let cwd = &sess.working_dir.local_path_if_available();
 
     sess.source_map()
         .files()
         .iter()
         .filter(|fmap| fmap.is_real_file())
         .filter(|fmap| !fmap.is_imported())
-        .map(|fmap| fmap.name.to_string())
+        .map(|fmap| fmap.name.prefer_local().to_string())
         .map(|fmap| src_path(Some(cwd), fmap).unwrap())
         .collect()
 }
