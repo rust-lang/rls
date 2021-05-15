@@ -47,7 +47,7 @@ racer = { version = "2.1.46", default-features = false }
 rand = "0.7"
 rayon = "1"
 rustc_tools_util = "0.2"
-rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "2a3635d5d1218c726ff58af4bc35418836143f69" }
+rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "927561ace1ef9485206a9e6a9482e39fb3e1f31b" }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
