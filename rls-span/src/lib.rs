@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "nightly", feature(step_trait, step_trait_ext))]
+#![cfg_attr(feature = "nightly", feature(step_trait, trusted_step))]
 
 use std::marker::PhantomData;
 use std::path::PathBuf;
@@ -81,7 +81,7 @@ impl Column<ZeroIndexed> {
 #[cfg(feature = "nightly")]
 macro_rules! impl_step {
     ($target: ty) => {
-        unsafe impl Step for $target {
+        impl Step for $target {
             fn steps_between(start: &Self, end: &Self) -> Option<usize> {
                 Step::steps_between(&start.0, &end.0)
             }
@@ -92,6 +92,7 @@ macro_rules! impl_step {
                 Step::backward_checked(arg.0, count).map(|x| Self(x, PhantomData))
             }
         }
+        unsafe impl TrustedStep for $target {}
     };
 }
 
