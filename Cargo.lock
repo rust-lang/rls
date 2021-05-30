@@ -2403,7 +2403,7 @@ dependencies = [
 [[package]]
 name = "rustfmt-config_proc_macro"
 version = "0.2.0"
-source = "git+https://github.com/rust-lang/rustfmt?rev=927561ace1ef9485206a9e6a9482e39fb3e1f31b#927561ace1ef9485206a9e6a9482e39fb3e1f31b"
+source = "git+https://github.com/rust-lang/rustfmt?rev=28460e1e9aff317fa1bbca95b22421e7ccd7723d#28460e1e9aff317fa1bbca95b22421e7ccd7723d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2413,7 +2413,7 @@ dependencies = [
 [[package]]
 name = "rustfmt-nightly"
 version = "1.4.37"
-source = "git+https://github.com/rust-lang/rustfmt?rev=927561ace1ef9485206a9e6a9482e39fb3e1f31b#927561ace1ef9485206a9e6a9482e39fb3e1f31b"
+source = "git+https://github.com/rust-lang/rustfmt?rev=28460e1e9aff317fa1bbca95b22421e7ccd7723d#28460e1e9aff317fa1bbca95b22421e7ccd7723d"
 dependencies = [
  "annotate-snippets",
  "anyhow",
