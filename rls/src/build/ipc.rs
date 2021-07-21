@@ -102,7 +102,7 @@ mod callbacks {
                     rls_ipc::rpc::Edition::Edition2018 => crate::build::plan::Edition::Edition2018,
                     rls_ipc::rpc::Edition::Edition2021 => crate::build::plan::Edition::Edition2021,
                 },
-                disambiguator: krate.disambiguator,
+                stable_crate_id: krate.stable_crate_id,
             }
         }
     }

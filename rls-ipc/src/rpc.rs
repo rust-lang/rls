@@ -55,15 +55,14 @@ pub mod callbacks {
 /// Build system-agnostic, basic compilation unit
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Deserialize, Serialize)]
 pub struct Crate {
+    /// A crate identifier calculated by rustc that's stable between compilation sessions.
+    pub stable_crate_id: u64,
     /// Crate name
     pub name: String,
     /// Optional path to a crate root
     pub src_path: Option<PathBuf>,
     /// Edition in which a given crate is compiled
     pub edition: Edition,
-    /// From rustc; mainly used to group other properties used to disambiguate a
-    /// given compilation unit.
-    pub disambiguator: (u64, u64),
 }
 
 /// Rust edition

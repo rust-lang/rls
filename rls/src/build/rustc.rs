@@ -250,7 +250,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         let krate = Crate {
             name: crate_name,
             src_path,
-            disambiguator: sess.local_crate_disambiguator().to_fingerprint().as_value(),
+            stable_crate_id: sess.local_stable_crate_id().to_u64(),
             edition: match sess.edition() {
                 RustcEdition::Edition2015 => Edition::Edition2015,
                 RustcEdition::Edition2018 => Edition::Edition2018,
