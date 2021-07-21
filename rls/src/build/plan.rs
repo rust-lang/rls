@@ -223,12 +223,11 @@ impl JobQueue {
 /// Build system-agnostic, basic compilation unit
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Deserialize, Serialize)]
 pub struct Crate {
+    /// A crate identifier calculated by rustc that's stable between compilation sessions.
+    pub stable_crate_id: u64,
     pub name: String,
     pub src_path: Option<PathBuf>,
     pub edition: Edition,
-    /// From rustc; mainly used to group other properties used to disambiguate a
-    /// given compilation unit.
-    pub disambiguator: (u64, u64),
 }
 
 // Temporary, until Edition from rustfmt is available
