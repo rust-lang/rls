@@ -679,7 +679,7 @@ fn client_dependency_typo_and_fix() {
     let diag = rls.wait_for_diagnostics();
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
-    assert!(diag.diagnostics[0].message.contains("no matching package named `auto-cfg`"));
+    assert!(diag.diagnostics[0].message.contains("no matching package found"));
 
     let change_manifest = |contents: &str| {
         std::fs::write(root_path.join("Cargo.toml"), contents).unwrap();
