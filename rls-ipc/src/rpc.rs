@@ -24,7 +24,7 @@ pub mod file_loader {
         #[rpc(name = "file_exists")]
         fn file_exists(&self, path: PathBuf) -> Result<bool>;
 
-        /// Read the contents of an UTF-8 file into memory.
+        /// Read the contents of a UTF-8 file into memory.
         #[rpc(name = "read_file")]
         fn read_file(&self, path: PathBuf) -> Result<String>;
     }
