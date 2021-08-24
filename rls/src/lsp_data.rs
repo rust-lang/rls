@@ -269,7 +269,7 @@ pub struct InitializationOptions {
 }
 
 impl InitializationOptions {
-    /// try to deserialize a Initialization from a json value. If exists,
+    /// try to deserialize an Initialization from a json value. If exists,
     /// val.settings is expected to be a Value::Object containing only one key,
     /// "rust", all first level keys of rust's value are converted to
     /// snake_case, duplicated and unknown keys are reported
