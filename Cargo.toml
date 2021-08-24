@@ -38,7 +38,7 @@ clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "a55912
 env_logger = "0.7"
 home = "0.5.1"
 itertools = "0.9"
-jsonrpc-core = "17"
+jsonrpc-core = "18"
 lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
@@ -68,9 +68,10 @@ rustc-workspace-hack = "1.0.0"
 [dev-dependencies]
 difference = "2"
 tempfile = "3"
-lsp-codec = "0.2"
-tokio = { version = "0.2", default-features = false, features = ["rt-core", "time", "io-util", "process", "rt-util"] }
-tokio-util = { version = "0.3", default-features = false, features = ["codec"] }
+lsp-codec = "0.3"
+tokio = { version = "1", default-features = false, features = ["rt", "time", "io-util", "process"] }
+tokio-util = { version = "0.6", default-features = false, features = ["codec"] }
+tokio-stream = "0.1"
 futures = "0.3"
 
 [build-dependencies]
