@@ -9,10 +9,10 @@ repository = "https://github.com/rust-lang/rls"
 categories = ["development-tools"]
 
 [dependencies]
-jsonrpc-core = "17"
-jsonrpc-core-client = "17"
-jsonrpc-derive = "17"
-jsonrpc-ipc-server = { version = "17", optional = true }
+jsonrpc-core = "18"
+jsonrpc-core-client = "18"
+jsonrpc-derive = "18"
+jsonrpc-ipc-server = { version = "18", optional = true }
 rls-data = "0.19"
 serde = { version = "1.0", features = ["derive"] }
 

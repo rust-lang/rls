@@ -1062,8 +1062,9 @@ checksum = "078e285eafdfb6c4b434e0d31e8cfcb5115b651496faca5749b88fafd4f23bfd"
 
 [[package]]
 name = "jsonrpc-client-transports"
-version = "17.1.0"
-source = "git+https://github.com/paritytech/jsonrpc?branch=igor-tokio-1.0#89a594461e94e1063992c516950a82ea44b9ec63"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2b99d4207e2a04fb4581746903c2bb7eb376f88de9c699d0f3e10feeac0cd3a"
 dependencies = [
  "derive_more",
  "futures 0.3.12",
@@ -1080,8 +1081,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-core"
-version = "17.1.0"
-source = "git+https://github.com/paritytech/jsonrpc?branch=igor-tokio-1.0#89a594461e94e1063992c516950a82ea44b9ec63"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14f7f76aef2d054868398427f6c54943cf3d1caa9a7ec7d0c38d69df97a965eb"
 dependencies = [
  "futures 0.3.12",
  "futures-executor",
@@ -1094,8 +1096,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-core-client"
-version = "17.1.0"
-source = "git+https://github.com/paritytech/jsonrpc?branch=igor-tokio-1.0#89a594461e94e1063992c516950a82ea44b9ec63"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b51da17abecbdab3e3d4f26b01c5ec075e88d3abe3ab3b05dc9aa69392764ec0"
 dependencies = [
  "futures 0.3.12",
  "jsonrpc-client-transports",
@@ -1103,8 +1106,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-derive"
-version = "17.1.0"
-source = "git+https://github.com/paritytech/jsonrpc?branch=igor-tokio-1.0#89a594461e94e1063992c516950a82ea44b9ec63"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b939a78fa820cdfcb7ee7484466746a7377760970f6f9c6fe19f9edcc8a38d2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1114,8 +1118,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-ipc-server"
-version = "17.1.0"
-source = "git+https://github.com/paritytech/jsonrpc?branch=igor-tokio-1.0#89a594461e94e1063992c516950a82ea44b9ec63"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "382bb0206323ca7cda3dcd7e245cea86d37d02457a02a975e3378fb149a48845"
 dependencies = [
  "futures 0.3.12",
  "jsonrpc-core",
@@ -1128,8 +1133,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-pubsub"
-version = "17.1.0"
-source = "git+https://github.com/paritytech/jsonrpc?branch=igor-tokio-1.0#89a594461e94e1063992c516950a82ea44b9ec63"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "240f87695e6c6f62fb37f05c02c04953cf68d6408b8c1c89de85c7a0125b1011"
 dependencies = [
  "futures 0.3.12",
  "jsonrpc-core",
@@ -1142,8 +1148,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-server-utils"
-version = "17.1.0"
-source = "git+https://github.com/paritytech/jsonrpc?branch=igor-tokio-1.0#89a594461e94e1063992c516950a82ea44b9ec63"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa4fdea130485b572c39a460d50888beb00afb3e35de23ccd7fad8ff19f0e0d4"
 dependencies = [
  "bytes",
  "futures 0.3.12",
@@ -1451,8 +1458,9 @@ checksum = "dd20eec3dbe4376829cb7d80ae6ac45e0a766831dca50202ff2d40db46a8a024"
 
 [[package]]
 name = "parity-tokio-ipc"
-version = "0.8.0"
-source = "git+https://github.com/Xanewok/parity-tokio-ipc?branch=mio-07#d7ade0ecdcafab1cd75d7ec0718f707dc5a0418c"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9981e32fb75e004cc148f5fb70342f393830e0a4aa62e3cc93b50976218d42b6"
 dependencies = [
  "futures 0.3.12",
  "libc",
