@@ -123,7 +123,7 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
     let invocations: Vec<RawInvocation> = analysis
         .iter()
         .map(|a| {
-            let CompilationOptions { ref directory, ref program, ref arguments, ref output } =
+            let CompilationOptions { ref directory, ref program, ref arguments, .. } =
                 a.compilation.as_ref().ok_or(())?;
 
             let deps: Vec<usize> = a
@@ -144,11 +144,9 @@ fn plan_from_analysis(analysis: &[Analysis], build_dir: &Path) -> Result<Externa
 
             Ok(RawInvocation {
                 deps,
-                outputs: vec![output.clone()],
                 program: program.clone(),
                 args: arguments.clone(),
                 env: Default::default(),
-                links: Default::default(),
                 cwd: Some(cwd),
             })
         })
@@ -166,9 +164,6 @@ pub(crate) struct RawPlan {
 #[derive(Debug, Deserialize)]
 pub(crate) struct RawInvocation {
     pub(crate) deps: Vec<usize>,
-    pub(crate) outputs: Vec<PathBuf>,
-    #[serde(default)]
-    pub(crate) links: BTreeMap<PathBuf, PathBuf>,
     pub(crate) program: String,
     pub(crate) args: Vec<String>,
     pub(crate) env: BTreeMap<String, String>,
@@ -180,8 +175,6 @@ pub(crate) struct RawInvocation {
 pub(crate) struct Invocation {
     // FIXME: use arena and store refs instead for ergonomics.
     deps: Vec<usize>,
-    outputs: Vec<PathBuf>,
-    links: BTreeMap<PathBuf, PathBuf>,
     command: ProcessBuilder,
     // Parsed data.
     src_path: Option<PathBuf>,
@@ -228,8 +221,6 @@ impl Invocation {
 
         Invocation {
             deps: raw.deps.to_owned(),
-            outputs: raw.outputs.to_owned(),
-            links: raw.links,
             src_path: guess_rustc_src_path(build_dir, &command),
             command,
         }

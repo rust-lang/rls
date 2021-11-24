@@ -34,7 +34,7 @@ anyhow = "1.0.26"
 cargo = { git = "https://github.com/rust-lang/cargo", rev = "8dd533662007374412f460b4e442d3f8c193bff9" }
 cargo-util = { git = "https://github.com/rust-lang/cargo", rev = "8dd533662007374412f460b4e442d3f8c193bff9" }
 cargo_metadata = "0.12"
-clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "a55912c48e4ac08c0ac39a2d562b44699fa20d4d", optional = true }
+clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "81f37a8150fc86f8de00e6947e86d2b69291906a", optional = true }
 env_logger = "0.7"
 home = "0.5.1"
 itertools = "0.9"
@@ -47,7 +47,7 @@ racer = { version = "2.1.47", default-features = false }
 rand = "0.7"
 rayon = "1"
 rustc_tools_util = "0.2"
-rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "28460e1e9aff317fa1bbca95b22421e7ccd7723d" }
+rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "ea199bacef07213dbe008841b89c450e3bf0c638" }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
