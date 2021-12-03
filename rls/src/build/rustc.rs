@@ -239,7 +239,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         let input = compiler.input();
         let crate_name = queries.crate_name().unwrap().peek().clone();
 
-        let cwd = &sess.working_dir.local_path_if_available();
+        let cwd = &sess.opts.working_dir.local_path_if_available();
 
         let src_path = match input {
             Input::File(ref name) => Some(name.to_path_buf()),
@@ -250,7 +250,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         let krate = Crate {
             name: crate_name,
             src_path,
-            disambiguator: sess.local_crate_disambiguator().to_fingerprint().as_value(),
+            disambiguator: (sess.local_stable_crate_id().to_u64(), 0),
             edition: match sess.edition() {
                 RustcEdition::Edition2015 => Edition::Edition2015,
                 RustcEdition::Edition2018 => Edition::Edition2018,
@@ -321,13 +321,13 @@ fn clippy_config(config: &mut interface::Config) {
 
         let conf = clippy_lints::read_conf(&sess);
         clippy_lints::register_plugins(&mut lint_store, &sess, &conf);
-        clippy_lints::register_pre_expansion_lints(&mut lint_store);
+        clippy_lints::register_pre_expansion_lints(&mut lint_store, &sess, &conf);
         clippy_lints::register_renamed(&mut lint_store);
     }));
 }
 
 fn fetch_input_files(sess: &Session) -> Vec<PathBuf> {
-    let cwd = &sess.working_dir.local_path_if_available();
+    let cwd = &sess.opts.working_dir.local_path_if_available();
 
     sess.source_map()
         .files()

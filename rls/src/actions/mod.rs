@@ -518,7 +518,7 @@ impl FileWatch {
     }
 
     pub fn from_project_root(root: PathBuf) -> Self {
-        Self { project_uri: Url::from_file_path(&root).unwrap().into_string(), project_path: root }
+        Self { project_uri: Url::from_file_path(&root).unwrap().into(), project_path: root }
     }
 
     /// Returns json config for desired file watches
