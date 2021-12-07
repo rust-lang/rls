@@ -227,19 +227,6 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7714a157da7991e23d90686b9524b9e12e0407a108647f52e9328f4b3d51ac7f"
-dependencies = [
- "cargo-platform 0.1.2",
- "semver 0.11.0",
- "semver-parser 0.10.2",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "cargo_metadata"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba2ae6de944143141f6155a473a6b02f66c7c3f9f47316f802f80204ebfe6e12"
@@ -292,7 +279,7 @@ name = "clippy_lints"
 version = "0.1.58"
 source = "git+https://github.com/rust-lang/rust-clippy?rev=81f37a8150fc86f8de00e6947e86d2b69291906a#81f37a8150fc86f8de00e6947e86d2b69291906a"
 dependencies = [
- "cargo_metadata 0.14.1",
+ "cargo_metadata",
  "clippy_utils",
  "if_chain",
  "itertools 0.10.1",
@@ -1825,7 +1812,7 @@ dependencies = [
  "anyhow",
  "cargo",
  "cargo-util",
- "cargo_metadata 0.12.3",
+ "cargo_metadata",
  "clippy_lints",
  "crossbeam-channel",
  "difference",
@@ -2271,7 +2258,7 @@ dependencies = [
  "annotate-snippets",
  "anyhow",
  "bytecount",
- "cargo_metadata 0.14.1",
+ "cargo_metadata",
  "derive-new",
  "diff",
  "dirs",
@@ -2349,7 +2336,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f301af10236f6df4160f7c3f04eec6dbc70ace82d23326abad5edee88801c6b6"
 dependencies = [
  "semver-parser 0.10.2",
- "serde",
 ]
 
 [[package]]
