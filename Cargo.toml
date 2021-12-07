@@ -35,7 +35,7 @@ cargo = { git = "https://github.com/rust-lang/cargo", rev = "8dd533662007374412f
 cargo-util = { git = "https://github.com/rust-lang/cargo", rev = "8dd533662007374412f460b4e442d3f8c193bff9" }
 cargo_metadata = "0.14"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "81f37a8150fc86f8de00e6947e86d2b69291906a", optional = true }
-env_logger = "0.7"
+env_logger = "0.9"
 home = "0.5.1"
 itertools = "0.10"
 jsonrpc-core = "18"
