@@ -37,7 +37,7 @@ cargo_metadata = "0.14"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", rev = "81f37a8150fc86f8de00e6947e86d2b69291906a", optional = true }
 env_logger = "0.7"
 home = "0.5.1"
-itertools = "0.9"
+itertools = "0.10"
 jsonrpc-core = "18"
 lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"

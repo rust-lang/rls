@@ -1820,7 +1820,7 @@ dependencies = [
  "futures 0.3.18",
  "heck",
  "home",
- "itertools 0.9.0",
+ "itertools 0.10.1",
  "jsonrpc-core",
  "lazy_static",
  "log",
