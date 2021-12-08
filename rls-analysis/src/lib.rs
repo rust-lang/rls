@@ -21,7 +21,10 @@ mod util;
 use analysis::Analysis;
 pub use analysis::{Def, Ident, IdentKind, Ref};
 pub use loader::{AnalysisLoader, CargoAnalysisLoader, SearchDirectory, Target};
-pub use raw::{name_space_for_def_kind, read_analysis_from_files, Crate, CrateId, DefKind};
+pub use raw::{
+    deserialize_crate_data, name_space_for_def_kind, read_analysis_from_files, read_crate_data,
+    Crate, CrateId, DefKind,
+};
 pub use symbol_query::SymbolQuery;
 
 use std::collections::HashMap;
