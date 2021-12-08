@@ -1842,7 +1842,7 @@ dependencies = [
  "num_cpus",
  "ordslice",
  "racer",
- "rand 0.7.3",
+ "rand 0.8.4",
  "rayon",
  "regex",
  "rls-analysis",

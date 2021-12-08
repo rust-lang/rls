@@ -44,7 +44,7 @@ lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
 racer = { version = "2.1.47", default-features = false }
-rand = "0.7"
+rand = "0.8"
 rayon = "1"
 rustc_tools_util = "0.2"
 rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "ea199bacef07213dbe008841b89c450e3bf0c638" }
