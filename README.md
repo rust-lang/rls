@@ -92,7 +92,7 @@ Studio Code extension this will be done via the workspace settings file
 
 Other editors will have their own way of sending the
 [workspace/DidChangeConfiguration](https://microsoft.github.io/language-server-protocol/specification#workspace_didChangeConfiguration)
-method. Options are nested in the `rust` object, so your server might send
+method. Options are nested in the `rust` object, so your LSP client might send
 `{"settings":{"rust":{"unstable_features":true}}}` as parameters.
 
 Entries in this file will affect how the RLS operates and how it builds your
