@@ -227,19 +227,6 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7714a157da7991e23d90686b9524b9e12e0407a108647f52e9328f4b3d51ac7f"
-dependencies = [
- "cargo-platform 0.1.2",
- "semver 0.11.0",
- "semver-parser 0.10.2",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "cargo_metadata"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba2ae6de944143141f6155a473a6b02f66c7c3f9f47316f802f80204ebfe6e12"
@@ -292,7 +279,7 @@ name = "clippy_lints"
 version = "0.1.58"
 source = "git+https://github.com/rust-lang/rust-clippy?rev=81f37a8150fc86f8de00e6947e86d2b69291906a#81f37a8150fc86f8de00e6947e86d2b69291906a"
 dependencies = [
- "cargo_metadata 0.14.1",
+ "cargo_metadata",
  "clippy_utils",
  "if_chain",
  "itertools 0.10.1",
@@ -622,6 +609,19 @@ name = "env_logger"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
+dependencies = [
+ "atty",
+ "humantime 2.1.0",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
 dependencies = [
  "atty",
  "humantime 2.1.0",
@@ -1825,15 +1825,15 @@ dependencies = [
  "anyhow",
  "cargo",
  "cargo-util",
- "cargo_metadata 0.12.3",
+ "cargo_metadata",
  "clippy_lints",
  "crossbeam-channel",
  "difference",
- "env_logger 0.7.1",
+ "env_logger 0.9.0",
  "futures 0.3.18",
  "heck",
  "home",
- "itertools 0.9.0",
+ "itertools 0.10.1",
  "jsonrpc-core",
  "lazy_static",
  "log",
@@ -1842,7 +1842,7 @@ dependencies = [
  "num_cpus",
  "ordslice",
  "racer",
- "rand 0.7.3",
+ "rand 0.8.4",
  "rayon",
  "regex",
  "rls-analysis",
@@ -2271,7 +2271,7 @@ dependencies = [
  "annotate-snippets",
  "anyhow",
  "bytecount",
- "cargo_metadata 0.14.1",
+ "cargo_metadata",
  "derive-new",
  "diff",
  "dirs",
@@ -2349,7 +2349,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f301af10236f6df4160f7c3f04eec6dbc70ace82d23326abad5edee88801c6b6"
 dependencies = [
  "semver-parser 0.10.2",
- "serde",
 ]
 
 [[package]]
