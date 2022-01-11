@@ -321,7 +321,7 @@ fn clippy_config(config: &mut interface::Config) {
 
         let conf = clippy_lints::read_conf(&sess);
         clippy_lints::register_plugins(&mut lint_store, &sess, &conf);
-        clippy_lints::register_pre_expansion_lints(&mut lint_store);
+        clippy_lints::register_pre_expansion_lints(&mut lint_store, &sess, &conf);
         clippy_lints::register_renamed(&mut lint_store);
     }));
 }
