@@ -22,11 +22,11 @@ rls-data = "= 0.19"
 rls-span = "0.5.2"
 derive-new = "0.5"
 fst = { version = "0.4", default-features = false }
-itertools = "0.9"
+itertools = "0.10"
 json = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 
 [dev-dependencies]
 lazy_static = "1"
-env_logger = "0.7"
+env_logger = "0.9"
