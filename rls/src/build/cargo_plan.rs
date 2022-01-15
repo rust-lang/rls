@@ -485,7 +485,7 @@ impl From<&Unit> for OwnedUnit {
         OwnedUnit {
             id: unit.pkg.package_id().to_owned(),
             target: unit.target.clone(),
-            profile: unit.profile,
+            profile: unit.profile.clone(),
             kind: unit.kind,
             mode: unit.mode,
         }
