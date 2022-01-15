@@ -48,6 +48,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -261,8 +267,8 @@ dependencies = [
 
 [[package]]
 name = "clippy_lints"
-version = "0.1.58"
-source = "git+https://github.com/rust-lang/rust-clippy?rev=81f37a8150fc86f8de00e6947e86d2b69291906a#81f37a8150fc86f8de00e6947e86d2b69291906a"
+version = "0.1.60"
+source = "git+https://github.com/rust-lang/rust-clippy#496f26c2297c0117a24c3d26172fd72b5f9ad927"
 dependencies = [
  "cargo_metadata",
  "clippy_utils",
@@ -282,9 +288,10 @@ dependencies = [
 
 [[package]]
 name = "clippy_utils"
-version = "0.1.58"
-source = "git+https://github.com/rust-lang/rust-clippy?rev=81f37a8150fc86f8de00e6947e86d2b69291906a#81f37a8150fc86f8de00e6947e86d2b69291906a"
+version = "0.1.60"
+source = "git+https://github.com/rust-lang/rust-clippy#496f26c2297c0117a24c3d26172fd72b5f9ad927"
 dependencies = [
+ "arrayvec 0.7.2",
  "if_chain",
  "rustc-semver",
 ]
@@ -1416,9 +1423,9 @@ dependencies = [
 
 [[package]]
 name = "pulldown-cmark"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffade02495f22453cd593159ea2f59827aae7f53fa8323f756799b670881dcf8"
+checksum = "acd16514d1af5f7a71f909a44ef253cdb712a376d7ebc8ae4a471a9be9743548"
 dependencies = [
  "bitflags",
  "memchr",
@@ -2318,7 +2325,7 @@ version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6cbce692ab4ca2f1f3047fcf732430249c0e971bfdd2b234cf2c47ad93af5983"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.5.2",
  "utf8parse",
  "vte_generate_state_changes",
 ]
