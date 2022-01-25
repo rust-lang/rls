@@ -1741,7 +1741,7 @@ dependencies = [
 
 [[package]]
 name = "rls-analysis"
-version = "0.18.2"
+version = "0.18.3"
 dependencies = [
  "derive-new",
  "fst",
