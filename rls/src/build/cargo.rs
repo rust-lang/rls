@@ -828,9 +828,14 @@ impl ManifestAwareError {
                 fn find_toml_error(
                     err: &(dyn std::error::Error + 'static),
                 ) -> Option<(usize, usize)> {
-                    match err.downcast_ref::<toml::de::Error>() {
-                        Some(toml_err) => toml_err.line_col(),
-                        None => find_toml_error(err.source()?),
+                    if let Some(toml_err) = err.downcast_ref::<toml_edit::TomlError>() {
+                        toml_err.line_col()
+                    } else if let Some(toml_err) = err.downcast_ref::<toml_edit::de::Error>() {
+                        toml_err.line_col()
+                    } else if let Some(toml_err) = err.downcast_ref::<toml::de::Error>() {
+                        toml_err.line_col()
+                    } else {
+                        find_toml_error(err.source()?)
                     }
                 }
                 if let Some((line, col)) = find_toml_error(last_cause) {
