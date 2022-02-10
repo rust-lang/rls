@@ -84,7 +84,7 @@ pub(super) fn cargo(
 
             let (manifest_path, manifest_error_range) = {
                 let mae = error.downcast_ref::<ManifestAwareError>();
-                (mae.map(|e| e.manifest_path().clone()), mae.map(|e| e.manifest_error_range()))
+                (mae.map(|e| e.manifest_path().clone()), mae.and_then(|e| e.manifest_error_range()))
             };
             BuildResult::CargoError { error, stdout, manifest_path, manifest_error_range }
         }
@@ -805,7 +805,7 @@ pub struct ManifestAwareError {
     cause: anyhow::Error,
     /// The path to a manifest file within the project that seems the closest to the error's origin.
     nearest_project_manifest: PathBuf,
-    manifest_error_range: Range,
+    manifest_error_range: Option<Range>,
 }
 
 impl ManifestAwareError {
@@ -813,7 +813,7 @@ impl ManifestAwareError {
         let project_dir = root_manifest.parent().unwrap();
         let mut err_path = root_manifest;
         // Cover whole manifest if we haven't any better idea.
-        let mut err_range = Range { start: Position::new(0, 0), end: Position::new(9999, 0) };
+        let mut err_range = None;
 
         if let Some(manifest_err) = cause.downcast_ref::<ManifestError>() {
             // Scan through any manifest errors to pin the error more precisely.
@@ -828,15 +828,25 @@ impl ManifestAwareError {
                 fn find_toml_error(
                     err: &(dyn std::error::Error + 'static),
                 ) -> Option<(usize, usize)> {
-                    match err.downcast_ref::<toml::de::Error>() {
-                        Some(toml_err) => toml_err.line_col(),
-                        None => find_toml_error(err.source()?),
+                    if let Some(toml_err) = err.downcast_ref::<toml_edit::TomlError>() {
+                        toml_err.line_col()
+                    } else if let Some(toml_err) = err.downcast_ref::<toml_edit::de::Error>() {
+                        toml_err.line_col()
+                    } else if let Some(toml_err) = err.downcast_ref::<toml::de::Error>() {
+                        toml_err.line_col()
+                    } else {
+                        find_toml_error(err.source()?)
                     }
                 }
                 if let Some((line, col)) = find_toml_error(last_cause) {
+                    let line = line as _;
+                    let start_col = col as _;
+                    let end_col = start_col + 1;
                     // Use TOML deserializiation error position.
-                    err_range.start = Position::new(line as _, col as _);
-                    err_range.end = Position::new(line as _, col as u64 + 1);
+                    err_range = Some(Range {
+                        start: Position::new(line, start_col),
+                        end: Position::new(line, end_col),
+                    });
                 }
             } else {
                 let nearest_cause = manifest_err
@@ -868,7 +878,7 @@ impl ManifestAwareError {
         &self.nearest_project_manifest
     }
 
-    pub fn manifest_error_range(&self) -> Range {
+    pub fn manifest_error_range(&self) -> Option<Range> {
         self.manifest_error_range
     }
 }

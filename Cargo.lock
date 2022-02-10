@@ -125,13 +125,13 @@ dependencies = [
 
 [[package]]
 name = "cargo"
-version = "0.60.0"
-source = "git+https://github.com/rust-lang/cargo?rev=06b9d31743210b788b130c8a484c2838afa6fc27#06b9d31743210b788b130c8a484c2838afa6fc27"
+version = "0.61.0"
+source = "git+https://github.com/rust-lang/cargo?rev=1c034752de0df744fcd7788fcbca158830b8bf85#1c034752de0df744fcd7788fcbca158830b8bf85"
 dependencies = [
  "anyhow",
  "atty",
  "bytesize",
- "cargo-platform 0.1.2 (git+https://github.com/rust-lang/cargo?rev=06b9d31743210b788b130c8a484c2838afa6fc27)",
+ "cargo-platform 0.1.2 (git+https://github.com/rust-lang/cargo?rev=1c034752de0df744fcd7788fcbca158830b8bf85)",
  "cargo-util",
  "clap 3.0.7",
  "crates-io",
@@ -173,7 +173,7 @@ dependencies = [
  "tar",
  "tempfile",
  "termcolor",
- "toml",
+ "toml_edit",
  "unicode-width",
  "unicode-xid",
  "url 2.2.2",
@@ -193,7 +193,7 @@ dependencies = [
 [[package]]
 name = "cargo-platform"
 version = "0.1.2"
-source = "git+https://github.com/rust-lang/cargo?rev=06b9d31743210b788b130c8a484c2838afa6fc27#06b9d31743210b788b130c8a484c2838afa6fc27"
+source = "git+https://github.com/rust-lang/cargo?rev=1c034752de0df744fcd7788fcbca158830b8bf85#1c034752de0df744fcd7788fcbca158830b8bf85"
 dependencies = [
  "serde",
 ]
@@ -201,7 +201,7 @@ dependencies = [
 [[package]]
 name = "cargo-util"
 version = "0.1.2"
-source = "git+https://github.com/rust-lang/cargo?rev=06b9d31743210b788b130c8a484c2838afa6fc27#06b9d31743210b788b130c8a484c2838afa6fc27"
+source = "git+https://github.com/rust-lang/cargo?rev=1c034752de0df744fcd7788fcbca158830b8bf85#1c034752de0df744fcd7788fcbca158830b8bf85"
 dependencies = [
  "anyhow",
  "core-foundation",
@@ -315,6 +315,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "combine"
+version = "4.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50b727aacc797f9fc28e355d21f34709ac4fc9adecfe470ad07b8f4464f53062"
+dependencies = [
+ "bytes",
+ "memchr",
+]
+
+[[package]]
 name = "commoncrypto"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -356,8 +366,8 @@ checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
 name = "crates-io"
-version = "0.33.1"
-source = "git+https://github.com/rust-lang/cargo?rev=06b9d31743210b788b130c8a484c2838afa6fc27#06b9d31743210b788b130c8a484c2838afa6fc27"
+version = "0.34.0"
+source = "git+https://github.com/rust-lang/cargo?rev=1c034752de0df744fcd7788fcbca158830b8bf85#1c034752de0df744fcd7788fcbca158830b8bf85"
 dependencies = [
  "anyhow",
  "curl",
@@ -1094,6 +1104,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kstring"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b310ccceade8121d7d77fee406160e457c2f4e7c7982d589da3499bc7ea4526"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1735,6 +1754,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "toml",
+ "toml_edit",
  "url 2.2.2",
  "walkdir",
 ]
@@ -2254,6 +2274,19 @@ version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
 dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd43cf25c995eb155e5d692ba38185d68860674f54bb29cb458ee05d6de15561"
+dependencies = [
+ "combine",
+ "indexmap",
+ "itertools 0.10.1",
+ "kstring",
  "serde",
 ]
 
