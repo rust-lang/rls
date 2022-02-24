@@ -7,7 +7,10 @@ use cargo::{
         PackageId, Workspace,
     },
     ops,
-    util::{errors::CargoResult, important_paths::find_root_manifest_for_wd, toml},
+    util::{
+        errors::CargoResult, important_paths::find_root_manifest_for_wd, interning::InternedString,
+        toml,
+    },
     Config,
 };
 use log::warn;
@@ -36,7 +39,7 @@ struct PackageData {
 
 #[derive(Debug)]
 pub struct Dep {
-    pub crate_name: String,
+    pub crate_name: InternedString,
     pub pkg: Package,
 }
 
@@ -103,7 +106,8 @@ impl ProjectModel {
                 let pkg = cargo_packages.get_one(dep_id)?;
                 let lib = pkg.targets().iter().find(|t| t.is_lib());
                 if let Some(lib) = lib {
-                    let crate_name = resolve.extern_crate_name(pkg_id, dep_id, &lib)?;
+                    let (crate_name, _) =
+                        resolve.extern_crate_name_and_dep_name(pkg_id, dep_id, &lib)?;
                     packages[pkg_id_to_pkg[&pkg_id].0]
                         .deps
                         .push(Dep { crate_name, pkg: pkg_id_to_pkg[&dep_id] })
