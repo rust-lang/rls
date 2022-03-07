@@ -31,8 +31,8 @@ rls-vfs = "0.8"
 rls-ipc = { version = "0.1.0", path = "rls-ipc", optional = true }
 
 anyhow = "1.0.26"
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "1c034752de0df744fcd7788fcbca158830b8bf85" }
-cargo-util = { git = "https://github.com/rust-lang/cargo", rev = "1c034752de0df744fcd7788fcbca158830b8bf85" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "d6cdde584a1f15ea086bae922e20fd27f7165431" }
+cargo-util = { git = "https://github.com/rust-lang/cargo", rev = "d6cdde584a1f15ea086bae922e20fd27f7165431" }
 cargo_metadata = "0.14"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", version = "0.1.60", optional = true }
 env_logger = "0.9"
@@ -58,7 +58,7 @@ regex = "1"
 ordslice = "0.3"
 crossbeam-channel = "0.5"
 toml = "0.5"
-toml_edit = { version = "0.13.1", features = ["easy"] }
+toml_edit = { version = "0.13.4", features = ["easy"] }
 heck = "0.3"
 
 # A noop dependency that changes in the Rust repository, it's a bit of a hack.
