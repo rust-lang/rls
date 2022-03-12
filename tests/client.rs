@@ -21,12 +21,20 @@ fn initialize_params(root_path: &Path) -> InitializeParams {
         initialization_options: None,
         capabilities: ClientCapabilities {
             workspace: None,
-            window: Some(WindowClientCapabilities { progress: Some(true) }),
+            window: Some(WindowClientCapabilities {
+                work_done_progress: Some(true),
+                show_message: None,
+                show_document: None,
+            }),
             text_document: None,
             experimental: None,
+            general: None,
+            offset_encoding: None,
         },
         trace: None,
         workspace_folders: None,
+        client_info: None,
+        locale: None,
     }
 }
 
@@ -263,7 +271,7 @@ fn client_changing_workspace_lib_retains_diagnostics() {
         }],
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("library/src/lib.rs")).unwrap(),
-            version: Some(0),
+            version: 0,
         },
     });
 
@@ -289,7 +297,7 @@ fn client_changing_workspace_lib_retains_diagnostics() {
         }],
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("library/src/lib.rs")).unwrap(),
-            version: Some(1),
+            version: 1,
         },
     });
 
@@ -366,7 +374,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
         }],
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("inner/src/lib.rs")).unwrap(),
-            version: Some(0),
+            version: 0,
         },
     });
 
@@ -387,7 +395,7 @@ fn client_implicit_workspace_pick_up_lib_changes() {
         }],
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("inner/src/lib.rs")).unwrap(),
-            version: Some(1),
+            version: 1,
         },
     });
 
@@ -444,7 +452,7 @@ fn client_test_complete_self_crate_name() {
         CompletionParams {
             context: Some(CompletionContext {
                 trigger_character: Some(":".to_string()),
-                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+                trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
             }),
             text_document_position: TextDocumentPositionParams {
                 position: Position::new(2, 32),
@@ -452,6 +460,8 @@ fn client_test_complete_self_crate_name() {
                     uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
                 },
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
 
@@ -518,21 +528,29 @@ fn client_completion_suggests_arguments_in_statements() {
             initialization_options: None,
             capabilities: lsp_types::ClientCapabilities {
                 workspace: None,
-                window: Some(WindowClientCapabilities { progress: Some(true) }),
+                window: Some(WindowClientCapabilities {
+                    work_done_progress: Some(true),
+                    show_message: None,
+                    show_document: None,
+                }),
                 text_document: Some(TextDocumentClientCapabilities {
-                    completion: Some(CompletionCapability {
+                    completion: Some(CompletionClientCapabilities {
                         completion_item: Some(CompletionItemCapability {
                             snippet_support: Some(true),
                             ..CompletionItemCapability::default()
                         }),
-                        ..CompletionCapability::default()
+                        ..CompletionClientCapabilities::default()
                     }),
                     ..TextDocumentClientCapabilities::default()
                 }),
                 experimental: None,
+                general: None,
+                offset_encoding: None,
             },
             trace: None,
             workspace_folders: None,
+            client_info: None,
+            locale: None,
         },
     );
 
@@ -544,7 +562,7 @@ fn client_completion_suggests_arguments_in_statements() {
         CompletionParams {
             context: Some(CompletionContext {
                 trigger_character: Some("f".to_string()),
-                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+                trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
             }),
             text_document_position: TextDocumentPositionParams {
                 position: Position::new(3, 41),
@@ -552,6 +570,8 @@ fn client_completion_suggests_arguments_in_statements() {
                     uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
                 },
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
 
@@ -612,7 +632,7 @@ fn client_use_statement_completion_doesnt_suggest_arguments() {
         CompletionParams {
             context: Some(CompletionContext {
                 trigger_character: Some(":".to_string()),
-                trigger_kind: CompletionTriggerKind::TriggerCharacter,
+                trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
             }),
             text_document_position: TextDocumentPositionParams {
                 position: Position::new(2, 32),
@@ -620,6 +640,8 @@ fn client_use_statement_completion_doesnt_suggest_arguments() {
                     uri: Url::from_file_path(p.root().join("library/tests/test.rs")).unwrap(),
                 },
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
 
@@ -678,7 +700,7 @@ fn client_dependency_typo_and_fix() {
 
     let diag = rls.wait_for_diagnostics();
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     assert!(diag.diagnostics[0]
         .message
         .contains("no matching package found\nsearched package name: `auto-cfg`"));
@@ -692,13 +714,13 @@ fn client_dependency_typo_and_fix() {
     rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
         changes: vec![FileEvent {
             uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
-            typ: FileChangeType::Changed,
+            typ: FileChangeType::CHANGED,
         }],
     });
 
     let diag = rls.wait_for_diagnostics();
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     assert!(diag.diagnostics[0].message.contains("^0.5555"));
 
     // Fix version issue so no error diagnostics occur.
@@ -708,13 +730,13 @@ fn client_dependency_typo_and_fix() {
     rls.notify::<DidChangeWatchedFiles>(DidChangeWatchedFilesParams {
         changes: vec![FileEvent {
             uri: Url::from_file_path(p.root().join("Cargo.toml")).unwrap(),
-            typ: FileChangeType::Changed,
+            typ: FileChangeType::CHANGED,
         }],
     });
 
     let diag = rls.wait_for_diagnostics();
     assert_eq!(
-        diag.diagnostics.iter().find(|d| d.severity == Some(DiagnosticSeverity::Error)),
+        diag.diagnostics.iter().find(|d| d.severity == Some(DiagnosticSeverity::ERROR)),
         None
     );
 }
@@ -749,7 +771,7 @@ fn client_invalid_toml_manifest() {
 
     assert!(diag.uri.as_str().ends_with("invalid_toml/Cargo.toml"));
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     assert!(diag.diagnostics[0].message.contains("failed to parse manifest"));
 
     assert_eq!(
@@ -814,7 +836,7 @@ fn client_invalid_member_toml_manifest() {
     assert!(diag.uri.as_str().ends_with("invalid_member_toml/member_a/dodgy_member/Cargo.toml"));
 
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     assert!(diag.diagnostics[0].message.contains("failed to load manifest"));
 }
 
@@ -873,7 +895,7 @@ fn client_invalid_member_dependency_resolution() {
         .ends_with("invalid_member_resolution/member_a/dodgy_member/Cargo.toml"));
 
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     assert!(diag.diagnostics[0].message.contains("no matching package named `nosuchdep123`"));
 }
 
@@ -901,7 +923,7 @@ fn client_handle_utf16_unit_text_edits() {
     rls.notify::<DidChangeTextDocument>(DidChangeTextDocumentParams {
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("src/some.rs")).unwrap(),
-            version: Some(0),
+            version: 0,
         },
         // "😢" -> ""
         content_changes: vec![TextDocumentContentChangeEvent {
@@ -947,7 +969,11 @@ fn client_format_utf16_range() {
                 tab_size: 4,
                 insert_spaces: true,
                 properties: Default::default(),
+                trim_trailing_whitespace: None,
+                insert_final_newline: None,
+                trim_final_newlines: None,
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
         },
     );
 
@@ -974,6 +1000,8 @@ fn client_lens_run() {
             capabilities: Default::default(),
             trace: None,
             workspace_folders: None,
+            client_info: None,
+            locale: None,
         },
     );
 
@@ -986,6 +1014,8 @@ fn client_lens_run() {
             text_document: TextDocumentIdentifier {
                 uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
 
@@ -1064,11 +1094,15 @@ fn client_find_definitions() {
             let id = (line_index * 100 + i) as u64;
             let result = rls.request::<GotoDefinition>(
                 id,
-                TextDocumentPositionParams {
-                    position: Position { line: line_index as u64, character: i as u64 },
-                    text_document: TextDocumentIdentifier {
-                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                GotoDefinitionParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        position: Position { line: line_index as u32, character: i as u32 },
+                        text_document: TextDocumentIdentifier {
+                            uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                        },
                     },
+                    work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+                    partial_result_params: PartialResultParams { partial_result_token: None },
                 },
             );
 
@@ -1179,6 +1213,8 @@ fn client_deglob() {
                 },
                 range: Range { start: Position::new(2, 0), end: Position::new(2, 0) },
                 context: CodeActionContext { diagnostics: vec![], only: None },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+                partial_result_params: PartialResultParams { partial_result_token: None },
             },
         )
         .expect("No code actions returned for line 2");
@@ -1205,7 +1241,14 @@ fn client_deglob() {
         }
     );
 
-    rls.request::<ExecuteCommand>(200, ExecuteCommandParams { command, arguments });
+    rls.request::<ExecuteCommand>(
+        200,
+        ExecuteCommandParams {
+            command,
+            arguments,
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+        },
+    );
     // Right now the execute command returns an empty response and sends
     // appropriate apply edit request via a side-channel
     let result = rls
@@ -1237,6 +1280,8 @@ fn client_deglob() {
                 },
                 range: Range { start: Position::new(5, 0), end: Position::new(5, 0) },
                 context: CodeActionContext { diagnostics: vec![], only: None },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+                partial_result_params: PartialResultParams { partial_result_token: None },
             },
         )
         .expect("No code actions returned for line 12");
@@ -1268,7 +1313,14 @@ fn client_deglob() {
         );
     }
 
-    rls.request::<ExecuteCommand>(1200, ExecuteCommandParams { command, arguments });
+    rls.request::<ExecuteCommand>(
+        1200,
+        ExecuteCommandParams {
+            command,
+            arguments,
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+        },
+    );
     // Right now the execute command returns an empty response and sends
     // appropriate apply edit request via a side-channel
     let result = rls
@@ -1417,11 +1469,15 @@ fn client_goto_def() {
 
     let result = rls.request::<GotoDefinition>(
         11,
-        TextDocumentPositionParams {
-            position: Position { line: 12, character: 27 },
-            text_document: TextDocumentIdentifier {
-                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+        GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                position: Position { line: 12, character: 27 },
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
 
@@ -1453,11 +1509,14 @@ fn client_hover() {
     let result = rls
         .request::<HoverRequest>(
             11,
-            TextDocumentPositionParams {
-                position: Position { line: 12, character: 27 },
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    position: Position { line: 12, character: 27 },
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
                 },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
             },
         )
         .unwrap();
@@ -1490,11 +1549,14 @@ fn client_hover_after_src_line_change() {
     let result = rls
         .request::<HoverRequest>(
             11,
-            TextDocumentPositionParams {
-                position: world_src_pos,
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    position: world_src_pos,
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
                 },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
             },
         )
         .unwrap();
@@ -1519,7 +1581,7 @@ fn client_hover_after_src_line_change() {
         }],
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
-            version: Some(2),
+            version: 2,
         },
     });
 
@@ -1528,11 +1590,14 @@ fn client_hover_after_src_line_change() {
     let result = rls
         .request::<HoverRequest>(
             11,
-            TextDocumentPositionParams {
-                position: world_src_pos_after,
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    position: world_src_pos_after,
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
                 },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
             },
         )
         .unwrap();
@@ -1553,12 +1618,19 @@ fn client_workspace_symbol() {
     rls.wait_for_indexing();
 
     let symbols = rls
-        .request::<WorkspaceSymbol>(42, WorkspaceSymbolParams { query: "nemo".to_owned() })
+        .request::<WorkspaceSymbol>(
+            42,
+            WorkspaceSymbolParams {
+                query: "nemo".to_owned(),
+                partial_result_params: PartialResultParams { partial_result_token: None },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            },
+        )
         .unwrap();
 
     let mut nemos = vec![
-        ("src/main.rs", "nemo", SymbolKind::Function, 1, 11, 1, 15, Some("x")),
-        ("src/foo.rs", "nemo", SymbolKind::Module, 0, 4, 0, 8, Some("foo")),
+        ("src/main.rs", "nemo", SymbolKind::FUNCTION, 1, 11, 1, 15, Some("x")),
+        ("src/foo.rs", "nemo", SymbolKind::MODULE, 0, 4, 0, 8, Some("foo")),
     ];
 
     for (file, name, kind, start_l, start_c, end_l, end_c, container_name) in nemos.drain(..) {
@@ -1574,6 +1646,7 @@ fn client_workspace_symbol() {
                 },
             },
             deprecated: None,
+            tags: None,
         };
         dbg!(&sym);
         assert!(symbols.iter().any(|s| *s == sym));
@@ -1594,12 +1667,19 @@ fn client_workspace_symbol_duplicates() {
     rls.wait_for_indexing();
 
     let symbols = rls
-        .request::<WorkspaceSymbol>(42, WorkspaceSymbolParams { query: "Frobnicator".to_owned() })
+        .request::<WorkspaceSymbol>(
+            42,
+            WorkspaceSymbolParams {
+                query: "Frobnicator".to_owned(),
+                partial_result_params: PartialResultParams { partial_result_token: None },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            },
+        )
         .unwrap();
 
     let symbol = SymbolInformation {
         name: "Frobnicator".to_string(),
-        kind: SymbolKind::Struct,
+        kind: SymbolKind::STRUCT,
         container_name: Some("a".to_string()),
         location: Location {
             uri: Url::from_file_path(p.root().join("src/shared.rs")).unwrap(),
@@ -1609,6 +1689,7 @@ fn client_workspace_symbol_duplicates() {
             },
         },
         deprecated: None,
+        tags: None,
     };
 
     assert_eq!(symbols, vec![symbol]);
@@ -1637,6 +1718,8 @@ fn client_find_all_refs_test() {
                     position: Position { line: 0, character: 7 },
                 },
                 context: ReferenceContext { include_declaration: true },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+                partial_result_params: PartialResultParams { partial_result_token: None },
             },
         )
         .unwrap();
@@ -1677,6 +1760,8 @@ fn client_find_all_refs_no_cfg_test() {
                     position: Position { line: 0, character: 7 },
                 },
                 context: ReferenceContext { include_declaration: true },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+                partial_result_params: PartialResultParams { partial_result_token: None },
             },
         )
         .unwrap();
@@ -1722,11 +1807,15 @@ fn client_highlight() {
     let result = rls
         .request::<DocumentHighlightRequest>(
             42,
-            TextDocumentPositionParams {
-                position: Position { line: 12, character: 27 },
-                text_document: TextDocumentIdentifier {
-                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+            DocumentHighlightParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    position: Position { line: 12, character: 27 },
+                    text_document: TextDocumentIdentifier {
+                        uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                    },
                 },
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+                partial_result_params: PartialResultParams { partial_result_token: None },
             },
         )
         .unwrap();
@@ -1766,6 +1855,7 @@ fn client_rename() {
                     },
                 },
                 new_name: "foo".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
             },
         )
         .unwrap();
@@ -1807,7 +1897,11 @@ fn client_reformat() {
                 tab_size: 4,
                 insert_spaces: true,
                 properties: Default::default(),
+                trim_trailing_whitespace: None,
+                insert_final_newline: None,
+                trim_final_newlines: None,
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
         },
     );
 
@@ -1846,7 +1940,11 @@ fn client_reformat_with_range() {
                 tab_size: 4,
                 insert_spaces: true,
                 properties: Default::default(),
+                trim_trailing_whitespace: None,
+                insert_final_newline: None,
+                trim_final_newlines: None,
             },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
         },
     );
 
@@ -1919,8 +2017,8 @@ fn client_completion() {
 
     let expected = [
         // FIXME(https://github.com/rust-lang/rls/issues/1205) - empty "     " string
-        ("world", &Some(CompletionItemKind::Variable), &Some("let world = \"     \";".to_string())),
-        ("x", &Some(CompletionItemKind::Field), &Some("x: u64".to_string())),
+        ("world", &Some(CompletionItemKind::VARIABLE), &Some("let world = \"     \";".to_string())),
+        ("x", &Some(CompletionItemKind::FIELD), &Some("x: u64".to_string())),
     ];
 
     let result = rls.request::<Completion>(
@@ -1931,6 +2029,8 @@ fn client_completion() {
                 position: Position { line: 12, character: 30 },
             },
             context: None,
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
     let items = completions(result.unwrap());
@@ -1943,6 +2043,8 @@ fn client_completion() {
                 position: Position { line: 15, character: 30 },
             },
             context: None,
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
     let items = completions(result.unwrap());
@@ -1962,7 +2064,7 @@ fn client_bin_lib_project() {
 
     assert!(diag.uri.as_str().ends_with("bin_lib/tests/tests.rs"));
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::WARNING));
     assert!(diag.diagnostics[0].message.contains("unused variable: `unused_var`"));
 }
 
@@ -1978,7 +2080,7 @@ fn client_infer_lib() {
 
     assert!(diag.uri.as_str().ends_with("src/lib.rs"));
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::WARNING));
     assert!(diag.diagnostics[0].message.contains("struct `UnusedLib` is never constructed"));
 }
 
@@ -2024,9 +2126,13 @@ fn client_find_impls() {
 
     let result = rls.request::<GotoImplementation>(
         1,
-        TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            position: Position { line: 3, character: 7 }, // "Bar"
+        GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier::new(uri.clone()),
+                position: Position { line: 3, character: 7 }, // "Bar"
+            },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
     let expected = [(9, 15, 9, 18), (10, 12, 10, 15)];
@@ -2044,9 +2150,13 @@ fn client_find_impls() {
 
     let result = rls.request::<GotoImplementation>(
         1,
-        TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            position: Position { line: 6, character: 6 }, // "Super"
+        GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier::new(uri.clone()),
+                position: Position { line: 6, character: 6 }, // "Super"
+            },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
     let expected = [(9, 15, 9, 18), (13, 15, 13, 18)];
@@ -2075,7 +2185,7 @@ fn client_features() {
     let diag = rls.wait_for_diagnostics();
 
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     let msg = "cannot find struct, variant or union type `Foo` in this scope";
     assert!(diag.diagnostics[0].message.contains(msg));
 }
@@ -2110,9 +2220,9 @@ fn client_no_default_features() {
     let diag = rls.wait_for_diagnostics();
 
     let diagnostics: Vec<_> =
-        diag.diagnostics.iter().filter(|d| d.severity == Some(DiagnosticSeverity::Error)).collect();
+        diag.diagnostics.iter().filter(|d| d.severity == Some(DiagnosticSeverity::ERROR)).collect();
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     let msg = "cannot find struct, variant or union type `Baz` in this scope";
     assert!(diagnostics[0].message.contains(msg));
 }
@@ -2130,7 +2240,7 @@ fn client_all_targets() {
 
     assert!(diag.uri.as_str().ends_with("bin_lib/tests/tests.rs"));
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::WARNING));
     assert!(diag.diagnostics[0].message.contains("unused variable: `unused_var`"));
 }
 
@@ -2159,11 +2269,15 @@ fn client_fail_uninitialized_request() {
 
     rls.request::<GotoDefinition>(
         ID,
-        TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier {
-                uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+        GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: Url::from_file_path(p.root().join("src/main.rs")).unwrap(),
+                },
+                position: Position { line: 0, character: 0 },
             },
-            position: Position { line: 0, character: 0 },
+            work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+            partial_result_params: PartialResultParams { partial_result_token: None },
         },
     );
 
@@ -2204,7 +2318,7 @@ fn client_init_impl(convert_case: fn(&str) -> String) {
     let diag = rls.wait_for_diagnostics();
 
     assert_eq!(diag.diagnostics.len(), 1);
-    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Error));
+    assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
     let msg = "cannot find type `PathBuf` in this scope";
     assert!(diag.diagnostics[0].message.contains(msg));
 }

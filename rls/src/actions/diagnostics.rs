@@ -141,6 +141,9 @@ pub fn parse_diagnostics(
             source: Some(source.to_owned()),
             message: diagnostic_message,
             related_information,
+            code_description: None,
+            tags: None,
+            data: None,
         };
 
         (file_path, (diagnostic, suggestions))
@@ -193,9 +196,9 @@ fn format_notes(children: &[AssociatedMessage], primary: &DiagnosticSpan) -> Opt
 
 fn severity(level: &str, is_primary_span: bool) -> DiagnosticSeverity {
     match (level, is_primary_span) {
-        (_, false) => DiagnosticSeverity::Information,
-        ("error", _) => DiagnosticSeverity::Error,
-        (..) => DiagnosticSeverity::Warning,
+        (_, false) => DiagnosticSeverity::INFORMATION,
+        ("error", _) => DiagnosticSeverity::ERROR,
+        (..) => DiagnosticSeverity::WARNING,
     }
 }
 

@@ -74,7 +74,7 @@ impl<R: DefaultResponse> Response for ResponseWithMessage<R> {
             ResponseWithMessage::Response(r) => out.success(id, &r),
             ResponseWithMessage::Warn(s) => {
                 out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-                    typ: MessageType::Warning,
+                    typ: MessageType::WARNING,
                     message: s,
                 }));
 
@@ -87,7 +87,7 @@ impl<R: DefaultResponse> Response for ResponseWithMessage<R> {
 
 impl DefaultResponse for WorkspaceEdit {
     fn default() -> WorkspaceEdit {
-        WorkspaceEdit { changes: None, document_changes: None }
+        WorkspaceEdit { changes: None, document_changes: None, change_annotations: None }
     }
 }
 
@@ -482,7 +482,7 @@ mod test {
     fn serialize_message_empty_params() {
         #[derive(Debug)]
         enum DummyNotification {}
-        #[derive(Serialize)]
+        #[derive(Serialize, Deserialize)]
         struct EmptyParams {}
 
         impl LSPNotification for DummyNotification {

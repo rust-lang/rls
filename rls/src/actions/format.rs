@@ -98,8 +98,8 @@ impl Rustfmt {
             .into_iter()
             .map(|item| {
                 // Rustfmt's line indices are 1-based
-                let start_line = u64::from(item.line_number_orig) - 1;
-                let end_line = start_line + u64::from(item.lines_removed);
+                let start_line = item.line_number_orig - 1;
+                let end_line = start_line + item.lines_removed;
 
                 let mut new_text = item.lines.join(newline);
 
@@ -242,7 +242,7 @@ mod tests {
             Rustfmt::Internal.calc_text_edits(input.to_string(), config()).unwrap()
         }
 
-        fn test_case(input: &str, output: Vec<(u64, u64, u64, u64, &str)>) {
+        fn test_case(input: &str, output: Vec<(u32, u32, u32, u32, &str)>) {
             assert_eq!(
                 format(input),
                 output
