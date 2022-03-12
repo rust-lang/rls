@@ -75,14 +75,14 @@ impl BlockingNotificationAction for DidChangeTextDocument {
 
         ctx.quiescent.store(false, Ordering::SeqCst);
         let file_path = parse_file_path!(&params.text_document.uri, "on_change")?;
-        let version_num = params.text_document.version.unwrap();
+        let version_num = params.text_document.version as u64;
 
         match ctx.check_change_version(&file_path, version_num) {
             VersionOrdering::Ok => {}
             VersionOrdering::Duplicate => return Ok(()),
             VersionOrdering::OutOfOrder => {
                 out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-                    typ: MessageType::Warning,
+                    typ: MessageType::WARNING,
                     message: format!("Out of order change in {:?}", file_path),
                 }));
                 return Ok(());
@@ -99,7 +99,7 @@ impl BlockingNotificationAction for DidChangeTextDocument {
                         // LSP sends UTF-16 code units based offsets and length
                         span: VfsSpan::from_utf16(
                             Span::from_range(range, file_path.clone()),
-                            i.range_length,
+                            i.range_length.map(|l| l as u64),
                         ),
                         text: i.text.clone(),
                     }
@@ -311,7 +311,7 @@ mod test {
         let manifest_change = Url::parse(lsp_project_manifest).unwrap();
         DidChangeWatchedFiles::handle(
             DidChangeWatchedFilesParams {
-                changes: vec![FileEvent::new(manifest_change, FileChangeType::Changed)],
+                changes: vec![FileEvent::new(manifest_change, FileChangeType::CHANGED)],
             },
             &mut ctx,
             NoOutput,

@@ -39,7 +39,7 @@ env_logger = "0.9"
 home = "0.5.1"
 itertools = "0.10"
 jsonrpc-core = "18"
-lsp-types = { version = "0.60", features = ["proposed"] }
+lsp-types = { version = "0.92", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"

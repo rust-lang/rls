@@ -54,7 +54,7 @@ pub fn make_workspace_edit(location: Location, new_text: String) -> WorkspaceEdi
         .into_iter()
         .collect();
 
-    WorkspaceEdit { changes: Some(changes), document_changes: None }
+    WorkspaceEdit { changes: Some(changes), document_changes: None, change_annotations: None }
 }
 
 /// Utilities for working with the language server protocol.
@@ -117,7 +117,7 @@ pub mod ls_util {
         if content.is_empty() {
             Range { start: Position::new(0, 0), end: Position::new(0, 0) }
         } else {
-            let mut line_count = content.lines().count() as u64 - 1;
+            let mut line_count = content.lines().count() - 1;
             let col = if content.ends_with('\n') {
                 line_count += 1;
                 0
@@ -128,11 +128,11 @@ pub mod ls_util {
                     .expect("String is not empty.")
                     .chars()
                     // LSP uses UTF-16 code units offset.
-                    .map(|chr| chr.len_utf16() as u64)
+                    .map(|chr| chr.len_utf16())
                     .sum()
             };
             // Range is zero-based and end position is exclusive.
-            Range { start: Position::new(0, 0), end: Position::new(line_count, col) }
+            Range { start: Position::new(0, 0), end: Position::new(line_count as u32, col as u32) }
         }
     }
 }
@@ -140,50 +140,50 @@ pub mod ls_util {
 /// Converts an RLS def-kind to a language server protocol symbol-kind.
 pub fn source_kind_from_def_kind(k: DefKind) -> SymbolKind {
     match k {
-        DefKind::Enum | DefKind::Union => SymbolKind::Enum,
-        DefKind::Static | DefKind::Const | DefKind::ForeignStatic => SymbolKind::Constant,
-        DefKind::Tuple => SymbolKind::Array,
-        DefKind::Struct => SymbolKind::Struct,
-        DefKind::Function | DefKind::Macro | DefKind::ForeignFunction => SymbolKind::Function,
-        DefKind::Method => SymbolKind::Method,
-        DefKind::Mod => SymbolKind::Module,
-        DefKind::Trait => SymbolKind::Interface,
-        DefKind::Type | DefKind::ExternType => SymbolKind::TypeParameter,
-        DefKind::Local => SymbolKind::Variable,
-        DefKind::Field => SymbolKind::Field,
-        DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::EnumMember,
+        DefKind::Enum | DefKind::Union => SymbolKind::ENUM,
+        DefKind::Static | DefKind::Const | DefKind::ForeignStatic => SymbolKind::CONSTANT,
+        DefKind::Tuple => SymbolKind::ARRAY,
+        DefKind::Struct => SymbolKind::STRUCT,
+        DefKind::Function | DefKind::Macro | DefKind::ForeignFunction => SymbolKind::FUNCTION,
+        DefKind::Method => SymbolKind::METHOD,
+        DefKind::Mod => SymbolKind::MODULE,
+        DefKind::Trait => SymbolKind::INTERFACE,
+        DefKind::Type | DefKind::ExternType => SymbolKind::TYPE_PARAMETER,
+        DefKind::Local => SymbolKind::VARIABLE,
+        DefKind::Field => SymbolKind::FIELD,
+        DefKind::TupleVariant | DefKind::StructVariant => SymbolKind::ENUM_MEMBER,
     }
 }
 
 /// Indicates the kind of completion for this racer match type.
 pub fn completion_kind_from_match_type(m: racer::MatchType) -> CompletionItemKind {
     match m {
-        racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::Module,
-        racer::MatchType::Struct(_) => CompletionItemKind::Struct,
-        racer::MatchType::Union(_) => CompletionItemKind::Struct,
-        racer::MatchType::Enum(_) => CompletionItemKind::Enum,
+        racer::MatchType::Crate | racer::MatchType::Module => CompletionItemKind::MODULE,
+        racer::MatchType::Struct(_) => CompletionItemKind::STRUCT,
+        racer::MatchType::Union(_) => CompletionItemKind::STRUCT,
+        racer::MatchType::Enum(_) => CompletionItemKind::ENUM,
         racer::MatchType::StructField | racer::MatchType::EnumVariant(_) => {
-            CompletionItemKind::Field
+            CompletionItemKind::FIELD
         }
         racer::MatchType::Macro
         | racer::MatchType::Function
         | racer::MatchType::Method(_)
-        | racer::MatchType::FnArg(_) => CompletionItemKind::Function,
-        racer::MatchType::Type | racer::MatchType::Trait => CompletionItemKind::Interface,
+        | racer::MatchType::FnArg(_) => CompletionItemKind::FUNCTION,
+        racer::MatchType::Type | racer::MatchType::Trait => CompletionItemKind::INTERFACE,
         racer::MatchType::Let(_)
         | racer::MatchType::IfLet(_)
         | racer::MatchType::WhileLet(_)
         | racer::MatchType::For(_)
         | racer::MatchType::MatchArm
         | racer::MatchType::Const
-        | racer::MatchType::Static => CompletionItemKind::Variable,
-        racer::MatchType::TypeParameter(_) => CompletionItemKind::TypeParameter,
-        racer::MatchType::Builtin(_) => CompletionItemKind::Keyword,
+        | racer::MatchType::Static => CompletionItemKind::VARIABLE,
+        racer::MatchType::TypeParameter(_) => CompletionItemKind::TYPE_PARAMETER,
+        racer::MatchType::Builtin(_) => CompletionItemKind::KEYWORD,
         racer::MatchType::UseAlias(m) => match m.mtype {
             racer::MatchType::UseAlias(_) => unreachable!("Nested use aliases"),
             typ => completion_kind_from_match_type(typ),
         },
-        racer::MatchType::AssocType => CompletionItemKind::TypeParameter,
+        racer::MatchType::AssocType => CompletionItemKind::TYPE_PARAMETER,
     }
 }
 

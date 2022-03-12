@@ -137,7 +137,7 @@ impl PostBuildHandler {
                 Diagnostic {
                     range,
                     message,
-                    severity: Some(DiagnosticSeverity::Error),
+                    severity: Some(DiagnosticSeverity::ERROR),
                     ..Diagnostic::default()
                 },
                 vec![],
@@ -206,10 +206,11 @@ impl PostBuildHandler {
                     .iter()
                     .map(|(diag, _)| diag)
                     .filter(|diag| {
-                        self.show_warnings || diag.severity != Some(DiagnosticSeverity::Warning)
+                        self.show_warnings || diag.severity != Some(DiagnosticSeverity::WARNING)
                     })
                     .cloned()
                     .collect(),
+                version: None,
             };
 
             self.notifier.notify_publish_diagnostics(params);
