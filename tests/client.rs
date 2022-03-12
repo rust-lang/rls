@@ -175,10 +175,13 @@ fn client_test_simple_workspace() {
     let count = rls
         .messages()
         .iter()
-        .filter(|msg| msg["method"] == "window/progress")
-        .filter(|msg| msg["params"]["title"] == "Building")
+        .filter(|msg| msg["method"] == "$/progress")
+        .filter(|msg| msg["params"]["value"]["kind"] == "report")
         .filter(|msg| {
-            msg["params"]["message"].as_str().map(|x| x.starts_with("member_")).unwrap_or(false)
+            msg["params"]["value"]["message"]
+                .as_str()
+                .map(|x| x.starts_with("member_"))
+                .unwrap_or(false)
         })
         .count();
     assert_eq!(count, 4);
