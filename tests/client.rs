@@ -2193,22 +2193,22 @@ fn client_init_impl(convert_case: fn(&str) -> String) {
 
 #[test]
 fn client_init_with_configuration_mixed_case() {
-    client_init_impl(heck::MixedCase::to_mixed_case);
+    client_init_impl(heck::ToLowerCamelCase::to_lower_camel_case);
 }
 
 #[test]
 fn client_init_with_configuration_camel_case() {
-    client_init_impl(heck::CamelCase::to_camel_case);
+    client_init_impl(heck::ToUpperCamelCase::to_upper_camel_case);
 }
 
 #[test]
 fn client_init_with_configuration_snake_case() {
-    client_init_impl(heck::SnakeCase::to_snake_case);
+    client_init_impl(heck::ToSnakeCase::to_snake_case);
 }
 
 #[test]
 fn client_init_with_configuration_kebab_case() {
-    client_init_impl(heck::KebabCase::to_kebab_case);
+    client_init_impl(heck::ToKebabCase::to_kebab_case);
 }
 
 #[test]
