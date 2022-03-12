@@ -179,10 +179,7 @@ impl RlsHandle {
             |stdout| {
                 stdout
                     .to_json_messages()
-                    .filter(|json| {
-                        json["params"]["title"] == "Indexing"
-                            && json["params"]["done"].as_bool().unwrap_or(false)
-                    })
+                    .filter(|json| json["params"]["value"]["kind"] == "end")
                     .count()
                     >= n
             },
