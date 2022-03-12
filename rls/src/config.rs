@@ -243,7 +243,7 @@ impl Config {
 
         if let serde_json::Value::Object(map) = val {
             let seq = serde::de::value::MapDeserializer::new(map.iter().filter_map(|(k, v)| {
-                use heck::SnakeCase;
+                use heck::ToSnakeCase;
                 let snake_case = k.to_snake_case();
                 let vec = dups.entry(snake_case.clone()).or_default();
                 vec.push(k.to_string());
