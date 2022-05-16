@@ -197,7 +197,7 @@ impl BuildKey for Invocation {
         let mut hash = DefaultHasher::new();
 
         self.command.get_program().hash(&mut hash);
-        let /*mut*/ args = self.command.get_args().to_owned();
+        let /*mut*/ args = self.command.get_args().map(|a| a.to_owned()).collect::<Vec<_>>();
         // args.sort(); // TODO: parse 2-part args (e.g., `["--extern", "a=b"]`)
         args.hash(&mut hash);
         let mut envs: Vec<_> = self.command.get_envs().iter().collect();
@@ -417,10 +417,8 @@ fn guess_rustc_src_path(build_dir: &Path, cmd: &ProcessBuilder) -> Option<PathBu
 
     let cwd = cmd.get_cwd().or_else(|| Some(build_dir));
 
-    let file = cmd
-        .get_args()
-        .iter()
-        .find(|&a| Path::new(a).extension().map(|e| e == "rs").unwrap_or(false))?;
+    let file =
+        cmd.get_args().find(|&a| Path::new(a).extension().map(|e| e == "rs").unwrap_or(false))?;
 
     src_path(cwd, file)
 }

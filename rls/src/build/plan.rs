@@ -84,7 +84,7 @@ pub(crate) struct JobQueue(Vec<ProcessBuilder>);
 /// For example, if `[.., "--crate-name", "rls", ...]` arguments are specified,
 /// then proc_arg(prc, "--crate-name") returns Some(&OsStr::new("rls"));
 fn proc_argument_value<T: AsRef<OsStr>>(prc: &ProcessBuilder, key: T) -> Option<&std::ffi::OsStr> {
-    let args = prc.get_args();
+    let args = prc.get_args().collect::<Vec<_>>();
     let (idx, _) = args.iter().enumerate().find(|(_, arg)| arg.as_os_str() == key.as_ref())?;
 
     Some(args.get(idx + 1)?.as_os_str())
@@ -125,7 +125,6 @@ impl JobQueue {
             trace!("Executing: {:#?}", job);
             let mut args: Vec<_> = job
                 .get_args()
-                .iter()
                 .cloned()
                 .map(|x| x.into_string().expect("cannot stringify job args"))
                 .collect();
@@ -155,7 +154,7 @@ impl JobQueue {
                 let crate_name = proc_argument_value(&job, "--crate-name").and_then(OsStr::to_str);
                 let update = match crate_name {
                     Some(name) => {
-                        let cfg_test = job.get_args().iter().any(|arg| arg == "--test");
+                        let cfg_test = job.get_args().any(|arg| *arg == "--test");
                         ProgressUpdate::Message(if cfg_test {
                             format!("{} cfg(test)", name)
                         } else {
@@ -237,6 +236,7 @@ pub enum Edition {
     Edition2015,
     Edition2018,
     Edition2021,
+    Edition2024,
 }
 
 impl Default for Edition {
@@ -253,6 +253,7 @@ impl std::convert::TryFrom<&str> for Edition {
             "2015" => Edition::Edition2015,
             "2018" => Edition::Edition2018,
             "2021" => Edition::Edition2021,
+            "2024" => Edition::Edition2024,
             _ => return Err("unknown"),
         })
     }

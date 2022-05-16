@@ -137,6 +137,7 @@ impl Callbacks for ShimCalls {
                 rustc_span::edition::Edition::Edition2015 => Edition::Edition2015,
                 rustc_span::edition::Edition::Edition2018 => Edition::Edition2018,
                 rustc_span::edition::Edition::Edition2021 => Edition::Edition2021,
+                rustc_span::edition::Edition::Edition2024 => Edition::Edition2024,
             },
         };
 
