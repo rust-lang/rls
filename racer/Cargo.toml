@@ -24,19 +24,15 @@ lazy_static = "1.2"
 humantime = "2.0.0"
 derive_more = "0.99.2"
 rls-span = "0.5.1"
-lazycell = { version = "1.2", optional = true }
+lazycell = "1.2"
 
 [dependencies.racer-cargo-metadata]
 version = "0.1"
-optional = true
 path = "metadata"
 
 [features]
 default = ["metadata"]
-metadata = ["lazycell", "racer-cargo-metadata"]
-
-[workspace]
-members = ["interner", "metadata"]
+metadata = []
 
 [package.metadata.rust-analyzer]
 # This package uses #[feature(rustc_private)]
