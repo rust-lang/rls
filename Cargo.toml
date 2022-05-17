@@ -31,8 +31,8 @@ rls-vfs = "0.8"
 rls-ipc = { version = "0.1.0", path = "rls-ipc", optional = true }
 
 anyhow = "1.0.26"
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "1ef1e0a12723ce9548d7da2b63119de9002bead8" }
-cargo-util = { git = "https://github.com/rust-lang/cargo", rev = "1ef1e0a12723ce9548d7da2b63119de9002bead8" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "3f052d8eed98c6a24f8b332fb2e6e6249d12d8c1" }
+cargo-util = { git = "https://github.com/rust-lang/cargo", rev = "3f052d8eed98c6a24f8b332fb2e6e6249d12d8c1" }
 cargo_metadata = "0.14"
 clippy_lints = { git = "https://github.com/rust-lang/rust-clippy", version = "0.1.60", optional = true }
 env_logger = "0.9"
@@ -43,11 +43,11 @@ lsp-types = { version = "0.60", features = ["proposed"] }
 lazy_static = "1"
 log = "0.4"
 num_cpus = "1"
-racer = { version = "2.2", default-features = false }
+racer = { path = "racer" }
 rand = "0.8"
 rayon = "1"
 rustc_tools_util = "0.2"
-rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "5056f4cfb311a084420f1828cd58af94d143f5e0" }
+rustfmt-nightly = { git = "https://github.com/rust-lang/rustfmt", rev = "8a4c05865be17bac75b8d53eae5be18d749a0f5c" }
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
@@ -58,7 +58,7 @@ regex = "1"
 ordslice = "0.3"
 crossbeam-channel = "0.5"
 toml = "0.5"
-toml_edit = { version = "0.13.4", features = ["easy"] }
+toml_edit = { version = "0.14.3", features = ["easy"] }
 heck = "0.3"
 
 # A noop dependency that changes in the Rust repository, it's a bit of a hack.

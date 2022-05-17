@@ -1,0 +1,13 @@
+[package]
+name = "racer-interner"
+version = "0.1.0"
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
+license = "MIT"
+description = "thread-local string interner for racer-rust"
+homepage = "https://github.com/racer-rust/racer"
+repository = "https://github.com/racer-rust/racer"
+edition = "2018"
+workspace = ".."
+
+[dependencies]
+serde = "1.0"

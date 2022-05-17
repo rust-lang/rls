@@ -1,0 +1,22 @@
+[package]
+name = "racer-cargo-metadata"
+version = "0.1.2"
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
+license = "MIT"
+description = "light-weight cargo metadata parser for racer"
+homepage = "https://github.com/racer-rust/racer"
+repository = "https://github.com/racer-rust/racer"
+edition = "2018"
+workspace = ".."
+
+[dependencies]
+serde_json = "1.0"
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies.racer-interner]
+version = "0.1"
+path = "../interner"
+

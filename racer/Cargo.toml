@@ -1,0 +1,43 @@
+[package]
+name = "racer"
+version = "2.2.2"
+license = "MIT"
+description = "Code completion for Rust"
+authors = ["Phil Dawes <phil@phildawes.net>", "The Racer developers"]
+homepage = "https://github.com/racer-rust/racer"
+repository = "https://github.com/racer-rust/racer"
+edition = "2018"
+
+[lib]
+name = "racer"
+path = "src/racer/lib.rs"
+
+[profile.release]
+debug = false # because of #1005
+
+[dependencies]
+bitflags = "1.0"
+log = "0.4"
+env_logger = "0.7.1"
+clap = "2.32"
+lazy_static = "1.2"
+humantime = "2.0.0"
+derive_more = "0.99.2"
+rls-span = "0.5.1"
+lazycell = { version = "1.2", optional = true }
+
+[dependencies.racer-cargo-metadata]
+version = "0.1"
+optional = true
+path = "metadata"
+
+[features]
+default = ["metadata"]
+metadata = ["lazycell", "racer-cargo-metadata"]
+
+[workspace]
+members = ["interner", "metadata"]
+
+[package.metadata.rust-analyzer]
+# This package uses #[feature(rustc_private)]
+rustc_private = true
