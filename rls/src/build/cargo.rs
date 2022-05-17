@@ -408,17 +408,18 @@ impl Executor for RlsExecutor {
         // Enforce JSON output so that we can parse the rustc output by
         // stripping --error-format if it was specified (e.g. Cargo pipelined
         // build)
-        let filtered_args = filter_arg(cargo_cmd.get_args(), "--error-format");
+        let filtered_args =
+            filter_arg(&*cargo_cmd.get_args().collect::<Vec<_>>(), "--error-format");
         cargo_cmd.args_replace(&filtered_args);
         cargo_cmd.arg("--error-format=json");
         // Delete any stale data. We try and remove any json files with
         // the same crate name as Cargo would emit. This includes files
         // with the same crate name but different hashes, e.g., those
         // made with a different compiler.
-        let cargo_args = cargo_cmd.get_args();
+        let cargo_args = cargo_cmd.get_args().collect::<Vec<_>>();
         let crate_name =
-            parse_arg(cargo_args, "--crate-name").expect("no crate-name in rustc command line");
-        let cfg_test = cargo_args.iter().any(|arg| arg == "--test");
+            parse_arg(&cargo_args, "--crate-name").expect("no crate-name in rustc command line");
+        let cfg_test = cargo_args.iter().any(|arg| *arg == "--test");
         trace!("exec: {} {:?}", crate_name, cargo_cmd);
 
         // Send off a window/progress notification for this compile target.
@@ -435,7 +436,8 @@ impl Executor for RlsExecutor {
                 .expect("failed to send progress update");
         }
 
-        let out_dir = parse_arg(cargo_args, "--out-dir").expect("no out-dir in rustc command line");
+        let out_dir =
+            parse_arg(&cargo_args, "--out-dir").expect("no out-dir in rustc command line");
         let analysis_dir = Path::new(&out_dir).join("save-analysis");
         if let Ok(dir_contents) = read_dir(&analysis_dir) {
             let lib_crate_name = "lib".to_owned() + &crate_name;
@@ -478,7 +480,7 @@ impl Executor for RlsExecutor {
 
         // Add args and envs to cmd.
         let mut args: Vec<_> =
-            cargo_args.iter().map(|a| a.clone().into_string().unwrap()).collect();
+            cargo_args.iter().map(|a| (*a).to_owned().into_string().unwrap()).collect();
         let envs = cargo_cmd.get_envs().clone();
 
         let sysroot = super::rustc::current_sysroot()
@@ -508,7 +510,7 @@ impl Executor for RlsExecutor {
                 "rustc not intercepted - {}{} - args: {:?} envs: {:?}",
                 id.name(),
                 build_script_notice,
-                cmd.get_args(),
+                cmd.get_args().collect::<Vec<_>>(),
                 cmd.get_envs(),
             );
 
@@ -712,9 +714,9 @@ pub fn make_cargo_config(
     config
 }
 
-fn parse_arg(args: &[OsString], arg: &str) -> Option<String> {
+fn parse_arg(args: &[&OsString], arg: &str) -> Option<String> {
     for (i, a) in args.iter().enumerate() {
-        if a == arg {
+        if *a == arg {
             return Some(args[i + 1].clone().into_string().unwrap());
         }
     }
@@ -780,7 +782,7 @@ fn dedup_flags(flag_str: &str) -> String {
 }
 
 /// Removes a selected flag of a `--flag=VALUE` or `--flag VALUE` shape from `args` (command line args for Rust).
-fn filter_arg(args: &[OsString], key: &str) -> Vec<String> {
+fn filter_arg(args: &[&OsString], key: &str) -> Vec<String> {
     let key_as_prefix = key.to_owned() + "=";
     let mut ret = vec![];
 
@@ -934,12 +936,47 @@ mod test {
             input.split_whitespace().map(OsString::from).collect()
         }
 
-        assert!(filter_arg(&args("--error-format=json"), "--error-format").is_empty());
-        assert!(filter_arg(&args("--error-format json"), "--error-format").is_empty());
-        assert_eq!(filter_arg(&args("-a --error-format=json"), "--error-format"), ["-a"]);
-        assert_eq!(filter_arg(&args("-a --error-format json"), "--error-format"), ["-a"]);
-        assert_eq!(filter_arg(&args("-a --error-format=json -b"), "--error-format"), ["-a", "-b"]);
-        assert_eq!(filter_arg(&args("-a --error-format json -b"), "--error-format"), ["-a", "-b"]);
-        assert_eq!(filter_arg(&args("-a -b -x"), "--error-format"), ["-a", "-b", "-x"]);
+        assert!(filter_arg(
+            &args("--error-format=json").iter().collect::<Vec<_>>(),
+            "--error-format"
+        )
+        .is_empty());
+        assert!(filter_arg(
+            &args("--error-format json").iter().collect::<Vec<_>>(),
+            "--error-format"
+        )
+        .is_empty());
+        assert_eq!(
+            filter_arg(
+                &args("-a --error-format=json").iter().collect::<Vec<_>>(),
+                "--error-format"
+            ),
+            ["-a"]
+        );
+        assert_eq!(
+            filter_arg(
+                &args("-a --error-format json").iter().collect::<Vec<_>>(),
+                "--error-format"
+            ),
+            ["-a"]
+        );
+        assert_eq!(
+            filter_arg(
+                &args("-a --error-format=json -b").iter().collect::<Vec<_>>(),
+                "--error-format"
+            ),
+            ["-a", "-b"]
+        );
+        assert_eq!(
+            filter_arg(
+                &args("-a --error-format json -b").iter().collect::<Vec<_>>(),
+                "--error-format"
+            ),
+            ["-a", "-b"]
+        );
+        assert_eq!(
+            filter_arg(&args("-a -b -x").iter().collect::<Vec<_>>(), "--error-format"),
+            ["-a", "-b", "-x"]
+        );
     }
 }

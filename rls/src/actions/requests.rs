@@ -697,6 +697,7 @@ fn reformat(
                     Edition::Edition2015 => RustfmtEdition::Edition2015,
                     Edition::Edition2018 => RustfmtEdition::Edition2018,
                     Edition::Edition2021 => RustfmtEdition::Edition2021,
+                    Edition::Edition2024 => RustfmtEdition::Edition2024,
                 };
                 config.set().edition(edition);
                 trace!("Detected edition {:?} for file `{}`", edition, path.display());

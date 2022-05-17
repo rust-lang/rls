@@ -255,6 +255,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
                 RustcEdition::Edition2015 => Edition::Edition2015,
                 RustcEdition::Edition2018 => Edition::Edition2018,
                 RustcEdition::Edition2021 => Edition::Edition2021,
+                RustcEdition::Edition2024 => Edition::Edition2024,
             },
         };
 

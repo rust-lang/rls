@@ -1,0 +1,9 @@
+\#*
+src/scopes
+!.travis.yml
+*tmpfile*
+*.racertmp
+target/
+*.py[cod]
+.vscode/**
+*.log
