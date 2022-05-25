@@ -136,6 +136,17 @@ pub(crate) fn maybe_notify_duplicated_configs<O: Output>(
     }));
 }
 
+/// Notify client of the RLS deprecation
+pub(crate) fn maybe_notify_deprecation<O: Output>(out: &O, surpress: bool) {
+    if surpress {
+        return;
+    }
+    out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
+        typ: MessageType::Warning,
+        message: "The RLS is being deprecated in favor of rust-analyzer. Current users of RLS should begin migrating to using rust-analyzer instead.".to_owned(),
+    }));
+}
+
 impl BlockingRequestAction for InitializeRequest {
     type Response = NoResponse;
 
@@ -172,6 +183,10 @@ impl BlockingRequestAction for InitializeRequest {
             ));
         }
 
+        maybe_notify_deprecation(
+            &out,
+            init_options.settings.as_ref().map_or(false, |it| it.rust.ignore_deprecation_warning),
+        );
         maybe_notify_unknown_configs(&out, &unknowns);
         maybe_notify_deprecated_configs(&out, &deprecated);
         maybe_notify_duplicated_configs(&out, &dups);
