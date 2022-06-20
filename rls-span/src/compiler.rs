@@ -1,6 +1,6 @@
 ///! These are the structures emitted by the compiler as part of JSON errors.
 ///! The original source can be found at
-///! https://github.com/rust-lang/rust/blob/master/src/librustc_errors/json.rs
+///! https://github.com/rust-lang/rust/blob/master/compiler/rustc_errors/src/json.rs
 use std::path::PathBuf;
 
 #[cfg(feature = "derive")]
