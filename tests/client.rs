@@ -1999,7 +1999,7 @@ fn client_omit_init_build() {
     std::thread::sleep(std::time::Duration::from_secs(1));
     rls.block_on(response).unwrap().unwrap();
 
-    assert_eq!(rls.messages().iter().count(), 1);
+    assert_eq!(rls.messages().iter().count(), 2);
 }
 
 #[test]
