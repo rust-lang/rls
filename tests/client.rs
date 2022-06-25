@@ -45,7 +45,7 @@ fn client_test_infer_bin() {
     let diag = rls.wait_for_diagnostics();
 
     assert!(diag.uri.as_str().ends_with("src/main.rs"));
-    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedBin`"));
+    assert!(diag.diagnostics[0].message.contains("struct `UnusedBin` is never constructed"));
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn client_test_infer_lib() {
     let diag = rls.wait_for_diagnostics();
 
     assert!(diag.uri.as_str().ends_with("src/lib.rs"));
-    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedLib`"));
+    assert!(diag.diagnostics[0].message.contains("struct `UnusedLib` is never constructed"));
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn client_test_infer_custom_bin() {
     let diag = rls.wait_for_diagnostics();
 
     assert!(diag.uri.as_str().ends_with("src/custom_bin.rs"));
-    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedCustomBin`"));
+    assert!(diag.diagnostics[0].message.contains("struct `UnusedCustomBin` is never constructed"));
 }
 
 /// Test includes window/progress regression testing
@@ -1961,7 +1961,7 @@ fn client_infer_lib() {
     assert!(diag.uri.as_str().ends_with("src/lib.rs"));
     assert_eq!(diag.diagnostics.len(), 1);
     assert_eq!(diag.diagnostics[0].severity, Some(DiagnosticSeverity::Warning));
-    assert!(diag.diagnostics[0].message.contains("struct is never constructed: `UnusedLib`"));
+    assert!(diag.diagnostics[0].message.contains("struct `UnusedLib` is never constructed"));
 }
 
 #[test]
