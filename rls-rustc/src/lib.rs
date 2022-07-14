@@ -91,7 +91,7 @@ struct ShimCalls {
 
 impl Callbacks for ShimCalls {
     fn config(&mut self, config: &mut interface::Config) {
-        config.opts.debugging_opts.save_analysis = true;
+        config.opts.unstable_opts.save_analysis = true;
 
         #[cfg(feature = "clippy")]
         match self.clippy_preference {

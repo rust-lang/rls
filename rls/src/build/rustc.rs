@@ -220,7 +220,7 @@ impl rustc_driver::Callbacks for RlsRustcCalls {
         // This also prevents the compiler from dropping expanded AST, which we
         // still need in the `after_analysis` callback in order to process and
         // pass the computed analysis in-memory.
-        config.opts.debugging_opts.save_analysis = true;
+        config.opts.unstable_opts.save_analysis = true;
 
         #[cfg(feature = "clippy")]
         {
