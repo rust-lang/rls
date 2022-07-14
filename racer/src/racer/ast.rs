@@ -230,7 +230,7 @@ impl<'ast> visit::Visitor<'ast> for FnArgVisitor {
     fn visit_fn(&mut self, fk: visit::FnKind<'_>, _: source_map::Span, _: ast::NodeId) {
         let fd = match fk {
             visit::FnKind::Fn(_, _, ref fn_sig, _, _, _) => &*fn_sig.decl,
-            visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
+            visit::FnKind::Closure(_, ref fn_decl, _) => fn_decl,
         };
         debug!("[FnArgVisitor::visit_fn] inputs: {:?}", fd.inputs);
         self.idents = fd
@@ -1259,7 +1259,7 @@ impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
     fn visit_fn(&mut self, kind: visit::FnKind<'_>, _: source_map::Span, _: ast::NodeId) {
         let fd = match kind {
             visit::FnKind::Fn(_, _, ref fn_sig, _, _, _) => &*fn_sig.decl,
-            visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
+            visit::FnKind::Closure(_, ref fn_decl, _) => fn_decl,
         };
         self.is_async = kind
             .header()
