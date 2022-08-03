@@ -608,7 +608,7 @@ struct CargoOptions {
     all_features: bool,
     no_default_features: bool,
     features: Vec<String>,
-    jobs: Option<u32>,
+    jobs: Option<i32>,
     all_targets: bool,
 }
 
