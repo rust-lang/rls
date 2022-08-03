@@ -145,7 +145,7 @@ pub struct Config {
     pub features: Vec<String>,
     pub all_features: bool,
     pub no_default_features: bool,
-    pub jobs: Option<u32>,
+    pub jobs: Option<i32>,
     pub all_targets: bool,
     /// Enables use of Racer for `textDocument/completion` requests.
     ///
