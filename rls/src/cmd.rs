@@ -12,8 +12,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use lsp_types::{
     ClientCapabilities, CodeActionContext, CodeActionParams, CompletionItem,
     DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams,
-    FormattingOptions, InitializeParams, Position, Range, RenameParams, TextDocumentIdentifier,
-    TextDocumentPositionParams, TraceOption, WindowClientCapabilities, WorkspaceSymbolParams,
+    FormattingOptions, GotoDefinitionParams, HoverParams, InitializeParams, PartialResultParams,
+    Position, Range, RenameParams, TextDocumentIdentifier, TextDocumentPositionParams, TraceOption,
+    WindowClientCapabilities, WorkDoneProgressParams, WorkspaceSymbolParams,
 };
 
 use std::collections::HashMap;
@@ -87,7 +88,7 @@ pub fn run() {
             }
             "format" => {
                 let file_name = bits.next().expect("Expected file name");
-                let tab_size: u64 = bits
+                let tab_size: u32 = bits
                     .next()
                     .unwrap_or("4")
                     .parse()
@@ -101,15 +102,15 @@ pub fn run() {
             }
             "range_format" => {
                 let file_name = bits.next().expect("Expected file name");
-                let start_row: u64 =
+                let start_row: u32 =
                     bits.next().expect("Expected start line").parse().expect("Bad start line");
-                let start_col: u64 =
+                let start_col: u32 =
                     bits.next().expect("Expected start column").parse().expect("Bad start column");
-                let end_row: u64 =
+                let end_row: u32 =
                     bits.next().expect("Expected end line").parse().expect("Bad end line");
-                let end_col: u64 =
+                let end_col: u32 =
                     bits.next().expect("Expected end column").parse().expect("Bad end column");
-                let tab_size: u64 = bits
+                let tab_size: u32 = bits
                     .next()
                     .unwrap_or("4")
                     .parse()
@@ -132,13 +133,13 @@ pub fn run() {
             }
             "code_action" => {
                 let file_name = bits.next().expect("Expect file name");
-                let start_row: u64 =
+                let start_row: u32 =
                     bits.next().expect("Expect start line").parse().expect("Bad start line");
-                let start_col: u64 =
+                let start_col: u32 =
                     bits.next().expect("Expect start column").parse().expect("Bad start column");
-                let end_row: u64 =
+                let end_row: u32 =
                     bits.next().expect("Expect end line").parse().expect("Bad end line");
-                let end_col: u64 =
+                let end_col: u32 =
                     bits.next().expect("Expect end column").parse().expect("Bad end column");
                 code_action(file_name, start_row, start_col, end_row, end_col).to_string()
             }
@@ -173,12 +174,16 @@ pub fn run() {
 }
 
 fn def(file_name: &str, row: &str, col: &str) -> Request<requests::Definition> {
-    let params = TextDocumentPositionParams {
-        text_document: TextDocumentIdentifier::new(url(file_name)),
-        position: Position::new(
-            u64::from_str(row).expect("Bad line number"),
-            u64::from_str(col).expect("Bad column number"),
-        ),
+    let params = GotoDefinitionParams {
+        text_document_position_params: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url(file_name)),
+            position: Position::new(
+                u32::from_str(row).expect("Bad line number"),
+                u32::from_str(col).expect("Bad column number"),
+            ),
+        },
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+        partial_result_params: PartialResultParams { partial_result_token: None },
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
@@ -188,55 +193,74 @@ fn rename(file_name: &str, row: &str, col: &str, new_name: &str) -> Request<requ
         text_document_position: TextDocumentPositionParams {
             text_document: TextDocumentIdentifier::new(url(file_name)),
             position: Position::new(
-                u64::from_str(row).expect("Bad line number"),
-                u64::from_str(col).expect("Bad column number"),
+                u32::from_str(row).expect("Bad line number"),
+                u32::from_str(col).expect("Bad column number"),
             ),
         },
         new_name: new_name.to_owned(),
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn hover(file_name: &str, row: &str, col: &str) -> Request<requests::Hover> {
-    let params = TextDocumentPositionParams {
-        text_document: TextDocumentIdentifier::new(url(file_name)),
-        position: Position::new(
-            u64::from_str(row).expect("Bad line number"),
-            u64::from_str(col).expect("Bad column number"),
-        ),
+    let params = HoverParams {
+        text_document_position_params: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(url(file_name)),
+            position: Position::new(
+                u32::from_str(row).expect("Bad line number"),
+                u32::from_str(col).expect("Bad column number"),
+            ),
+        },
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn workspace_symbol(query: &str) -> Request<requests::WorkspaceSymbol> {
-    let params = WorkspaceSymbolParams { query: query.to_owned() };
+    let params = WorkspaceSymbolParams {
+        query: query.to_owned(),
+        partial_result_params: PartialResultParams { partial_result_token: None },
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+    };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
-fn format(file_name: &str, tab_size: u64, insert_spaces: bool) -> Request<requests::Formatting> {
+fn format(file_name: &str, tab_size: u32, insert_spaces: bool) -> Request<requests::Formatting> {
     // no optional properties
     let properties = HashMap::default();
 
     let params = DocumentFormattingParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
-        options: FormattingOptions { tab_size, insert_spaces, properties },
+        options: FormattingOptions {
+            tab_size,
+            insert_spaces,
+            properties,
+            trim_trailing_whitespace: None,
+            insert_final_newline: None,
+            trim_final_newlines: None,
+        },
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn document_symbol(file_name: &str) -> Request<requests::Symbols> {
-    let params =
-        DocumentSymbolParams { text_document: TextDocumentIdentifier::new(url(file_name)) };
+    let params = DocumentSymbolParams {
+        text_document: TextDocumentIdentifier::new(url(file_name)),
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+        partial_result_params: PartialResultParams { partial_result_token: None },
+    };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn range_format(
     file_name: &str,
-    start_row: u64,
-    start_col: u64,
-    end_row: u64,
-    end_col: u64,
-    tab_size: u64,
+    start_row: u32,
+    start_col: u32,
+    end_row: u32,
+    end_col: u32,
+    tab_size: u32,
     insert_spaces: bool,
 ) -> Request<requests::RangeFormatting> {
     // no optional properties
@@ -248,17 +272,25 @@ fn range_format(
             start: Position::new(start_row, start_col),
             end: Position::new(end_row, end_col),
         },
-        options: FormattingOptions { tab_size, insert_spaces, properties },
+        options: FormattingOptions {
+            tab_size,
+            insert_spaces,
+            properties,
+            trim_trailing_whitespace: None,
+            insert_final_newline: None,
+            trim_final_newlines: None,
+        },
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
 
 fn code_action(
     file_name: &str,
-    start_row: u64,
-    start_col: u64,
-    end_row: u64,
-    end_col: u64,
+    start_row: u32,
+    start_col: u32,
+    end_row: u32,
+    end_col: u32,
 ) -> Request<requests::CodeAction> {
     let params = CodeActionParams {
         text_document: TextDocumentIdentifier::new(url(file_name)),
@@ -267,6 +299,8 @@ fn code_action(
             end: Position::new(end_row, end_col),
         },
         context: CodeActionContext { diagnostics: Vec::new(), only: None },
+        work_done_progress_params: WorkDoneProgressParams { work_done_token: None },
+        partial_result_params: PartialResultParams { partial_result_token: None },
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }
@@ -293,12 +327,20 @@ fn initialize(root_path: String) -> Request<server::InitializeRequest> {
         initialization_options: None,
         capabilities: ClientCapabilities {
             workspace: None,
-            window: Some(WindowClientCapabilities { progress: Some(true) }),
+            window: Some(WindowClientCapabilities {
+                work_done_progress: Some(true),
+                show_message: None,
+                show_document: None,
+            }),
             text_document: None,
             experimental: None,
+            general: None,
+            offset_encoding: None,
         },
         trace: Some(TraceOption::Off),
         workspace_folders: None,
+        client_info: None,
+        locale: None,
     };
     Request { id: next_id(), params, received: Instant::now(), _action: PhantomData }
 }

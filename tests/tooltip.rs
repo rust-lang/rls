@@ -26,9 +26,9 @@ pub struct Test {
     /// Relative to the project _source_ dir (e.g. relative to $FIXTURES_DIR/hover/src)
     pub file: String,
     /// One-based line number
-    pub line: u64,
+    pub line: u32,
     /// One-based column number
-    pub col: u64,
+    pub col: u32,
 }
 
 impl Test {
@@ -75,7 +75,7 @@ impl TestResult {
 }
 
 impl Test {
-    pub fn new(file: &str, line: u64, col: u64) -> Test {
+    pub fn new(file: &str, line: u32, col: u32) -> Test {
         Test { file: file.into(), line, col }
     }
 
@@ -86,7 +86,7 @@ impl Test {
     fn run(&self, project_dir: &Path, ctx: &InitActionContext) -> TestResult {
         let url = Url::from_file_path(project_dir.join("src").join(&self.file)).expect(&self.file);
         let doc_id = TextDocumentIdentifier::new(url);
-        let position = Position::new(self.line - 1u64, self.col - 1u64);
+        let position = Position::new(self.line - 1, self.col - 1);
         let params = TextDocumentPositionParams::new(doc_id, position);
         let result = tooltip(&ctx, &params)
             .map_err(|e| format!("tooltip error: {:?}", e))

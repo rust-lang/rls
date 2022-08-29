@@ -12,3 +12,5 @@ impl Eq for Bar {}
 
 impl Sub for Foo {}
 impl Super for Foo {}
+
+fn main() {}

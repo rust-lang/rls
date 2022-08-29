@@ -73,6 +73,7 @@ impl RequestAction for WorkspaceSymbol {
                     .and_then(|id| analysis.get_def(id).ok())
                     .map(|parent| parent.name),
                 deprecated: None,
+                tags: None,
             })
             .collect())
     }
@@ -111,6 +112,7 @@ impl RequestAction for Symbols {
                     .and_then(|id| analysis.get_def(id).ok())
                     .map(|parent| parent.name),
                 deprecated: None,
+                tags: None,
             })
             .collect())
     }
@@ -127,7 +129,7 @@ impl RequestAction for Hover {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        let tooltip = hover::tooltip(&ctx, &params)?;
+        let tooltip = hover::tooltip(&ctx, &params.text_document_position_params)?;
 
         Ok(lsp_data::Hover {
             contents: HoverContents::Array(tooltip.contents),
@@ -147,8 +149,12 @@ impl RequestAction for Implementation {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        let file_path = parse_file_path!(&params.text_document.uri, "find_impls")?;
-        let span = ctx.convert_pos_to_span(file_path, params.position);
+        let file_path = parse_file_path!(
+            &params.text_document_position_params.text_document.uri,
+            "find_impls"
+        )?;
+        let span =
+            ctx.convert_pos_to_span(file_path, params.text_document_position_params.position);
         let analysis = ctx.analysis;
 
         let type_id = analysis.id(&span).map_err(|_| ResponseError::Empty)?;
@@ -179,8 +185,10 @@ impl RequestAction for Definition {
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
         // Save-analysis thread.
-        let file_path = parse_file_path!(&params.text_document.uri, "goto_def")?;
-        let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
+        let file_path =
+            parse_file_path!(&params.text_document_position_params.text_document.uri, "goto_def")?;
+        let span = ctx
+            .convert_pos_to_span(file_path.clone(), params.text_document_position_params.position);
 
         if let Ok(out) = ctx.analysis.goto_def(&span) {
             let result = vec![ls_util::rls_to_location(&out)];
@@ -194,7 +202,7 @@ impl RequestAction for Definition {
             if racer_enabled {
                 let cache = ctx.racer_cache();
                 let session = ctx.racer_session(&cache);
-                let location = pos_to_racer_location(params.position);
+                let location = pos_to_racer_location(params.text_document_position_params.position);
 
                 let r = racer::find_definition(file_path, location, &session)
                     .and_then(|rm| location_from_racer_match(&rm))
@@ -272,7 +280,7 @@ impl RequestAction for Completion {
                     let snippet = racer::snippet_for_match(&comp, &session);
                     if !snippet.is_empty() {
                         item.insert_text = Some(snippet);
-                        item.insert_text_format = Some(InsertTextFormat::Snippet);
+                        item.insert_text_format = Some(InsertTextFormat::SNIPPET);
                     }
                 }
                 item
@@ -292,8 +300,10 @@ impl RequestAction for DocumentHighlight {
         ctx: InitActionContext,
         params: Self::Params,
     ) -> Result<Self::Response, ResponseError> {
-        let file_path = parse_file_path!(&params.text_document.uri, "highlight")?;
-        let span = ctx.convert_pos_to_span(file_path.clone(), params.position);
+        let file_path =
+            parse_file_path!(&params.text_document_position_params.text_document.uri, "highlight")?;
+        let span = ctx
+            .convert_pos_to_span(file_path.clone(), params.text_document_position_params.position);
 
         let result = ctx.analysis.find_all_refs(&span, true, false).unwrap_or_else(|_| vec![]);
 
@@ -303,7 +313,7 @@ impl RequestAction for DocumentHighlight {
                 if span.file == file_path {
                     Some(lsp_data::DocumentHighlight {
                         range: ls_util::rls_to_range(span.range),
-                        kind: Some(DocumentHighlightKind::Text),
+                        kind: Some(DocumentHighlightKind::TEXT),
                     })
                 } else {
                     None
@@ -317,7 +327,11 @@ impl RequestAction for Rename {
     type Response = ResponseWithMessage<WorkspaceEdit>;
 
     fn fallback_response() -> Result<Self::Response, ResponseError> {
-        Ok(ResponseWithMessage::Response(WorkspaceEdit { changes: None, document_changes: None }))
+        Ok(ResponseWithMessage::Response(WorkspaceEdit {
+            changes: None,
+            document_changes: None,
+            change_annotations: None,
+        }))
     }
 
     fn handle(
@@ -393,6 +407,7 @@ impl RequestAction for Rename {
         Ok(ResponseWithMessage::Response(WorkspaceEdit {
             changes: Some(edits),
             document_changes: None,
+            change_annotations: None,
         }))
     }
 }
@@ -409,7 +424,7 @@ impl server::Response for ExecuteCommandResponse {
         match self {
             ExecuteCommandResponse::ApplyEdit(ref params) => {
                 let id = out.provide_id();
-                let params = ApplyWorkspaceEditParams { edit: params.edit.clone() };
+                let params = ApplyWorkspaceEditParams { edit: params.edit.clone(), label: None };
 
                 let request = Request::<ApplyWorkspaceEdit>::new(id, params);
                 out.request(request);
@@ -450,7 +465,7 @@ fn apply_suggestion(args: &[serde_json::Value]) -> Result<ApplyWorkspaceEditPara
     let new_text = serde_json::from_value(args[1].clone()).expect("Bad argument");
 
     trace!("apply_suggestion {:?} {}", location, new_text);
-    Ok(ApplyWorkspaceEditParams { edit: make_workspace_edit(location, new_text) })
+    Ok(ApplyWorkspaceEditParams { edit: make_workspace_edit(location, new_text), label: None })
 }
 
 fn apply_deglobs(
@@ -473,12 +488,13 @@ fn apply_deglobs(
     // all deglob results will share the same URI
     let changes: HashMap<_, _> = vec![(uri, text_edits)].into_iter().collect();
 
-    let edit = WorkspaceEdit { changes: Some(changes), document_changes: None };
+    let edit =
+        WorkspaceEdit { changes: Some(changes), document_changes: None, change_annotations: None };
 
     if !ctx.quiescent.load(Ordering::SeqCst) {
         return Err(ResponseError::Empty);
     }
-    Ok(ApplyWorkspaceEditParams { edit })
+    Ok(ApplyWorkspaceEditParams { edit, label: None })
 }
 
 /// Creates `CodeAction`s for fixes suggested by the compiler.

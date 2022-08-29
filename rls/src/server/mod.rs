@@ -25,8 +25,9 @@ pub use lsp_types::request::Initialize as InitializeRequest;
 pub use lsp_types::request::Shutdown as ShutdownRequest;
 use lsp_types::{
     CodeActionProviderCapability, CodeLensOptions, CompletionOptions, ExecuteCommandOptions,
-    ImplementationProviderCapability, InitializeParams, InitializeResult, RenameProviderCapability,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, InitializeResult,
+    OneOf, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    WorkDoneProgressOptions,
 };
 use rls_analysis::AnalysisHost;
 use rls_vfs::Vfs;
@@ -89,7 +90,7 @@ pub(crate) fn maybe_notify_unknown_configs<O: Output>(out: &O, unknowns: &[Strin
         first = false;
     }
     out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-        typ: MessageType::Warning,
+        typ: MessageType::WARNING,
         message: msg,
     }));
 }
@@ -106,7 +107,7 @@ pub(crate) fn maybe_notify_deprecated_configs<O: Output>(out: &O, keys: &[String
         );
 
         out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-            typ: MessageType::Warning,
+            typ: MessageType::WARNING,
             message,
         }));
     }
@@ -131,7 +132,7 @@ pub(crate) fn maybe_notify_duplicated_configs<O: Output>(
         msg += "; ";
     }
     out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-        typ: MessageType::Warning,
+        typ: MessageType::WARNING,
         message: format!("Duplicated RLS configuration: {}", msg),
     }));
 }
@@ -191,7 +192,11 @@ impl BlockingRequestAction for InitializeRequest {
         maybe_notify_deprecated_configs(&out, &deprecated);
         maybe_notify_duplicated_configs(&out, &dups);
 
-        let result = InitializeResult { capabilities: server_caps(ctx) };
+        let result = InitializeResult {
+            capabilities: server_caps(ctx),
+            server_info: None,
+            offset_encoding: None,
+        };
 
         // Send response early before `ctx.init` to enforce
         // initialize-response-before-all-other-messages constraint.
@@ -435,22 +440,25 @@ pub enum ServerStateChange {
 fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
     ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(
-            TextDocumentSyncKind::Incremental,
+            TextDocumentSyncKind::INCREMENTAL,
         )),
-        hover_provider: Some(true),
+        hover_provider: Some(HoverProviderCapability::Simple(true)),
         completion_provider: Some(CompletionOptions {
             resolve_provider: Some(true),
             trigger_characters: Some(vec![".".to_string(), ":".to_string()]),
+            all_commit_characters: None,
+            work_done_progress_options: WorkDoneProgressOptions { work_done_progress: Some(false) },
+            completion_item: None,
         }),
-        definition_provider: Some(true),
+        definition_provider: Some(OneOf::Left(true)),
         type_definition_provider: None,
         implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
-        references_provider: Some(true),
-        document_highlight_provider: Some(true),
-        document_symbol_provider: Some(true),
-        workspace_symbol_provider: Some(true),
+        references_provider: Some(OneOf::Left(true)),
+        document_highlight_provider: Some(OneOf::Left(true)),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        workspace_symbol_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
-        document_formatting_provider: Some(true),
+        document_formatting_provider: Some(OneOf::Left(true)),
         execute_command_provider: Some(ExecuteCommandOptions {
             // We append our pid to the command so that if there are multiple
             // instances of the RLS then they will have unique names for the
@@ -459,14 +467,15 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
                 format!("rls.applySuggestion-{}", ctx.pid()),
                 format!("rls.deglobImports-{}", ctx.pid()),
             ],
+            work_done_progress_options: WorkDoneProgressOptions { work_done_progress: Some(false) },
         }),
-        rename_provider: Some(RenameProviderCapability::Simple(true)),
+        rename_provider: Some(OneOf::Left(true)),
         color_provider: None,
 
         // These are supported if the `unstable_features` option is set.
         // We'll update these capabilities dynamically when we get config
         // info from the client.
-        document_range_formatting_provider: Some(false),
+        document_range_formatting_provider: Some(OneOf::Left(false)),
 
         code_lens_provider: Some(CodeLensOptions { resolve_provider: Some(false) }),
         document_on_type_formatting_provider: None,
@@ -475,6 +484,13 @@ fn server_caps(ctx: &ActionContext) -> ServerCapabilities {
         folding_range_provider: None,
         workspace: None,
         selection_range_provider: None,
+        document_link_provider: None,
+        declaration_provider: None,
+        call_hierarchy_provider: None,
+        semantic_tokens_provider: None,
+        moniker_provider: None,
+        linked_editing_range_provider: None,
+        experimental: None,
     }
 }
 
@@ -507,9 +523,13 @@ mod test {
                 window: None,
                 text_document: None,
                 experimental: None,
+                general: None,
+                offset_encoding: None,
             },
             trace: Some(lsp_types::TraceOption::Off),
             workspace_folders: None,
+            client_info: None,
+            locale: None,
         }
     }
 

@@ -579,7 +579,7 @@ impl FileWatch {
         }
 
         let local = &path[self.project_uri.len()..];
-        local == "/Cargo.lock" || (local == "/target" && kind == FileChangeType::Deleted)
+        local == "/Cargo.lock" || (local == "/target" && kind == FileChangeType::DELETED)
     }
 
     #[inline]
@@ -589,7 +589,7 @@ impl FileWatch {
 
     #[inline]
     pub fn is_relevant_save_doc(&self, did_save: &DidSaveTextDocumentParams) -> bool {
-        self.relevant_change_kind(&did_save.text_document.uri, FileChangeType::Changed)
+        self.relevant_change_kind(&did_save.text_document.uri, FileChangeType::CHANGED)
     }
 }
 
@@ -629,12 +629,13 @@ mod test {
     }
 
     fn change(url: &str) -> FileEvent {
-        FileEvent::new(Url::parse(url).unwrap(), FileChangeType::Changed)
+        FileEvent::new(Url::parse(url).unwrap(), FileChangeType::CHANGED)
     }
 
     fn did_save(url: &str) -> DidSaveTextDocumentParams {
         DidSaveTextDocumentParams {
             text_document: TextDocumentIdentifier::new(Url::parse(url).unwrap()),
+            text: None,
         }
     }
 

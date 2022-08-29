@@ -265,9 +265,7 @@ impl<T: AsyncRead + AsyncWrite> RlsHandle<T> {
     /// Blocks until the processing (building + indexing) is done by the RLS.
     #[allow(clippy::bool_comparison)]
     pub fn wait_for_indexing(&mut self) {
-        self.wait_for_message(|msg| {
-            msg["params"]["title"] == "Indexing" && msg["params"]["done"] == true
-        });
+        self.wait_for_message(|msg| msg["params"]["value"]["kind"] == "end");
     }
 
     /// Blocks until a "textDocument/publishDiagnostics" message is received.

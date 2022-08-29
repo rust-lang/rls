@@ -3,7 +3,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::server::{Notification, Output};
 use lazy_static::lazy_static;
 use lsp_types::notification::{Progress, PublishDiagnostics, ShowMessage};
-use lsp_types::{MessageType, ProgressParams, PublishDiagnosticsParams, ShowMessageParams};
+use lsp_types::{
+    MessageType, NumberOrString, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams,
+    ShowMessageParams, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd,
+    WorkDoneProgressReport,
+};
 
 /// Communication of build progress back to the client.
 pub trait ProgressNotifier: Send {
@@ -37,11 +41,16 @@ fn new_progress_params(title: String) -> ProgressParams {
     }
 
     ProgressParams {
-        id: format!("progress_{}", PROGRESS_ID_COUNTER.fetch_add(1, Ordering::SeqCst)),
-        title,
-        message: None,
-        percentage: None,
-        done: None,
+        token: NumberOrString::String(format!(
+            "progress_{}",
+            PROGRESS_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
+        )),
+        value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(WorkDoneProgressBegin {
+            title,
+            cancellable: None,
+            message: None,
+            percentage: None,
+        })),
     }
 }
 
@@ -67,15 +76,45 @@ impl<O: Output> ProgressNotifier for BuildProgressNotifier<O> {
     }
     fn notify_progress(&self, update: ProgressUpdate) {
         let mut params = self.progress_params.clone();
-        match update {
-            ProgressUpdate::Message(s) => params.message = Some(s),
-            ProgressUpdate::Percentage(p) => params.percentage = Some(p),
-        }
+
+        // set the value to WorkDoneProgress::Report if it is not
+        match &mut params.value {
+            ProgressParamsValue::WorkDone(work) => match work {
+                WorkDoneProgress::Report(_) => {}
+                _ => {
+                    params.value = ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
+                        WorkDoneProgressReport {
+                            cancellable: None,
+                            message: None,
+                            percentage: None,
+                        },
+                    ))
+                }
+            },
+        };
+
+        match &mut params.value {
+            ProgressParamsValue::WorkDone(work) => match work {
+                WorkDoneProgress::Report(value) => match update {
+                    ProgressUpdate::Message(m) => {
+                        value.message = Some(m);
+                    }
+                    ProgressUpdate::Percentage(p) => {
+                        value.percentage = Some(p as u32);
+                    }
+                },
+                _ => {
+                    unreachable!("params.value is set to WorkDoneProgress::Report");
+                }
+            },
+        };
         self.out.notify(Notification::<Progress>::new(params));
     }
     fn notify_end_progress(&self) {
         let mut params = self.progress_params.clone();
-        params.done = Some(true);
+        params.value = ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
+            message: None,
+        }));
         self.out.notify(Notification::<Progress>::new(params));
     }
 }
@@ -110,13 +149,15 @@ impl<O: Output> DiagnosticsNotifier for BuildDiagnosticsNotifier<O> {
     }
     fn notify_error_diagnostics(&self, message: String) {
         self.out.notify(Notification::<ShowMessage>::new(ShowMessageParams {
-            typ: MessageType::Error,
+            typ: MessageType::ERROR,
             message,
         }));
     }
     fn notify_end_diagnostics(&self) {
         let mut params = self.progress_params.clone();
-        params.done = Some(true);
+        params.value = ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
+            message: None,
+        }));
         self.out.notify(Notification::<Progress>::new(params));
     }
 }
