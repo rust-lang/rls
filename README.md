@@ -1,4 +1,11 @@
-[![Build Status](https://github.com/rust-lang/rls/workflows/CI/badge.svg?branch=master)](https://github.com/rust-lang/rls/actions?query=workflow%3ACI+branch%3Amaster)
+# ⚠️ RLS is no longer supported
+
+RLS has been deprecated and is no longer supported.
+It has been replaced with [rust-analyzer](https://rust-analyzer.github.io/).
+Users are encouraged to uninstall RLS and follow the instructions in the
+rust-analyzer manual to install it for your editor.
+
+----
 
 # Rust Language Server (RLS)
 
